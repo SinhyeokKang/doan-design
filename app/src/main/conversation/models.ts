@@ -1,13 +1,12 @@
 import { object } from "./sessions";
+import { CLAUDE_FAST_REASONS } from "./transport";
 import type { Provider } from "../agentAuth/types";
 import type { Prepared } from "./service";
 import type { FastUnusedReason } from "./types";
 import type { AcpModes } from "./permissionMode";
 
-// One model the provider listed for a folder. efforts: the levels that model takes, only from Claude and Codex
-// (Cursor and Antigravity put effort in the model ID, Copilot has none). defaultEffort: Codex's default level of that
-// model, which a send names when the choice has none: turn/start's effort holds for later turns too (0.164.0
-// TurnStartParams), so leaving it out would keep the previous turn's level on a reused server.
+// One model the provider listed for a folder. efforts: only from Claude and Codex (the others put effort in the ID or
+// have none). defaultEffort: Codex's default, sent when the choice has none, as turn/start's effort holds for later turns.
 export interface ModelOption { id: string; label: string; default: boolean; older?: true; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // A provider's list for a folder. modes: the ACP server's mode list from the same session/new reply (none for Claude
 // and Codex, whose four modes are fixed, or for an ACP server that listed none).
@@ -52,7 +51,7 @@ function markOlder(models: ModelOption[], name: (m: ModelOption) => string = m =
   const older = olderIds(models.map(m => ({ id: m.id, name: name(m), isDefault: m.default })));
   return models.map(m => older.has(m.id) ? { ...m, older: true } : m);
 }
-// Agent SDK Query.supportedModels() rows; the "default" row is the account's default (0.3.312).
+// Agent SDK Query.supportedModels() rows; the "default" row is the account's default.
 export function parseClaudeModels(rows: unknown): ModelOption[] {
   if (!Array.isArray(rows)) throw new Error("session_unavailable");
   const models = rows.filter(object).filter(r => text(r.value));
@@ -70,7 +69,7 @@ export function parseClaudeModels(rows: unknown): ModelOption[] {
   for (const r of models) if (!resolvedOf.has(String(r.value))) resolvedOf.set(String(r.value), r.resolvedModel);
   return markOlder(kept, m => { const resolved = resolvedOf.get(m.id); return text(resolved) ? resolved : m.id; });
 }
-// Codex app-server model/list result (0.164.0): {data: [{id, displayName, isDefault, supportedReasoningEfforts}]}.
+// Codex app-server model/list result: {data: [{id, displayName, isDefault, supportedReasoningEfforts}]}.
 export function parseCodexModels(result: unknown): ModelOption[] {
   if (!object(result) || !Array.isArray(result.data)) throw new Error("session_unavailable");
   return markOlder(unique(result.data.filter(object).filter(r => text(r.id) && r.hidden !== true).map(r => {
@@ -80,9 +79,11 @@ export function parseCodexModels(result: unknown): ModelOption[] {
     return { id: String(r.id), label: text(r.displayName) ? r.displayName : String(r.id), default: r.isDefault === true, ...(efforts ? { efforts } : {}), ...(fallback ? { defaultEffort: fallback } : {}), ...(priority ? { fast: { ...(text(priority.description) ? { description: priority.description } : {}) } } : {}) };
   })));
 }
-// Model-specific and transient failures do not disable other Fast rows during a list read.
+// Model-specific and transient failures do not disable other Fast rows during a list read: model_not_allowed is about
+// the model the read ran on.
+const ACCOUNT_FAST_REASONS = Object.fromEntries(Object.entries(CLAUDE_FAST_REASONS).filter(([reason]) => reason !== "model_not_allowed"));
 export function applyClaudeFastUnavailable(disabledReason: unknown, models: ModelOption[]): ModelOption[] {
-  const unavailable: FastUnusedReason | undefined = disabledReason === "free" ? "plan" : disabledReason === "extra_usage_disabled" ? "extra_usage" : disabledReason === "preference" ? "policy" : undefined;
+  const unavailable = typeof disabledReason === "string" && Object.hasOwn(ACCOUNT_FAST_REASONS, disabledReason) ? ACCOUNT_FAST_REASONS[disabledReason] : undefined;
   return unavailable ? models.map(m => m.fast ? { ...m, fast: { ...m.fast, unavailable } } : m) : models;
 }
 // ACP session/new result: models {currentModelId, availableModels [{modelId, name}]}. Copilot lists `auto` twice.

@@ -127,9 +127,8 @@ it("does not reuse an unconfirmed Claude process or a Codex server without expli
   expect(reserveSession([{ owner: "a", key: codex }], "a", codex)).toEqual({ ok: false, code: "busy" });
   expect(reserveSession([{ owner: "a", key: codex }], "a", codex, true).ok).toBe(true);
 });
-// An earlier build archived a conversation with a conversation.archived line and made it current again with
-// conversation.restored. Nothing is archived any more: the archive line only expires the requests still open, and the
-// turn's events after it fold as any others.
+// An earlier build archived a conversation (conversation.archived) and made it current again (conversation.restored).
+// The archive line now only expires the open requests, and the turn's later events fold as any others.
 describe("an earlier build's archive and restore lines", () => {
   it("folds the same turn's late events after an archive line", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "conversation.archived" }), event(3, { type: "message.delta", messageId: "m", text: "late" }), event(4, { type: "turn.done" })], "a", false);
@@ -152,7 +151,7 @@ describe("an earlier build's archive and restore lines", () => {
     ], "a", false);
     expect(state.turn).toBe("streaming");
     expect(state.lastSeq).toBe(8);
-    // A turn's events after its end were fenced before and still are.
+    // A turn's events after its end are fenced.
     expect(state.messages).toEqual([{ id: "m", text: "back", done: false }]);
   });
   it("records a bound marker without changing the turn", () => {
@@ -170,9 +169,8 @@ describe("a turn with two user.message events", () => {
     expect(foldConversation([...events, event(5, { type: "turn.done" })], "a", false).turn).toBe("idle");
   });
 });
-// A request lives in its turn, its resolution comes after the turn's end, and a
-// request a restart finds unresolved reads as cancelled. A turn may ask for several canvases: each resolution names its
-// request's path, and a line written before that resolves the turn's only request.
+// A request lives in its turn and its resolution comes after the turn's end; a restart reads an unresolved one as
+// cancelled. Each resolution names its request's path; a line without one resolves the turn's only request.
 describe("handoff fold", () => {
   const path = ".doan/canvases/new.html", other = ".doan/canvases/other.html";
   const requested: EventPayload = { type: "handoff.requested", canvas: { path }, text: "Continue the checkout flow." };
@@ -223,5 +221,20 @@ describe("handoff fold", () => {
       expect(foldConversation(turn({ type: "handoff.missed", canvas: missed }), "a", restarting).handoffs["turn-1"]?.at(-1)).toEqual({ canvas: missed, outcome: "missed" });
       expect(foldConversation([event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "handoff.missed", canvas: missed })], "a", restarting).handoffs).toEqual({ "turn-1": [{ canvas: missed, outcome: "missed" }] });
     }
+  });
+});
+
+describe("activity.result in the fold", () => {
+  const edit: EventPayload = { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" };
+  const result: EventPayload = { type: "activity.result", callId: "c1", path: "a.ts", lines: { added: 2, removed: 1 } };
+  it("changes neither the turn's state, its requests nor its messages", () => {
+    const without = [event(1, { type: "turn.started" }), event(2, edit), event(3, permission)];
+    const withResult = [event(1, { type: "turn.started" }), event(2, edit), event(3, result), event(4, permission)];
+    expect(foldConversation(withResult, "a", false)).toEqual({ ...foldConversation(without, "a", false), lastSeq: 4 });
+    // A result alone after the turn started does not make it stream.
+    expect(foldConversation([event(1, { type: "turn.started" }), event(2, result)], "a", false).turn).toBe("starting");
+    // After a resolution, the turn goes on as it would without the result.
+    const resolved = [...withResult, event(5, { type: "permission.resolved", requestId: "r", optionId: "allow" }), event(6, result)];
+    expect(foldConversation(resolved, "a", false).turn).toBe(foldConversation(resolved.slice(0, -1), "a", false).turn);
   });
 });

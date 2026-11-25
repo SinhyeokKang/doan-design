@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -36,6 +38,29 @@ func TestHandoffTextLimitMatchesSchema(t *testing.T) {
 	}
 	if got := schema.Defs.Request.Properties.Text.MaxLength; got == 0 || got != handoffTextLimit {
 		t.Fatalf("schema maxLength %d, handoffTextLimit %d", got, handoffTextLimit)
+	}
+}
+
+// The app reads request lines up to LINE_LIMIT; reading its source keeps the two sides from drifting.
+func TestSocketLineLimitMatchesApp(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "app", "src", "main", "runtime.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`(?m)^const LINE_LIMIT = ([0-9]+(?: \* [0-9]+)*);$`).FindSubmatch(data)
+	if match == nil {
+		t.Fatal("runtime.ts has no `const LINE_LIMIT = <n> [* <n>]...;` line")
+	}
+	got := 1
+	for _, factor := range strings.Split(string(match[1]), " * ") {
+		n, err := strconv.Atoi(factor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got *= n
+	}
+	if got != socketLineLimit {
+		t.Fatalf("app LINE_LIMIT %d, socketLineLimit %d", got, socketLineLimit)
 	}
 }
 
@@ -323,7 +348,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 			}
 		}
 	}
-	// A project conversation hands off too, so the step no longer says only a canvas conversation does.
+	// A project conversation hands off too, so the step does not say only a canvas conversation does.
 	if steps := strings.Join(handoffFailure("not_app_conversation", "m").NextSteps, "\n"); strings.Contains(steps, "canvas conversation") {
 		t.Errorf("not_app_conversation: still names a canvas conversation: %q", steps)
 	}

@@ -1,6 +1,5 @@
-// Text an approval card shows comes from the agent. Bidi controls can reorder what the person reads against what runs,
-// and zero-width, tag, variation-selector and other default-ignorable code points draw as nothing and can hide part of
-// it, so each one reads as `<U+XXXX>`. Line feeds and tabs stay: commands span lines and the card keeps their layout.
+// Agent text on an approval card: bidi controls can reorder what is read against what runs, and default-ignorable code
+// points draw as nothing, so each reads as `<U+XXXX>`. Line feeds and tabs stay: commands span lines.
 const INVISIBLE = /(?![\n\t])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/gu;
 const escaped = (char: string) => `<U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}>`;
 export function visibleText(text: string): string { return text.replace(INVISIBLE, escaped); }

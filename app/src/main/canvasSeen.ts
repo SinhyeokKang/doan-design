@@ -4,16 +4,13 @@ import { dirname, join } from "node:path";
 import type { MarkerRead, RecordRead } from "./seenRecords";
 import { validCanvasId } from "./seenRecords";
 
-// Whether each canvas is new or changed since the person last had it on the canvas page. The read state lives on this
-// device only, in `<userData>/canvas-seen.json` (v3, below), so showing a canvas changes no file in the project. This
-// file holds that store and the pure verdicts over it; readState.ts wires them to the listings, the watcher and the
-// canvas page. Only TS reads and writes the file, so its tests are its schema.
+// Whether each canvas is new or changed since the person last had it on the canvas page. The state lives on this
+// device only (`<userData>/canvas-seen.json` v3), so showing a canvas changes no project file; only TS reads it.
 
 export type Verdict = "new" | "changed" | "seen";
 
-// An older Doan's per-root memory (canvas-seen.json v1 and v2), read only to convert a root that has not migrated yet:
-// `legacy`, a v1 Doan's mtimes; `baseline`, the first listing's fingerprints frozen until the project's shared records
-// landed; `known`, the canvas IDs that had a shared record at the last good read, with their verdict.
+// An older Doan's per-root memory (v1, v2), read only to convert a root not migrated yet: `legacy` mtimes, `baseline`
+// fingerprints frozen until the shared records landed, `known` IDs that had a shared record at the last good read.
 export interface RootMemory {
   legacy?: Record<string, number>;
   baseline?: Record<string, string>;
@@ -58,10 +55,8 @@ export interface LocalSeen {
   commit(root: string, record: RootRecord): boolean;
   // Writes the file if an earlier write failed. Called at quit.
   flushSync(): void;
-  // Copies each alias root's record to its real path (FolderStore's startup step), before the first listing: a
-  // spelling change is the same project, not one leaving the list (mergeRoots). The alias's record stays, so whichever
-  // spelling this run lists keeps it. True once the file holds the copy; false, with nothing changed, when it cannot be
-  // written (a write error, or a file this run never writes).
+  // Copies each alias root's record to its real path before the first listing; a spelling change is the same project
+  // (mergeRoots). The alias's record stays. False, with nothing changed, when the file cannot be written.
   copyRoots(aliases: ReadonlyMap<string, string>): boolean;
   // What the load found: `corrupt`, a file that was not a canvas-seen.json, moved aside so this run starts empty;
   // `newer`, a later Doan's file, never overwritten, so this run's verdicts live in memory only.
@@ -161,8 +156,6 @@ export function createLocalSeen(file: string, write: (file: string, text: string
   };
 }
 
-// ---- verdicts ------------------------------------------------------------------------------------------------------
-
 export interface SeenRow {
   path: string;
   // As listed; only a valid ID that no other listed canvas of the root has keys a record.
@@ -211,13 +204,8 @@ function judgeV2(memory: RootMemory, reads: SeenReads, rows: readonly SeenRow[],
   return verdicts;
 }
 
-// ---- device-local records (canvas-seen.json v3) ---------------------------------------------------------------------
-//
-// v3 keeps the whole read state on this device, so showing a canvas changes no file in the project. Per root:
-// `canvases`, keyed by canvas ID, holds `{html}` (the content last shown) or `{unseen}` ("new": judged a new canvas;
-// "migrated": unseen when the root's shared records were converted, content never recorded); `migrated` says the root's
-// `.doan/seen/` was read once into it and is never read again; `v2` is an older Doan's memory of a root not migrated
-// yet, kept until migrateRoot reads it.
+// v3 keeps the whole read state on this device. `canvases` by ID: `{html}` (content last shown) or `{unseen}`;
+// `migrated`: the root's `.doan/seen/` was read once and never again; `v2`: older memory kept until migrateRoot.
 
 export type CanvasRecord = { html: string } | { unseen: "new" | "migrated" };
 export interface RootRecord {
@@ -268,12 +256,8 @@ export function localSeenText(roots: ReadonlyMap<string, RootRecord>): string {
   return `${JSON.stringify({ v: 3, roots: value })}\n`;
 }
 
-// A root's first read of its `.doan/seen/`, turned into its local record so every canvas shows the same dot as before.
-// A valid record under a present marker is copied when this device has its own older memory of the root (`memory`);
-// without it the records are someone else's, and every canvas starts seen. Anything else (a damaged, conflicted, unreadable or later-version
-// record, a bad or missing marker, a refused folder, no record) carries what this device showed: its v2 verdict, which
-// already falls back to `last` where the records could not be read; an older Doan's mtimes convert as they always did.
-// Without either, the canvas starts seen: a first registration lights nothing.
+// A root's one read of `.doan/seen/`, keeping each dot. Valid records under a present marker are copied only if this
+// device remembers the root; every other row carries its v2 verdict or old mtime, else starts seen.
 export function migrateRoot(memory: RootMemory | undefined, reads: SeenReads, rows: readonly SeenRow[], last: (row: SeenRow) => Verdict | undefined): RootRecord {
   const ids = uniqueIds(rows);
   // Only a root this device knew under an older Doan carries its shared records over: a new worktree or another machine
@@ -299,9 +283,8 @@ export function migrateRoot(memory: RootMemory | undefined, reads: SeenReads, ro
   return { migrated: true, canvases };
 }
 
-// The first listing after start or registration: every unique ID without a record is recorded as seen, so canvases
-// that appeared while the app was not watching (a pull, a branch switch, a run while it was closed) light nothing.
-// Records already there are kept, so a root registered again compares with them. The same record when nothing is added.
+// The first listing after start or registration records every unique ID without a record as seen, so canvases that
+// appeared while the app was not watching light nothing. Existing records are kept; the same record when nothing is added.
 export function absorbFirst(record: RootRecord, rows: readonly SeenRow[]): RootRecord {
   const ids = uniqueIds(rows);
   const added: Record<string, CanvasRecord> = {};

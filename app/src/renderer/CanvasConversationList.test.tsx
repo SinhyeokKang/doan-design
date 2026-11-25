@@ -58,7 +58,7 @@ describe("canvas conversation list", () => {
     expect(panel).toContain('<aside class="right doan-scroll ov-right" role="region" aria-label="Conversations"><h2 class="phead rp-head" tabindex="-1">Conversations</h2><ul class="rp-list"');
   });
 
-  // Draft frame overview-rows: the head is the conversation's title, the caption line under it the canvas name.
+  // The head is the conversation's title, the caption line under it the canvas name.
   test("a row draws the provider logo, conversation title, status mark, short time, canvas caption and preview", () => {
     const b = item(html, "b");
     expect(b).toContain('alt="Codex"');
@@ -110,8 +110,7 @@ describe("canvas conversation list", () => {
   });
 
   test("a deleted canvas and a shared id are disabled, their reason the description", () => {
-    // Draft frame overview-rows: the head is the conversation's title; the caption line carries the canvas name and
-    // the reason.
+    // The head is the conversation's title; the caption line carries the canvas name and the reason.
     for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID. Run doan check in a terminal."]] as const) {
       const li = item(html, key);
       expect(li).toContain('aria-disabled="true"');
@@ -128,7 +127,6 @@ describe("canvas conversation list", () => {
     expect(li).toContain('class="cv-canvas note">legacy · Can’t read this canvas. Run doan check in a terminal.</small>');
   });
 
-  // Draft frames cv-delete, cv-special: the title menu's Delete on every row.
   test("every row, special rows included, has a Delete beside its row button, named by the conversation", () => {
     for (const key of ["b", "r", "f", "l", "g", "t"]) {
       const li = item(html, key);
@@ -175,13 +173,13 @@ describe("canvas conversation list", () => {
     expect(render("loading")).toBe('<p class="rp-loading" role="status"></p>');
   });
 
-  // U39: the panel is white, where a panel button has no fill; subtle keeps one.
+  // The panel is white, where a panel button has no fill; subtle keeps one.
   test("a failed read offers Retry", () => {
     // DESIGN 'No coloured edge stripes': an error leads with the alert icon, so colour is not its only signal.
     expect(render("error")).toMatch(/^<div class="rp-error" role="status"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>Couldn’t read conversations<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry<\/button><\/div>$/);
   });
 
-  // D11: busy while the list is read again; the same failure again changes the line by a no-break space.
+  // Busy while the list is read again; the same failure again changes the line by a no-break space.
   test("Retry runs while the list is read again, and a repeated failure is announced again", () => {
     const html = (listRetry: { running: boolean; failures: number }) => markup(<TooltipProvider><CanvasConversationList list="error" listRetry={listRetry} current={null} project="acme-web" thumbnails={thumbnails}
       open={noop} retry={noop} onVisible={noop} onDelete={noop} scroller={{ current: null }} title={{ current: null }} /></TooltipProvider>);
@@ -190,7 +188,7 @@ describe("canvas conversation list", () => {
   });
 });
 
-// The Overview's Conversations list: project conversations beside canvas conversations (draft overview-conversation-list).
+// Project conversations beside canvas conversations.
 describe("project rows", () => {
   const mixed = canvasConversationRows([
     summary({ conversationId: "p1", title: "Pricing page copy", phase: "running", working: true, lastActivityAt: ago(0), preview: "Writing three options" }),
@@ -344,8 +342,7 @@ describe("observedRows", () => {
   });
 });
 
-// The Delete's press. Where focus goes after the delete is computed before the
-// confirmation opens, since the alert takes focus from the list.
+// Where focus goes after the delete is computed before the confirmation opens, since the alert takes focus from the list.
 function tree(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(tree);
   if (!isValidElement<Record<string, unknown>>(node)) return [];

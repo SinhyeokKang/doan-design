@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { claudeMcpGetUrl, parseClaudeMcpGet, parseCodexMcpList } from "./status";
 
-// Outputs from the 2026-11-04 PoC (Claude Code 2.1.318, Codex 0.166.0), with the server name set to doan-notion.
+// Real outputs of both CLIs, with the server name set to doan-notion.
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
 test("claude mcp get: an unknown name exits 1 and reads as not registered", () => {

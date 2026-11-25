@@ -4,9 +4,8 @@ import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 
-// The canvas conversation panel, run with hooks as plain state (the App tests' no-DOM
-// style): a terminal session choice that was chosen falls back to a new conversation while that session works in a
-// terminal, and stays a new conversation once the session ends, so the choice never flips back under a draft.
+// Hooks run as plain state: a chosen terminal session choice falls back to a new conversation while that session works
+// in a terminal, and stays new once it ends, so the choice never flips back under a draft.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -100,9 +99,8 @@ function resumeChoice(node: ReactNode): { offer: string; held: boolean } | null 
   return resumeChoice(element.props.children);
 }
 
-// On the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
-// the choice waits. The target is read again when the work list changes and when the window comes back, since nothing
-// tells the run when that process exits; the choice returns once the session can run.
+// The linked Claude session's terminal process holds it (session_in_use), so the choice waits. Nothing tells the run when
+// that process exits, so the target is read again when the work list changes and when the window comes back.
 test("a Claude session a terminal process holds waits on first entry and returns once it can run", async () => {
   const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
   (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
@@ -192,9 +190,8 @@ test("the panel hands the page's canvas press signal to its composer", async () 
   expect(composer(tree)?.canvasPress).toBe(canvasPress);
 });
 
-// A runtime finding in /design-sync: the move's arrival comes with the render that still
-// shows the canvas left behind, whose thread has no card. It waits for the receiving conversation and focuses its
-// card there instead of sending focus to the old composer.
+// The move's arrival comes with the render that still shows the canvas left behind, whose thread has no card; it waits
+// for the receiving conversation instead of sending focus to the old composer.
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
   const DRAFTS: Canvas = { path: ".doan/canvases/drafts.html", id: "drafts" };
   const entry: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: DRAFTS.path, id: "drafts", url: "d" }, { path: CANVAS.path, id: "checkout", url: "u" }] };
@@ -203,7 +200,7 @@ test("a handoff arrival waits for the receiving canvas and conversation, then is
   const list = [row("c-src", DRAFTS), row("c-recv", CANVAS)] as never[];
   const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: DRAFTS } };
   (window as unknown as { doan: Record<string, unknown> }).doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-recv" ? { events: [card], lastSeq: 1, turn: "idle" } : { events: [], lastSeq: 0, turn: "idle" });
-  vi.stubGlobal("document", { querySelector: () => null });
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: DRAFTS });
@@ -242,8 +239,7 @@ function dockedProps(node: ReactNode): Record<string, unknown> | null {
   return dockedProps(element.props.children);
 }
 
-// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered
-// choice carries no Fast, which only a switch records.
+// POSTMORTEM 2026-11-02: the panel's own start sends the Fast its switch shows, and its remembered choice carries no Fast.
 test("a new conversation started from the panel sends the Fast it shows and remembers none", async () => {
   const { authStatus } = await import("../main/agentAuth/state");
   const start = vi.fn(async (_request: unknown) => ({ conversationId: "c9" }));
@@ -421,4 +417,104 @@ test("the ring's usage stays hidden until the shown conversation's summary arriv
   expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
   expect(usage([] as never)).toBe(true);
   expect(usage(known)).toBe(true);
+});
+
+// The props the panel hands its ConversationThread, found in its element tree.
+function threadProps(node: ReactNode): Record<string, unknown> | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = threadProps(child); if (found) return found; } return null; }
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const element = node as { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+  if ((element.type as { render?: { name?: string } } | null)?.render?.name === "ConversationThread") return element.props;
+  return threadProps(element.props.children);
+}
+const threadRef = (node: ReactNode) => threadProps(node)?.ref as { current: { scrollToItem(key: string): void; focusItem(key: string): boolean } | null } | undefined;
+
+// A handoff moves the screen with no window-focus condition, so a turn that ends while the person is in another app moves
+// focus in the background; activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window
+// activation put focus on Hide sidebar'). The card, or the composer when no card is drawn, takes focus again on activation,
+// only while its conversation shows.
+test("a handoff arrival with the window in the background focuses the card or the composer again on activation, only while its conversation shows", async () => {
+  const row = (conversationId: string) => ({ conversationId, title: "t", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" });
+  const list = [row("c-recv"), row("c-other")] as never[];
+  const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: CANVAS } };
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-recv" ? { events: [card], lastSeq: 1, turn: "idle" } : { events: [], lastSeq: 0, turn: "idle" });
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => false, querySelectorAll: () => [] });
+  for (const { switched, drawn } of [{ switched: false, drawn: true }, { switched: true, drawn: true }, { switched: false, drawn: false }]) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+    const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
+    run.show({ root: ROOT, canvas: CANVAS });
+    run.request({ root: ROOT, canvas: CANVAS }, "c-recv", null);
+    run.sync();
+    await flush();
+    const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+    let arrival: { focus: "handoff"; seq: number; handoff: { root: string; canvas: Canvas; conversationId: string } } | null = null;
+    const panel = () => CanvasConversation({
+      calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+      prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival, onArrived: vi.fn(),
+      onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+      onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+    });
+    const tree = render(panel) as ReactElement<{ ref: { current: unknown } }>;
+    const field = { focus: vi.fn() };
+    tree.props.ref.current = { querySelector: (selector: string) => selector === ".composer-input" ? field : null };
+    const ref = threadRef(tree);
+    expect(ref).toBeDefined();
+    const handle = { scrollToItem: vi.fn(), focusItem: vi.fn((_key: string) => drawn) };
+    ref!.current = handle;
+    arrival = { focus: "handoff", seq: 7, handoff: { root: ROOT, canvas: CANVAS, conversationId: "c-recv" } };
+    render(panel);
+    await flush();
+    expect(handle.focusItem).toHaveBeenCalledOnce();
+    expect(field.focus).toHaveBeenCalledTimes(drawn ? 0 : 1);
+    const key = handle.focusItem.mock.calls[0]![0];
+    if (switched) { run.select("c-other"); await flush(); }
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(handle.focusItem).toHaveBeenCalledTimes(switched ? 1 : 3);
+    expect(field.focus).toHaveBeenCalledTimes(drawn ? 0 : 3);
+    for (const call of handle.focusItem.mock.calls) expect(call[0]).toBe(key);
+  }
+});
+
+test("Edit and resend answered with the window in the background focuses the field again on activation, only while its conversation shows", async () => {
+  const row = (conversationId: string) => ({ conversationId, title: "t", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" });
+  const list = [row("c1"), row("c2")] as never[];
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "c1", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload });
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.readConversation = vi.fn(async () => ({ events: [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), at(3, { type: "turn.done" })], lastSeq: 3, turn: "idle" }));
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => false, querySelectorAll: () => [] });
+  for (const switched of [false, true]) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+    const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
+    run.show({ root: ROOT, canvas: CANVAS });
+    run.request({ root: ROOT, canvas: CANVAS }, "c1", null);
+    run.sync();
+    await flush();
+    const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+    const panel = () => CanvasConversation({
+      calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+      prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+      onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+      onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+    });
+    const tree = render(panel) as ReactElement<{ ref: { current: unknown } }>;
+    const field = { focus: vi.fn() };
+    tree.props.ref.current = { querySelector: (selector: string) => selector === ".composer-input" ? field : null };
+    (threadProps(tree)!.onEditAndResend as () => void)();
+    await flush();
+    expect(field.focus).toHaveBeenCalledOnce();
+    if (switched) { run.select("c2"); await flush(); }
+    win.dispatchEvent(new Event("focus"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(field.focus).toHaveBeenCalledTimes(switched ? 1 : 3);
+  }
 });

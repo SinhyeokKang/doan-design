@@ -3,7 +3,6 @@ import type { ConversationEvent } from "../main/conversation/types";
 import { contextRing, contextText, tokenText } from "./contextWindow";
 import { DANGER, ringDanger } from "./ProgressRing";
 
-// The confirmed draft .doan/canvases/context-window-ring.html.
 let seq = 0;
 const ev = (payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId: "t1", at: "2026-11-06T00:00:00Z", ...payload } as ConversationEvent);
 const usage = (used: number, size: number) => ev({ type: "context.usage", used, size });

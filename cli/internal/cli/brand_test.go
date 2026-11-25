@@ -17,10 +17,8 @@ import (
 	"unicode/utf8"
 )
 
-// brandCandidate mirrors app/src/brand/candidates.ts: the product name in
-// human-facing text, and whether a lowercase `doan` there is prose (written Doan)
-// or a command, path or identifier that stays lowercase. Both read
-// schema/fixtures/brand/cases.json.
+// brandCandidate mirrors app/src/brand/candidates.ts (both read schema/fixtures/brand/cases.json): the product name in
+// human-facing text, and whether a lowercase `doan` there is prose (written Doan) or a command, path or identifier.
 type brandCandidate struct {
 	Index int    `json:"index"`
 	Form  string `json:"form"`
@@ -30,7 +28,7 @@ type brandCandidate struct {
 var (
 	brandWord = regexp.MustCompile(`\b(?:doan|Doan)\b`)
 	// `doan` followed by a subcommand, a flag, a placeholder or a noun naming the command.
-	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|config|design-skill|help|init|ls|onboarding|open|skill|version|work|CLI|command|server)(?:[^\w-]|$))`)
+	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|config|design-skill|export|handoff|help|init|ls|onboarding|open|remove|skill|version|work|CLI|command|server)(?:[^\w-]|$))`)
 	brandIdentBefore  = regexp.MustCompile(`(?:\w\.|[-@]|named )$`)
 	brandIdentAfter   = regexp.MustCompile(`^(?::|[-_]|\.\w)`)
 	brandAppAfter     = regexp.MustCompile(`^\.app\b`)
@@ -112,8 +110,17 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	}
 }
 
-// Human-facing CLI text names the product Doan (user decision 2026-10-30):
-// messages, nextSteps and --help are string literals in cli/.
+// Every subcommand reads as the command; candidates.test.ts holds the same cases.
+func TestBrandCandidatesKnowEverySubcommand(t *testing.T) {
+	for _, sub := range []string{"active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "version", "work"} {
+		text := "Run doan " + sub + " here."
+		if got := brandCandidates(text); !reflect.DeepEqual(got, []brandCandidate{{Index: 4, Form: "doan", Kind: "command"}}) {
+			t.Errorf("%s: %+v", sub, got)
+		}
+	}
+}
+
+// Human-facing CLI text names the product Doan: messages, nextSteps and --help are string literals in cli/.
 func TestCLIStringsNameTheProductDoan(t *testing.T) {
 	root := filepath.Join("..", "..")
 	var violations []string

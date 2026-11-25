@@ -10,9 +10,8 @@ import { OPEN_ANSWER_TIMEOUT_MS, openRequests, type OpenAsk, type OpenRequestsHo
 import { answerLine, LINE_WAIT_MS, startRuntime, type Runtime } from "./runtime";
 import type { FolderState } from "./folderState";
 
-// App-socket v4 (`doan open`), main's half. answerLine checks schema, token and registered root
-// in the v3 order; openRequests (deepLinks.ts) then answers readiness and the list itself and asks the renderer, by id,
-// for everything else.
+// answerLine checks schema, token and registered root in the v3 order; openRequests (deepLinks.ts) then answers
+// readiness and the list itself and asks the renderer, by id, for everything else.
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request: OpenRequest = { v: 4, token, root, path };
 const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v4/request");
@@ -94,7 +93,7 @@ test("a canvas not in the list, or a root no longer registered, is refused by ma
   expect(value.opened).not.toHaveBeenCalled();
 });
 
-// POSTMORTEM 2026-11-03: the renderer test injects this event by hand, so main's own test pins every field it sends.
+// The renderer test injects this event by hand, so main's own test pins every field it sends.
 test("a listed canvas is sent to the renderer with an id, its root, its canvas path, the frame only when asked, and when main stops waiting", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(1_000_000);

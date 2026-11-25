@@ -9,8 +9,7 @@ import { leaveLocked } from "./addProjectsNav";
 import { dropFolder } from "./folderDrop";
 import { keptLocal } from "./storageRules";
 
-// The session's calls, named after first run's; the Add Projects page passes `addPageApi`, whose replies are the same
-// project DTOs over its own main instance.
+// The Add Projects page passes `addPageApi`, whose replies are the same project DTOs over its own main instance.
 type Request<K extends keyof DoanApi> = DoanApi[K] extends (request: infer R) => unknown ? R : never;
 interface Api {
   readOnboardingSession(request: { sessionId: string; operationId?: string }): Promise<OnboardingResponse | AddPageResponse>;
@@ -45,42 +44,41 @@ export interface ProjectStepDeps {
   sessionId: string;
   // First run by default; the page skips the ready step and its completion.
   use?: ProjectUse;
-  // Registered projects in stored order; the last one names the default clone parent (2026-10-29 user).
+  // In stored order; the last one names the default clone parent.
   projects(): readonly string[];
   homeDirectory(): string | null;
-  // Whether a registered folder is its repository's main checkout (from the folder list's git facts; no git runs).
+  // From the folder list's git facts; no git runs.
   mainCheckout?(path: string): boolean;
+  // Auto-registered roots never add a project, so they never name the default parent.
+  autoRegistered?(): readonly string[];
   requestId(): string;
   changed(): void;
-  // Completion saved (first run) or the project registered (the page): Home takes over with this canonical root.
   completed(root: string): void;
 }
 
-// The main checkout's .git is the repository's common directory (a worktree's .git is a file pointing there), read from
-// the folder list's git facts without running git.
+// A worktree's .git is a file pointing to the common directory, so the main checkout is the one whose .git is it.
 export function isMainCheckout(entries: readonly FolderEntry[], path: string): boolean {
   const entry = entries.find(candidate => candidate.path === path);
   return entry?.kind === "list" && !!entry.git && (entry.git.main === path || entry.git.common === `${path}/.git`);
 }
 
-// New folder's failures are the window's own, like access_failed: main answers them to New folder only, so they are
-// not socket codes (app-socket v2) and no CLI reads them.
+// main answers these to New folder only, so they are not socket codes (app-socket v2) and no CLI reads them.
 export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed" | "folder_exists" | "folder_inside_project" | "folder_create_failed";
 export type ProjectSource = "folder" | "url";
-// A candidate as the inspection showed it; storage "local" is set up or planned out of Git (app-socket v2).
+// storage "local" is set up or planned out of Git (app-socket v2).
 export interface ProjectCandidate { path: string; changes: OnboardingChange[]; storage?: "local" }
-// What the Project step shows. Each user action advances `generation`; a result for an older one is dropped.
+// Each user action advances `generation`; a result for an older one is dropped.
 export type ProjectPhase =
   | { kind: "choose" }
   | { kind: "inspecting"; url: string }
   | { kind: "candidates"; inspectionId: string; url: string | null; candidates: ProjectCandidate[]; choice: string }
   | { kind: "setup"; inspectionId: string; url: string | null; path: string; changes: OnboardingChange[]; storage?: "local" }
-  // A chosen folder being inspected: nothing is written yet, so it is not 'Setting up'.
+  // Nothing is written yet, so it is not 'Setting up'.
   | { kind: "checking"; path: string }
   | { kind: "selecting"; path: string }
   // planned: the storage the clone's inspection was made for, which the clone request restates.
   | { kind: "clone"; url: string; inspectionId: string | null; destination: string; planned?: OnboardingStorage }
-  // operationId is null until main answers; the step is busy from the click on, so nothing races the reply.
+  // The step is busy from the click on, so nothing races the reply.
   | { kind: "cloning"; url: string; destination: string; operationId: string | null; cancelling: boolean }
   | { kind: "cloneCancelled"; url: string; destination: string }
   | { kind: "ready"; root: string }
@@ -88,27 +86,20 @@ export type ProjectPhase =
 export interface ProjectStepState {
   phase: ProjectPhase;
   url: string;
-  // The URL of the last inspection, so an edited URL says it must be checked again.
+  // The last inspected URL, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
-  // path: the folder whose inspection failed, so a mismatch can name it.
-  // detail: the failure's own account main gives the window only (the CLI's message for project_unreadable).
-  // source: whether a folder or a URL led to it, which decides where the choose screen shows it. Set by the caller,
-  // since the same codes come from both.
-  // directory: New folder's existing name is a folder (Use existing folder); project: the Doan project its location
-  // is inside.
+  // detail: main's own account, given to the window only. source decides where the choose screen shows it; the caller
+  // sets it, since the same codes come from both.
   error: { code: ProjectError; message?: string; path?: string; detail?: string; source?: ProjectSource; directory?: boolean; project?: string } | null;
-  // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
-  // Where the Doan files of a setup or clone go (absent: Include in Git, the default). It outlives a refused or failed
-  // setup and a cancelled or failed clone, so the choice stays.
+  // Absent: Include in Git. It outlives a refused or failed setup and a cancelled or failed clone, so the choice stays.
   storage?: OnboardingStorage;
 }
 
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
-// Where a clone and New folder's save panel go by default: the last registered project's parent, else HOME, else the
-// root (2026-10-29 user).
+// The last registered project's parent, else HOME, else the root.
 export function defaultProjectParent(projects: readonly string[], home: string | null): string {
   const last = projects.at(-1);
   return last ? parent(last) : (home ?? "/").replace(/\/+$/, "") || "/";
@@ -117,8 +108,7 @@ export function defaultProjectParent(projects: readonly string[], home: string |
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string; detail?: string };
 
-// The onboarding Project step over the main session (app-socket v2 DTOs): folder or GitHub URL → inspect → select or
-// clone → complete. Main owns every check and write; this keeps only what the screen shows.
+// Main owns every check and write; this keeps only what the screen shows.
 export class ProjectStepSession {
   state: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
   private generation = 0;
@@ -126,14 +116,12 @@ export class ProjectStepSession {
   private stops: (() => void)[] = [];
   private latest: AddPageState | null = null;
   private waiting = new Map<string, (operation: OnboardingOperation) => void>();
-  // The user action in flight. A second click while it runs is ignored, so no request can race its reply
-  // (POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback'). Edit and Cancel clear it.
+  // A second click while it runs is ignored, so no request can race its reply. Edit and Cancel clear it.
   private acting: object | null = null;
-  // What Retry repeats: the action whose failure is on screen.
   private again: (() => Promise<void>) | null = null;
-  // The native folder sheet is open: the step is busy, but focus belongs to the button that opened it.
+  // The step is busy, but focus belongs to the button that opened the sheet.
   private choosing = false;
-  // A refused card drop's notice; the next drag or Choose folder clears it.
+  // The next drag or Choose folder clears it.
   dropNotice: string | null = null;
   constructor(private readonly deps: ProjectStepDeps) {}
 
@@ -148,18 +136,15 @@ export class ProjectStepSession {
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
-  // Long work (clone, setup, saving) holds Back and the stepper.
+  // Long work holds Back and the stepper.
   busy(): boolean { return this.acting !== null || ["inspecting", "checking", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
   picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
 
-  // A completion refused because no agent was ready no longer applies once one is (POSTMORTEM 2026-10-25).
+  // A completion refused because no agent was ready no longer applies once one is.
   agentsReady(ready: boolean): void { if (ready && this.state.error?.code === "no_ready_agent") this.set({ error: null }); }
-  // The plan on screen may be for the other mode; Set up and Clone plan again for this one before they write. On the
-  // setup screen the plan is made again at once, so the git init line a plan outside Git brings follows the radio. It
-  // starts after the current task, so a Set up pressed in the same task plans again first; a plan that now adds .git/
-  // waits for another press. A plan that cannot be made keeps the setup screen, with the failure and Retry on it.
-  // true: the folder is planned again, which holds the radios meanwhile.
+  // Set up and Clone plan again for this mode before they write; the setup screen re-plans at once, after the current
+  // task, so its git init line follows the radio. true: re-planning holds the radios meanwhile.
   setStorage(storage: OnboardingStorage): boolean {
     if (this.busy()) return false;
     this.set({ storage });
@@ -175,17 +160,14 @@ export class ProjectStepSession {
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
   pickListed(path: string): void { this.set({ listChoice: path }); }
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
-  // Edit repository URL: back to the first screen, keeping the URL.
   // The old inspection goes with it, so nothing later re-plans a repository the user has left.
   restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
-  // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
-  // Continue would bring the same clone screen back.
-  // A setup screen reached from a URL (a checkout that needs setup was picked) is left the same way.
+  // Back returns to the URL rather than to the Agent step, where Continue would bring the same screen back.
   backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null) || (p.kind === "setup" && p.url !== null); }
-  // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
+  // The inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
 
-  // Only the choose screen shows the card, and a drop while something runs (a first drop included) is refused.
+  // A drop while something runs, a first drop included, is refused.
   canDrop(): boolean { return this.live && this.state.phase.kind === "choose" && !this.busy(); }
   dragStarted(): void { this.clearDropNotice(); }
   drop(items: readonly { isDirectory: boolean; path: string }[]): Promise<void> {
@@ -206,9 +188,8 @@ export class ProjectStepSession {
       if (this.live && picked !== null) await this.inspectPath(picked);
     });
   }
-  // New folder: main's save panel opens at the default location; main makes the folder at the path it returns, and a
-  // made folder is inspected like a chosen one. Choose another name reopens where the clashing name was; Change
-  // location opens at the default again, since the location was the problem.
+  // main makes the folder at the path its save panel returns. Change location opens at the default again, since the
+  // location was the problem.
   newFolder(): Promise<void> { this.clearDropNotice(); return this.act(() => this.createFolder(this.defaultParent())); }
   chooseAnotherName(): Promise<void> {
     const clash = this.state.error?.code === "folder_exists" ? this.state.error.path : undefined;
@@ -232,7 +213,7 @@ export class ProjectStepSession {
   }
   // A destination that already exists may be this repository's checkout: inspect it as a folder of that repository.
   useExisting(): Promise<void> { const p = this.state.phase; return p.kind === "clone" ? this.act(() => this.inspectPath(p.destination, p.url)) : Promise.resolve(); }
-  // Choose existing folder / Choose another folder on the URL screens: the folder must belong to that repository.
+  // The folder must belong to that repository.
   chooseExisting(): Promise<void> {
     const p = this.state.phase;
     const url = p.kind === "clone" || p.kind === "cloneCancelled" ? p.url : p.kind === "candidates" || p.kind === "setup" ? p.url : null;
@@ -243,11 +224,10 @@ export class ProjectStepSession {
     });
   }
   clone(): Promise<void> { return this.act(() => this.runClone()); }
-  // Use this folder (one or several candidates). It never sets a folder up: a candidate with planned changes goes to
-  // the setup screen instead.
+  // Use this folder never sets a folder up: a candidate with planned changes goes to the setup screen instead.
   select(): Promise<void> { return this.act(() => this.runSelect()); }
-  // Set up and continue: the user's consent to write the planned changes, for the inspection that button was shown
-  // for. Consent is an explicit token because a setup was once seen to run without this click and no path to it was found.
+  // Consent is an explicit token, valid only for the inspection that button was shown for, so a setup never runs
+  // without this click.
   setUp(inspectionId: string): Promise<void> {
     return this.act(async () => {
       const p = this.state.phase;
@@ -256,13 +236,13 @@ export class ProjectStepSession {
       await this.runSelect();
     });
   }
-  // Open doan, and Retry after a failed save: main re-reads and saves only; nothing is selected or cloned again.
+  // main re-reads and saves only; nothing is selected or cloned again.
   complete(): Promise<void> { return this.act(() => this.runComplete()); }
   retry(): Promise<void> {
     if (this.state.error?.code === "completion_unsupported_version") return Promise.resolve();
     const p = this.state.phase;
-    // The access error keeps the URL field editable: an edited URL is looked up as Enter would, and the old
-    // inspection and its retry are dropped. An unchanged URL repeats the failed action.
+    // An edited URL is looked up as Enter would, dropping the old inspection and its retry; an unchanged URL repeats the
+    // failed action.
     if (p.kind === "choose" && this.state.error?.code === "access_failed" && this.state.url.trim() !== this.state.inspectedUrl) { this.again = null; this.source = null; return this.act(() => this.inspectUrl()); }
     const again = this.again ?? (p.kind === "cloneCancelled" || p.kind === "clone" ? () => this.runClone() : () => this.inspectUrl());
     return this.act(again);
@@ -295,12 +275,15 @@ export class ProjectStepSession {
     }
     if (!this.live || made.kind === "cancelled") return;
     if (made.kind === "created") { await this.inspectPath(made.path); return; }
-    // The notice sits under the card, in the drop notice's slot, which it takes over.
+    // The notice takes over the drop notice's slot under the card.
     this.dropNotice = null;
     const code: ProjectError = made.kind === "exists" ? "folder_exists" : made.kind === "inside_project" ? "folder_inside_project" : "folder_create_failed";
     this.set({ error: { code, path: made.path, source: "folder", ...(made.kind === "exists" ? { directory: made.directory } : {}), ...(made.kind === "inside_project" ? { project: made.project } : {}) } });
   }
-  private defaultParent(): string { return defaultProjectParent(this.deps.projects(), this.deps.homeDirectory()); }
+  private defaultParent(): string {
+    const auto = this.deps.autoRegistered?.() ?? [];
+    return defaultProjectParent(this.deps.projects().filter(root => !auto.includes(root)), this.deps.homeDirectory());
+  }
   private async act(work: () => Promise<void>): Promise<void> {
     if (this.busy() || !this.live) return;
     const token = {};
@@ -335,15 +318,13 @@ export class ProjectStepSession {
     const inspection = reply.operation.inspection!;
     if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path, "folder"); return; }
     this.offer(inspection.inspectionId, url ?? null, inspection.candidates, source);
-    // First run takes one candidate with nothing to set up at once, as Choose folder always did. The page adds
-    // nothing until Add project is pressed.
+    // The page adds nothing until Add project is pressed.
     const p = this.state.phase;
     if (this.deps.use !== "addPage" && p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect();
   }
-  // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
+  // The inspection the candidates came from, so a stale list is inspected again rather than retried.
   private source: Inspect | null = null;
-  // (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
-  // no setup, then the main checkout, then the most recently registered; worktrees are switched later from the shell.
+  // A URL with several local checkouts is not a choice; worktrees are switched later from the shell.
   private pickCheckout(candidates: ProjectCandidate[]): ProjectCandidate {
     const order = this.deps.projects();
     const rank = (c: ProjectCandidate) => [c.changes.length === 0 ? 0 : 1, this.deps.mainCheckout?.(c.path) ? 0 : 1, -order.lastIndexOf(c.path)];
@@ -358,7 +339,6 @@ export class ProjectStepSession {
     if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes, ...(first.storage ? { storage: first.storage } : {}) }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
   }
-  // failure: the screen a failed plan is shown on.
   private async reinspect(keep: { path?: string }, failure: ProjectPhase = { kind: "choose" }): Promise<void> {
     const source = this.source;
     if (!source) return;
@@ -374,7 +354,7 @@ export class ProjectStepSession {
     if (p.kind === "candidates" && keep.path && p.candidates.some(c => c.path === keep.path)) this.set({ phase: { ...p, choice: keep.path } });
   }
 
-  // Consent given on Set up and continue: valid only for that inspection and folder.
+  // Valid only for that inspection and folder.
   private consent: { inspectionId: string; path: string } | null = null;
   private async runSelect(replanned = false): Promise<void> {
     const p = this.state.phase;
@@ -390,15 +370,14 @@ export class ProjectStepSession {
     // Setup writes files in the user's folder, so it needs this explicit step.
     const initialize = changes.length > 0 && this.consent?.inspectionId === inspectionId && this.consent.path === path;
     if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes, ...(candidate.storage ? { storage: candidate.storage } : {}) }, error: null }); return; }
-    // The consent covers the mode on screen: a plan made for the other one is made again first, and the consent moves to
-    // the new inspection of the same folder. A project already kept out of Git has no choice to follow.
+    // A plan made for the other mode is made again first, and the consent moves to the new inspection of the same
+    // folder. A project already kept out of Git has no choice to follow.
     const shown: OnboardingStorage = candidate.storage ?? "repo";
     if (initialize && !replanned && !keptLocal(candidate) && shown !== this.storage()) {
       await this.reinspect({ path });
       const next = this.state.phase;
       const same = next.kind === "setup" ? next.path === path : next.kind === "candidates" && next.choice === path;
-      // The consent never covers a repository the screen did not show: the new plan stays on screen, with its git init
-      // line, for another press.
+      // The consent never covers a repository the screen did not show: the new plan stays on screen for another press.
       const planned = next.kind === "setup" ? next.changes : next.kind === "candidates" ? next.candidates.find(c => c.path === path)?.changes ?? [] : [];
       if (planned.includes(".git/") && !changes.includes(".git/")) return;
       if ((next.kind === "setup" || next.kind === "candidates") && same) { this.consent = { inspectionId: next.inspectionId, path }; await this.runSelect(true); }
@@ -417,9 +396,8 @@ export class ProjectStepSession {
     else if (changes.includes(".git/")) await this.rereadAfter(this.error(done, "project_unavailable"), back, path, changes);
     else this.failed(this.error(done, "project_unavailable"), back, () => { this.set({ phase: back }); return this.runSelect(); });
   }
-  // A setup that was to create a repository failed: a .git it left behind makes the folder a repository, so the folder
-  // is planned again and the git init line goes, while the failure stays on screen. Retry sets up the new plan; the
-  // consent carries over only when that plan adds nothing the screen did not show.
+  // A .git the failed setup left behind makes the folder a repository, so it is planned again. The consent carries over
+  // only when the new plan adds nothing the screen did not show.
   private async rereadAfter(failure: Reply & { ok: false }, back: ProjectPhase, path: string, shown: readonly OnboardingChange[]): Promise<void> {
     await this.reinspect({ path });
     const next = this.state.phase;
@@ -439,8 +417,8 @@ export class ProjectStepSession {
   }
   private async runClone(): Promise<void> {
     let p = this.state.phase;
-    // Retry after a cancel or a failure plans the clone again: main keeps one plan per inspection. So does a plan made
-    // for the other storage mode than the one now chosen.
+    // main keeps one plan per inspection, so Retry after a cancel or a failure plans the clone again, as does a plan for
+    // the other storage mode.
     if (p.kind === "cloneCancelled" || (p.kind === "clone" && (p.inspectionId === null || (p.planned ?? "repo") !== this.storage()))) {
       await this.planClone(p.url, p.destination, this.fence());
       p = this.state.phase;
@@ -452,7 +430,7 @@ export class ProjectStepSession {
     this.set({ phase: { kind: "cloning", url, destination, operationId: null, cancelling: false }, error: null });
     const reply = await this.call(this.deps.api.cloneOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, destination, storage: p.planned ?? "repo" }));
     if (!this.current(at)) return;
-    // The failure may be shown on the first screen (an unreachable repository), so the clone screen is restored first.
+    // The failure may be shown on the first screen, so the clone screen is restored first.
     const retryPlan = () => { this.set({ phase: { kind: "clone", url, inspectionId: null, destination }, error: null }); return this.runClone(); };
     if (!reply.ok) { this.failed(reply, { kind: "clone", url, inspectionId: null, destination }, retryPlan); return; }
     this.set({ phase: { kind: "cloning", url, destination, operationId: reply.operation.operationId, cancelling: reply.operation.cancelling === true } });
@@ -534,10 +512,10 @@ export class ProjectStepSession {
     const resolve = this.waiting.get(operation.operationId);
     if (resolve) { this.waiting.delete(operation.operationId); resolve(operation); }
   }
-  // source: what led to the failure (a folder or a URL); a failure off the choose screen keeps its screen's place.
+  // A failure off the choose screen keeps its screen's place.
   private failed(reply: Reply & { ok: false }, phase: ProjectPhase, again: () => Promise<void>, path?: string, source?: ProjectSource): void {
     this.again = again;
-    // A repository Git could not reach is shown on the first screen with the URL kept (draft 'repository-error').
+    // Shown on the first screen with the URL kept.
     if (reply.code === "repository_unreachable") { this.set({ phase: { kind: "choose" }, error: { code: "access_failed", source: "url" } }); return; }
     if (source === "folder") this.dropNotice = null;
     this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}), ...(reply.detail ? { detail: reply.detail } : {}), ...(source ? { source } : {}) } });
@@ -550,20 +528,16 @@ export class ProjectStepSession {
   }
 }
 
-// The Project step serves first run and the Add Projects page; what the Project step varies between the two (heading, the 'Your projects' list, notices, actions, surface) depends
-// on the use.
 export type ProjectUse = "onboarding" | "addPage";
 export interface ProjectFooter {
   back: { label: "Back" | "Cancel"; disabled: boolean };
-  // action null: nothing to add yet (the page's Add project, disabled). setUp carries the inspection the screen was
-  // rendered with, so a press consents to that plan only (ARCHITECTURE §7 'Settings IPC').
+  // setUp carries the inspection the screen was rendered with, so a press consents to that plan only
+  // (ARCHITECTURE §7 'Settings IPC').
   primary: { label: string; action: "select" | "setUp" | "clone" | "complete" | "retry" | null; inspectionId?: string; disabled: boolean } | null;
 }
 
-// First run keeps Back and its always-shown primary (Open Doan until the step has an action). The page's Cancel
-// returns to the origin and also drops an inspection in flight, so it stays usable; a locked phase has no footer.
-// The page submits through one Add project in every unlocked phase, enabled only when there is something to add and
-// no error shows. A cancelled clone can still be cloned, so its press clones again.
+// The page's Cancel also drops an inspection in flight, so it stays usable; a locked phase has no footer. A cancelled
+// clone can still be cloned, so its press clones again.
 export function projectFooter(use: ProjectUse, state: ProjectStepState, { busy, agentReady }: { busy: boolean; agentReady: boolean }): ProjectFooter | null {
   const p = state.phase, error = state.error;
   const clone = (label: string) => ({ label, action: "clone" as const, disabled: busy || p.kind !== "clone" || p.inspectionId === null || error !== null });
@@ -586,8 +560,7 @@ export function projectFooter(use: ProjectUse, state: ProjectStepState, { busy, 
   return { back: { label: "Back", disabled: busy }, primary };
 }
 
-// Where the choose screen shows the notice: a folder's failure under the card (the drop notice's slot), a URL's after
-// the URL field. Every other screen keeps its notice in its own place.
+// Every other screen keeps its notice in its own place.
 export function projectNoticeSlot(state: ProjectStepState): "card" | "url" | "screen" | null {
   if (!state.error) return null;
   if (state.phase.kind !== "choose" && state.phase.kind !== "inspecting") return "screen";

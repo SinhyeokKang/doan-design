@@ -76,9 +76,8 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void, 
   const leaving = state.toast === null && state.leaving !== null && (leavingHost === undefined || (leavingHost.isConnected && leavingHost.open)) ? state.leaving : null;
   const shown = state.toast ?? leaving;
   const portal = shown === leaving ? leavingHost : dialog ?? undefined;
-  // Keyed by the slot, so a replacement keeps the element and does not enter again. The action is keyed by its toast
-  // (and differs while leaving): a focused action that goes takes focus back out through `actionRef`, as the element
-  // that unmounted used to, and a new toast's action is never the old one's focus.
+  // Keyed by the slot, so a replacement does not enter again. The action is keyed by its toast: a focused action that goes takes
+  // focus back out through `actionRef`, and a new toast's action is never the old one's focus.
   const element = shown && <div key={state.slot} className="toast doan-floating doan-toast" role="status" {...(portal ? { "data-placement": "dialog" } : {})}
     {...(leaving ? { "data-closing": "", inert: true } : {})}
     ref={node => {
@@ -111,9 +110,8 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void, 
       timerAt.current = performance.now();
       dispatch({ type: "show", toast: { id: crypto.randomUUID(), message, ...(dialog ? { dialog } : {}) } });
     },
-    // A toast whose `label` action (Retry) runs `attempt` in place: while it runs the toast shows `busy` and a
-    // `running` button that does nothing; it goes when `attempt` resolves null and otherwise shows the resolved text with
-    // the action again. A toast that replaced it meanwhile is left alone.
+    // While `attempt` runs the toast shows `busy` and a `running` button that does nothing; it goes when `attempt` resolves null, else
+    // shows the resolved text with the action again. A toast that replaced it meanwhile is left alone.
     retry(message: string, label: string, busy: string, running: string, attempt: () => Promise<string | null>) {
       const id = crypto.randomUUID();
       handlers.current.set(id, {

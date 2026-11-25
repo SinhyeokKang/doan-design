@@ -5,9 +5,8 @@ import type { PrototypeView } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
 import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
 
-// The prototype window's conversation host without a DOM: which conversation shows, its list reads by the playing
-// canvas, the store's subscriptions, drafts, seen marks and what main hears of the panel. Its own store makes its
-// drafts and attachment chips its own; the page has no `window.doan`.
+// The prototype window's conversation host without a DOM. Its own store makes its drafts and attachment chips its own; the page has
+// no `window.doan`.
 
 const ROOT = "/w/acme", TWIN = "/w/acme-feature";
 const CHECKOUT = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -112,8 +111,8 @@ describe("the conversation the panel shows", () => {
     expect(run.run.view()?.kind).toBe("new");
   });
 
-  // Spec: the prototype window may show another conversation than the main window, so a conversation started
-  // elsewhere on the canvas never moves it, and the draft written here stays with the conversation it was written for.
+  // The prototype window may show another conversation than the main window, so one started elsewhere on the canvas never moves it,
+  // and the draft written here stays with its conversation.
   test("a conversation started elsewhere never moves this window off the one it shows; its draft stays", async () => {
     await playing({}, [summary({ conversationId: "old" })]);
     const mine = { segments: [{ kind: "text" as const, text: "This button" }], preset: null, attachments: [], shape: "capsule" as const };
@@ -152,8 +151,8 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:started")).toBeUndefined();
   });
 
-  // A conversation the person started in the main window while this window wrote in its own new conversation state
-  // takes the draft along (user decision), when it has none of its own.
+  // A conversation started in the main window while this window wrote in its own new conversation state takes the draft along, when
+  // it has none of its own.
   test("from the new conversation state with no start in flight, the draft follows the new conversation", async () => {
     await playing({}, []);
     const key = run.run.composerKey()!;
@@ -206,8 +205,8 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:c1")?.segments).toEqual([{ kind: "text", text: "- Hero\n  - shorter\n1. Footer" }]);
   });
 
-  // A returned queue goes to the window the person looks at: this one only while its panel is open (user decision);
-  // folded, the main window's store takes it.
+  // A returned queue goes to the window the person looks at: this one only while its panel is open; folded, the main window's store
+  // takes it.
   test("a returned queue is not taken while the panel is folded; opening the panel takes it", async () => {
     await playing({ panel: { open: false, width: null } }, [summary({ conversationId: "c1", returnedDraft: true })]);
     await flush();
@@ -250,9 +249,8 @@ describe("the conversation the panel shows", () => {
   });
 });
 
-// The conversation last seen on the playing canvas on this device: main reads it from ui-state for the canvas this
-// window plays (the main window is ui-state's only writer). Until the read settles the first pick waits; a failed read
-// counts as none; a read for a canvas left behind never answers for the next one.
+// Main reads the remembered conversation from ui-state for the canvas this window plays (the main window is ui-state's only writer).
+// The first pick waits for the read; a failed read counts as none; a stale canvas's read never answers for the next.
 describe("the remembered conversation", () => {
   const two = [summary({ conversationId: "recent", lastActivityAt: "2026-11-01T12:09:00.000Z" }), summary({ conversationId: "seen", lastActivityAt: "2026-11-01T12:01:00.000Z" })];
   function pendingReads() {
@@ -311,8 +309,7 @@ describe("the remembered conversation", () => {
   });
 });
 
-// Spec: the head menu's Delete in this window. The store marks the conversation as being deleted before main is asked,
-// and the mark ends exactly once, as the main window's Delete does.
+// The store marks the conversation as being deleted before main is asked, and the mark ends exactly once, as in the main window.
 describe("Delete from this window", () => {
   test("asks main, then the store and the canvas run drop it and the panel picks again", async () => {
     calls.deleteConversation = vi.fn(async () => undefined);
@@ -348,9 +345,8 @@ describe("Delete from this window", () => {
   });
 });
 
-// The panel head's title: the main window's canvasConversationTitle for the conversation shown; the states the panel
-// had no head for (the list still read, the canvas gone or its ID shared) keep the shell's "Conversation"; a list never
-// read is the new conversation state and reads "New conversation", as in the main window.
+// The main window's canvasConversationTitle; states with no head (list still read, canvas gone or its ID shared) keep "Conversation",
+// and a list never read is the new conversation state.
 describe("the panel head's title", () => {
   test("the list's summary title of the conversation shown", async () => {
     await playing({}, [summary({ title: "Checkout Review details button" })]);
@@ -491,9 +487,8 @@ describe("what main hears", () => {
   });
 });
 
-// The folded panel's button reads every conversation of the playing canvas (the main window's strongest signal), in
-// this window's order: an answer needed, then working, then an unread ending. Opening through it shows the conversation
-// it stands for; a list read alone never moves the person's pick.
+// The folded button reads every conversation of the playing canvas in this window's order: an answer needed, working, an unread
+// ending. Opening through it shows that conversation; a list read alone never moves the person's pick.
 describe("the folded badge across the canvas", () => {
   const waiting = (conversationId: string) => summary({ conversationId, phase: "waiting", working: true, waitingSince: "2026-11-01T12:01:00.000Z" });
   test("another conversation waiting for an answer badges the button while an idle one shows", async () => {
@@ -667,9 +662,8 @@ describe("read persistence across windows", () => {
   });
 });
 
-// A handoff card from the Overview names a project conversation this window does not list: main answers whether it is
-// still indexed under the playing root (PRODUCT §5 item 2 'Handoff': a deleted source has no Open). Unknown (null, or
-// not answered yet) reads as there, as the main window's loading list does.
+// Main answers whether the Overview source is still indexed under the playing root (PRODUCT §5 item 2 'Handoff': a deleted source
+// has no Open). Unknown (null, or not answered yet) reads as there, as the main window's loading list does.
 describe("the source of a handoff card from the Overview", () => {
   const answerListed = async (conversationId: string, value: boolean | null, root = ROOT) => {
     const at = listedAsks.findIndex(([r, id]) => r === root && id === conversationId);

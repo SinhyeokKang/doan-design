@@ -44,7 +44,6 @@ describe("frameDrawerView", () => {
     const marked = (id: string, prototype?: string) => ({ ...frame(id), ...(prototype === undefined ? {} : { prototype }) });
     const view = frameDrawerView(board({ layout: { frames: [marked("a", "390x844"), marked("b"), marked("c", "390"), marked("d", "1x1"), marked("d", "1x1")], truncated: false }, currentFrame: 0 }));
     expect(view.rows.map(row => [row.id, row.prototype])).toEqual([["a", true], ["b", false], ["c", false], ["d", false], ["d", false]]);
-    // The Viewing marker is kept beside the caption.
     expect(view.rows[0]).toMatchObject({ current: true, prototype: true });
   });
 
@@ -142,9 +141,13 @@ describe("frameDrawerView", () => {
     expect(TRUNCATED_NOTE).toBe(view.truncatedNote);
   });
 
-  test("a note appears only when the list is truncated", () => {
+  // Layout `truncated` also marks a clipped id or title, which leaves every frame listed.
+  test("a note appears only when the frame count reached the cap", () => {
     expect(frameDrawerView(board()).truncatedNote).toBeNull();
-    expect(frameDrawerView(board({ layout: { frames: [frame("a")], truncated: true } })).truncatedNote).toBe(TRUNCATED_NOTE);
+    expect(frameDrawerView(board({ layout: { frames: [frame("a")], truncated: true } })).truncatedNote).toBeNull();
+    const full = Array.from({ length: 1000 }, (_, i) => frame(`f${i}`));
+    expect(frameDrawerView(board({ layout: { frames: full, truncated: false } })).truncatedNote).toBeNull();
+    expect(frameDrawerView(board({ layout: { frames: full, truncated: true } })).truncatedNote).toBe(TRUNCATED_NOTE);
   });
 
   test("the five states with no rendered board disable the drawer as 'Frames' and list nothing", () => {

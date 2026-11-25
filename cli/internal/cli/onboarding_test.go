@@ -681,8 +681,8 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 	}
 }
 
-// A workspace-write sandbox denies the socket of a running Doan, and an agent
-// that reads app_not_running as "not open" stops (agent-eval 2026-10-29 O1, O2).
+// A workspace-write sandbox denies the socket of a running Doan, and an agent that reads app_not_running as
+// "not open" stops.
 func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
 		requireRecoveryOrder(t, onboardingFailure(code, "m").NextSteps, [][]string{
@@ -693,7 +693,7 @@ func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	}
 }
 
-// The refusal repeats step 6: a general setup request is not agreement to the setup files (U-015).
+// The refusal repeats step 6: a general setup request is not agreement to the setup files.
 func TestOnboardingInitializeRequiredNeedsExplicitAgreement(t *testing.T) {
 	steps := onboardingFailure("initialize_required", "m").NextSteps
 	if len(steps) != 1 {
@@ -845,11 +845,10 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 		}
 	}
 	for _, parts := range [][]string{
-		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
+		// The sandbox fallback that `active` already has.
 		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "with `doan onboarding start` in place of `doan active`"},
-		// The changes are always told before the write, but a user who explicitly allowed setup files is not asked again (agent-eval 2026-10-29 O1, re-measure).
-		// A general setup request is not that permission (agent-eval 2026-10-31 remove-mcp O2, U-015).
-		// A hand-off names both sides' next steps instead of quoting the guide (agent-eval 2026-10-31 remove-mcp-o2-fix O2, U-017).
+		// The changes are told before the write, but a user who explicitly allowed setup files is not asked again; a general
+		// setup request is not that permission. A hand-off names both sides' next steps instead of quoting the guide.
 		{"When you hand back before `complete`", "what the user must do next", "which commands you will run after that", "`select --initialize`, then `complete`", "do not quote this guide"},
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "A request to set up Doan or select a repository is not agreement", "explicitly said Doan may add its setup files", "do not ask again", "Otherwise ask first"},
 	} {
@@ -939,9 +938,8 @@ func TestLaunchCommandEnvIsMinimal(t *testing.T) {
 	}
 }
 
-// The CLI trusts only an app whose CFBundleIdentifier is bundleID, and electron-builder writes that
-// identifier from app/package.json build.appId: a change to one side alone would make the CLI refuse its
-// own app.
+// The CLI trusts only an app whose CFBundleIdentifier is bundleID, which electron-builder writes from app/package.json
+// build.appId: a change to one side alone would make the CLI refuse its own app.
 func TestBundleIDIsTheAppID(t *testing.T) {
 	data, err := os.ReadFile("../../../app/package.json")
 	if err != nil {
@@ -979,5 +977,30 @@ func TestOnboardingInAnAppConversationIsRefusedBeforeTheApp(t *testing.T) {
 	}
 	if n := len(app.received()); n != 0 {
 		t.Fatalf("%d requests sent", n)
+	}
+}
+
+// An attempt sent near the cap still gets the full answer budget: the app acts on any request it reads, so a
+// clipped read that times out would report busy for a canvas the app then opens.
+func TestBootstrapLastAttemptKeepsTheFullAnswerBudget(t *testing.T) {
+	const roundTrip, answer = 100 * time.Millisecond, 300 * time.Millisecond
+	h := newLaunchHarness(t)
+	acted := false
+	attempt := func(deadline time.Time) (map[string]any, *Error, bool) {
+		if h.elapsed < 14800*time.Millisecond {
+			h.elapsed += roundTrip
+			return notReadyStep()
+		}
+		acted = true
+		if deadline.Sub(h.ctx.Now()) < answer {
+			h.elapsed += deadline.Sub(h.ctx.Now())
+			return slowStep()
+		}
+		h.elapsed += answer
+		return openedStep()
+	}
+	reply, failure := bootstrap(h.ctx, false, openFailure, attempt)
+	if !acted || failure != nil || reply["opened"] != true {
+		t.Fatal(acted, reply, failure, h.elapsed)
 	}
 }

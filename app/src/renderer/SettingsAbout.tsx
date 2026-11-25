@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Check, Copy } from "lucide-react";
 import { aboutView, type AboutRead, type AboutRow } from "../main/aboutView";
 import { aboutNotice, type AboutNotice, type NoticeLine } from "../main/agentSetup/notice";
-import type { Provider } from "../main/agentAuth/types";
+import { validProvider } from "../main/agentAuth/types";
 import type { PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { UpdateSnapshot } from "../main/update/types";
 import { releaseNotesFailedLine, UPDATE_BLOCKED, updateView, type UpdateButton, type UpdateRowView } from "../main/update/view";
@@ -15,13 +15,11 @@ import { preferencesNotice } from "./SettingsNotifications";
 
 const CHECKING = "Checking";
 const TONES: Record<AboutRow["tone"], string> = { neutral: "ob-chip", ok: "ob-chip ok", warning: "ob-chip warn", error: "ob-chip err" };
-const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity", "copilot"]);
 const AUTO_SAVE_FAILED = "Couldn’t save your automatic-check choice. Your last saved choice still applies.";
 const BLOCKED_READ = `${UPDATE_BLOCKED.title}. ${UPDATE_BLOCKED.text}`;
 
-// The Version row: the running version and the update state from main's push, with the update's actions or progress
-// on the right. No part has a live role; the page's one live region reads results. `notesFailed` is the line for a
-// Release Notes ↗ main could not open; it comes last under the row because it answers the latest press.
+// The Version row has no live role; the page's one live region reads results. `notesFailed` comes last under the row because it answers
+// the latest press.
 function versionRow(row: UpdateRowView | null, notesFailed: string | null, stateId: string, press: (button: UpdateButton) => void) {
   let trailing: ReactNode = null;
   if (row === null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{CHECKING}</span>;
@@ -32,7 +30,7 @@ function versionRow(row: UpdateRowView | null, notesFailed: string | null, state
     const buttons = row.actions.map(button => <button key={button.action} type="button" className="doan-button"
       data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} aria-disabled={button.busy} aria-busy={button.busy}
       onClick={() => { if (!button.busy) press(button); }}>{button.busy ? <><span className="doan-spinner" aria-hidden="true" />{button.label}</> : button.label}</button>);
-    // A lone Check for Updates sits in the trailing column as the shipped rows' single control does; a pair, or an
+    // A lone Check for Updates sits in the trailing column as other rows' single control does; a pair, or an
     // action answering the line under the row, sit together in the actions group.
     trailing = row.actions.length === 1 && row.error === null ? buttons : <span className="update-msg-actions">{buttons}</span>;
   }
@@ -71,10 +69,8 @@ function setupNotice(notice: AboutNotice) {
   </div>;
 }
 
-// Settings > About (PRODUCT §5 item 0 'About'): main reads the versions (aboutView decides every row's words); this page reads
-// on entry and again when the window comes back, which covers returning from an install page. Copy details asks main
-// to write the clipboard from its own read. The Version and automatic-check rows follow main's update push instead,
-// so they stay when that read fails.
+// PRODUCT §5 item 0 'About'. Reads on entry and when the window comes back (covering a return from an install page). The Version
+// and automatic-check rows follow main's update push instead, so they stay when that read fails.
 export function SettingsAbout({ actions, preferences, save }: {
   actions: HTMLElement | null;
   preferences: PreferencesSnapshot | null;
@@ -100,9 +96,8 @@ export function SettingsAbout({ actions, preferences, save }: {
   const [notesFailed, setNotesFailed] = useState<string | null>(null);
   const notesRequest = useRef(0);
   const announce = (text: string) => setAnnounced(previous => ({ text, seq: previous.seq + 1 }));
-  // Entry says Checking; a re-read on focus keeps the shown versions until the new ones arrive, and a read already
-  // running (a CLI run in main) is not started again. Retry keeps what failed on screen, its line and its busy Retry,
-  // until the read answers (DESIGN 'Busy action'). Resolves whether main answered with versions.
+  // A re-read on focus keeps the shown versions, and a read already running is not started again. Retry keeps what failed on
+  // screen until the read answers (DESIGN 'Busy action'). Resolves whether main answered with versions.
   const load = (mode: "entry" | "focus" | "retry"): Promise<boolean> => {
     if (mode === "focus" && inFlight.current) return Promise.resolve(true);
     const request = ++reads.current;
@@ -149,9 +144,9 @@ export function SettingsAbout({ actions, preferences, save }: {
   const view = aboutView(read);
   const notice = read === null ? null : aboutNotice(read.setup.items, read.setup.home);
   const row = (item: AboutRow) => {
-    const icon = PROVIDER_ROWS.has(item.id);
-    return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={icon ? "" : undefined}>
-      {icon && <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(item.id as Provider)} alt="" /></span>}
+    const provider = validProvider(item.id) ? item.id : null;
+    return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={provider ? "" : undefined}>
+      {provider && <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(provider)} alt="" /></span>}
       <div className="doan-preference-row-content"><span className="doan-preference-row-label">{item.label}</span>
         {item.description !== null && <span className="doan-preference-row-description selectable">{item.id === "cli" ? <code>{item.description}</code> : item.description}</span>}</div>
       {item.error === null && <div className="doan-preference-row-trailing">

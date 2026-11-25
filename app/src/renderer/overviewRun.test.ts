@@ -10,8 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, w
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// The Overview's main conversation, driven without a DOM. The host stands in for App
-// and HomeRun (list reads and their counts, ui-state memory, seen marks, focus, navigation, toasts).
+// Driven without a DOM: the host stands in for App and HomeRun.
 
 const ROOT = "/code/doan", OTHER = "/code/doan-wt";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003";
@@ -105,7 +104,7 @@ test("without a memory the latest project conversation shows; with none at all, 
   expect(h.run.view(OTHER)).toEqual({ kind: "new" });
 });
 
-// Nothing is promoted any more; ui-state may still remember one an earlier build moved to a canvas.
+// ui-state may still remember a conversation an earlier build moved to a canvas.
 test("a remembered conversation an earlier build moved to a canvas opens a new conversation and is forgotten", () => {
   const h = harness();
   h.state.remembered = { [ROOT]: A };
@@ -190,8 +189,7 @@ test("reopening an Overview picks again, and each root keeps its new-conversatio
   expect(h.run.view(OTHER)).toEqual({ kind: "new" });
 });
 
-// PRODUCT §5 item 3 'Which conversation shows': coming back to the app later starts fresh, while hopping between a
-// canvas and the Overview within one run keeps what the person was in.
+// PRODUCT §5 item 3 'Which conversation shows'.
 test("the first entry of the run opens the new conversation state when the conversation it would reopen ended and was seen", () => {
   const h = harness();
   h.state.remembered = { [ROOT]: A };
@@ -204,7 +202,7 @@ test("the first entry of the run opens the new conversation state when the conve
   h.answer(ROOT, [summary(A, { unseen: false }), summary(B, { unseen: false, lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
   h.run.show(ROOT);
   expect(h.run.view(ROOT)).toEqual({ kind: "new" });
-  // After the person's choice, a later entry reopens what was chosen, as before.
+  // After the person's choice, a later entry reopens what was chosen.
   h.run.select(ROOT, B);
   h.run.show(null);
   h.run.show(ROOT);
@@ -365,8 +363,8 @@ test("a returned queue read back from paths refuses a folder that became a file 
   expect(doan.removeAttachment).toHaveBeenCalledWith("n-shots");
   expect(doan.removeAttachment).not.toHaveBeenCalledWith("n-brand");
 });
-// The draft that took a returned queue's ids owns them: main kept them aside as sent, so a chip removed after either
-// recheck result, and the conversation's deletion, must each let main forget its id; a pasted file stays on disk.
+// The draft that took a returned queue's ids owns them: removing a chip after either recheck result, or
+// deleting the conversation, must let main forget its id.
 test("a returned queue's ids are released once their chips are removed or their conversation is deleted, keeping a pasted file", async () => {
   const tmp = mkdtempSync(join(realpathSync(tmpdir()), "doan-held-"));
   try {
@@ -562,8 +560,8 @@ test("an unreadable thread shows its failure and reads again on Retry", async ()
   expect(h.run.thread(A)?.read).toBe("ready");
 });
 
-// main writes canvas.drawn up to its promotion deadline, possibly after the turn's end; like main's summary.ts
-// lastTurnSeq, the renderer's measures skip it, so a seen end stays seen.
+// main writes canvas.drawn possibly after the turn's end; like main's summary.ts lastTurnSeq,
+// the renderer's measures skip it, so a seen end stays seen.
 test("a canvas.drawn after the turn's end moves neither lastTurnSeq nor endSeq", () => {
   seq = 0;
   const events = [...ended(A), event(A, { type: "canvas.drawn", canvas: CANVAS })];
@@ -571,14 +569,13 @@ test("a canvas.drawn after the turn's end moves neither lastTurnSeq nor endSeq",
   expect(lastTurnSeq(events)).toBe(end);
   expect(endSeq(events, true)).toBe(end);
   expect(endSeq(events, false)).toBe(end);
-  // One written while the turn runs leaves it running.
   seq = 0;
   const running = [event(A, { type: "user.message", text: "hi", anchors: [] }), event(A, { type: "turn.started" }), event(A, { type: "canvas.drawn", canvas: CANVAS })];
   expect(endSeq(running, true)).toBeNull();
 });
 
-// A handoff's resolution and a missed handoff's line come after the turn's end, often while the person moved on; like
-// main's summary.ts lastTurnSeq, they do not make a seen end unseen again, and the end stays markable.
+// main's summary.ts lastTurnSeq skips handoff resolution and missed lines after the turn's end;
+// the renderer's measures must too, so a seen end stays seen and markable.
 test("a handoff resolution or missed line after the turn's end moves neither lastTurnSeq nor endSeq", () => {
   seq = 0;
   const events = [...ended(A),
@@ -597,7 +594,6 @@ test("the main conversation is seen only while it shows with the window focused,
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A, { unseen: true })]);
   await flush();
-  // Opening the Overview alone does not mark it.
   expect(h.host.markSeen).not.toHaveBeenCalled();
   h.state.focused = true;
   h.run.focusChanged();
@@ -611,10 +607,28 @@ test("the main conversation is seen only while it shows with the window focused,
   expect(h.host.markSeen).toHaveBeenCalledTimes(1);
   h.run.event(event(A, { type: "turn.done" }, "t2"));
   expect(h.host.markSeen).toHaveBeenLastCalledWith(A, 7);
-  // Hidden: nothing is marked.
   h.run.show(null);
   h.run.event(event(A, { type: "turn.started" }, "t3"));
   h.run.event(event(A, { type: "turn.done" }, "t3"));
+  expect(h.host.markSeen).toHaveBeenCalledTimes(2);
+});
+
+// A refused write (HomeRun's seenFailed) makes the same end eligible again; a failure for an older end does not.
+test("a failed seen mark is sent again for the same end on the next check, and only for the end that failed", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { unseen: true })]);
+  await flush();
+  expect(h.host.markSeen).toHaveBeenCalledExactlyOnceWith(A, 4);
+  h.run.seenFailed(A, 3);
+  h.run.focusChanged();
+  expect(h.host.markSeen).toHaveBeenCalledTimes(1);
+  h.run.seenFailed(A, 4);
+  h.run.focusChanged();
+  expect(h.host.markSeen).toHaveBeenCalledTimes(2);
+  expect(h.host.markSeen).toHaveBeenLastCalledWith(A, 4);
+  h.run.focusChanged();
   expect(h.host.markSeen).toHaveBeenCalledTimes(2);
 });
 
@@ -628,8 +642,7 @@ function shownSetup(focused: boolean) {
   return h;
 }
 
-// An earlier build's promotion left conversation.bound in the thread; nothing promotes any more, so it moves neither
-// the main column nor the seen mark.
+// An earlier build's conversation.bound moves neither the main column nor the seen mark.
 test("an earlier build's conversation.bound changes nothing on the Overview", async () => {
   const h = shownSetup(true);
   await flush();
@@ -851,8 +864,7 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });
 
-// The state after a conversation is deleted. App marks the conversation
-// deleting before conversation:delete, then on success calls each run's deleted and the store's.
+// App marks the conversation deleting before conversation:delete, then on success calls each run's and the store's deleted.
 function deleteShown() {
   const h = harness();
   histories.set(A, ended(A));
@@ -879,7 +891,6 @@ test("deleting the shown conversation shows the new conversation state, keeps th
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
   expect(h.run.thread(A)).toBeNull();
   expect(h.run.store.deleting(A)).toBe(false);
-  // The list without it changes nothing more.
   h.answer(ROOT, [summary(B)]);
   expect(h.run.view(ROOT)).toEqual({ kind: "new" });
   expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
@@ -930,7 +941,7 @@ test("a deleted conversation an entry asked for is dropped, so the list is not r
   h.host.reread(ROOT);
   h.run.request(ROOT, A, null);
   confirmDelete(h, A);
-  // That read, started before the request, answers without it.
+  // The first read, started before the request, answers without it.
   h.lists.set(ROOT, [summary(B)]);
   vi.spyOn(h.host, "readsApplied").mockReturnValue(h.host.readsStarted(ROOT));
   h.run.sync();
@@ -1034,7 +1045,7 @@ test("an Edit and resend that resolves after the delete restores nothing and rel
   expect(doan.removeAttachment).toHaveBeenCalledWith("x");
 });
 
-// Fix round 1: like the canvas panel, the Overview reads a scheduled conversation's rows only for the root it shows.
+// Like the canvas panel, the Overview reads scheduled rows only for the root it shows.
 test("scheduled rows are read only for the Overview's shown root", async () => {
   const h = harness();
   doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "First", anchors: [], attachments: [] }]);

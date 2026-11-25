@@ -473,10 +473,8 @@ describe("prototype window styles", () => {
     expect(css).not.toMatch(/519\.98px/);
   });
 
-  // An unavailable Export stays focusable (aria-disabled, not disabled), so the shared rules for :disabled never reach
-  // it: it takes the disabled ink itself (the cursor is the shared aria-disabled rule's), and no fill under the pointer or while pressed. The
-  // shared chrome pressed rule counts its :is() by its most specific argument ([aria-haspopup][aria-expanded]), so the
-  // Export's rule must outweigh it, not only follow it.
+  // An unavailable Export stays focusable (aria-disabled), so :disabled rules never reach it: it takes the disabled ink itself and no
+  // fill. The shared chrome pressed rule counts :is() by its most specific argument, so Export's rule must outweigh it.
   test("an unavailable Export takes the disabled ink, the shared default cursor and no hover or pressed fill", () => {
     expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\] \{ color: var\(--text-disabled\); \}/);
     const none = css.match(/^([^{}\n]*\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\)) \{ background: transparent; \}$/m)?.[1];
@@ -511,7 +509,7 @@ describe("prototype window styles", () => {
     expect(css).not.toMatch(/^\.pw-panel \{[^}]*box-shadow/m);
   });
 
-  // The panel no longer clips, so the overlay rounds its own corners over the panel's.
+  // The panel does not clip, so the overlay rounds its own corners over the panel's.
   test("the state overlay keeps the panel's corners", () => {
     expect(css).toMatch(/:is\(\.pw-panel, \.add-panel\) > \.problem-overlay \{[^}]*border-radius: inherit;/);
   });
@@ -529,9 +527,8 @@ describe("viewportStyles", () => {
   });
 });
 
-// Selector specificity as CSS Selectors 4 counts it, for the selectors this file checks: ids, then classes, attributes
-// and pseudo-classes, then types and pseudo-elements. :is(), :not() and :has() count their most specific argument,
-// :where() nothing.
+// Selector specificity as CSS Selectors 4 counts it: ids, then classes, attributes and pseudo-classes, then types and
+// pseudo-elements. :is(), :not() and :has() count their most specific argument, :where() nothing.
 type Specificity = [number, number, number];
 function compareSpecificity(a: Specificity, b: Specificity): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
@@ -611,7 +608,7 @@ describe("the conversation button and panel", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/aria-label="Export prototype".*?<\/button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation" aria-expanded="false" aria-controls="doan-conversation-panel"/);
     expect(tag(html, "pw-conv")).not.toMatch(/disabled|hidden/);
-    // The main window's icon (canvas-inspector-panel draft header-buttons).
+    // The main window's icon.
     expect(html).toContain("lucide-message-square");
     expect(html).not.toContain("lucide-panel-right-open");
   });

@@ -4,8 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { DEFAULT_PREFERENCES, type PreferencesSnapshot } from "../main/preferences";
 import type { BuddySelection } from "./buddySelection";
 
-// The buddy picker and the two screens that hold its row (.doan/canvases/buddy-choice.html), with hooks as plain
-// values (SettingsPage.test.tsx style): no DOM here, so handlers are called directly on the element tree.
+// Hooks as plain values: no DOM here, so handlers are called directly on the element tree.
 const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], refCursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -279,8 +278,8 @@ test("the failure notice names both buddies; Retry is named by its word and desc
   expect(retry).toHaveBeenCalled();
 });
 
-// U38: on Settings' inset notice a subtle Retry has no fill of its own (both are the inset fill), so it is panel there;
-// first run's white panel notice keeps subtle (DESIGN 'Notices', projectNoticeActions).
+// On Settings' inset notice a subtle Retry has no fill of its own, so it is panel there; first run's white panel notice
+// keeps subtle (DESIGN 'Notices').
 test("the failure notice's Retry is panel on the inset notice and subtle on the panel notice", () => {
   const inset = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "settings-buddy-error", className: "settings-notice buddy-notice", retry: vi.fn() });
   expect(all(inset)[0]!.props.className).toBe("doan-notice error settings-notice buddy-notice");
@@ -396,9 +395,8 @@ describe("picker CSS (buddy-choice draft)", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }");
     expect(css).toContain(".buddy-flow[data-scrolling] .buddy-card { transition: none; }");
   });
-  // DESIGN 'States': disabled is a role, never opacity. The newer-settings row reads as Settings' disabled rows: names
-  // and lines in the disabled ink, the chosen card's accent ring and glow (also the reduced-transparency one) given way
-  // to the disabled mark's grey ring, no hover shadow; pictures unchanged.
+  // DESIGN 'States': disabled is a role, never opacity. The newer-settings row takes the disabled ink and the disabled
+  // mark's grey ring, with no hover shadow; pictures are unchanged.
   test("the newer-settings row is disabled by role, not by opacity", () => {
     expect(css).not.toMatch(/\.buddy-flow\[aria-disabled="true"\] \{[^}]*opacity/);
     expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }');

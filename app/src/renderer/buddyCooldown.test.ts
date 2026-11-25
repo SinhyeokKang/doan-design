@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import { COOLDOWN_MS, cooldownClock, cooldownEnd, cooldownRemaining, nextTick } from "./buddyCooldown";
 
-// The 24-hour buddy lock after a Settings > General switch (PRODUCT §5 item 0 'General').
 const H = 3_600_000;
 const T = Date.parse("2026-11-14T10:00:00.000Z");
 

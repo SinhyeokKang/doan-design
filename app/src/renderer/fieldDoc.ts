@@ -3,20 +3,12 @@ import type { Transform } from "prosemirror-transform";
 import type { Anchor } from "../main/conversation/types";
 import { normalize, type FieldSegment } from "./anchorField";
 
-// The composer field's ProseMirror document (ChipField). Every line of the field's text is one paragraph, drawn as a
-// <div> (a <p> would add a line break per line to the selected text and the accessibility value), and a chip is an
-// inline atom. Markers and depth spaces stay typed text: lists are only drawn, as decorations (fieldDecorations.ts).
-// Positions convert to the field's units (anchorField.ts): a unit is a UTF-16 code unit of text or one chip, and a
-// line break is one unit where the document has a paragraph boundary of two positions.
-//
-// Chromium cannot draw a caret before a contenteditable=false element at a line's start, so a line that starts with a
-// chip starts with a filler: a zero-width space under the `filler` mark, which is no unit. `fixFillers` keeps exactly
-// those fillers after every change; the caret at that line's start stands after the filler, on the chip's line.
+// One paragraph per line, drawn as a <div>: a <p> adds a line break per line to the selected text and accessibility
+// value. A line that starts with a chip starts with a `filler`-marked zero-width space, which is no unit.
 
 export const FILLER = "​";
 
-// The chip's DOM is drawn by ChipField's node view; toDOM only serves ProseMirror's own serialisation, which the field
-// never uses for the clipboard.
+// toDOM only serves ProseMirror's own serialisation, which the field never uses for the clipboard.
 export const fieldSchema = new Schema({
   nodes: {
     doc: { content: "paragraph+" },
@@ -30,7 +22,6 @@ export const fieldSchema = new Schema({
 });
 
 const isFiller = (node: PMNode | null | undefined) => node?.isText === true && node.marks.some(mark => mark.type === fieldSchema.marks.filler);
-// The paragraph's leading filler: 1 when it starts with one, else 0.
 const lead = (line: PMNode) => (isFiller(line.firstChild) && line.firstChild!.text === FILLER ? 1 : 0);
 
 function lineNodes(segments: readonly FieldSegment[]): PMNode[][] {
@@ -54,8 +45,7 @@ export function docFromSegments(segments: readonly FieldSegment[]): PMNode {
   return fieldSchema.nodes.doc.create(null, lineNodes(segments).map(line => fieldSchema.nodes.paragraph.create(null, line)));
 }
 
-// Segments as a slice to put in at a position inside a paragraph: open at both ends, so its line breaks split the
-// paragraph there.
+// Open at both ends, so its line breaks split the paragraph there.
 export function sliceFromSegments(segments: readonly FieldSegment[]): Slice {
   return new Slice(docFromSegments(segments).content, 1, 1);
 }
@@ -72,7 +62,7 @@ export function segmentsFromDoc(doc: PMNode): FieldSegment[] {
   return normalize(out);
 }
 
-// A unit offset → the document position at it, past a line's filler; past the end it clamps to the end.
+// Past the end it clamps to the end.
 export function posFromUnit(doc: PMNode, unit: number): number {
   let pos = 1, left = Math.max(0, unit);
   for (let i = 0; i < doc.childCount; i++) {
@@ -84,8 +74,8 @@ export function posFromUnit(doc: PMNode, unit: number): number {
   return pos;
 }
 
-// A document position → its unit offset. A position between two paragraphs (never a caret) counts as the next line's
-// start, and one before a line's filler as that line's start.
+// A position between two paragraphs counts as the next line's start, and one before a line's filler as that line's
+// start.
 export function unitFromPos(doc: PMNode, pos: number): number {
   let unit = 0, start = 0;
   for (let i = 0; i < doc.childCount; i++) {
@@ -97,8 +87,7 @@ export function unitFromPos(doc: PMNode, pos: number): number {
   return Math.max(0, unit - 1);
 }
 
-// Puts the fillers right in `tr`: one before a chip that starts a line, and none elsewhere. A filler that took typed
-// text loses the zero-width space and the mark but keeps the text. True when it changed something.
+// A filler that took typed text loses the zero-width space and the mark but keeps the text.
 export function fixFillers(tr: Transform): boolean {
   const fixes: { from: number; to: number; text: string | null }[] = [];
   tr.doc.forEach((line, offset) => {

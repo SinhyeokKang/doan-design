@@ -6,9 +6,8 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow } from "../main/view";
 import type { ThreadItem } from "./threadItems";
 
-// Pressing a reply chip, and the "No longer in the canvas" note under the
-// reply. No DOM here: `context` stands in for every context the chip reads (useContext), and `note` sets what the
-// reply's note state holds (useLocateNote's count and the chip it is shown for), so one render draws a shown note.
+// No DOM here: `context` stands in for every context the chip reads, and `note` sets what the reply's note state holds
+// (useLocateNote's count and the chip it is shown for), so one render draws a shown note.
 const stub = vi.hoisted(() => ({
   context: null as null | Record<string, unknown>,
   note: null as null | { count: number; chip: string },
@@ -82,7 +81,7 @@ test("the note's chip is described by it", () => {
 test("the note sits under the reply block, not inside it, as a status that describes its chip", () => {
   stub.note = { count: 1, chip: "k" };
   const items: ThreadItem[] = [{ kind: "agent", key: "m1", messageId: "m1", text: "I removed [b](doan:drafts/element/beta-badge).", streaming: false }];
-  const out = renderToStaticMarkup(<TooltipProvider><ConversationThread conversationId="c1" items={items} provider="claude" project="acme" liveAfter={0} canvasListed={() => true} visibility={{ onWindowVisible: () => () => {} }}
+  const out = renderToStaticMarkup(<TooltipProvider><ConversationThread conversationId="c1" items={items} provider="claude" project="acme" liveAfter={0} canvasListed={() => true} visibility={{ onWindowVisible: () => () => {} }} now={0}
     onAnswer={() => {}} onStop={() => {}} onEditAndResend={() => {}} onSignIn={() => {}} onRetry={() => {}} onOpenCanvas={() => {}} onOpenLink={() => {}}
     onCopy={async () => true} onReplyChip={async () => "missing"} openCanvasId="drafts" frames={[]} canvasRows={rows} /></TooltipProvider>);
   expect(out).toMatch(/<div class="thread-item" data-item="m1"><div class="msg-agent md"><p>I removed <button [^>]*aria-describedby="k-missing"[^>]*>.*?<\/button>\.<\/p><\/div><span class="chip-missing" id="k-missing" role="status">No longer in the canvas<\/span><\/div>/);

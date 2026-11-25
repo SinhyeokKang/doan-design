@@ -8,10 +8,8 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
 )
 
-// The HTML parser opens a template on <template/> at any depth (it ignores
-// the self-closing flag). Inert CSS inside the outer template must not count
-// as a user of a custom property, or the active url() resolves from the
-// wrong folder and a file the app would not load is inlined.
+// The parser opens a template on <template/> at any depth. Inert CSS inside the outer template must not count as a user
+// of a custom property, or the url() resolves from the wrong folder and a file the app would not load is inlined.
 func TestInlineInertTemplateDoesNotUseACustomProperty(t *testing.T) {
 	root := exporttest.Seed(t)
 	exporttest.Put(t, root, ".doan/canvases/icon.svg", `<svg xmlns="http://www.w3.org/2000/svg"/>`)

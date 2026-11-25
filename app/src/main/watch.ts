@@ -8,14 +8,11 @@ const DEBOUNCE_MS = 200;
 export interface Change {
   // A canvas directory (`.doan/canvases/`, `.doan/ds/`) or `.doan/` changed, so `doan ls` has to run again.
   reread: boolean;
-  // A served file outside the canvas directories changed (`tokenCss`, `serve`), or a canvas
-  // directory itself came or went, so an open canvas reloads. A change inside a canvas
-  // directory leaves this false and carries `names`; the shell decides from them.
+  // A served file outside the canvas directories changed, or a canvas directory itself came or went, so an open canvas
+  // reloads. A change inside a canvas directory leaves this false and carries `names` for the shell to decide.
   served: boolean;
-  // Repo-relative paths under the canvas directories (`.doan/ds/a.html`), for the shell to
-  // decide whether only canvas rows changed; `null` when an event had no name. Absent
-  // when no canvas directory event is in the change. Relative to the repo, not to each
-  // directory, so a merged set keeps `.doan/canvases/a.html` and `.doan/ds/a.html` apart.
+  // Repo-relative paths under the canvas directories, so a merged set keeps `.doan/canvases/a.html` and `.doan/ds/a.html`
+  // apart; `null` when an event had no name, absent when no canvas directory event is in the change.
   names?: readonly string[] | null;
   // HEAD, FETCH_HEAD or ORIG_HEAD in the root's gitdir changed: only the read state's git signal is read again
   // (gitSignal.ts). No `doan ls`, no served bump, no canvas reload.
@@ -40,12 +37,8 @@ export interface FolderWatch {
   close(): void;
 }
 
-// Debounces triggers into one run; a trigger during a run queues exactly one
-// more run after it, so `doan ls` never runs twice at once for a folder and
-// the last change is never missed. Flags pile up until a run takes them, so a
-// change that lands during a run reaches the run queued after it. Names are a
-// union, and one unknown name makes the whole set unknown until a run takes it;
-// a trigger without names (not a canvas directory event) leaves them as they are.
+// Debounces triggers into one run; a trigger during a run queues exactly one more, so `doan ls` never runs twice at once
+// and the last change is never missed. Names are a union; one unknown name makes the set unknown until a run takes it.
 export function createRefresher(run: (change: Change) => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
@@ -111,14 +104,8 @@ interface Target {
   canvasDir?: string;
 }
 
-// Watches what `doan ls` reads: the root (non-recursive, to see
-// `.doan` come and go), the canvas directories `.doan/canvases/` and `.doan/ds/`
-// (recursive) and `.doan/` (config.json); plus the served paths outside `.doan`
-// from the latest scope, and the gitdir (non-recursive) for the read state's git signal.
-// Git replaces HEAD and friends by rename, which ends a watcher on the file itself, so
-// their directory is watched.
-// A watcher on a deleted directory stays on the old inode, so the sub-watchers are
-// re-armed whenever their parent changes.
+// Watches what `doan ls` reads, the served paths and the gitdir. Git replaces HEAD by rename, ending a watcher on the
+// file, so directories are watched; a watcher on a deleted directory keeps the old inode, so sub-watchers re-arm.
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
   const refresher = createRefresher(refresh);
   const armed = new Map<string, Armed>();
@@ -152,8 +139,7 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     const target = targets().find((candidate) => candidate.path === path);
     if (target === undefined) return undefined;
     if (target.names && filename !== null && !target.names.has(filename)) return undefined;
-    // Names are judged only here, never on the root watcher: the root's own
-    // deletion arrives there under the root's name (POSTMORTEM 2026-10-22).
+    // Names are judged only here, never on the root watcher: the root's own deletion arrives there under the root's name.
     if (target.canvasDir !== undefined) return { ...REREAD, names: filename === null ? null : [`${target.canvasDir}/${filename}`] };
     return target.change;
   };
@@ -161,7 +147,7 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
   const onEvent = (path: string, filename: string | null) => {
     if (closed) return;
     // Git touches its index and lock files on every `git status`; those neither re-arm nor reach the refresher. The
-    // gitdir's own name stays: deleting a watched directory arrives named after it (POSTMORTEM 2026-10-22).
+    // gitdir's own name stays: deleting a watched directory arrives named after it.
     if (path === gitTarget?.path && filename !== null && !GIT_NAMES.has(filename) && filename !== basename(path)) return;
     rearm();
     const change = classify(path, filename);
@@ -210,9 +196,8 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       // A served path replaced or removed changed what is served, even when the
       // event that got here was a root event classified as a re-read only.
       if (current && current.ino !== ino && served.includes(target)) refresher.trigger(SERVED);
-      // A canvas or asset directory replaced or removed came and went, which `.doan`'s own event
-      // for it says too. That event can be lost: libuv recreates its shared FSEvents stream from
-      // "now" whenever this re-arm opens or closes a watcher.
+      // A canvas or asset directory replaced or removed came and went. `.doan`'s own event for it can be lost: libuv
+      // recreates its shared FSEvents stream from "now" whenever this re-arm opens or closes a watcher.
       if (current && current.ino !== ino && (target === assetsDir || canvasDirs.includes(target))) refresher.trigger(BOTH);
       current?.watcher.close();
       armed.delete(path);
@@ -250,11 +235,8 @@ function inside(path: string, dir: string): boolean {
   return path === dir || path.startsWith(dir + "/");
 }
 
-// Scope entries are real repo-relative paths, so aliased assets are watched
-// at their resolved location. The fixed watchers already cover .doan; only
-// canvas and asset events may reload, never settings. A served file is
-// watched through its directory because an atomic save replaces the file and
-// ends a watcher on the file itself.
+// Scope entries are real repo-relative paths. Only canvas and asset events may reload, never settings. A served file
+// is watched through its directory, since an atomic save replaces the file and ends a watcher on it.
 function servedTargets(root: string, scope: readonly string[]): { targets: Target[]; rootNames: Set<string> } {
   const dirs: string[] = [];
   const files: string[] = [];
@@ -273,20 +255,20 @@ function servedTargets(root: string, scope: readonly string[]): { targets: Targe
   const targets: Target[] = top.map((dir) => ({ path: join(root, dir), recursive: true, change: SERVED }));
   const rootNames = new Set<string>();
   const parents = new Map<string, Set<string>>();
-  const watchParent = (rel: string) => {
-    const parent = dirname(rel);
-    const names = parents.get(parent) ?? new Set<string>();
-    names.add(basename(rel));
-    parents.set(parent, names);
+  // Every ancestor below the root is watched too, for the next name down only: once a directory is deleted its own
+  // watcher is gone, and only the one above it sees it come back. The root watcher does this for the root's entries.
+  const watchAncestors = (rel: string) => {
+    for (let child = rel, parent = dirname(rel); parent !== "."; child = parent, parent = dirname(parent)) {
+      const names = parents.get(parent) ?? new Set<string>();
+      names.add(basename(child));
+      parents.set(parent, names);
+    }
   };
-  // A served directory's parent is watched too: once the directory is deleted
-  // its own watcher is gone, and the parent is what sees it come back. The
-  // root watcher already does this for directories at the root.
-  for (const dir of top) if (dirname(dir) !== ".") watchParent(dir);
+  for (const dir of top) watchAncestors(dir);
   for (const file of files) {
     if (covered(file)) continue;
     if (dirname(file) === ".") rootNames.add(file);
-    else watchParent(file);
+    else watchAncestors(file);
   }
   for (const [parent, names] of parents) targets.push({ path: join(root, parent), recursive: false, change: SERVED, names });
   return { targets, rootNames };

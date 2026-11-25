@@ -283,9 +283,8 @@ describe("ACP command lists", () => {
   });
 });
 
-// Codex's review/start takes no permission mode: the review runs in the mode the thread was last told on a turn. Main
-// sends /review only while that is the picker's mode now, known in this run (an override holds across thread/resume, and
-// nothing in the record says which mode a turn stated).
+// Codex's review/start takes no permission mode: it runs in the mode the thread was last told. Main sends /review only
+// while that is the picker's mode, known in this run (an override holds across thread/resume; the record keeps none).
 describe("Codex /review and the permission mode", () => {
   const done = (h: ReturnType<typeof fixture>, id: string) => h.service.receive(id, { type: "turn.done" });
   it("sends /review after a turn that stated the picker's mode", async () => {
@@ -320,7 +319,7 @@ describe("Codex /review and the permission mode", () => {
     await expect(h.service.send(id, "/review", [], { permissionMode: "default" })).rejects.toThrow("command_mode_stale");
   });
   // A turn whose history stopped taking writes never records its end, yet its turn/start may have told the thread a
-  // wider mode: the mode is unknown until an ordinary turn in the picker's mode ends done (R2b review repro).
+  // wider mode: the mode is unknown until an ordinary turn in the picker's mode ends done.
   it("forgets the stated mode when a turn ends through a failed history write", async () => {
     const h = fixture();
     const id = await h.start("hello", { permissionMode: "plan" }); done(h, id);

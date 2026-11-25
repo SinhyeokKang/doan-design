@@ -21,10 +21,8 @@ const (
 	ReasonFrame     = "local document in a frame"
 	// The app draws a <use> only when it names a fragment of the canvas.
 	ReasonUseExternal = "the app does not draw an external use; inline the sprite"
-	// A url() in a custom property resolves from each stylesheet that uses
-	// it, and these name different paths: which file shows depends on the
-	// element, and one data URL cannot follow it, whether or not the files
-	// exist.
+	// A url() in a custom property resolves from each stylesheet that uses it; when these name different paths, the file
+	// shown depends on the element, which one data URL cannot follow.
 	ReasonAmbiguous = "resolves to different paths from the stylesheets that use it"
 	// A <base href> moves the folder relative references resolve from, and
 	// export does not follow it.
@@ -45,10 +43,8 @@ type resolved struct {
 	Reason string // when refused
 }
 
-// resolveAsset applies the app server's order: real path, inside the
-// repository, inside the serving scope, then a regular file. base is the
-// repo-relative directory of the referencing file. A missing target is not a
-// refusal here because CSS files may name files that do not exist.
+// resolveAsset applies the app server's order: real path, inside the repository, inside the serving scope, then a
+// regular file. A missing target is not refused here, since CSS files may name files that do not exist.
 func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, href string) (resolved, error) {
 	p, ok := canvas.LocalPath(href)
 	if !ok {
@@ -64,7 +60,7 @@ func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, hr
 	case repo.Missing:
 		return resolved{State: assetMissing}, nil
 	}
-	if !served(real, scope) {
+	if !repo.Served(real, scope) {
 		return resolved{State: assetRefused, Reason: ReasonNotServed}, nil
 	}
 	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(real)))
@@ -80,26 +76,10 @@ func resolveAsset(resolver *repo.Resolver, root string, scope []string, base, hr
 	return resolved{State: assetInside, Real: real}, nil
 }
 
-// served is the comparison `doan check` uses for css_not_served: equal to or
-// under a scope entry, by path segment, and not held back (repo.Withheld).
-func served(p string, scope []string) bool {
-	if repo.Withheld(p) {
-		return false
-	}
-	for _, s := range scope {
-		if p == s || strings.HasPrefix(p, s+"/") {
-			return true
-		}
-	}
-	return false
-}
-
 var errNotRegular = errors.New("not a regular file")
 
-// ReadFile reads the repo-relative real path rel under root. Every segment
-// below "/" is opened with O_NOFOLLOW, so a segment swapped for a symlink
-// after resolution fails instead of leading the read outside the scope (the
-// same purpose as the app server's O_NOFOLLOW_ANY).
+// ReadFile reads rel, a repo-relative real path under root, opening every segment with O_NOFOLLOW: a segment swapped for a symlink
+// after resolution fails instead of leading the read outside the scope (as the app server's O_NOFOLLOW_ANY).
 func ReadFile(root, rel string) ([]byte, error) {
 	data, _, err := readFile(root, rel, -1)
 	return data, err

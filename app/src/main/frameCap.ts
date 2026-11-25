@@ -1,6 +1,5 @@
-// Static frames from `doan ls` have no cap of their own, while the rendered
-// list is capped by the injected script. These are the same limits, so a frame
-// id read here still equals the id the rendered canvas reports.
+// Static frames from `doan ls` take the injected script's caps, so a frame id read here equals the id the rendered
+// canvas reports.
 export const MAX_STATIC_FRAMES = 1000;
 // UTF-16 code units, as `String.length` counts them (canvasMessage MAX_STRING).
 export const MAX_STATIC_STRING = 200;

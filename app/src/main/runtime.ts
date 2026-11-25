@@ -14,6 +14,7 @@ import type { FolderState } from "./folderState";
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
 
+// The CLI's socketLineLimit; handoff_rules_test.go reads this line.
 const LINE_LIMIT = 64 * 1024;
 export const LINE_WAIT_MS = 2000;
 // The CLI's 2 s (`activeTimeout`) starts before it dials and LINE_WAIT_MS at the connection, so a registration
@@ -44,21 +45,18 @@ export interface RuntimeState extends ActiveState {
   // `doan open --prototype` (app-socket v6) once its schema, token and registered root passed. Answers at once: the
   // play starts, or the window comes forward, before the reply.
   playPrototype(request: PrototypeRequest): PrototypeResponse;
-  // `doan remove` (app-socket v7) once its schema, token and registered root passed: main's judgment and the removal
-  // (cliRemove.ts answerCliRemove). The removal's write must land inside the 2 s deadline for the CLI to see the answer;
-  // a later one still removes.
+  // `doan remove` once schema, token and registered root passed (cliRemove.ts answerCliRemove). Its write must land
+  // inside the 2 s deadline for the CLI to see the answer; a later one still removes.
   remove(request: RemoveRequest): Promise<RemoveResponse>;
-  // Auto-registration of a saved repository's worktree on a v3 start or terminal update (ARCHITECTURE §4 'Auto-registration'): the registered roots,
-  // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
-  // which must make `isOpen(root)` true before it returns so the start's work applies.
+  // Auto-registration (ARCHITECTURE §4 'Auto-registration'): `doan ls` is never killed early, so a late registration still
+  // lands, and the registration must make `isOpen(root)` true before it returns so the start's work applies.
   roots(): readonly string[];
   readRoot(root: string): Promise<FolderState>;
   adopt(root: string, view: Extract<FolderState, { kind: "list" }>): void;
 }
 
-// App conversations' runtime file, beside runtime.json: the same socket under a credential that answers only what a
-// conversation's agent needs, never onboarding (v2) or a project removal (v7). A conversation's environment and fence
-// name this file, so conversations cannot use onboarding or remove projects.
+// The same socket under a credential that answers only what a conversation's agent needs, never onboarding (v2) or a
+// project removal (v7) (ARCHITECTURE §4 'App-socket credentials').
 export const CONVERSATION_RUNTIME = "conversation-runtime.json";
 
 export interface Runtime {
@@ -96,8 +94,8 @@ export function tokenMatches(given: string, token: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// `root` is the CLI's discovered root, compared as a string with the stored
-// project path; the app never re-derives a root (POSTMORTEM 2026-10-22).
+// `root` is the CLI's discovered root, compared as a string with the stored project path; the app never re-derives a
+// root.
 export function socketResponse(selection: Selection | null, root: string): SocketResponse {
   return { v: 1, ok: true, result: selection !== null && selection.root === root ? { selection } : {} };
 }
@@ -183,9 +181,8 @@ function register(state: RuntimeState, root: string): Promise<boolean> {
   return task;
 }
 
-// A start or terminal update from an unregistered root may register it; a done only waits for a registration already running, so it
-// lands after that start's work. Either way the work applies once registered, even after the answer said
-// project_not_open.
+// A start or terminal update from an unregistered root may register it; a done only waits for one already running.
+// Either way the work applies once registered, even after the answer said project_not_open.
 async function workAfterRegistration(state: RuntimeState, request: WorkRequest): Promise<WorkResponse> {
   const notOpen = workError("project_not_open", "The project is not open in Doan.");
   const pending = registrations.get(state)?.get(request.root) ??
@@ -274,10 +271,8 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
   catch (error) { console.error("doan: onboarding request failed", error); return onboardingError("bad_request", "Doan could not handle this request."); }
 }
 
-// One request line per connection, one response line, then close. A hard
-// deadline rather than an idle timeout, so a client dripping bytes cannot hold
-// the connection open; it also outlives the reply, since `end` only half-closes
-// and a peer that never closes its side would keep the socket.
+// One request line per connection, one response line, then close. A hard deadline rather than an idle timeout, so a
+// dripping client cannot hold the connection; it outlives the reply, since `end` only half-closes.
 function serve(connection: Socket, token: string, conversation: string, state: RuntimeState): void {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -322,9 +317,8 @@ function listen(server: Server, path: string): Promise<void> {
   });
 }
 
-// The socket lives in a fresh temp dir, not under userData: macOS `sun_path` is
-// 104 bytes and a temp `--user-data-dir` can exceed it. The 0700 dir is what
-// keeps other users out; the socket file itself follows the umask.
+// The socket lives in a fresh temp dir, not under userData: macOS `sun_path` is 104 bytes and a temp `--user-data-dir`
+// can exceed it. The 0700 dir keeps other users out; the socket file itself follows the umask.
 export async function startRuntime(userData: string, state: RuntimeState): Promise<Runtime> {
   const token = randomBytes(32).toString("hex");
   const conversationToken = randomBytes(32).toString("hex");

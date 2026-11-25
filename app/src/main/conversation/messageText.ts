@@ -1,7 +1,8 @@
+import { frameTitle } from "../../renderer/canvasTree";
 import type { Anchor } from "./types";
 
-// Shared by main and the renderer: this module must import nothing but types, because a renderer value import that
-// reaches prompt.ts pulls in ajv and leaves the built window blank (POSTMORTEM 2026-10-30).
+// Shared by main and the renderer: this module must import nothing but types and pure helpers, because a renderer value
+// import that reaches prompt.ts pulls in ajv and leaves the built window blank (POSTMORTEM 2026-10-30).
 
 // UTF-16 code units, matching renderer string lengths; these are input bounds, not model budgets.
 export const LIMITS = { text: 32_768, anchors: 32, selector: 2_048, excerpt: 2_048, label: 512, path: 4_096, attachments: 10 };
@@ -43,7 +44,7 @@ const cut = (value: string) => (value.length > CHIP_TEXT_MAX ? `${value.slice(0,
 
 // The open canvas's frame list names a frame when it has one; otherwise the title the anchor carried, then its id.
 function frameName(id: string, carried: string | undefined, frames: readonly FrameName[]): string {
-  return oneLine(frames.find(frame => frame.id === id)?.title || carried || "") || id;
+  return oneLine(frameTitle(frames.find(frame => frame.id === id)?.title) ?? frameTitle(carried) ?? "") || id;
 }
 
 export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): ChipLabel {
@@ -77,9 +78,8 @@ export function plainTitle(text: string): string {
   return text.split("\n").map(line => line.replace(LIST_MARKER, "")).join("\n");
 }
 
-// The one-line form of a message for titles, previews, the queue and notifications: list markers go (plainTitle),
-// each chip marker reads as its chip's name, and line breaks and runs of spaces, in the text or in a frame's name,
-// read as one space. A marker without an anchor stays as typed.
+// The one-line form of a message for titles, previews, the queue and notifications: list markers go, each chip marker
+// reads as its chip's name, and line breaks and space runs read as one space. A marker without an anchor stays.
 export function messageLine(text: string, anchors: readonly Anchor[], frames: readonly FrameName[] = []): string {
   const line = splitMarkers(plainTitle(text), anchors.length).map(part => ("n" in part ? chipLabel(anchors[part.n - 1]!, frames).label : part.text)).join("");
   return oneLine(line).slice(0, LIMITS.label);

@@ -233,10 +233,8 @@ describe("a turn the limit stopped before the agent did anything", () => {
   });
 });
 
-// A project turn the limit stopped stays working while the usage read runs, so the composer queues. What it queues then
-// waits for the same reset as a canvas conversation's does, and a folder refresh never sends it early (ARCHITECTURE §7
-// 'Usage-limit schedule'; POSTMORTEM 2026-11 'A project conversation's queue made while its rate-limited turn waited for
-// judgement went out before the reset').
+// A limited project turn stays working while its usage read runs, so the composer queues; that queue waits for the same
+// reset, and a folder refresh never sends it early (ARCHITECTURE §7 'Usage-limit schedule').
 describe("a project conversation's queue made while its limited turn's usage read runs", () => {
   it("waits for the reset once the reset is known, whatever folder refresh comes", async () => {
     const h = fixture(); h.limit(RESET);

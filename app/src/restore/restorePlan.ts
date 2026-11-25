@@ -9,10 +9,8 @@ export type RestorePlan =
   | { kind: "home" }
   // The saved root is still loading; ask again when the list changes or time passes.
   | { kind: "wait" }
-  // `canvas: null` is the overview. `missingCanvas` is the saved path that is
-  // no longer listed, for the "is no longer in .doan/canvases/" toast; `duplicateId`
-  // is the saved canvas id now used by several rows. `view` is applied as the
-  // canvas opens; the board stays hidden until its first layout.
+  // `canvas: null` is the overview; `missingCanvas` (saved path, now unlisted) and `duplicateId` feed toasts.
+  // `view` applies as the canvas opens, and the board stays hidden until its first layout.
   | { kind: "workspace"; root: string; canvas: { path: string; view?: UiView } | null; missingCanvas?: string; duplicateId?: { id: string; count: number } };
 
 // `elapsedMs` is time since the restore started; the caller owns the clock.

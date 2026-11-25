@@ -39,7 +39,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 ### `tasks.md` — order
 - Each task has **one line on how to verify it** ("schema fixture tests green", "`doan check` reports X as an error"). Use only commands from the AGENTS.md 'Commands' section. If none exists, write "command undecided — needs user confirmation".
 - Order: schema and fixtures → pure functions → shell (I/O) → UI.
-- Mark commit boundaries (`/ship` follows them).
+- Mark commit boundaries (`/deliver` follows them).
 - Last task: promote the conclusions to `docs/PRODUCT.md` (product judgments) and `docs/ARCHITECTURE.md` (structure, formats, conventions) — those documents are written in English — as current rules (rationale in the commit message), and delete `docs/features/<slug>/`.
 
 ## 2. Procedure
@@ -49,7 +49,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 3. If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the areas this feature touches and quote the matching pitfalls in design.md. For a UI flow, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
 4. Write the three files.
 5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option. Apply each answer to the documents.
-6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit on the checked-out branch without switching, and on develop push straight to develop; never commit on main (AGENTS.md 'Commit conventions'). Stage paths one by one; trailers follow `/ship`'s commit rules.
+6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit on the checked-out branch without switching, and on develop push straight to develop; never commit on main (AGENTS.md 'Commit conventions'). Stage paths one by one; trailers follow `/deliver`'s commit rules.
 
 ## 3. Report
 

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
@@ -24,18 +24,14 @@ export interface AuthProcess { onOutput(listener: (text: string, stream?: "stder
 export type Spawn = (command: string, args: string[], options: { cwd: string; env: Record<string, string>; input?: boolean }) => AuthProcess;
 export interface AuthPrompt { provider: Provider; attemptId: string; owner: number; url: string }
 // A provider process using the dedicated profile; sign-in and sign-out wait until every lease is released.
-// promptSuggestion: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, which a Claude run's preparation applies
-// (conversation/prepare.ts); it is not in env, so no other process of the provider gets it.
+// promptSuggestion is applied only by a Claude run's preparation (prepare.ts), so it is kept out of env.
 export interface Lease { command: string; env: Record<string, string>; profileDir: string; promptSuggestion?: string; release(): Promise<void>; quiet?(on: boolean): void }
 export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } | { ok: false; reason: AuthRejection; state: AuthState };
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
 export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
-// The MCP connector step of a sign-out or a committed replacement (ARCHITECTURE §7 'MCP connectors').
-// agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
-// CLI (with its base arguments) in the profile being left, the live one or a replaced one, and resolves after its
-// group is gone. staging: the new profile of a staged replacement (Codex), which takes the servers still valid.
-// profileDir: that profile's directory, whose own config names its servers when the provider's list cannot be read.
+// The MCP step of a sign-out or replacement (ARCHITECTURE §7 'MCP connectors'): run executes the provider CLI in the profile
+// being left and resolves only after its process group is gone; staging is a staged replacement's new profile.
 export interface McpLogoutRequest {
   kind: "signOut" | "replace"; previousAccountId: string | null; nextAccountId: string | null; staging: string | null; profileDir: string;
   run(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }>;
@@ -48,27 +44,25 @@ export interface AuthManagerOptions {
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
   stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
-  // Stops the provider's MCP connector work at the start of every sign-in or sign-out write. That work may hold no
-  // lease (a pending Codex logout runs in a temporary CODEX_HOME), so the drain would not reach it; it never needs the
-  // person's stop either, which stays the conversations' rule (stopRuns, stop_required).
+  // Stops the provider's MCP connector work at every sign-in or sign-out write. That work may hold no lease (a pending
+  // Codex logout runs in a temporary CODEX_HOME), so the drain would not reach it.
   stopMcp?(provider: Provider): Promise<void>;
   // Never fails the sign-out or replacement it runs in: a failed logout is the step's own pending record.
   mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
-  // The outer fence (profileFencedCommand) for Claude's MCP logout commands, since `claude mcp list` starts the stdio
-  // servers the profile's .claude.json names, which an agent in the outer fence can write; and for every Copilot and
-  // Cursor process (fencedEverywhere). The other providers' sign-in, status and own logout stay unfenced.
+  // The outer fence (profileFencedCommand) for Claude's MCP logout commands and every Copilot and Cursor process: `claude
+  // mcp list` starts the servers .claude.json names, which a fenced agent can write.
   fence?: { userData: string; exec?: string };
 }
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
-const QUIT_WAIT_MS = 5000;
+export const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
-// The CLI launches the browser right after printing its link (the hook ran within the same second), so a printed
-// link with no accepted hook link this long after it means the CLI no longer behaves as `claudeLink` expects.
+// The CLI launches the browser right after printing its link, so no accepted hook link this long after it means the CLI
+// does not behave as `claudeLink` expects.
 const HOOK_LINK_MS = 10_000;
 const LINK_DIR_PREFIX = "doan-auth-link-";
 // A running login's directory is minutes old at most; the margin keeps another doan instance's live one.
@@ -82,10 +76,8 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
 class Failure extends Error { constructor(readonly code: "sign_in_failed" | "storage_failed" | "cli_install_failed", detail?: string) { super(detail ?? code); } }
-// A failed ACP exchange is logged in Doan's own words only: the server's messages, RPC error text and data, payloads and
-// exception lines can hold the sign-in link, the account and tokens (the 1.3.0 server puts the whole loadCodeAssist
-// reply into an onboarding error). reason is Doan's category of how the exchange ended; events are the server's
-// recognized log lines, reworded. The detail stays the full message for the in-memory outcome only.
+// A failed ACP exchange is logged in Doan's own words only: server messages, RPC errors and exception lines can hold the
+// sign-in link, account and tokens. The full detail stays in the in-memory outcome only.
 class ServerError extends Error { constructor(detail: string, readonly reason: string, readonly events: readonly string[], readonly withheld: number) { super(detail); } }
 class UnexpectedServer extends Error {}
 // An account lookup's failure in Doan's own words: never a reply body, a token or a provider message.
@@ -95,10 +87,10 @@ type Found = { email: string } | null;
 // only the values they send outlive the read.
 type TokenSource = { request: { url: string; body: string } } | { failure: string };
 const SERVER_EVENTS = 20;
-// An absl log line of the 1.3.0 server: level and date, time, thread, file:line]. Traceback and payload continuation
-// lines and the printed sign-in link do not match and are withheld.
+// An absl log line of the server. Traceback, payload continuation lines and the printed sign-in link do not match and are
+// withheld.
 const SERVER_LINE = /^([IWEF])\d{4} (\d\d:\d\d:\d\d)\.\d+ +\d+ ([A-Za-z0-9_]{1,64}\.py):(\d{1,6})\] (.*)$/;
-// Messages of the 1.3.0 auth path (credential_manager.py, onboard.py, oauth_manager.py, server.py, settings_writer.py).
+// Messages of the server's auth path.
 const SERVER_EVENT_NAMES: [RegExp, string | ((found: RegExpExecArray) => string)][] = [
   [/^Starting AGY ACP Server\b/, "server started"],
   [/^Authenticate called\b/, "authenticate received"],
@@ -253,10 +245,8 @@ export class AuthManager {
           outcome = error instanceof Cancelled || this.cancelled(provider, attemptId) ? null
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
-        // The MCP step runs only after the commit, so a replacement that does not finish leaves the MCP registrations
-        // and tokens as they were (POSTMORTEM 2026-10-29), and before a staged replacement's previous profile is logged
-        // out and removed: the MCP logouts run in it. Until it ends the provider admits nothing: a run would use the
-        // previous account's MCP tokens, or start Codex before its staging profile has its servers.
+        // After the commit (an unfinished replacement keeps MCP registrations) and before retiring the old profile, where
+        // logouts run. Nothing is admitted meanwhile: a run could use the old account's tokens (POSTMORTEM 2026-10-29).
         const settle = previous !== null && outcome?.status === "stored" && this.options.mcpLogout !== undefined;
         if (settle) this.settlings.add(provider);
         this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome, kept: !touch.live } : { type: "settled", attemptId, kept: !touch.live });
@@ -340,10 +330,8 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  // listing: a model list read; mcp: an MCP connector command; usage: an account usage read.
-  // Each holds the profile like a run, but none is a conversation the person would be asked to stop:
-  // a sign-out or replacement stops it (stopRuns) and waits for it without stop_required. added: extra environment,
-  // such as the MCP sign-in's link file.
+  // listing, mcp and usage hold the profile like a run but are not conversations: a sign-out or replacement stops them
+  // (stopRuns) without stop_required. added: extra environment, such as the MCP sign-in's link file.
   async acquire(provider: Provider, use: "run" | "listing" | "mcp" | "usage" = "run", added: Record<string, string> = {}): Promise<Lease> {
     this.admit(provider);
     const { command, env, profileDir, promptSuggestion } = await this.launch(provider, undefined, added);
@@ -450,12 +438,12 @@ export class AuthManager {
       account = withIdentity(account, await this.lookup(provider, attemptId, profile, source), null);
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
     }
-    const profileDir = this.options.storage.profileDir(provider, profile), storage = this.options.storage;
+    const storage = this.options.storage;
     let sealed: Buffer | null = null;
     // The working copy goes before the commit: after the vault and metadata name the new login nothing may fail and
     // hand the previous connection back over it.
     if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); storage.scrub(provider, auth.vault!); });
-    else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
+    else if (await this.storageStep(() => storage.removePlaintext(provider, auth.plaintext, profile))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile, account };
     // Last cancellation point: from the vault and metadata writes to the signedIn transition only microtasks run, so
     // no cancel or window-close event can land between a persisted connection and its state.
@@ -488,8 +476,7 @@ export class AuthManager {
       // Cleanup is not the stopped work: a cancelled login may already have written its keychain item.
       this.stopRequests.delete(attemptId);
       if (staged) { await this.cleanProfile(provider, attemptId, staged); return; }
-      const profileDir = storage.profileDir(provider, this.profileOf(provider));
-      for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+      storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider));
       if (!hadConnection && auth.logout) await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
     } catch (error) { console.error(`doan: ${provider} sign-in cleanup failed`, message(error)); }
   }
@@ -501,8 +488,7 @@ export class AuthManager {
   private async cleanProfile(provider: Provider, attemptId: string, profile: string): Promise<boolean> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
-      const profileDir = storage.profileDir(provider, profile);
-      for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+      storage.removePlaintext(provider, auth.plaintext, profile);
       if (auth.logout) {
         const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000, profile);
         if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
@@ -530,16 +516,15 @@ export class AuthManager {
     // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear.
     const connection = this.state(provider).connection;
     if (connection) await this.mcpStep(provider, attemptId, connection.profile, { kind: "signOut", previousAccountId: connection.account.id, nextAccountId: null, staging: null });
-    // The server's own logout clears its stored token (logout.py, 1.3.0; no remote revocation is documented). doan's
-    // copy goes either way, and only the fresh status below decides the result.
+    // The server's own logout clears its stored token. doan's copy goes either way, and only the fresh status below decides.
     if (auth.acpAuth && auth.vault) await this.acpLogout(provider, attemptId);
-    if (auth.vault) { storage.removeVault(provider); storage.scrub(provider, auth.vault); }
+    // The plaintext goes even when the vault copy cannot be removed (ARCHITECTURE §7 'Storage' 'Working copies').
+    if (auth.vault) { try { storage.removeVault(provider); } finally { storage.scrub(provider, auth.vault); } }
     else if (auth.logout) {
       const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
       if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
     }
-    const profileDir = storage.profileDir(provider, this.profileOf(provider));
-    for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+    storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider));
     // A deleted file proves nothing until a fresh provider process reports the profile signed out.
     const checked = await this.statusRun(provider, attemptId);
     if (checked.status !== "disconnected" && checked.status !== "expired") throw new Error(`profile still reports ${checked.status}`);
@@ -612,7 +597,10 @@ export class AuthManager {
     }
   }
   private async acpLogout(provider: Provider, attemptId: string): Promise<void> {
-    await this.hold(provider);
+    // A stored login that cannot be put in the profile (an unreadable vault) leaves no token to log out with; Doan's
+    // copy still goes, and the status check decides.
+    try { await this.hold(provider); }
+    catch (error) { console.error(`doan: ${provider} server logout skipped; removing Doan's copy: the stored login could not be prepared`, message(error)); return; }
     try {
       await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, "logout", {});
     } catch (error) { console.error(`doan: ${provider} server logout failed; removing Doan's copy: ${exchangeReason(error)}${serverLog(error)}`); }
@@ -629,10 +617,8 @@ export class AuthManager {
       throw new UnexpectedServer(`unexpected ACP server ${String(info.name)} ${String(info.version)}`);
     }
   }
-  // One ACP exchange with the provider's server, after its checked initialize; resolves or rejects only after its
-  // process group is gone. onLink sees each sign-in link the server asks the browser to open and returns true to stop
-  // the server. timeoutMs starts at the initialize answer: under heavy load the 278 MB server alone took about 30 s to
-  // start, which a status check right after an approved sign-in must not count (ACP_OPEN_MS bounds the start).
+  // One ACP exchange after its checked initialize; settles only after its process group is gone. onLink returns true to
+  // stop the server. timeoutMs starts at the initialize answer because the server alone can take ~30 s to start.
   private async acpExec(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, method: string, params: unknown): Promise<unknown> {
     const { command, env, profileDir } = await this.launch(provider, attemptId);
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
@@ -711,9 +697,8 @@ export class AuthManager {
       return null;
     } finally { clearTimeout(timer); if (this.lookups.get(attemptId) === controller) this.lookups.delete(attemptId); }
   }
-  // account/read from a short app-server in the profile, with a Codex conversation's store and handshake. The
-  // dispatcher is the conversation runner's: AcpConnection refuses Codex messages, which carry no jsonrpc field.
-  // arm starts the budget once the CLI is located: the login-shell probe is the status run's cost as well, not the lookup's.
+  // account/read from a short app-server with a Codex conversation's store and handshake (AcpConnection refuses Codex
+  // messages). arm starts the budget once the CLI is located, so the login-shell probe is not counted.
   private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal, arm: () => ReturnType<typeof setTimeout>): Promise<string | undefined> {
     let child: AuthProcess;
     try {
@@ -808,7 +793,7 @@ export class AuthManager {
     let extra = { ...this.adapters[provider].env, ...added };
     if (this.adapters[provider].acpAuth || this.adapters[provider].hookLink) {
       // Every process of a browser sign-in server gets the hook, so neither a check nor an expired run can open a
-      // browser itself. Without a usable hook the CLI would open the default browser, so nothing starts.
+      // browser itself. Without a usable hook the CLI would open the default browser, so nothing starts; ":" is $BROWSER's separator.
       const hook = this.options.storage.ownedScript(BROWSER_HOOK.name, BROWSER_HOOK.script);
       if (hook.includes(":")) throw new Error("browser_hook_unusable");
       extra = { ...extra, BROWSER: hook };
@@ -818,9 +803,8 @@ export class AuthManager {
     return env.env;
   }
 
-  // A provider command in a directory Doan owns outside the profiles: a pending MCP logout's temporary CODEX_HOME,
-  // whose keychain entry is keyed by server name and URL only, so it runs whether or not the provider is signed in.
-  // Same located CLI and child environment allowlist as every provider process; no lease and no profile is touched.
+  // A provider command in a Doan-owned directory outside the profiles, such as a pending MCP logout's temporary CODEX_HOME.
+  // Same CLI and environment allowlist as every provider process; no lease and no profile is touched.
   async environment(provider: Provider, profileDir: string): Promise<{ command: string; env: Record<string, string> }> {
     if (this.closed) throw new Error("busy");
     const located = await this.options.locate(provider);
@@ -898,10 +882,9 @@ export class AuthManager {
   private async recover(provider: Provider, connected: boolean): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
-      if (!auth.vault) { const dir = storage.profileDir(provider, this.profileOf(provider)); for (const rel of auth.plaintext) rmSync(join(dir, rel), { force: true }); return; }
-      // A crash can leave a refreshed working copy; keep it only in encrypted form.
-      // Only a working file is a copy to keep: a lone temporary sibling is an interrupted write, and absorbing
-      // it would read the missing file as a sign-out and empty the vault.
+      if (!auth.vault) { storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider)); return; }
+      // A crash can leave a refreshed working copy; keep it only in encrypted form. A lone temporary sibling is an interrupted
+      // write: absorbing it would read the missing file as a sign-out and empty the vault.
       if (connected && storage.hasWorkingCopy(provider, auth.vault)) {
         try { await storage.absorb(provider, auth.vault); } catch (error) { console.error(`doan: ${provider} leftover credential could not be stored`, message(error)); }
       }
@@ -909,8 +892,8 @@ export class AuthManager {
       if (!connected) storage.removeVault(provider);
     } catch (error) { console.error(`doan: ${provider} credential recovery failed`, message(error)); }
   }
-  private async storageStep(step: () => unknown): Promise<void> {
-    try { await step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
+  private async storageStep<T>(step: () => T | Promise<T>): Promise<T> {
+    try { return await step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
   }
   // The stored connection's profile; a provider without one signs in to its own.
   private profileOf(provider: Provider): string { return this.state(provider).connection?.profile ?? provider; }

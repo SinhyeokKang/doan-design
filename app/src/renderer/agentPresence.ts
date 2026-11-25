@@ -3,7 +3,7 @@ import type { Canvas } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
 
-// What the board shows while the conversation it follows has work in flight. The label is the sidebar's own wording.
+// The label is the sidebar's own wording.
 export interface AgentPresence {
   conversationId: string;
   kind: "working" | "waiting";
@@ -12,30 +12,28 @@ export interface AgentPresence {
   canvas: Canvas;
 }
 
-// The board's followed conversation. `root` is part of its identity: worktrees of one repository share canvas ids and
-// paths (POSTMORTEM 2026-11-01).
+// `root` is part of its identity: worktrees of one repository share canvas ids and paths.
 export interface BoardPresence extends AgentPresence { root: string }
 export interface BoardInput {
-  // main's list for `root`, or null when reading it failed.
+  // null when reading it failed.
   list: readonly ConversationSummary[] | null;
   root: string;
   canvas: Canvas | null;
-  // The conversation the panel shows, or would show once unfolded; null for the new conversation state.
+  // null for the new conversation state.
   shown: string | null;
   previous: BoardPresence | null;
 }
 
-// Waiting for an answer, else working: running, or main's `working` (preparing, or between a turn's end and the
-// queue's next turn), so the notice does not blink off between two queued turns. An unreadable history is not followed.
+// main's `working` covers preparing and the gap before the queue's next turn, so the notice does not blink off between
+// queued turns. An unreadable history is not followed.
 function boardKind(c: ConversationSummary): AgentPresence["kind"] | null {
   if (c.readError) return null;
   if (c.phase === "waiting") return "waiting";
   return c.phase === "running" || c.working ? "working" : null;
 }
 
-// The shown conversation while it works or waits; else another one waiting for an answer, else another working. Within
-// a rank the one followed before keeps being followed, else the one started first (main lists conversations in start
-// order). A failed read keeps the previous result for the same root and canvas.
+// Within a rank the one followed before keeps being followed, else the one started first. A failed read keeps the
+// previous result for the same root and canvas.
 export function boardPresence(input: BoardInput): BoardPresence | null {
   const { list, root, canvas, previous } = input;
   if (canvas === null) return null;

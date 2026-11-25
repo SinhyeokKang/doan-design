@@ -42,7 +42,6 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   controller.dispose();
 });
 
-// The zoom menu's 50% and 200%, and the exact scale the zoom controller reads.
 describe("zoom to a scale", () => {
   it("lands on the scale and keeps the view center fixed", () => {
     const { controller, changed } = loadedController();
@@ -131,7 +130,7 @@ function fakeLayer() {
   const captured = new Set<number>();
   return Object.assign(new EventTarget(), {
     hidden: false, dataset: {} as Record<string, string>, captured,
-    // Where the controller puts the capture layer: right after this one.
+    // The controller puts the capture layer right after this element.
     after: vi.fn(),
     setPointerCapture: (id: number) => { captured.add(id); },
     releasePointerCapture: (id: number) => { captured.delete(id); },
@@ -149,6 +148,8 @@ interface FakeMark {
   prepend(...children: FakeMark[]): void;
   remove(): void;
   focus(): void;
+  closest(selector: string): FakeMark | null;
+  readonly isConnected: boolean;
   // The pointers a fake element holds (the capture layer's drag).
   captured?: Set<number>;
 }
@@ -171,13 +172,14 @@ function selectionHarness() {
     parent.children.splice(parent.children.indexOf(child), 1);
     parents.delete(child);
   };
-  // What the hand tool reads: which element has focus, and whether the app window has it.
-  // The document root carries the capture snapshot's attribute.
+  // The hand tool reads which element has focus and whether the app window has it;
+  // the root element carries the capture snapshot's attribute.
   const rootAttributes = new Map<string, string>();
+  const removed = new WeakSet<FakeMark>();
   const doc = {
     activeElement: null as unknown,
     hasFocus: () => true,
-    // No menu or dialog over the canvas page (the follow check reads it).
+    // The follow check queries this for a menu or dialog over the canvas page.
     querySelector: () => null,
     // Nothing of the app under main's cursor point, so no test asks for a hover under a resting pointer unless it says so.
     elementFromPoint: (): unknown => null,
@@ -189,14 +191,19 @@ function selectionHarness() {
         const captured = new Set<number>();
         const attributes = new Map<string, string>();
         // Children know their parent, so moving or removing one takes it out of the old parent's list as the DOM does.
-        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[],
-          append: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.push(...children); },
-          prepend: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], isConnected: true,
+          append: (...children: FakeMark[]) => { for (const child of children) { detach(child); removed.delete(child); } for (const child of children) parents.set(child, mark); mark.children.push(...children); },
+          prepend: (...children: FakeMark[]) => { for (const child of children) { detach(child); removed.delete(child); } for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
           setAttribute: vi.fn((key: string, value: string) => attributes.set(key, value)), getAttribute: (key: string) => attributes.get(key) ?? null,
-          closest: (selector: string) => selector === "[data-bubble-action]" && attributes.has("data-bubble-action") ? mark : null,
-          remove: vi.fn(() => detach(mark)), focus: vi.fn(() => { doc.activeElement = mark; }),
+          closest: (selector: string) => {
+            if (selector === "[hidden]") { for (let node: FakeMark | undefined = mark; node; node = parents.get(node)) if (node.hidden) return node; return null; }
+            return selector === "[data-bubble-action]" && attributes.has("data-bubble-action") ? mark : null;
+          },
+          remove: vi.fn(() => { detach(mark); removed.add(mark); }), focus: vi.fn(() => { doc.activeElement = mark; }),
           captured, setPointerCapture: (id: number) => { captured.add(id); }, releasePointerCapture: (id: number) => { captured.delete(id); }, hasPointerCapture: (id: number) => captured.has(id) });
 
+        // Removed marks are out of the page until put back; top-level marks sit in the overlay.
+        Object.defineProperty(mark, "isConnected", { configurable: true, get: () => { for (let node: FakeMark | undefined = mark; node; node = parents.get(node)) if (removed.has(node)) return false; return true; } });
         marks.push(mark);
         return mark;
       }
@@ -242,8 +249,6 @@ function stepAnswer(h: { current: () => { contentWindow: { postMessage: ReturnTy
 describe("selection", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  // The size bubble's Play prototype shows only for a frame selected as itself, carrying a valid mark, in Select: the
-  // same judgement as the toolbar's Play, so the two never disagree.
   describe("the size bubble's Play prototype", () => {
     const marked = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
     const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
@@ -319,8 +324,7 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // The bubble always hangs below the selection, as drawn: no flip above it and no hold over the floating tools,
-    // even when that puts it under the tools or past the area's bottom.
+    // Intended even when it ends up under the floating tools or past the area's bottom: no flip, no hold.
     it("keeps the bubble below the selection however little room is left under it", () => {
       const { h, dims } = setup();
       const tall = (height: number) => ({ ...frameTarget("intro"), rect: { x: 0, y: 0, width: 320, height } });
@@ -337,11 +341,12 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // Play alone going leaves the bubble, whose Add to message is the next control; the whole bubble going hands
-    // focus to the toolbar's Play (App's onFocusLost).
+    // Add to message is the next control when only Play goes; App's onFocusLost
+    // moves focus to the toolbar's Play when the whole bubble goes.
     it("hands focus to Add to message when Play alone goes, to App when the bubble goes, and nowhere when it went unfocused", () => {
       const { h, play, button } = setup();
-      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }), get isConnected() { return h.markOf("bubble-host")?.isConnected ?? false; },
+        closest: (selector: string) => h.markOf("bubble-host")?.closest(selector) ?? null };
       h.controller.bubbleAdd = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn() };
       try {
         h.select(1, { target: frameTarget("intro") });
@@ -364,10 +369,8 @@ describe("selection", () => {
     });
   });
 
-  // The mark's padding box is the element's rect and its line grows outward by the line's own width. Chromium floors
-  // a border to whole device pixels (1.5px → 1 at 1x) but not a margin, so at 1x a −1.5 margin under a 1px line left a
-  // pixel gap on one side and put the line over the element's last pixel on the other (runtime probe at 1x, 100 %).
-  // Each resolution's margin, and the bubble's distance from the line, must match the width drawn there.
+  // Chromium floors a border to whole device pixels (1.5px is 1px at 1x) but not a margin,
+  // so each resolution's margin and bubble distance must match the line width drawn there.
   it("grows the selection box by the line width actually drawn, at 2x and at 1x", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     const rule = (text: string, selector: string) => { const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return text.match(new RegExp(`(?:^|\\n|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null; };
@@ -378,18 +381,19 @@ describe("selection", () => {
     expect(rule(low, ".mark")).toContain("border-width: 1px");
     expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
     expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
-    // The bubble has no other place than below the line.
+    // No above-the-line variant exists.
     expect(css).not.toContain(".dims.above");
   });
 
-  // Add to message ends the size bubble whenever there is a selection. The controller owns a fixed host at the bubble's
-  // end and App portals the button into it, so availability, its reason and the tooltip stay React's, while the press
-  // is the host's own native listener: the viewport's listeners would act on it before any React handler.
+  // App portals the button into a host the controller owns, so React keeps its state; the press is the host's
+  // native listener because the viewport's listeners would act on it before any React handler.
   describe("the size bubble's Add to message", () => {
     const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
     const setup = () => {
       const h = selectionHarness();
-      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      // App renders it into the bubble's host, so it is shown and connected as the host is.
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }), get isConnected() { return h.markOf("bubble-host")?.isConnected ?? false; },
+        closest: (selector: string) => h.markOf("bubble-host")?.closest(selector) ?? null };
       const add = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
       // Where App's onFocusLost puts focus: the toolbar's Picker.
       const holder = { name: "Picker" };
@@ -473,7 +477,6 @@ describe("selection", () => {
         h.doc.activeElement = null;
         h.receive({ type: "clear", seq: 4 });
         expect(add.onFocusLost).toHaveBeenCalledOnce();
-        // Hand drops the selection too.
         h.select(5);
         h.doc.activeElement = addButton;
         h.controller.setTool("hand");
@@ -494,9 +497,8 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // A reload hides the bubble while the new document is asked for the same selection; focus waits on the toolbar and
-    // comes back to the same button once the selection is found, unless the person moved it meanwhile.
-    // ARCHITECTURE §3: a waiting focus move ends for good the moment focus goes anywhere else, even if it comes back.
+    // A reload hides the bubble and focus waits on the toolbar. ARCHITECTURE §3: that wait ends
+    // for good once focus goes anywhere else, even if it comes back.
     it("gives up bringing focus back for good once focus went elsewhere during the reload, even back to the holder", () => {
       const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
       for (const which of ["add", "play", "inspect"] as const) {
@@ -562,7 +564,6 @@ describe("selection", () => {
           h.select(1, { target });
           expect(h.doc.activeElement, which).toBe(button);
           expect(inspect.restoreFocus).toHaveBeenCalledTimes(which === "inspect" ? 1 : 0);
-          // Moved meanwhile: focus stays where the person put it.
           h.controller.command("reload");
           h.doc.activeElement = { name: "sidebar row" };
           h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
@@ -570,6 +571,101 @@ describe("selection", () => {
           expect(h.doc.activeElement, which).toEqual({ name: "sidebar row" });
         } finally { h.controller.dispose(); }
       }
+    });
+    // An agent's write reloads the canvas while the prototype window is in front, so these moves run with the window
+    // behind; activation then restores the focus it had before, on a button that may be gone (POSTMORTEM 2026-11-17
+    // 'Window activation put focus on Hide sidebar'), so each is made again on activation while the button still shows.
+    describe("with the window in the background", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      const behind = (h: ReturnType<typeof selectionHarness>) => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        Object.assign(h.doc, { hasFocus: () => false, querySelectorAll: () => [] });
+        return () => { h.host.dispatchEvent(new Event("focus")); vi.runAllTimers(); };
+      };
+      afterEach(() => vi.useRealTimers());
+
+      it("hands focus from a Play that went to Add to message again on activation", () => {
+        const { h, addButton, playButton } = setup();
+        try {
+          h.select(1, { target: frameTarget("intro") });
+          h.doc.activeElement = playButton();
+          const activate = behind(h);
+          h.select(2, { target: frameTarget("hero") });
+          expect(addButton.focus).toHaveBeenCalledOnce();
+          activate();
+          expect(addButton.focus).toHaveBeenCalledTimes(3);
+        } finally { h.controller.dispose(); }
+      });
+
+      it("brings focus back to the same button again on activation, unless the bubble went again", () => {
+        for (const which of ["add", "play"] as const) {
+          const { h, addButton, holder, play, playButton } = setup();
+          play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
+          try {
+            const target = which === "play" ? frameTarget("intro") : h.target;
+            h.select(1, { target });
+            const button = which === "play" ? playButton()! : addButton;
+            h.doc.activeElement = button;
+            const activate = behind(h);
+            const returns = h.controller.bubbleReturns();
+            h.controller.command("reload");
+            h.layout({ frames });
+            h.select(1, { target });
+            expect(button.focus, which).toHaveBeenCalledOnce();
+            // App's toolbar hand-off reads this to stand down.
+            expect(h.controller.bubbleReturns(), which).toBe(returns + 1);
+            activate();
+            expect(button.focus, which).toHaveBeenCalledTimes(3);
+            // Found again, then lost again before activation: the gone button is not focused.
+            vi.mocked(button.focus).mockClear();
+            h.controller.command("reload");
+            h.layout({ frames });
+            h.select(1, { target });
+            expect(button.focus, which).toHaveBeenCalledOnce();
+            h.receive({ type: "clear", seq: 2 });
+            activate();
+            expect(button.focus, which).toHaveBeenCalledOnce();
+          } finally { h.controller.dispose(); vi.useRealTimers(); }
+        }
+      });
+
+      it("ends a waiting hand-off once the bubble goes and App takes focus", () => {
+        const { h, addButton, playButton } = setup();
+        const live = new Set<unknown>();
+        const add = h.host.addEventListener.bind(h.host), remove = h.host.removeEventListener.bind(h.host);
+        vi.spyOn(h.host, "addEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.add(listener); add(type, listener, options); });
+        vi.spyOn(h.host, "removeEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.delete(listener); remove(type, listener, options); });
+        try {
+          h.select(1, { target: frameTarget("intro") });
+          h.doc.activeElement = playButton();
+          behind(h);
+          h.select(2, { target: frameTarget("hero") });
+          expect(live.size).toBe(1);
+          h.doc.activeElement = addButton;
+          h.receive({ type: "clear", seq: 3 });
+          expect(live.size).toBe(0);
+        } finally { h.controller.dispose(); }
+      });
+
+      // Checked on the window's listeners: after dispose the bubble's marks are gone, so a left replay would focus nothing
+      // and could not tell.
+      it("drops a waiting hand-off when the controller goes", () => {
+        const { h, playButton } = setup();
+        const live = new Set<unknown>();
+        const add = h.host.addEventListener.bind(h.host), remove = h.host.removeEventListener.bind(h.host);
+        vi.spyOn(h.host, "addEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.add(listener); add(type, listener, options); });
+        vi.spyOn(h.host, "removeEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.delete(listener); remove(type, listener, options); });
+        const waiting = () => live.size;
+        h.select(1, { target: frameTarget("intro") });
+        h.doc.activeElement = playButton();
+        behind(h);
+        h.select(2, { target: frameTarget("hero") });
+        expect(waiting()).toBe(1);
+        // Focus off the bubble, so no hand-off to App ends the wait first.
+        h.doc.activeElement = null;
+        h.controller.dispose();
+        expect(waiting()).toBe(0);
+      });
     });
   });
 
@@ -706,8 +802,8 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The frame drawer's row carries the index and id it was drawn with; the layout may have changed
-  // since (POSTMORTEM 2026-10-25 'Navigation feedback read the previous React snapshot').
+  // The layout may have changed since the drawer row was drawn
+  // (POSTMORTEM 2026-10-25 'Navigation feedback read the previous React snapshot').
   describe("a frame picked from the drawer", () => {
     const frame = (id: string, y: number) => ({ id, x: 0, y, width: 10, height: 10 });
     const picks = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0]).filter(message => message.type === "pick-frame" || message.type === "measure");
@@ -729,6 +825,45 @@ describe("selection", () => {
         h.controller.selectFrame(1, "hero");
         h.layout({ frames: [frame("hero", 2000), frame("intro", 0)] });
         expect(h.state().currentFrame).toBe(0);
+      } finally { h.controller.dispose(); }
+    });
+
+    // A loading iframe cannot hear the selection channel either: a command sent then would only move the app's seq
+    // past the new document's first clicks.
+    it("waits for the reloaded document's first layout, then picks the frame by id", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+        h.layout({ document: "doc2", frames: [frame("hero", 20), frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([{ type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
+        h.select(1, { target: { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 0, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] } });
+        expect(h.state().selection?.frame?.id).toBe("hero");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("Esc while it loads cancels the waiting pick", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.key("Escape");
+        h.layout({ document: "doc2", frames: [frame("intro", 0), frame("hero", 20)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a frame gone from the reloaded document is not picked", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ document: "doc", frames: [frame("intro", 0), frame("hero", 20)] });
+        h.controller.command("reload");
+        h.controller.selectFrame(1, "hero");
+        h.layout({ document: "doc2", frames: [frame("intro", 0)] });
+        expect(picks(h).filter(m => m.type === "pick-frame")).toEqual([]);
       } finally { h.controller.dispose(); }
     });
 
@@ -867,9 +1002,8 @@ describe("selection", () => {
   });
 });
 
-// PRODUCT §5 item 4: with a selection, holding Option (⌥) measures from the selection to what the next click would
-// select. The lines are screen px on the overlay; the numbers are canvas px. Which lines a pair of rects gives is
-// measure.test.ts; these pin when the controller draws them and that measuring never touches the selection.
+// PRODUCT §5 item 4. Which lines a pair of rects gives is measure.test.ts; these pin when the
+// controller draws them and that measuring never touches the selection.
 describe("Option-hover measurement", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -1041,9 +1175,8 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A dialog, a menu or a problem's overlay that comes and goes while the pointer rests on the canvas: the hover target
-  // is still there, so the measurement hides and comes back without another move (seen in the app with Quick Open,
-  // the zoom menu opened by keyboard and a config error's overlay).
+  // A dialog, menu or problem overlay comes and goes over a resting pointer: the hover target is still there,
+  // so the measurement hides and returns without another move.
   const covering = (h: H, open: boolean) => { (h.doc as { querySelector: () => unknown }).querySelector = () => (open ? {} : null); };
   it.each<[string, (h: H, open: boolean) => void]>([
     ["a modal leaving the canvas page", (h, open) => { covering(h, open); h.controller.setCanvasPage(!open); }],
@@ -1124,8 +1257,8 @@ describe("Option-hover measurement", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // An agent's write reloads the canvas every few seconds while the person rests the pointer on it: the hover the app
-    // asked for is not the person moving, or the follow rest and the docked buddy's rest would never end.
+    // The re-found hover is not the person moving, or an agent's frequent reloads
+    // would keep the follow rest and the docked buddy's rest from ever ending.
     it("does not count the re-found hover as the person moving, but the next one", async () => {
       vi.useFakeTimers();
       const h = harness();
@@ -1190,7 +1323,7 @@ describe("Option-hover measurement", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Figma measures nothing here; Doan's hover target is the next click's step into the frame, so it measures.
+  // Unlike Figma, this measures: Doan's hover target is the next click's step into the frame.
   it("with a frame selected, measures to the element inside it that the next click would select", () => {
     const h = harness();
     try {
@@ -1257,8 +1390,7 @@ describe("Option-hover measurement", () => {
   });
 });
 
-// Each case of when the selection clears or is kept is a pure decision (selection.test.ts); these pin
-// that the controller actually applies it on the matching code path.
+// When the selection clears or stays is pure (selection.test.ts); these pin that the controller applies it.
 describe("selection wiring", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -1347,7 +1479,7 @@ describe("selection wiring", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // PRODUCT §5 item 3 'Problem states': the overlay names the problem, so the cleared canvas carries no sentence of its own.
+  // PRODUCT §5 item 3 'Problem states': the overlay names the problem, so the cleared canvas adds no sentence.
   it.each(["uninitialized", "notFound"] as const)("clears an open canvas of a %s project without a problem sentence", kind => {
     const h = selectionHarness();
     try {
@@ -1402,7 +1534,6 @@ describe("selection wiring", () => {
 describe("selection under a problem overlay", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  // Under a problem's overlay Esc takes no step on the covered canvas.
   it("keeps the selection on Escape while the canvas is covered", () => {
     const h = selectionHarness();
     try {
@@ -1460,6 +1591,63 @@ describe("independent pending selection and hover commands", () => {
   });
 });
 
+// location.reload(), href="" or a link to its own file: a new document token at the same href starts both channels at 0.
+describe("a canvas replacing its own document at the same URL", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
+  const altTap = (h: ReturnType<typeof selectionHarness>) => { h.key("Alt"); h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" })); };
+
+  it("reanchors the selection from seq 1, and the new document's click selects and its hover shows", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      h.select(3);
+      h.key("Escape");
+      altTap(h);
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before).filter(m => m.type === "select-anchor")).toEqual([{ type: "select-anchor", doanId: "cta", selector: '[data-doan-id="cta"]', seq: 1 }]);
+      expect(h.markOf("selected")?.hidden).toBe(true);
+      // Hover marks wait for the reanchor, as after an app reload.
+      h.select(1, { answer: "select-anchor" });
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      h.receive({ type: "hover", seq: 0, rect: h.target.rect });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      h.select(2, { target: { ...h.target, tag: "button" } });
+      expect(h.state().selection?.tag).toBe("button");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("without a selection sends nothing, and the new document's first click selects", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      h.controller.selectFrame(1, "hero");
+      h.key("Escape");
+      altTap(h);
+      h.receive({ type: "hover", seq: 2, rect: h.target.rect });
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before)).toEqual([]);
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.select(1);
+      expect(h.state().selection?.tag).toBe("span");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("resends a held ⌥ to the new document from hover seq 1", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      altTap(h);
+      h.key("Alt");
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before)).toEqual([{ type: "hover-alt", alt: true, seq: 1 }]);
+    } finally { h.controller.dispose(); }
+  });
+});
+
 it("resets both channels on reload and rejects old-window, href and viewport hover", () => {
   const h = selectionHarness();
   try {
@@ -1484,8 +1672,6 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
   } finally { h.controller.dispose(); }
 });
 
-// The anchors query and reply for chip locate: the controller asks for plain targets,
-// takes only the newest reply for its own request in the current document, and moves to the node it names.
 describe("anchors channel", () => {
   const queries = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query");
   const reply = (q: { generation: number; request: number; targets: { id: string }[] }, over: Record<string, unknown> = {}) => ({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
@@ -1551,7 +1737,8 @@ describe("anchors channel", () => {
 });
 
 
-// POSTMORTEM 2026-10-23 draft guards: opening stays synchronous, so Loading shows within the call.
+// POSTMORTEM 2026-10-23 'Draft guards changed existing transition timing':
+// opening stays synchronous, so Loading shows within the call.
 it("opens another canvas synchronously", () => {
   const h = selectionHarness();
   try {
@@ -1561,8 +1748,8 @@ it("opens another canvas synchronously", () => {
   } finally { h.controller.dispose(); }
 });
 
-// POSTMORTEM 2026-10-23 draft guards: with the comment draft guard gone, opening,
-// selecting, reloading and following a move still happen within the call, in the order they did without a draft.
+// POSTMORTEM 2026-10-23 'Draft guards changed existing transition timing':
+// opening, selecting, reloading and following a move all happen within the call.
 describe("canvas open, select, reload and move without a draft guard", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -1591,7 +1778,6 @@ describe("canvas open, select, reload and move without a draft guard", () => {
     const h = selectionHarness();
     try {
       const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
-      // The new path is published (its load) before the move is told.
       const followed = vi.fn(() => expect(h.state().open?.canvas).toBe(moved.path));
       h.controller.canvasMoved = followed;
       h.select(1);
@@ -1665,7 +1851,6 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
 });
 
 
-// Fit and frame jumps keep the board's safe area (top 56, sides 32, bottom 64), not today's even 32.
 describe("Fit and frame jumps inside FIT_INSET", () => {
   const size = { width: 800, height: 600 };
   const tall = (height: number) => [{ id: "tall", x: 0, y: 0, width: 10, height }];
@@ -1687,8 +1872,7 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The band the old even margin got wrong: a frame between the safe height (480) and 536 was centred, so its top
-  // sat under the 56px header band and its bottom reached the toolbar. FIT_INSET reads it from the top.
+  // A frame taller than the safe height (480) but under 536 would sit under the 56px header band if centred.
   it("a jump to a frame in the tall band puts its top edge 56px down", () => {
     const h = selectionHarness();
     try {
@@ -1878,7 +2062,6 @@ it("keeps a picked frame through a live reload of the same canvas before its fir
     h.layout({ href: h.other.url });
     expect(h.state().currentFrame).toBe(1);
     expect(found).toHaveBeenCalledExactlyOnceWith(true);
-    // A reload that loses the width still answers the pick.
     const missing = vi.fn();
     h.controller.openCanvas("/repo", h.row, { frame: "hero" }, { found: missing });
     const { width: _width, ...noWidth } = h.row;
@@ -1903,8 +2086,8 @@ it("forgets navigation memory when a project is removed and added again", () => 
   } finally { h.controller.dispose(); }
 });
 
-// A restart: reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
-// is not removed: its remembered canvas stays while main still lists it.
+// An auto-registered worktree reads as `loading` after a restart and App hides it; hidden is not
+// removed, so its remembered canvas stays while main still lists it.
 it("keeps the memory of a root hidden from the shown list while main still lists it", () => {
   const h = selectionHarness();
   try {
@@ -2137,7 +2320,6 @@ describe("a canvas moved with the same id", () => {
   });
 });
 
-// A canvas moved to the Trash is not followed to the one other canvas sharing its id.
 describe("a canvas moved to the Trash", () => {
   afterEach(() => vi.unstubAllGlobals());
   function trashHarness() {
@@ -2159,7 +2341,6 @@ describe("a canvas moved to the Trash", () => {
       expect(h.followed).not.toHaveBeenCalled();
       expect(h.removed).not.toHaveBeenCalled();
       expect(h.state()).toMatchObject({ open: null, selection: null });
-      // Used once: the mark is gone with the row.
       expect(h.controller.trash.has("/repo", h.row.path)).toBe(false);
     } finally { h.controller.dispose(); }
   });
@@ -2222,6 +2403,22 @@ describe("Escape and a blank click without a selection (L-17)", () => {
     }
   });
 
+  // The new document's clicks count from seq 1, so a clear the loading iframe never hears must not move the app's seq.
+  it("sends no clear to the loading canvas, so the reloaded document's first click selects", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.host.dispatchEvent(escapeKey());
+      h.controller.selectFrame(1, "hero");
+      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "clear" || m.type === "pick-frame")).toEqual([]);
+      h.layout({ document: "doc2" });
+      const picked = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(m => m.type === "pick-frame");
+      h.select(picked.length + 1);
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+    } finally { h.controller.dispose(); }
+  });
+
   it("clears a selection the reloaded canvas looks for at once", () => {
     const h = selectionHarness();
     try {
@@ -2269,7 +2466,6 @@ describe("feedback navigation callbacks", () => {
       const opened = vi.fn(() => expect(h.state().open?.canvas).toBe(".doan/canvases/b.html"));
       h.controller.openCanvas("/repo", h.other, undefined, { opened });
       expect(opened).toHaveBeenCalledTimes(1);
-      // Already shown: no transition, told at once.
       h.controller.openCanvas("/repo", h.other, undefined, { opened });
       expect(opened).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
@@ -2495,8 +2691,8 @@ it("opens another canvas of the open root at once, and only tells `opened` for t
   } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
 });
 
-// A canvas opened under the Overview is fitted to the board the canvas page lays out
-// (its panel width, or none when folded), not to the Overview's layout; later width changes keep the view's top-left.
+// The first Fit uses the canvas page's board (panel width, or none when folded), not the Overview's;
+// later width changes keep the view's top-left.
 describe("first Fit", () => {
   function opened(width: number) {
     const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
@@ -2554,7 +2750,6 @@ describe("first Fit", () => {
       h.viewport.clientWidth = 500;
       h.controller.settleFit();
       expect(h.board.style.transform).toBe(panned);
-      // Away to another project and back: the remembered view comes back as it was.
       h.controller.openWorkspace("/other", vi.fn());
       h.controller.openWorkspace("/repo", vi.fn());
       expect(h.board.style.transform).toBe(panned);
@@ -2578,8 +2773,7 @@ describe("first Fit", () => {
   });
 });
 
-// The tool state, the pick commands and their replies, and chip locate on the anchors
-// channel. Picking and locating never change the selection or what main holds for `doan active`.
+// Picking and locating never change the selection or what main holds for `doan active`.
 describe("picking", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   const posted = (h: ReturnType<typeof selectionHarness>, frame = h.current()) => frame.contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
@@ -2612,14 +2806,13 @@ describe("picking", () => {
       started(h);
       expect(h.state().picking).toBe(true);
       expect(picks(h)).toEqual([{ type: "pick-start", document: "doc", seq: 1 }]);
-      // A second pick while picking changes nothing.
       expect(h.controller.pick()).toBe(true);
       expect(picks(h)).toHaveLength(1);
     } finally { h.controller.dispose(); }
   });
 
-  // The size bubble's Add to message makes its chip from the selection in state (App's targetAnchor of it); a pick of
-  // the same thing must give the same chip, and a note, which a pick never makes a chip of, leaves the bubble unavailable.
+  // A pick must give the same chip as the bubble's Add to message (App's targetAnchor of the selection);
+  // a note makes no chip, so the bubble is unavailable for it. Main refuses an empty frame id, so its frame counts as none.
   it("the selection's anchor for Add to message is the pick's anchor for the same target, and a note has none to add", () => {
     const ready = { enabled: true, reason: null };
     const element = { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>Pay</button>", text: "Pay" };
@@ -2628,17 +2821,19 @@ describe("picking", () => {
       // A frame inside a frame: the script names the innermost one.
       nested: { rect: { x: 1, y: 22, width: 8, height: 4 }, tag: "button", frame: { id: "card" }, frameIndex: 2, element, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "card", selector: '[data-doan-frame="card"]' }] },
       note: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "p", element: { selector: "body > p:nth-of-type(1)", html: "<p>Note</p>" }, path: [] },
+      emptyFrame: { rect: { x: 41, y: 41, width: 8, height: 4 }, tag: "button", frame: { id: "" }, frameIndex: 3, element, path: [] },
+      emptyFrameItself: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "section", frame: { id: "" }, frameIndex: 3, path: [] },
     };
     for (const [name, target] of Object.entries(targets)) {
       const h = harness();
       try {
-        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }] });
+        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }, { id: "", x: 40, y: 40, width: 30, height: 10 }] });
         h.select(1, { target });
         const selected = targetAnchor(h.state().selection);
         const results = started(h);
         picked(h, { target });
         const add = bubbleAddAvailability({ capturing: false, anchor: selected, picker: ready, unlisted: null });
-        if (name === "note") {
+        if (name === "note" || name.startsWith("emptyFrame")) {
           expect(results, name).not.toHaveBeenCalled();
           expect(h.state().picking, name).toBe(true);
           expect(add, name).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });
@@ -2662,9 +2857,7 @@ describe("picking", () => {
         frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
       expect(h.state()).toMatchObject({ picking: false, selection: null });
-      // Told once, when the pick started.
       expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
-      // A second reply for the same pick is dropped.
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
     } finally { h.controller.dispose(); }
@@ -2706,7 +2899,6 @@ describe("picking", () => {
       expect(h.state().picking).toBe(false);
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
-      // A new pick takes a newer seq, and the earlier pick's late reply cannot complete it.
       h.controller.pick();
       expect(picks(h).at(-1)).toEqual({ type: "pick-start", document: "doc", seq: 3 });
       picked(h, { target: h.target });
@@ -2731,7 +2923,6 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A pick that starts drops the selection, and its end does not bring it back.
   it("a pick that starts clears the selection before pick-start, tells main once and shows no notice", () => {
     const h = harness();
     try {
@@ -2743,7 +2934,6 @@ describe("picking", () => {
       expect(h.state()).toMatchObject({ picking: true, selection: null, notice: "" });
       expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
       expect(h.markOf("selected")?.hidden).toBe(true);
-      // A select the canvas sent before the pick does not bring it back.
       h.select(1);
       h.layout({ seq: 1, document: "doc", selected: h.target.rect });
       expect(h.state().selection).toBeNull();
@@ -2816,8 +3006,7 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Not picking, the same Escs leave the selection's step alone: it is a select-parent the canvas answers later, so the
-  // commands sent show it, not the selection.
+  // Not picking, an Esc's step is a select-parent the canvas answers later, so assert on the commands sent.
   it("an Esc another control already handled, one during IME composition, or one from a text field takes no Select step", () => {
     const h = harness();
     try {
@@ -3033,7 +3222,6 @@ describe("picking", () => {
       h.controller.cancelPick();
       expect(h.current().style.pointerEvents).toBe("");
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
-      // The acknowledgement that arrives late keeps nothing open or closed.
       acked(h);
       expect(h.current().style.pointerEvents).toBe("");
       expect(h.state().picking).toBe(false);
@@ -3060,7 +3248,7 @@ describe("picking", () => {
       const results = started(h);
       acked(h);
       const frame = h.current();
-      // The canvas's own location.reload(): same iframe, same href, a new document token.
+      // The canvas's own location.reload(): same iframe and href, new document token.
       h.layout({ document: "doc2" });
       expect(h.current()).toBe(frame);
       expect(h.state().picking).toBe(true);
@@ -3076,9 +3264,8 @@ describe("picking", () => {
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc2", seq: 2 });
     } finally { h.controller.dispose(); }
   });
-  // The canvas script's side of the pick channel, by its own rule (canvasScript.ts `command`): a command for another
-  // document token, or one whose seq is not newer than the last it took, changes nothing and is not acknowledged.
-  // `token` is the document the iframe holds now.
+  // Mirrors canvasScript.ts `command`: another document token, or a seq not newer than the last taken,
+  // changes nothing and gets no acknowledgement. `token` is the iframe's current document.
   const scriptSide = (h: ReturnType<typeof selectionHarness>) => {
     let seen = 0, pickSeq = 0, token = "", picking: number | null = null;
     const pump = () => {
@@ -3185,7 +3372,7 @@ describe("chip locate", () => {
       expect(query(h).targets).toEqual([{ id: expect.any(String), doanId: "pay", selector: "#pay" }]);
       answer(h, { doanId: ["n1"], selector: ["n1"] });
       expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
-      // An element keeps the scale and is centred (2026-11-02 user).
+      // An element keeps the scale and is centred.
       expect(h.controller.currentView()).toEqual(elementView({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, FIT_INSET, before));
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       expect(h.state().selection).toEqual(selection);
@@ -3195,7 +3382,6 @@ describe("chip locate", () => {
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       vi.advanceTimersByTime(1);
       expect(h.markOf("jump-highlight")?.hidden).toBe(true);
-      // Later replies for the same query (the canvas re-measures by itself) do not move the view again.
       const after = h.controller.currentView();
       h.controller.wheel({ dx: 10, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
       const q = query(h);
@@ -3335,8 +3521,7 @@ describe("chip locate", () => {
   });
 });
 
-// A reply chip opens another canvas and moves to its element after the first
-// layout. The waiting element lives as Quick Open's waiting frame does and is tied to its root and canvas.
+// The waiting element lives like Quick Open's waiting frame, tied to its root and canvas.
 describe("reply chip open", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   const queries = (h: ReturnType<typeof selectionHarness>) => h.frames.flatMap(frame => frame.contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query"));
@@ -3361,9 +3546,7 @@ describe("reply chip open", () => {
       answer(h, { doanId: ["n1"] }, "doc-b");
       expect(h.controller.currentView()).not.toEqual(before);
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
-      // Opening another canvas cleared the selection, as Quick Open does; the locate does not select.
       expect(h.state().selection).toBeNull();
-      // Only the first layout takes it.
       h.layout({ href: h.other.url, document: "doc-b" });
       expect(queries(h)).toHaveLength(1);
     } finally { h.controller.dispose(); }
@@ -3388,7 +3571,6 @@ describe("reply chip open", () => {
       h.controller.openCanvas("/repo", h.row, { element: "c-el" });
       h.layout({ document: "doc-c" });
       expect(asked(h)).toEqual(["c-el"]);
-      // A frame request after an element one replaces it too.
       h.controller.openCanvas("/repo", h.other, { element: "b-el" });
       h.controller.openCanvas("/repo", h.row, { frame: "hero" });
       h.layout({ document: "doc-c2" });
@@ -3433,9 +3615,8 @@ describe("reply chip open", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // POSTMORTEM 2026-11-01: worktrees share canvas ids and paths, so a root's waiting element never reaches another's.
-  // Every change of root goes through a fresh load, which drops the wait, so this cannot fail on the root check in
-  // locatePending alone; that check guards a future path that changes the root without a fresh load.
+  // POSTMORTEM 2026-11-01: worktrees share canvas ids and paths. A root change always loads afresh, dropping the
+  // wait, so this cannot fail on locatePending's root check, which guards a future path without a fresh load.
   it("two roots with the same canvas: another root's open drops the waiting element instead of locating in it", () => {
     const h = selectionHarness();
     try {
@@ -3449,8 +3630,7 @@ describe("reply chip open", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The waiting element is tied to the canvas path, so a move of that canvas before its first layout has
-  // to carry it along, as the waiting frame is carried.
+  // The waiting element is tied to the canvas path, so a move before the first layout must carry it.
   it("a canvas moved (same id) before its first layout still locates the waiting element, and keeps a waiting frame too", () => {
     const h = selectionHarness();
     try {
@@ -3485,8 +3665,7 @@ describe("reply chip open", () => {
   });
 });
 
-// Dogfooding: Tab walked into the draft's own controls, drew their focus rings and scrolled the canvas area so far
-// that the floating tools left the view. The board iframe is out of the Tab order and the area never scrolls.
+// The board iframe stays out of the Tab order, or Tab walks into the draft's controls and scrolls the area.
 it("keeps the board iframe out of the Tab order", () => {
   const { current } = selectionHarness();
   expect((current() as unknown as { tabIndex?: number }).tabIndex).toBe(-1);
@@ -3498,7 +3677,6 @@ it("clips the canvas area instead of letting a focus scroll it", async () => {
   expect(css).toMatch(/\.doan-canvas-panel > \.area \{[^}]*overflow: clip;/);
 });
 
-// The Select and Hand tools, the drag layer, Space, V, H and Esc, canvas focus and hover.
 describe("hand tool", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -3517,8 +3695,8 @@ describe("hand tool", () => {
     h.layer.dispatchEvent(event);
     return event;
   };
-  // A mouse click must not draw the Canvas region's keyboard focus ring, even after keys were used (the app does not
-  // see the click itself when it lands in the canvas's iframe, so Chromium would treat the focus as keyboard focus).
+  // A mouse click must not draw the Canvas region's focus ring: the app does not see a click inside the
+  // canvas iframe, so Chromium would treat the focus as keyboard focus.
   const CLICK_FOCUS = { preventScroll: true, focusVisible: false };
   const shown = (h: H) => !h.layer.hidden;
   const grabbing = (h: H) => "grabbing" in h.layer.dataset;
@@ -3552,7 +3730,6 @@ describe("hand tool", () => {
       press(h, "Escape");
       expect(h.state().tool).toBe("select");
       expect(shown(h)).toBe(false);
-      // Pressing the pressed tool again keeps it.
       press(h, "KeyV");
       expect(h.state().tool).toBe("select");
     } finally { h.controller.dispose(); }
@@ -3748,7 +3925,6 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The toolbar's Select and Hand cancel a pick and then switch; V and H stay ignored.
   it("the toolbar's Select or Hand while picking cancels the pick, then switches to that tool", () => {
     const h = harness();
     try {
@@ -3820,7 +3996,6 @@ describe("hand tool", () => {
       h.doc.activeElement = null;
       canvasKey(h, "Space", { down: false });
       expect(shown(h)).toBe(false);
-      // Pressed in the app, released in the canvas.
       press(h, "Space");
       canvasKey(h, "Space", { down: false });
       expect(shown(h)).toBe(false);
@@ -4009,8 +4184,8 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A click in the canvas reaches the app only as the canvas's message, which a canvas can also send on its own, and
-  // the app sees no pointer event over the canvas's out-of-process iframe. Main reads the OS cursor instead.
+  // A canvas can post a click message on its own and the app sees no pointer event over the
+  // out-of-process iframe, so main reads the OS cursor.
   const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
 
   it("a canvas click moves focus to the area when main puts the cursor over it, a margin click too, but not while picking", async () => {
@@ -4056,7 +4231,6 @@ describe("hand tool", () => {
       const h = h2;
       h.controller.selectFrame(1, "hero");
       h.select(1, { target: frameReply });
-      // A reload asks the new document for the selection's anchor.
       h.controller.command("reload");
       h.layout();
       h.select(1, { answer: "select-anchor" });
@@ -4094,7 +4268,6 @@ describe("hand tool", () => {
       answer({ x: 400, y: 300 });
       await flush();
       expect(h.viewport.focus).not.toHaveBeenCalled();
-      // A pick started before main answered.
       h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
       h.select(4);
       h.controller.pick();
@@ -4102,7 +4275,6 @@ describe("hand tool", () => {
       await flush();
       expect(h.viewport.focus).not.toHaveBeenCalled();
       h.controller.cancelPick();
-      // Only the newest click's answer counts.
       const answers: ((point: { x: number; y: number } | null) => void)[] = [];
       h.pointer.mockImplementation(() => new Promise(resolve => { answers.push(resolve); }));
       h.select(5);
@@ -4160,7 +4332,7 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // T4 runtime probe: the canvas's own location.reload() keeps the iframe and only sends a layout from a new document.
+  // The canvas's own location.reload() keeps the iframe and only sends a layout from a new document.
   it("a held Space and a drag end when the canvas replaces its own document; the tool stays", () => {
     const h = harness();
     try {
@@ -4183,8 +4355,8 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A pointer resting over the canvas keeps the cursor the canvas last set until it moves (measured with a real
-  // pointer), so the canvas shows the hand itself while the layer is up.
+  // A resting pointer keeps the cursor the canvas last set until it moves,
+  // so the canvas shows the hand itself while the layer is up.
   describe("the canvas's hand cursor", () => {
     const hands = (h: H) => posted(h).filter(m => m.type === "hover-hand").map(m => m.hand);
 
@@ -4194,7 +4366,6 @@ describe("hand tool", () => {
         press(h, "Space");
         const sent = posted(h);
         expect(sent.slice(-2)).toEqual([{ type: "hover-hand", hand: true, seq: 1 }, { type: "hover-leave", seq: 2 }]);
-        // Repeats and a drag under the held Space change nothing.
         press(h, "Space", { repeat: true });
         pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
         pointer(h, "pointerup");
@@ -4209,7 +4380,6 @@ describe("hand tool", () => {
       try {
         press(h, "KeyH");
         expect(hands(h)).toEqual([true]);
-        // Space in Hand keeps the layer up.
         press(h, "Space");
         release(h, "Space");
         expect(hands(h)).toEqual([true]);
@@ -4227,7 +4397,6 @@ describe("hand tool", () => {
         press(h, "KeyH");
         h.layout({ document: "doc2" });
         expect(hands(h)).toEqual([true, true]);
-        // A later layout from the same document sends nothing more.
         h.layout({ document: "doc2" });
         expect(hands(h)).toEqual([true, true]);
       } finally { h.controller.dispose(); }
@@ -4245,7 +4414,7 @@ describe("hand tool", () => {
         frames();
         expect(cursor()).toBe(start);
         release(h, "Space");
-        // Not before a frame without the layer has been drawn.
+        // The change waits until a frame without the layer has been drawn.
         h.nextFrame();
         expect(cursor()).toBe(start);
         h.nextFrame();
@@ -4259,7 +4428,6 @@ describe("hand tool", () => {
         frames();
         const second = cursor();
         expect(second).toBe("auto");
-        // A Space released without a layer changes nothing.
         release(h, "Space");
         frames();
         expect(cursor()).toBe(second);
@@ -4287,9 +4455,61 @@ describe("hand tool", () => {
         expect(hands(h)).toEqual([]);
       } finally { h.controller.dispose(); }
     });
+
+    // The new document starts its hover seq at 0, so the resend must follow the app's own reset to 0.
+    it("tells a document at another href the canvas navigated to at the seq that document starts from", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        h.layout({ href: h.other.url, document: "doc2" });
+        expect(posted(h).filter(m => m.type === "hover-hand").at(-1)).toEqual({ type: "hover-hand", hand: true, seq: 1 });
+        press(h, "KeyV");
+        expect(posted(h).at(-1)).toEqual({ type: "hover-hand", hand: false, seq: 2 });
+      } finally { h.controller.dispose(); }
+    });
   });
 
-  // Review of the fix above: the iframe's load event forgets the anchor document, so only a new token counts.
+  // A reloading iframe cannot hear the hover channel, so what changed meanwhile goes to the new document at its first
+  // layout, from seq 1, and the hovers it then sends still show.
+  describe("the hover channel while a reload loads", () => {
+    const hoverAt = (h: H, seq: number) => h.receive({ type: "hover", seq, rect: { x: 0, y: 0, width: 4, height: 4 } });
+
+    // Hand's layer and a held ⌥ hide the hover mark, so those cases look once they are over. A held Space ends with
+    // the document, so it leaves nothing to resend.
+    it.each<[string, (h: H) => void, Record<string, unknown>[], (h: H) => void]>([
+      ["⌘", h => press(h, "MetaLeft", { key: "Meta" }), [{ type: "hover-meta", meta: true, seq: 1 }], () => {}],
+      ["⌥", h => press(h, "AltLeft", { key: "Alt" }), [{ type: "hover-alt", alt: true, seq: 1 }], h => release(h, "AltLeft", { key: "Alt" })],
+      ["H", h => press(h, "KeyH"), [{ type: "hover-hand", hand: true, seq: 1 }], h => press(h, "KeyV")],
+      ["Space", h => press(h, "Space"), [], () => {}],
+    ])("%s pressed while it loads", (_name, act, resent, settle) => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        act(h);
+        expect(posted(h)).toEqual([]);
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual(resent);
+        hoverAt(h, resent.length);
+        settle(h);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a key pressed and released while it loads leaves nothing to resend", () => {
+      const h = harness();
+      try {
+        h.controller.command("reload");
+        press(h, "MetaLeft", { key: "Meta" });
+        release(h, "MetaLeft", { key: "Meta" });
+        h.layout({ document: "doc2" });
+        expect(posted(h).filter(m => String(m.type).startsWith("hover-"))).toEqual([]);
+        hoverAt(h, 0);
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+  });
+
+  // The iframe's load event forgets the anchor document, so only a new token counts.
   it("a held Space and a drag survive the iframe's load event and a later layout from the same document", () => {
     const h = harness();
     try {
@@ -4311,7 +4531,6 @@ describe("hand tool", () => {
       expect(shown(h)).toBe(false);
       press(h, "Space");
       expect(shown(h)).toBe(true);
-      // The persistent tool is not temporary state: Hand stays through a reload.
       release(h, "Space");
       press(h, "KeyH");
       h.controller.command("reload");
@@ -4337,8 +4556,6 @@ describe("hand tool", () => {
   });
 });
 
-// The layer sits over the board and under the canvas
-// chrome, and the picking hint's Esc uses the shared key variant instead of its own rule.
 it("styles the drag layer between the board and the canvas chrome, and drops the picking hint's own key rule", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -4350,8 +4567,8 @@ it("styles the drag layer between the board and the canvas chrome, and drops the
   expect(controls).toMatch(/\.doan-kbd\[data-ui-size="sm"\] \{[^}]*padding: 0 var\(--space-1h\);[^}]*font-size: var\(--type-caption-size\);/);
 });
 
-// Every jump highlight is a 3px accent gradient line, a 1px panel ring and an accent
-// glow, drawn by a masked ::before so the 12px point keeps its circle; each media fallback keeps a visible edge.
+// The ring is drawn by a masked ::before so the 12px point keeps its circle;
+// each media fallback keeps a visible edge.
 it("styles the jump highlight as an accent gradient line with a ring and a glow, and its fallbacks", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -4365,8 +4582,8 @@ it("styles the jump highlight as an accent gradient line with a ring and a glow,
   expect(css).not.toMatch(/\.mark\.jump-highlight \{[^}]*--affordance-backdrop-pressed/);
 });
 
-// The app's document never sees a press inside the out-of-process canvas, yet the composer's preset lists close on a
-// press anywhere outside them; the canvas posts a press on every pointerdown and the controller hands it on.
+// The composer's preset lists close on any outside press, but the app document never sees one inside
+// the out-of-process canvas: the canvas posts each pointerdown.
 describe("canvas press", () => {
   afterEach(() => vi.unstubAllGlobals());
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
@@ -4405,8 +4622,7 @@ describe("canvas press", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A list closed by the press takes its focused search box with it. Focus then lands on the canvas area
-  // the person pressed, never on the page body, whatever the later click's cursor reading says.
+  // A list closed by the press takes its focused search box with it; focus must go to the canvas area, never body.
   it("a press that removes the focused element moves focus to the canvas area; otherwise focus stays", () => {
     const h = harness();
     try {
@@ -4434,7 +4650,6 @@ describe("canvas press", () => {
   });
 });
 
-// Capture mode, its layer and drag, the snapshot, and when it ends.
 describe("capture", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -4510,7 +4725,6 @@ describe("capture", () => {
       expect(h.markOf("selected")?.hidden).toBe(false);
       expect(h.state().selection).toMatchObject({ element: h.target.element });
       expect(posted(h).some(message => message.type === "clear")).toBe(false);
-      // Starting again changes nothing, and the layer is made once.
       expect(h.controller.startCapture()).toBe(true);
       expect(h.layer.after).toHaveBeenCalledTimes(1);
     } finally { h.controller.dispose(); }
@@ -4561,7 +4775,6 @@ describe("capture", () => {
       canvasKey(h, "Escape");
       expect(h.state().capturing).toBe(false);
       expect(h.state().selection).not.toBeNull();
-      // Started from Hand, Esc goes back to Hand, not to Select.
       press(h, "KeyH");
       h.controller.startCapture();
       press(h, "Escape");
@@ -4570,12 +4783,8 @@ describe("capture", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // An open toolbar tooltip takes the Escape (Radix prevents it), so the window keydown skips it; the
-  // tooltip's Escape hands the same next step to the controller, as from a control that is not a text field.
-  // One Escape with a toolbar tooltip open, along the whole path. Radix's DismissableLayer calls the
-  // tooltip content's onEscapeKeyDown at the document's capture phase and then prevents the event; the focused target
-  // has it next (the composer's `/` list closes on it and prevents it); the window's keydown comes last. The canvas
-  // must take the step the same Escape takes with no tooltip, and only that one step.
+  // One Escape with a toolbar tooltip open: Radix calls onEscapeKeyDown at document capture and prevents it, then the
+  // focused target, then window keydown. The canvas takes the same single step as with no tooltip.
   const BUTTON = { tagName: "BUTTON", isContentEditable: false }, FIELD = { tagName: "TEXTAREA", isContentEditable: false };
   const walk = (node: unknown): { type: unknown; props: Record<string, unknown> }[] => {
     if (Array.isArray(node)) return node.flatMap(walk);
@@ -4590,7 +4799,6 @@ describe("capture", () => {
         capture: { enabled: true, reason: null, onToggle: () => {} }, player: { kind: "play", tooltip: "Play prototype", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: null }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
       const content = walk(toolbar).find(element => element.type === TooltipContent)!;
       (content.props.onEscapeKeyDown as ((event: Event) => void) | undefined)?.(event);
-      // Radix dismisses the tooltip.
       if (!event.defaultPrevented) event.preventDefault();
     }
     if (targetCloses) event.preventDefault();
@@ -4598,9 +4806,8 @@ describe("capture", () => {
   };
   const steps = (h: H) => posted(h).filter(m => m.type === "select-parent").length;
 
-  // toolbarEscape's preventDefault wrapper takes the first call after the tooltip's onEscapeKeyDown as Radix's own. Pinned
-  // against the installed Radix: the tooltip content hands onEscapeKeyDown to its DismissableLayer with onDismiss as
-  // onClose, and the layer calls it, then prevents the event and dismisses only when it is still unprevented.
+  // toolbarEscape takes the first preventDefault after onEscapeKeyDown as Radix's own. Pinned against the installed
+  // Radix: the layer calls onEscapeKeyDown, then prevents and dismisses only if still unprevented.
   it("the installed Radix tooltip calls onEscapeKeyDown, then prevents the Escape and closes", () => {
     const read = (name: string) => readFileSync(createRequire(import.meta.url).resolve(name), "utf8");
     expect(read("@radix-ui/react-tooltip")).toMatch(/DismissableLayer,\s*\{\s*asChild: true,\s*disableOutsidePointerEvents: false,\s*onEscapeKeyDown,\s*onPointerDownOutside,\s*onFocusOutside: \(event\) => event\.preventDefault\(\),\s*onDismiss: onClose,/);
@@ -4623,7 +4830,6 @@ describe("capture", () => {
         expect(steps(h), `tooltip ${tooltip}`).toBe(1);
         stepAnswer(h);
         expect(h.state().selection, `tooltip ${tooltip}`).toBeNull();
-        // Started from Hand: capture ends and Hand stays.
         press(h, "KeyH");
         h.controller.startCapture();
         escapeOnce(h, { tooltip });
@@ -4632,8 +4838,7 @@ describe("capture", () => {
     }
   });
 
-  // The size bubble's Add to message carries the toolbar's tooltip Escape rule: one Escape on it, tooltip open or not,
-  // steps the selection out one level and closes the tooltip.
+  // Add to message follows the toolbar's tooltip Escape rule.
   it("with Add to message's tooltip open, one Escape on it steps the selection out once, as with no tooltip", async () => {
     const { BubbleAddButton } = await import("./BubbleAdd");
     for (const tooltip of [false, true]) {
@@ -4682,10 +4887,8 @@ describe("capture", () => {
     }
   });
 
-  // With focus in the canvas (after an ⌥-click) the app's document never sees the Escape: the canvas forwards it. Radix
-  // listens on the app's document, so the controller hands the app's document the Escape as the key itself would: any
-  // open layer (the toolbar's tooltip, a popover opened without focus) takes it at the capture phase, and it bubbles to
-  // the window's keydown, which takes the canvas's step unless a layer other than the toolbar's tooltip handled it.
+  // The app document never sees an Escape pressed in the canvas, so the controller re-dispatches it there:
+  // an open layer takes it at capture, else window keydown takes the canvas's step (the toolbar tooltip aside).
   describe("an Escape forwarded from the canvas", () => {
     // `layer`: what an open Radix layer does at the document's capture phase; the event then bubbles to the window.
     const forwarding = (h: H, layer: { value: "none" | "tooltip" | "popover" }) => {
@@ -4739,7 +4942,6 @@ describe("capture", () => {
         canvasKey(h, "Escape");
         expect(layer.value).toBe("none");
         expect(h.state().capturing).toBe(true);
-        // With nothing open, the next one takes the step.
         canvasKey(h, "Escape");
         expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
         h.select(10);
@@ -5127,8 +5329,8 @@ describe("capture", () => {
   });
 });
 
-// The working-frame marker, a jump highlight that stays for the work
-// turn, slides 220 ms only when the working frame changes, and stays on its frame by id through a reload.
+// The working-frame marker stays for the work turn, slides only when the working frame changes,
+// and stays on its frame by id through a reload.
 describe("working-frame marker", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -5172,7 +5374,6 @@ describe("working-frame marker", () => {
       expect(marker(h)?.style).toMatchObject({ left: "100px", top: "80px" });
       vi.advanceTimersByTime(220);
       expect(classes(h)).not.toContain("moving");
-      // The same frame again (its next update) does not slide.
       setWork(h, "intro", { source: "terminal:claude:s1" });
       expect(classes(h)).not.toContain("moving");
     } finally { h.controller.dispose(); }
@@ -5188,8 +5389,7 @@ describe("working-frame marker", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Every agent write reloads the canvas; hiding the marker until the next layout restarted its glow each time, so a
-  // run of writes blinked it.
+  // Every agent write reloads the canvas; hiding the marker until the next layout would blink it.
   it("stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide", () => {
     const h = selectionHarness();
     try {
@@ -5318,8 +5518,8 @@ describe("working-frame marker", () => {
   });
 });
 
-// The board follows the working frame while the person rests; every view change the
-// person makes stops it for the work turn, the app's own (follow, open fit, restore, settleFit, reload) do not.
+// Every view change the person makes stops following for the work turn; the app's own
+// (follow, open fit, restore, settleFit, reload) do not.
 describe("following the working frame", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -5347,7 +5547,6 @@ describe("following the working frame", () => {
       setWork(h, "far");
       expect(h.controller.currentView()).toEqual(elementView(FRAMES[2]!, { width: 800, height: 600 }, FIT_INSET, fitView));
       expect(h.state().selection).toBeNull();
-      // The same frame's next update or a reload does not move again.
       const after = top(h);
       setWork(h, "far", { source: "terminal:claude:s1" });
       h.layout({ frames: FRAMES });
@@ -5389,9 +5588,8 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The followed conversation's work item can go a moment before the list moves the board to another conversation, so the
-  // pick is briefly empty at the switch (canvas-concurrent-conversations runtime test). The frame the new source named
-  // while it was not followed must still not move the view, now or once the rest is over.
+  // At a source switch the followed work item can be gone for a moment. The frame the new source named
+  // meanwhile must never move the view, even once the rest is over.
   it("a switch to another source across a moment with no work still changes the marker only", () => {
     const h = rested();
     try {
@@ -5404,7 +5602,6 @@ describe("following the working frame", () => {
       expect(h.controller.currentView()).toEqual(fitView);
       vi.advanceTimersByTime(10_000);
       expect(h.controller.currentView()).toEqual(fitView);
-      // The new source's next frame is followed as usual.
       const before = top(h);
       setWork(h, "farther", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
       expect(top(h)).not.toBe(before);
@@ -5423,8 +5620,8 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // A turn that ends with nothing left working on the canvas ends that source's story: a later, separate turn is followed
-  // from its first frame, whichever source it is (the open canvas keeps a target with no work and no turn keys then).
+  // With no work left on the canvas the open canvas keeps a target with no work and no turn keys,
+  // and a later turn from any source is followed from its first frame.
   it("after every work turn on the canvas ended, another source's first frame is followed", () => {
     const h = rested();
     try {
@@ -5472,7 +5669,6 @@ describe("following the working frame", () => {
         setWork(h, "intro");
         move(h);
         expect(followsNext(h, "far")).toBe(false);
-        // A new work turn (an update after done) follows again.
         vi.advanceTimersByTime(5000);
         const before = top(h);
         setWork(h, "farther", { key: "terminal:t2" }, ["terminal:t2"]);
@@ -5534,7 +5730,6 @@ describe("following the working frame", () => {
       vi.advanceTimersByTime(4900);
       setWork(h, "far");
       expect(h.controller.currentView()).toEqual(fitView);
-      // Composer typing restarts it too and stops nothing: once rested, the frame waiting for the rest follows.
       h.host.dispatchEvent(new Event("input"));
       vi.advanceTimersByTime(4900);
       setWork(h, "farther");
@@ -5657,8 +5852,8 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Any open menu, list, popover or dialog on the page holds following off, by the rule the tool keys use
-  // (PRODUCT §5 item 2 'Following'); the controller reads it from the document.
+  // PRODUCT §5 item 2 'Following': any open menu, list, popover or dialog holds following off, read from
+  // the document by the tool keys' rule.
   for (const [name, chain] of OPEN_SURFACES) {
     it(`${name} open holds following off`, () => {
       const h = rested();
@@ -5711,15 +5906,13 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Reduced motion turns the slide off too, at the slide's own specificity.
   it("the slide is defined only for people who allow motion", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{ \.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\)/);
     expect(css).not.toMatch(/^\.mark\.jump-highlight\.working\.moving \{/m);
   });
-  // R1 runtime FAIL: a reload's first layout reported every frame as 0 × 0 at (0, 0); follow judged on it, counted the
-  // new frame as followed (or centred board 0, 0), and never followed it once the real layout came.
+  // A reload's first layout can report every frame as 0 × 0; follow must not judge on it.
   it("a reload whose first layout has zero-size frames waits for the real layout, then moves once to the frame", () => {
     const h = rested();
     try {
@@ -5739,7 +5932,7 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Conductor's reading of spec 9: a frame waiting only for the rest is judged again when the rest ends.
+  // A frame waiting only for the rest is judged again when the rest ends.
   it("a frame named before the rest is over follows when the rest ends, not before", () => {
     const h = rested();
     try {
@@ -5789,7 +5982,7 @@ describe("following the working frame", () => {
   });
 });
 
-// Frame-first Select: Esc steps back one level through the canvas, which alone knows the frames around the selection.
+// Esc steps back one level through the canvas, which alone knows the frames around the selection.
 describe("Esc steps the selection back through the canvas", () => {
   afterEach(() => vi.unstubAllGlobals());
   const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
@@ -5930,7 +6123,6 @@ describe("Esc steps the selection back through the canvas", () => {
   });
 });
 
-// ⌘ shows the direct target in the hover even with the pointer resting: the app tells the canvas on the hover channel.
 describe("⌘ for the canvas's direct-selection hover", () => {
   afterEach(() => vi.unstubAllGlobals());
   const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
@@ -5977,10 +6169,21 @@ describe("⌘ for the canvas's direct-selection hover", () => {
       expect(posted(h).at(-1)).toMatchObject({ type: "select-parent" });
     } finally { h.controller.dispose(); }
   });
+
+  // ⌘ released inside a focused canvas never reaches the app as a keyup; the app's own pointer moves say whether it is held.
+  it.each([false, true])("a reload resends ⌘ only as the app's last pointer move saw it (metaKey %s)", (metaKey) => {
+    const h = selectionHarness();
+    try {
+      if (!metaKey) h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true }));
+      h.host.dispatchEvent(Object.assign(new Event("pointermove"), { metaKey, altKey: false }));
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      expect(posted(h).filter(m => m.type === "hover-meta")).toEqual(metaKey ? [{ type: "hover-meta", meta: true, seq: 1 }] : []);
+    } finally { h.controller.dispose(); }
+  });
 });
 
-// A pan or zoom publishes a new zoom percent or current frame many times a second; only the header shows those, so App
-// must not re-render the whole page for them.
+// A pan or zoom publishes many times a second and only the header shows it, so App must not re-render the whole page.
 describe("view-only publishes", () => {
   const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
   it("is view-only when just the zoom, scale or current frame changed", () => {
@@ -6008,8 +6211,8 @@ describe("view-only publishes", () => {
   });
 });
 
-// A publish that changes the layout and the current frame together must reach the header in one App render: telling the
-// store's subscribers first could draw the header once with the new frame index over the old layout.
+// A publish changing layout and current frame must reach the header in one App render, or one render
+// could pair the new frame index with the old layout.
 describe("routing a publish", () => {
   const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
   it("a publish that changed more than the view updates the store silently and is handed to App", () => {
@@ -6031,22 +6234,18 @@ describe("routing a publish", () => {
   });
 });
 
-// Select's text drag: the canvas holds the range and posts its rects and text; the app paints them on the overlay and
-// copies the text from its own document's copy event.
 describe("canvas text", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
   const RECT = { x: 10, y: 20, width: 50, height: 18 };
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
-  // The app checks the OS cursor (main's pointer reading, a promise) before it believes a new range; flush lets that
-  // reply land, with real or fake timers.
+  // The app believes a new range only after main's pointer reading resolves; flush lets that reply land.
   const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
   const post = (h: H, over: Record<string, unknown> = {}) => h.receive({ type: "text-range", document: "doc", epoch: 0, dragging: false, rects: [RECT], text: "Copy me", ...over });
   const range = async (h: H, over: Record<string, unknown> = {}) => { post(h, over); await flush(); };
   const startDrag = (h: H, over: Record<string, unknown> = {}) => range(h, { dragging: true, text: undefined, ...over });
   const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
   const clears = (h: H) => posted(h).filter(m => m.type === "clear-text");
-  // The rects on screen: the text layer's shown children.
   const painted = (h: H) => {
     const layer = h.markOf("text-range");
     return layer === undefined || layer.hidden ? [] : layer.children.filter(child => !child.hidden);
@@ -6230,7 +6429,6 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // Hand's own rule is in "hand text drag": a range there comes only from the drag the app drives.
   it("drops a range older than the last clear, from another document, or sent during a pick or capture mode", async () => {
     const h = harness();
     try {
@@ -6346,7 +6544,6 @@ describe("canvas text", () => {
       const h = harness();
       try {
         await startDrag(h);
-        // The drag's start was checked against the cursor once; focus has not moved yet.
         expect(h.pointer).toHaveBeenCalledOnce();
         expect(h.viewport.focus).not.toHaveBeenCalled();
         await range(h);
@@ -6385,8 +6582,8 @@ describe("canvas text", () => {
     });
   });
 
-  // A canvas can post any text-range without the person touching it. A new range (a drag's start, or text arriving
-  // with no start the app saw) is believed only with the OS cursor over the canvas area, as a click's focus is.
+  // A canvas can post a text-range nobody dragged, so a new one (a drag's start, or text with no start the app saw)
+  // is believed only with the OS cursor over the canvas area.
   describe("believed only with the cursor over the canvas area", () => {
     const outside = (h: H) => { h.cursor.at = { x: 900, y: 300 }; };
     const selection = (h: H) => { const s = { rangeCount: 1, isCollapsed: false, collapseToEnd: vi.fn() }; Object.assign(h.host, { getSelection: () => s }); return s; };
@@ -6400,7 +6597,6 @@ describe("canvas text", () => {
         expect(app.collapseToEnd).not.toHaveBeenCalled();
         expect(painted(h)).toEqual([]);
         expect(clears(h)).toEqual([{ type: "clear-text", epoch: 1 }]);
-        // The drag never started for the app: H switches the tool.
         press(h, "KeyH");
         expect(h.state().tool).toBe("hand");
       } finally { h.controller.dispose(); }
@@ -6448,11 +6644,9 @@ describe("canvas text", () => {
         expect(painted(h)).toHaveLength(2);
         post(h);
         expect(copied(h)).toBe("Copy me");
-        // A layout refresh of the held range needs no check.
         post(h, { text: undefined, rects: [RECT] });
         expect(painted(h)).toHaveLength(1);
         expect(copied(h)).toBe("Copy me");
-        // A new drag start, the cursor now outside: not believed, and the held range goes with it.
         await startDrag(h);
         expect(app.collapseToEnd).toHaveBeenCalledOnce();
         expect(painted(h)).toEqual([]);
@@ -6487,8 +6681,7 @@ describe("canvas text", () => {
       } finally { h.controller.dispose(); }
     });
 
-    // The range waiting for its cursor reading is the person's drag as far as Esc goes: Esc clears it, not the element
-    // selection, and the reply that comes after paints nothing.
+    // A range waiting for its cursor reading counts as the person's drag for Esc.
     it("Esc while the cursor reply is on its way clears the waiting range and keeps the element selection", async () => {
       const h = harness();
       try {
@@ -6506,8 +6699,7 @@ describe("canvas text", () => {
   });
 });
 
-// The left sidebar folding, unfolding or being dragged moves the canvas area's left edge. The board stays where it was on
-// screen, as it does when the conversation panel moves the right edge: the sidebar seems to slide over the canvas.
+// Like the conversation panel on the right edge, a moving left sidebar leaves the board where it is on screen.
 describe("canvas area's left edge moves", () => {
   function shell(left: number, width: number) {
     const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
@@ -6531,7 +6723,6 @@ describe("canvas area's left edge moves", () => {
     const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
     controller.openCanvas("/repo", row);
-    // Where the board's origin is on screen, in window px.
     const screenX = () => edge.left + controller.currentView().x;
     const resize = (to: { left?: number; width?: number }) => { Object.assign(edge, to); resized?.(); };
     return { controller, screenX, resize };
@@ -6592,7 +6783,6 @@ describe("canvas area's left edge moves", () => {
   });
 });
 
-// The inspector's element menu: its own request channel to the canvas script, its board mark and its pick.
 describe("the inspector's element tree", () => {
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
   const posted = (h: ReturnType<typeof harness>) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
@@ -6605,7 +6795,6 @@ describe("the inspector's element tree", () => {
       expect(h.controller.requestElementTree()).toBe(true);
       expect(h.controller.requestElementTree()).toBe(true);
       expect(posted(h).filter(message => message.type === "element-tree")).toEqual([{ type: "element-tree", document: "doc", seq: 1 }, { type: "element-tree", document: "doc", seq: 2 }]);
-      // The selection's channel did not move: the next command still takes seq 1.
       h.controller.selectElement({ selector: "#cta", doanId: "cta" });
       expect(posted(h).at(-1)).toEqual({ type: "select-anchor", selector: "#cta", doanId: "cta", seq: 1 });
     } finally { h.controller.dispose(); }
@@ -6670,8 +6859,7 @@ describe("the inspector's element tree", () => {
   });
 });
 
-// Hand's text drag: the drag layer takes every press, asks the canvas whether it is on text (text-press, answered by
-// text-hit) and pans only when it is not. On text the app drives the canvas's drag with text-move and text-release.
+// The drag layer takes every press and pans only when text-hit says the press is not on text.
 describe("hand text drag", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -6832,6 +7020,30 @@ describe("hand text drag", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // ⌘Tab mid-drag: the window's blur ends the drag, and the lost capture that follows finds no drag to release.
+  it("the app losing focus mid-drag releases the canvas's drag, so the keys and the wheel work after coming back", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      await range(h, { dragging: true, text: undefined });
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      pointer(h, "lostpointercapture");
+      expect(ofType(h, "text-release")).toEqual([{ type: "text-release", epoch: expect.any(Number) }]);
+      // The canvas answers the release with the range it ended on.
+      await range(h);
+      expect(painted(h)).toHaveLength(1);
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => true;
+      h.controller.wheel({ dx: 10, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      expect(ofType(h, "text-point")).toEqual([]);
+      key(h, "keydown", "KeyV");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
   it("a range the canvas posts in Hand with no Hand press of its own is not taken", async () => {
     const h = harness();
     try {
@@ -6907,7 +7119,6 @@ describe("hand text drag", () => {
       expect("text" in h.layer.dataset).toBe(true);
       pointer(h, "pointermove", { clientX: 300, clientY: 300, buttons: 0 });
       h.nextFrame();
-      // The older answer arriving late does not bring the text cursor back over what the newer probe found.
       hit(h, lastProbe(h, "text-at"), false);
       hit(h, first, true);
       expect("text" in h.layer.dataset).toBe(false);

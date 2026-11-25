@@ -13,11 +13,8 @@ export interface PrototypeTarget {
 
 export type CanvasRef = Pick<PrototypeTarget, "root" | "canvas">;
 
-// `unknown`: the root's list is being read, so nothing can be concluded yet. `absent` covers a gone row, a canvas ID
-// two rows share (`duplicate`, which the conversation panel names apart), an unregistered root and a root whose list
-// failed: none is replaced by a guess.
-// `source` changes whenever the served document may have changed; `frames` are `doan ls`'s static frames; `label` is
-// the canvas's name as the sidebar shows it; `path` is the row's path, which the caller keeps as the last known one.
+// `unknown`: the root's list is being read. `absent` covers a gone row, a shared ID (`duplicate`), an unregistered root
+// and a failed list: none is replaced by a guess. `source` changes whenever the served document may have changed.
 export type Resolution =
   | { kind: "unknown" }
   | { kind: "absent"; duplicate?: true }
@@ -45,9 +42,8 @@ export function canvasKeyFor(row: CanvasRow, rows: readonly CanvasRow[]): Canvas
   return rows.filter(other => other.id === row.id).length === 1 ? { id: row.id } : null;
 }
 
-// `lastPath`: where the target's row was last listed. `doan ls` lists a file it cannot read as {path, error} without
-// the ID inside it, so an ID-keyed canvas whose file became unreadable is found only as the errored, ID-less row at
-// that path. Nothing else is taken: a readable row there is another canvas, and a shared ID stays a conflict.
+// `doan ls` lists an unreadable file as {path, error} without its ID, so an ID-keyed canvas whose file became unreadable
+// is found only as the errored row at lastPath. A readable row there is another canvas.
 function findRow(key: CanvasKey, rows: readonly CanvasRow[], lastPath: string | undefined): CanvasRow | "duplicate" | null {
   if ("id" in key) {
     const matches = rows.filter(row => row.id === key.id);

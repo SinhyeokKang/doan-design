@@ -43,6 +43,12 @@ describe("pointAnchor", () => {
     expect(pointAnchor({ x: 50, y: 50 }, [])).toBeNull();
   });
 
+  // Main refuses an anchor with an empty frame id, so a click whose innermost frame has none is outside every frame.
+  test("a frame with an empty id gives no anchor, also inside a named frame", () => {
+    expect(pointAnchor({ x: 160, y: 260 }, [{ ...card, id: "" }])).toBeNull();
+    expect(pointAnchor({ x: 160, y: 260 }, [shipping, { ...card, id: "" }])).toBeNull();
+  });
+
   test("values that aren't finite give no anchor", () => {
     expect(pointAnchor({ x: Number.NaN, y: 260 }, [shipping])).toBeNull();
     expect(pointAnchor({ x: 220, y: Infinity }, [shipping])).toBeNull();
@@ -83,8 +89,7 @@ describe("resolveChipTarget", () => {
   });
 });
 
-// A picked or selected frame or element as the anchor a chip carries: what the agent can find in the HTML, nothing
-// the app only uses itself (the rect, the path, the outer HTML, the implements paths).
+// A chip's anchor carries only what the agent can find in the HTML, nothing the app alone uses.
 describe("targetAnchor", () => {
   const frame = { id: "shipping", title: "Shipping", implements: "app/src/Shipping.tsx" };
   const path = [{ label: "shipping", selector: '[data-doan-frame="shipping"]' }];
@@ -111,9 +116,14 @@ describe("targetAnchor", () => {
   test("a target that is neither gives no anchor", () => {
     expect(targetAnchor({ tag: "div", path: [] })).toBeNull();
   });
+
+  // Main refuses an anchor with an empty frame id, so such a frame counts as none.
+  test("a frame with an empty id is outside every frame", () => {
+    expect(targetAnchor({ tag: "section", frame: { id: "" }, path })).toBeNull();
+    expect(targetAnchor({ tag: "button", frame: { id: "", title: "Card" }, element: { selector: "#pay", html: "<button>" }, path })).toEqual({ element: { selector: "#pay", tag: "button" } });
+  });
 });
 
-// The size bubble's Add to message: Pick from canvas's judgement for the same chip, after two reasons of its own.
 describe("bubbleAddAvailability", () => {
   const inFrame: Anchor = { frame: { id: "shipping" }, element: { selector: "#pay", tag: "button" } };
   const note: Anchor = { element: { selector: "body > p:nth-of-type(1)", tag: "p" } };

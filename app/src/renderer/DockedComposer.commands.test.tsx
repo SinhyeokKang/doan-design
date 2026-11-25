@@ -11,9 +11,8 @@ import { DockedComposer, QueueRows, type DockedComposerProps, type DockedOutcome
 import { EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import type { AttachmentDraft, ModelPickerView, PresetSummary } from "./homeComposer";
 
-// The docked composer (Overview, canvas panel, prototype window) with provider commands: a command goes out alone, a
-// built-in Doan does not run shows its card, and a queued command row has no Send now. Hooks run as plain state
-// (DockedComposer.interaction).
+// The docked composer with provider commands: a command goes out alone, a built-in command Doan does not run shows its card,
+// and a queued command row has no Send now. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -45,6 +44,8 @@ beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
   vi.stubGlobal("getComputedStyle", () => ({ lineHeight: "20px" }));
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -96,7 +97,7 @@ test("a command goes out alone: no preset line, no attachments, which stay in th
   const { store, send, render } = setup({}, [[KEY, draft("/compact", { preset: POLISH, attachments: [FILE], shape: "box" })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   const left = store.current.get(KEY)!;
   expect(plainText(left.segments)).toBe("");
   expect(left.preset).toBe(POLISH);
@@ -107,7 +108,7 @@ test("an alias goes out as its command, with its argument after one space", asyn
   const { send, render } = setup({}, [[KEY, draft("/compact해줘")]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact 해줘", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact 해줘", anchors: [], attachments: [], command: true });
 });
 
 test("a skill word is still a message with its fixed line", async () => {
@@ -121,7 +122,7 @@ test("a command while a turn runs queues alone, as its own row", async () => {
   const { queue, render } = setup({ turn: "running" }, [[KEY, draft("/compact", { preset: POLISH })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
 });
 
 test("a built-in Doan does not run sends nothing, shows its card and keeps the text, announced as status", async () => {
@@ -161,7 +162,7 @@ test("an unconfirmed ACP command is sent as written, alone", async () => {
     [[KEY, draft("/share the plan", { preset: POLISH, attachments: [FILE] })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/share the plan", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/share the plan", anchors: [], attachments: [], command: true });
 });
 
 test("while the field starts with a command the preset chip leaves for the notice, and comes back with the word gone", () => {
@@ -199,7 +200,7 @@ test("a queued command row has no Send now; the message rows keep theirs", () =>
 });
 
 test("Control+Enter sends the message rows now and leaves a command row queued", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: [{ id: "q1", text: "Also this" }, { id: "q2", text: "/compact" }] });
   const tree = render(true);
@@ -222,7 +223,7 @@ test("a list item or a skill that reads like a command keeps Send now; the real 
   expect(sendNow.map(props => props["aria-describedby"])).toEqual(["id-0", "id-2"]);
 });
 test("Control+Enter sends a list item or a skill that reads like a command and leaves the real command queued", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, queued: LIST_ROWS });
   (input(render(true)).onSteerKey as () => void)();
@@ -236,8 +237,8 @@ const CHECKING: AttachmentDraft = { key: "c", name: "big.mov", kind: "file", pas
 const NEW_MODE: DockedMode = { kind: "new", root: "/w" };
 const NEW_KEY = "root:/w";
 
-// A command started from a new conversation leaves the preset and attachments it did not take; the composer then shows
-// the started conversation, so they go to its key. A draft the person already has there stays.
+// A command started from a new conversation leaves the preset and attachments it did not take in the started conversation's
+// key; a draft the person already has there stays.
 test("a command that starts a conversation leaves its preset and attachments in the started conversation's draft", async () => {
   const { store, render } = setup({ mode: NEW_MODE, onSend: async () => ({ ok: true, conversationId: "c9" }) }, [[NEW_KEY, draft("/compact", { preset: POLISH, attachments: [FILE], shape: "box" })]]);
   expect(store.current.has(NEW_KEY)).toBe(true);
@@ -260,18 +261,18 @@ test("a draft already in the started conversation stays; the leftover stays wher
 
 // Control+Enter queues the field and then steers its item; a command is never steered, so it only queues.
 test("Control+Enter on a command in the field queues it and does not send it now", async () => {
-  vi.stubGlobal("document", { body: {}, activeElement: null });
+  vi.stubGlobal("document", { body: {}, activeElement: null, hasFocus: () => true, querySelectorAll: () => [] });
   const onSendQueuedNow = vi.fn(async () => {});
   const queue = vi.fn(async (_request: unknown): Promise<DockedOutcome> => ({ ok: true, itemId: "q9" }));
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, onQueue: queue }, [[KEY, draft("/compact")]]);
   (input(render(true)).onSteerKey as () => void)();
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   expect(onSendQueuedNow).not.toHaveBeenCalled();
 });
 
-// A card can come back without a send from this composer (a queued /review main returned): the composer says the
-// card it is given once, through its status region, whichever way it came.
+// A card can come back without a send from this composer (a queued /review main returned): it is said once, through the
+// status region.
 test("a card the host gives is said once through the composer's status", () => {
   const { props, render } = setup();
   props.card = { ...STALE_MODE_CARD };
@@ -288,12 +289,12 @@ test("a missing or checking attachment does not hold a command or its card", asy
   const { send, render } = setup({}, [[KEY, draft("/compact", { attachments: [MISSING], shape: "box" })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   const card = setup({}, [[KEY, draft("/model opus", { attachments: [CHECKING], shape: "box" })]]);
   (field(card.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(card.onCard).toHaveBeenCalledWith(commandCard("claude", "model"));
-  // A message keeps the shipped check.
+  // A message keeps the attachment check.
   const message = setup({}, [[KEY, draft("Use this file", { attachments: [MISSING], shape: "box" })]]);
   (field(message.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();

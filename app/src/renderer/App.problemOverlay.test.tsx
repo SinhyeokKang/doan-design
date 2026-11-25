@@ -3,9 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// A project in a problem state shows its Overview (or the canvas page it was on) under an
-// overlay that holds the recovery actions. Driven with hooks as plain state (App.settings.test.tsx); timers are fake
-// wherever the 300 ms reading rule or the busy state is involved (POSTMORTEM 2026-10-30).
+// A project in a problem state shows its Overview (or canvas page) under an overlay that holds the recovery
+// actions. Timers are fake wherever the 300 ms reading rule or the busy state is involved (POSTMORTEM 2026-10-30).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -63,7 +62,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -76,6 +75,7 @@ const { OverviewRun } = await import("./overviewRun");
 const { Home } = await import("./Home");
 const { Wizard } = await import("./Onboarding");
 const { initialCanvasState } = await import("./CanvasController");
+const { QuickOpen } = await import("./QuickOpenDialog");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -190,9 +190,8 @@ test("an open Overview whose project goes missing stays, under the overlay, with
   expect(overlay()).toBeUndefined();
 });
 
-// The overlay and the Overview it covers are siblings in the workspace grid. With the same key React cannot tell them
-// apart: entering a problem project from Home remounted the Overview on every render until the renderer stopped with
-// "Maximum update depth exceeded" (found by /design-sync in the real app).
+// The overlay and the Overview it covers are siblings in the workspace grid; with the same key React remounted
+// the Overview on every render until "Maximum update depth exceeded".
 test("the overlay and the Overview under it never share a key", () => {
   render(); folders([notFound()]);
   toOverview();
@@ -305,6 +304,31 @@ test("a Set Up from the overlay that succeeds removes the overlay and puts focus
   expect(focused.at(-1)).toBe("composer");
 });
 
+// Main publishes the set-up folder before Set Up replies, so App closes the dialog first; the dialog's late reply
+// must not arm the modal focus return again, or the next unrelated folder change takes focus from the person.
+test.each([
+  ["success", (dialog: { onClose(): void }) => dialog.onClose(), [listed("/w/a")], undefined],
+  ["rerooted", (dialog: { onRerooted(root: string, message: string): void }) => dialog.onRerooted("/w/b", "This folder is inside /w/b."), [listed("/w/b")], { from: "/w/a", root: "/w/b" }],
+] as const)("a %s Set Up reply after the folder list closed the dialog moves no focus later", (name, reply, after, focus) => {
+  render(); folders([uninitialized()]);
+  toOverview();
+  const button = element("setUp", ["problem-overlay", "workspace"]);
+  dom(button);
+  overlay()!.onAction("setUp"); render();
+  const dialog = find<{ onClose(): void; onRerooted(root: string, message: string): void }>(ProjectSetupDialog)[0]!.props;
+  Object.assign(button, { isConnected: false });
+  dom(BODY);
+  folders([...after], focus);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  // The person types somewhere else; then the reply lands.
+  dom(element("field", ["ov-main", "workspace"]));
+  reply(dialog as never); render();
+  focused.length = 0;
+  folders([...after, listed("/w/c")]);
+  expect(focused).toEqual([]);
+  if (name === "rerooted") expect(harness.toast.show).toHaveBeenCalledWith("This folder is inside /w/b.");
+});
+
 test("a Set Up closed by an outside change with the window in the background focuses the composer again on activation", () => {
   // POSTMORTEM 2026-11-17: activation restores focus to the Set Up button that went, and with it gone to Hide sidebar.
   render(); folders([uninitialized()]);
@@ -360,6 +384,82 @@ test("first run finished by an agent's CLI with the window in the background foc
   expect(focused).toEqual(["homeComposer", "homeComposer"]);
 });
 
+// `doan open` can arrive while the window is behind: the renderer moves to the screen before main raises the window, and
+// activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide
+// sidebar'). Each screen's entry focus is made again on activation.
+test("going Home with the window in the background focuses Home's composer again on activation", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  focused.length = 0;
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  expect(focused).toEqual(["homeComposer"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["homeComposer", "homeComposer"]);
+});
+
+test("entering a workspace with the window in the background focuses its sidebar row again on activation, only while it is still shown", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  focused.length = 0;
+  toOverview();
+  expect(focused).toEqual(["row"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["row", "row"]);
+});
+
+// POSTMORTEM 2026-11-20: the replay focuses only while the scene it was made for still shows. A move that hands no focus
+// of its own (the Settings page; an entry that leaves focus in a conversation card) keeps the earlier replay pending.
+test("a Home entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("homeComposer");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once another project is loaded", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/a");
+  // The next entry finds focus already in a conversation card and hands none of its own.
+  dom(element("card", ["workspace", "conversation-thread"]), { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/c");
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
+});
+
 test("Remove from Doan on the overlay asks first, then goes Home from the Overview and from the canvas page", async () => {
   for (const onCanvas of [false, true]) {
     reset(); render(); folders([listed("/w/a"), listed("/w/c")]);
@@ -377,8 +477,8 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
   }
 });
 
-// The overlay's Remove from Doan is the project's, as the sidebar's and Project Settings' are (PRODUCT §5 item 1): every
-// registered worktree of the group goes, and the confirmation names the project, not one worktree of it.
+// The overlay's Remove from Doan is the project's (PRODUCT §5 item 1): every registered worktree of the group goes,
+// and the confirmation names the project.
 test("Remove from Doan on the overlay removes the whole project group", async () => {
   const git = (branch: string) => ({ common: "/w/a/.git", main: "/w/a", branch, worktrees: ["/w/a", "/w/b"] });
   const worktree = (path: string, branch: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA], git: git(branch) });
@@ -563,9 +663,8 @@ test("reading: a list read within 300 ms shows nothing and moves no focus; past 
   expect(overlay()?.view).toMatchObject({ kind: "problem", entryKind: "error", busy: false });
 });
 
-// The covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer
-// after it, not the sidebar row. The fake DOM keeps the inert state its toggle sets, and focus falls to the page only
-// because the overlay (and the Retry button in it) left the tree (POSTMORTEM 2026-10-24).
+// The covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer after
+// it, not the sidebar row (POSTMORTEM 2026-10-24).
 test("Retry that clears the problem lands focus in the Overview's composer once it is no longer inert", () => {
   render(); folders([configError()]);
   toOverview();
@@ -796,8 +895,8 @@ test("Back to a project now in a problem enters its Overview with the overlay in
   }
 });
 
-// A panel-level failure is DESIGN's status block: the alert icon, a title, a line and a centred action. The block is
-// white, so Reload is subtle (a panel button would lose its fill on it).
+// A panel-level failure is DESIGN's status block; the block is white, so Reload is subtle (a panel button would
+// lose its fill on it).
 test("a canvas that failed to load shows the status block with the alert icon, its title and line, and Reload", async () => {
   const { AlertIcon } = await import("./AlertIcon");
   render(); folders([listed("/w/a")]);
@@ -813,8 +912,8 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Retry" });
 });
 
-// DESIGN 'Busy action': the reload Retry starts turns the status to loading at once; the line and a busy Retry stay
-// until it answers, and only a load that succeeds clears them (POSTMORTEM 2026-11-17 'Retry cleared its own failure line').
+// DESIGN 'Busy action': the line and a busy Retry stay until the reload answers, and only a load that succeeds
+// clears them (POSTMORTEM 2026-11-17).
 test("the canvas load failure's Retry keeps its line and itself, busy, while the reload runs", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();
@@ -840,7 +939,7 @@ test("the canvas load failure's Retry keeps its line and itself, busy, while the
   expect(block()).toBeUndefined();
 });
 
-// D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
+// The status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
 test("a loading canvas keeps its status region and leaves the Loading line to the delayed CanvasLoading", async () => {
   const { CanvasLoading } = await import("./App");
   render(); folders([listed("/w/a")]);
@@ -893,4 +992,48 @@ test("project Retry locks before the loading notification, and a late rejection 
   expect(overlay()?.view.busy).toBe(false);
   overlay()!.onAction("retry");
   expect(doan.reopenFolder).toHaveBeenCalledTimes(3);
+});
+
+// The dialog as the page renders it, minus styling classes: a guard that knows Quick Open by a class nothing styles
+// stops matching once the class goes (POSTMORTEM 2026-10-30 'Removing a shared dialog class'). Matches simple selectors
+// made of a tag, classes, attributes and :not([attribute]).
+function inClosedQuickOpen(name: string) {
+  const attributes: Record<string, string> = { "aria-label": "Quick Open", "data-ui-presentation": "search" };
+  const matchesDialog = (selector: string) => selector.split(",").some(part => {
+    const parsed = /^\s*(dialog)?((?:\.[\w-]+|\[[^\]]+\]|:not\(\[[^\]]+\]\))*)\s*$/.exec(part);
+    if (!parsed || (!parsed[1] && !parsed[2])) return false;
+    return (parsed[2]!.match(/\.[\w-]+|\[[^\]]+\]|:not\(\[[^\]]+\]\)/g) ?? []).every(token => {
+      if (token.startsWith(".")) return false;
+      const negated = token.startsWith(":not("), [, attribute, value] = /\[([\w-]+)(?:="([^"]*)")?\]/.exec(token)!;
+      const present = attribute! in attributes && (value === undefined || attributes[attribute!] === value);
+      return negated ? !present : present;
+    });
+  });
+  return { ...element(name), closest: (selector: string) => matchesDialog(selector) ? {} : null };
+}
+
+test("Quick Open closed with focus left in its dialog after the opener left recovers focus on the screen", () => {
+  render(); folders([listed("/w/a")]);
+  const opener = element("opener", ["home-shell"]), composer = element("homeComposer", ["home-shell"]);
+  dom(opener, {});
+  Object.assign(document, { querySelectorAll: (selector: string) => selector === ".home-shell .composer-input" ? [composer] : [] });
+  listeners.menu!("quickOpen" as never); render();
+  const close = find<{ close(): void }>(QuickOpen)[0]!.props.close;
+  opener.isConnected = false;
+  Object.assign(document, { activeElement: inClosedQuickOpen("result row") });
+  focused.length = 0;
+  close(); render();
+  expect(find(QuickOpen)).toHaveLength(0);
+  expect(focused).toEqual(["homeComposer"]);
+});
+
+test("Quick Open closed with focus on the opener it returned to leaves focus there", () => {
+  render(); folders([listed("/w/a")]);
+  const opener = element("opener", ["home-shell"]), composer = element("homeComposer", ["home-shell"]);
+  dom(opener, {});
+  Object.assign(document, { querySelectorAll: (selector: string) => selector === ".home-shell .composer-input" ? [composer] : [] });
+  listeners.menu!("quickOpen" as never); render();
+  focused.length = 0;
+  find<{ close(): void }>(QuickOpen)[0]!.props.close(); render();
+  expect(focused).toEqual([]);
 });

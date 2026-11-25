@@ -1,9 +1,7 @@
 import { registerHooks } from "node:module";
 
-// prompt.ts is app code written for Vite: app/src imports omit the extension, a
-// package subpath (ajv/dist/2020) omits `.js`, and JSON schemas are imported without
-// an attribute. These rules let Node load it unchanged, so the R8d, R9b, R10, R11 and R12 tests compare
-// prompt.md with the app's own turnPrompt instead of a copy of its text.
+// Lets Node load the app's prompt.ts (extensionless imports, `ajv/dist/2020` without `.js`, bare JSON imports),
+// so scenario tests compare prompt.md with the app's own turnPrompt, not a copy.
 registerHooks({
   resolve(specifier, context, next) {
     if (!context.parentURL?.includes("/app/src/")) return next(specifier, context);

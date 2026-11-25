@@ -1,21 +1,14 @@
-// Whether the GitHub star card shows now, after main's moment. Any reason against it puts the card off to main's next
-// moment, at the next successful turn's end; nothing is remembered here.
+// Any reason against it puts the card off to main's next moment; nothing is remembered here.
 
 export const STAR_IDLE_MS = 1200;
 
 export interface StarMomentInput {
-  // Since the last key or pointer input.
   idleMs: number;
-  // Shown and in front of other apps.
   windowActive: boolean;
-  // First run: onboarding or the buddy introduction.
   onboarding: boolean;
-  // An open menu, list, popover or dialog (canvasTool.ts `overlayOpen`). A card that comes up while one is open would
-  // sit under the person's attention or take part of it.
+  // A card that comes up while one is open would sit under the person's attention or take part of it.
   overlayOpen: boolean;
-  // Another conversation running, or waiting for a permission or question answer.
   otherTurnBusy: boolean;
-  // A canvas pick or Capture area.
   pickOrCapture: boolean;
   cardVisible: boolean;
 }

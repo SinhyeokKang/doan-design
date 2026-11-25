@@ -1,10 +1,5 @@
-// The script main runs inside each canvas iframe (WebFrameMain.executeJavaScript).
-// It is shipped as the source text of the functions below, so every function
-// here must be self-contained: no imports, no module-level names, nothing the
-// bundler could hoist out. `canvasScript` gets the helpers as an argument
-// instead, which keeps the helpers unit-testable on their own. It runs in the
-// canvas's main world, so the canvas can see and fake everything it posts
-// (the renderer validates it).
+// Shipped as source text (WebFrameMain.executeJavaScript): self-contained, no imports or module-level names. It runs in
+// the canvas's main world, so the canvas can fake what it posts and the renderer validates it.
 
 import type { ElementKind } from "../renderer/canvasMessage";
 
@@ -15,16 +10,8 @@ export interface HeightState {
   fonts: number;
 }
 
-// `min-height: 100vh` style canvases grow with the iframe we resize to fit
-// them. Right after our own resize (the viewport became the height we sent),
-// a document that still outgrows the viewport is chasing it, so the last sent
-// height is kept until this document ends. Not after a sent 0: that was measured
-// before the iframe was laid out, and no document chases a 0 px viewport.
-// Except once per web font load (`fonts` counts `loadingdone`): a font that
-// applies between the first measurement and our resize also grows the document
-// right after it, which looks the same as chasing and would cut its bottom off.
-// A chasing document then grows once per load and freezes again after the last
-// one, so it ends only because a canvas loads finitely many fonts.
+// A `min-height: 100vh` document that still outgrows the viewport right after our resize is chasing it, so the last
+// sent height is kept, except after a sent 0 and once per web font load (`fonts`) (ARCHITECTURE §3 'Canvas view').
 export function nextHeight(prev: HeightState | null, measured: number, inner: number, fonts: number): HeightState {
   if (prev === null || prev.fonts !== fonts) return { sent: measured, inner, frozen: false, fonts };
   if (prev.frozen) return prev;
@@ -33,14 +20,8 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
   return { sent: measured, inner, frozen: false, fonts };
 }
 
-// Not scrollHeight alone: it never drops below the viewport, so a canvas could
-// not shrink. But with `html { height: 100% }` the rect is the viewport and the
-// content overflows it, so then only scrollHeight tells the content height.
-// Absolutely positioned frames add nothing to the rect, and scrollHeight cannot
-// tell their extent from the viewport once the iframe is at least as tall, so
-// without their bottom such a canvas alternates between 0 and its extent.
-// `framesBottom` already ends clipped frames at their box (frameBottom); the
-// cap at scrollHeight only bounds clipping that misses, such as `contain: paint`.
+// Not scrollHeight alone (never below the viewport), but only it tells the height under `html { height: 100% }`.
+// `framesBottom` stops absolute-frame canvases alternating; its scrollHeight cap bounds clipping misses (`contain: paint`).
 export function documentHeight(rect: number, scrollHeight: number, inner: number, framesBottom: number): number {
   return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.min(Math.ceil(framesBottom), scrollHeight));
 }
@@ -55,14 +36,11 @@ export interface ClipLink {
 }
 
 
-// A frame inside a box that scrolls or clips it shows no further than that box,
-// and the box then stands for it in the document's height. An absolutely
-// positioned element escapes the static boxes below its containing block, a
-// fixed one escapes every box.
+// A frame inside a box that scrolls or clips it shows no further than that box. An absolutely positioned element
+// escapes the static boxes below its containing block, a fixed one every box.
 export function frameBottom(bottom: number, position: string, ancestors: readonly ClipLink[]): number {
-  // Overflow applies to block, flex and grid containers only (CSS Overflow 3
-  // §3), but an inline span or a `display: contents` wrapper still computes
-  // `overflow: hidden`, so the display decides whether the box clips.
+  // Overflow applies to block, flex and grid containers only (CSS Overflow 3 §3), yet an inline span or a
+  // `display: contents` wrapper still computes `overflow: hidden`, so the display decides.
   const noOverflow = /^(inline|contents|none|table-(row|row-group|header-group|footer-group|column|column-group)|ruby.*)$/;
   if (position === "fixed") return bottom;
   let escaping = position === "absolute";
@@ -75,9 +53,8 @@ export function frameBottom(bottom: number, position: string, ancestors: readonl
   return bottom;
 }
 
-// One ancestor of a marked element, nearest first, up to body. `box` is where
-// the ancestor clips its content (its padding box, inside any scrollbar), in the
-// viewport, and is only read on an axis whose overflow is not `visible`.
+// `box` is where the ancestor clips its content (its padding box, inside any scrollbar), in the viewport, read only
+// on an axis whose overflow is not `visible`.
 export interface ClipBox {
   position: string;
   overflowX: string;
@@ -86,9 +63,8 @@ export interface ClipBox {
   box: { x: number; y: number; width: number; height: number };
 }
 
-// The part of an element's box its ancestors let show, so an overlay mark never
-// reaches past the window that clips the element. The ancestors that clip follow
-// frameBottom, on both axes.
+// The part of an element's box its ancestors let show, so an overlay mark never reaches past the window that clips
+// it. The ancestors that clip follow frameBottom, on both axes.
 export function visibleRect(rect: { x: number; y: number; width: number; height: number }, position: string, ancestors: readonly ClipBox[]): { x: number; y: number; width: number; height: number } {
   const noOverflow = /^(inline|contents|none|table-(row|row-group|header-group|footer-group|column|column-group)|ruby.*)$/;
   let left = rect.x, top = rect.y, right = rect.x + rect.width, bottom = rect.y + rect.height;
@@ -131,9 +107,8 @@ export interface ChainLink {
 
 export type AnchorAttribute = "data-doan-id" | "data-doan-frame";
 
-// Main later runs this selector with CDP `DOM.querySelector`, which returns the
-// first match, so an id only anchors it when `unique` says the document has it
-// once; otherwise the path continues up to the next id or to body.
+// Main runs this selector with CDP `DOM.querySelector`, which returns the first match, so an id anchors it only when
+// `unique`; otherwise the path continues up to the next id or to body.
 export function elementSelector(chain: readonly ChainLink[], unique: (attribute: AnchorAttribute, value: string) => boolean): string {
   const quote = (value: string) => `"${value.replace(/[\\"\u0000-\u001f\u007f]/g, (c) => (c === "\\" || c === '"' ? `\\${c}` : `\\${c.charCodeAt(0).toString(16)} `))}"`;
   // SVG and custom tags may hold characters a type selector cannot; case is
@@ -202,11 +177,8 @@ export function textQuote(text: string, max: number): string {
   return folded.slice(0, end);
 }
 
-// Select enters frames one level per click (PRODUCT §5 item 4). `frames` are the frames around the clicked node,
-// outermost first, ending with the node itself when it is a frame; `entered` the same for the current selection, empty
-// without one or for one outside every frame. Both come from the live DOM at the click, so a selection that moved or a
-// frame that lost its attribute steps by where it is now. The frames both share stay entered; the next frame below
-// them is the step, and past the clicked node's innermost frame the node itself is (null).
+// Select enters frames one level per click (PRODUCT §5 item 4). `frames` and `entered` come from the live DOM at the
+// click, outermost first; the shared frames stay entered and the next frame below them is the step (null: the node).
 export function frameStep<T>(frames: readonly T[], entered: readonly T[]): T | null {
   let shared = 0;
   while (shared < frames.length && shared < entered.length && frames[shared] === entered[shared]) shared++;
@@ -226,18 +198,15 @@ export function textDragState(prev: TextDragState, start: { x: number; y: number
   return Math.hypot(point.x - start.x, point.y - start.y) >= threshold ? "drag" : "press";
 }
 
-// What a text drag's range stays inside: the innermost frame around the start, or outside every frame the element a
-// click there selects (the start element itself). `frames` flags the start element and its ancestors, nearest first,
-// up to body; `holdsFrames` whether the start element holds frames, as a row laying them out does, which a click
-// clears. Returns the index of the boundary in that chain, or null for no text drag.
+// The boundary a text drag's range stays inside, as an index into `frames` (start element and ancestors, nearest
+// first): the innermost frame, or outside every frame the start element; null when it holds frames.
 export function textBoundary(frames: readonly boolean[], holdsFrames: boolean): number | null {
   const frame = frames.indexOf(true);
   if (frame !== -1) return frame;
   return frames.length === 0 || holdsFrames ? null : 0;
 }
 
-// The kind icon of a node in the inspector's element menu, from its tag and computed layout. Labels, headings and
-// paragraphs read as text even when they lay their content out as flex, since a person names them by their words;
+// Labels, headings and paragraphs read as text even when laid out as flex, since a person names them by their words;
 // other inline text tags are text unless they are a flex or grid box.
 export function nodeKind(tag: string, display: string, direction: string, frame: boolean): ElementKind {
   if (frame) return "frame";
@@ -258,8 +227,8 @@ export interface LabelSource {
   text: string;
 }
 
-// The selection path's label rule (ancestorPath), with the frame's title first and a short quote of the element's own
-// text after its tag when it has no data-doan-id. The quote ends at a word when it is cut, as the draft shows it.
+// ancestorPath's label rule, with the frame's title first and a short quote of the element's own text when it has no
+// data-doan-id. The quote ends at a word when it is cut.
 export function nodeLabel(source: LabelSource): string {
   // Trimmed as the canvas tree trims it (canvasTree.ts frameLabel), so both name a frame alike.
   if (source.frame !== undefined) return source.frame.title?.trim() || source.frame.id || source.tag;
@@ -273,10 +242,8 @@ export function nodeLabel(source: LabelSource): string {
   return `${source.tag} “${(space > 0 ? kept.slice(0, space) : kept).trimEnd()}…”`;
 }
 
-// Which nodes of a frame's tree an element-tree answer sends. `depths` is the tree in document order (the frame at
-// index 0, depth 0) and `selected` the selection's index, -1 when it is not in the tree. A tree over `max` keeps the
-// path to the selection, then its children, then its siblings nearest it (the earlier one first on a tie), up to
-// `max`; what is kept always nests, so depths still read as a tree.
+// Which nodes of a frame's tree an element-tree answer sends (`depths` in document order, the frame at 0). Over `max`
+// it keeps the path to the selection, its children, then its nearest siblings; what is kept always nests.
 export function elementTree(depths: readonly number[], selected: number, max: number): { keep: number[]; truncated: boolean } {
   const all = depths.map((_, i) => i);
   if (depths.length <= max) return { keep: all, truncated: false };
@@ -429,9 +396,8 @@ export function canvasScript(lib: CanvasLib): void {
     return { list, truncated, bottom, gotos };
   };
 
-  // Selection state. `seq` is the last command seq from the renderer, raised by
-  // one on each human click; every selection message echoes it so the renderer
-  // can drop answers that a later click or Esc already replaced.
+  // `seq` is the last command seq from the renderer, raised by one on each human click; every selection message echoes
+  // it so the renderer can drop answers a later click or Esc already replaced.
   interface Anchor {
     doanId?: string;
     selector?: string;
@@ -454,18 +420,12 @@ export function canvasScript(lib: CanvasLib): void {
   // When the last pointer activity was posted (performance.now()).
   let activityAt = -Infinity;
   let lastHover = JSON.stringify([0, null]);
-  // Picking: the app's pick-start and pick-cancel commands carry their own seq,
-  // which neither clicks nor selection or hover commands move, and name this document's token, so a command meant for
-  // the document this one replaced changes nothing here. `picking` is the seq of the pick-start in force. A pick-start
-  // is acknowledged with `pick-started`: until then the app keeps clicks away from this document, because a click
-  // here would select. A pick click answers `picked` and leaves `selected`, `anchor` and the hover as they were;
-  // picking lasts until the app cancels it, so a second click before that cancel arrives answers again instead of
-  // selecting.
+  // Picking has its own seq, which no click, selection or hover command moves, and names this document's token. Until
+  // `pick-started` the app keeps clicks away (a click would select); a click before the app's cancel answers again.
   let pickSeq = 0;
   let picking: number | null = null;
-  // The crosshair while picking and the hand while the app's drag layer is up: the cursor over the canvas is this
-  // document's, so a constructed sheet is adopted. It changes no DOM node, so neither the MutationObserver nor the
-  // layout runs for it, and sheets the canvas adopted itself stay as they are. Returns the sheet now adopted, if any.
+  // The cursor over the canvas is this document's, so a constructed sheet is adopted: it changes no DOM node, so no
+  // MutationObserver or layout runs for it, and the canvas's own sheets stay. Returns the sheet now adopted, if any.
   const cursorSheet = (sheet: CSSStyleSheet | null, on: boolean, cursor: string): CSSStyleSheet | null => {
     try {
       if (on && sheet === null && typeof CSSStyleSheet === "function") {
@@ -541,9 +501,8 @@ export function canvasScript(lib: CanvasLib): void {
     if (selected !== null && !selected.isConnected && anchor !== null) selected = resolve(anchor) ?? selected;
     return selected !== null && selected.isConnected ? selected : null;
   };
-  // What a Select click on `target` selects: html or body clears (null), and so does the own background of an element
-  // outside every frame that holds frames, since a row or grid laying frames out is the space between them; ⌘ selects
-  // the node itself, otherwise the next frame level below what the selection already entered.
+  // html or body clears (null), and so does the own background of an element outside every frame that holds frames;
+  // ⌘ selects the node itself, otherwise the next frame level below what the selection already entered.
   const selectTarget = (target: Element, direct: boolean): Element | null => {
     if (isRoot(target)) return null;
     const frames = framesOf(target);
@@ -652,9 +611,8 @@ export function canvasScript(lib: CanvasLib): void {
     return null;
   };
 
-  // The hover shows what the next click would select: the pick target while picking, Select's step otherwise, and
-  // nothing where that click would select the selection again. It keeps coming while ⌥ is held: the app measures from
-  // the selection to it, and hides it itself when there is nothing to measure.
+  // The hover shows what the next click would select, nothing where it would select the selection again. It keeps
+  // coming while ⌥ is held: the app measures from the selection to it.
   const postHover = () => {
     const over = hoverEl;
     const el = !isElement(over) || isRoot(over) || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
@@ -665,9 +623,8 @@ export function canvasScript(lib: CanvasLib): void {
     post({ type: "hover", href: location.href, seq: hoverSeq, viewport: innerHeight, rect });
   };
 
-  // `answer` names the renderer command this selection answers. A click can
-  // take a queued command's seq before it arrives, so seq alone cannot tell
-  // that click from the answer; clicks never carry it.
+  // The renderer command this selection answers. A click can take a queued command's seq before it arrives, so seq alone
+  // cannot tell that click from the answer; clicks never carry it.
   type Answer = "select-anchor" | "select-parent";
   const apply = (described: NonNullable<ReturnType<typeof describe>>, answer?: Answer) => {
     selected = described.el;
@@ -690,11 +647,8 @@ export function canvasScript(lib: CanvasLib): void {
     for (let node: Element | null = el; node !== null; node = node.parentElement) if (node.hasAttribute("data-doan-frame")) return true;
     return false;
   };
-  // A click picks what it lands on, as the select message would describe it: a frame's own background is the frame, an
-  // element (or a nested iframe) is that element. A Shift-click picks the spot instead, whatever is under it: its
-  // point goes in the document's coordinates, which the app turns into an offset from the innermost frame there.
-  // Anything outside every frame (the document, a frame's sibling, a wrapper, a nested iframe there) answers nothing,
-  // and picking goes on: an agent can only be pointed at frames and what is in them.
+  // A click picks what the select message would describe; a Shift-click picks the spot, in document coordinates.
+  // Outside every frame it answers nothing and picking goes on: an agent can only be pointed at frames.
   const pickAt = (target: EventTarget | null, point: { x: number; y: number } | null) => {
     if (!isElement(target) || !target.isConnected || isRoot(target) || !inFrame(target)) return;
     if (point !== null) {
@@ -722,9 +676,8 @@ export function canvasScript(lib: CanvasLib): void {
     apply(described);
   };
 
-  // An anchor sent after a reload may name an element the canvas's own script
-  // has not drawn yet, so it is retried until 1 s after the first layout and
-  // the document's load, then answered with null.
+  // An anchor sent after a reload may name an element the canvas's own script has not drawn yet, so it is retried until
+  // 1 s after the first layout and the document's load, then answered with null.
   const tryPending = () => {
     if (pending === null) return;
     const found = resolve(pending);
@@ -750,13 +703,14 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   const failedSheets = new WeakSet<HTMLLinkElement>();
+  const stylesheetPending = () => document.readyState !== "complete" && Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
+    link => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
+  );
   const send = () => {
     if (firstLayoutAt === null) {
       // Unstyled frame rects can already be nonzero. Resizing to that height can also
       // make the stylesheet's later growth look like a document chasing its viewport.
-      if (document.readyState !== "complete" && Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
-        link => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
-      )) return;
+      if (stylesheetPending()) return;
       firstLayoutAt = performance.now();
     }
     tryPending();
@@ -818,11 +772,8 @@ export function canvasScript(lib: CanvasLib): void {
     send();
   };
 
-  // Not `ready`: it may already be resolved here, which would count as a load
-  // before the first measurement and miss the first freeze of a chasing document.
-  // Registered before `measure` is answered, so a load after an early measure
-  // still counts. Sent without rAF: an off-screen iframe gets no animation
-  // frames, and after a confirming layout the renderer pulls no more measures.
+  // Not `ready`: it may already be resolved, which would miss the first freeze of a chasing document. Registered before
+  // `measure` is answered and sent without rAF: an off-screen iframe gets no animation frames.
   document.fonts.addEventListener("loadingdone", () => {
     fontLoads++;
     if (!started) return;
@@ -908,9 +859,8 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
-  // The inspector's element menu asks for the tree of the innermost frame around the selection. Its seq is a channel
-  // of its own, which no click, selection or hover command moves, and the request names this document's token, so a
-  // request meant for the document this one replaced is never answered. Reading the tree changes no selection state.
+  // The element menu's tree request has its own seq, which no click, selection or hover command moves, and names this
+  // document's token, so a request for a replaced document is never answered.
   let treeSeq = 0;
   const skippedTags = new Set(["script", "style", "template", "noscript"]);
   const treeCommand = (data: Record<string, unknown>) => {
@@ -931,9 +881,8 @@ export function canvasScript(lib: CanvasLib): void {
         els.push(el);
         depths.push(depth);
         const children: Element[] = [];
-        // An element that renders no box has nothing to point at on the board, so it is left out, unless the
-        // selection is it or inside it. A display:contents element draws no box of its own but its children may, so
-        // they take its place at its depth.
+        // An element that renders no box is left out unless the selection is it or inside it; a display:contents element's
+        // children take its place at its depth.
         const gather = (parent: Element) => {
           for (const child of parent.children) {
             if (skippedTags.has(child.localName)) continue;
@@ -1037,10 +986,8 @@ export function canvasScript(lib: CanvasLib): void {
   addEventListener(
     "wheel",
     (event: WheelEvent) => {
-      // The element under the cursor changes without a pointermove, so the
-      // hover waits for the next one. While ⌥ is held the app measures to the
-      // hover target, a rect on the board that follows the board's move, so it
-      // stays until the pointer moves.
+      // The element under the cursor changes without a pointermove. While ⌥ is held the app measures to the hover target,
+      // a rect that follows the board's move, so it stays until the pointer moves.
       if (!alt) {
         hoverEl = null;
         postHover();
@@ -1053,12 +1000,8 @@ export function canvasScript(lib: CanvasLib): void {
     { passive: false, capture: true },
   );
 
-  // Input direction: a plain primary press is selection and
-  // never reaches the canvas, so links, buttons, inputs, the browser's own text
-  // selection and :focus stay inert; text is selected only by the script's own
-  // drag range below. ⌥ passes through. Only trusted input counts: a canvas's
-  // own `el.click()` keeps working as before. Right and Ctrl presses must
-  // prevent focus too, but their clicks never select.
+  // A plain primary press is selection and never reaches the canvas, so links, inputs, native text selection and :focus
+  // stay inert; ⌥ passes through, and only trusted input counts. Right and Ctrl presses prevent focus but never select.
   const linkOf = (target: EventTarget | null) => {
     for (let el = isElement(target) ? target : null; el !== null; el = el.parentElement) {
       if (el.localName === "a" && el.hasAttribute("href")) return el;
@@ -1131,9 +1074,8 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      // The press itself happened in the nested document, out of this script's sight; focus moving in is all of it
-      // that shows here, so it is the press the app hears. A second press in the same nested frame moves no focus
-      // and goes unheard.
+      // The press happened in the nested document, out of this script's sight; focus moving in is all that shows, so it is
+      // the press the app hears.
       post({ type: "press" });
       // It is the canvas's next press, so a text range goes as with any other.
       if (textRange !== null || textDrag !== null) {
@@ -1157,9 +1099,8 @@ export function canvasScript(lib: CanvasLib): void {
     "pointermove",
     (event: PointerEvent) => {
       if (!event.isTrusted) return;
-      // The app never sees pointer moves in this frame and hover is posted only when its rect changes, so the app's
-      // follow rest hears the person move here: at most once a second, and without an animation frame,
-      // which an off-screen frame never gets.
+      // The app never sees pointer moves in this frame and hover is posted only on a rect change, so activity is posted at
+      // most once a second, without an animation frame, which an off-screen frame never gets.
       const now = performance.now();
       if (now - activityAt >= 1000) { activityAt = now; post({ type: "activity" }); }
       if (alt !== event.altKey) postSelection("key", { key: "Alt", alt: event.altKey, seq: hoverSeq });
@@ -1246,12 +1187,8 @@ export function canvasScript(lib: CanvasLib): void {
     { capture: true },
   );
 
-  // Select's text drag (PRODUCT §5 item 4). The press still never reaches the canvas: the script keeps its own Range from
-  // the pressed caret to the pointer and posts the line rects of its Text nodes, which the app paints on its overlay, and
-  // the text once at the end, which the app's copy event uses. The canvas's own Selection is touched only inside one
-  // task to read the text, so nothing is painted and the canvas's styles stay as they are.
-  // `remote`: Hand's drag, which the app drives with commands from its drag layer (the canvas sees no pointer then);
-  // its `pointerId` is -1, so none of the canvas's own pointer events is its.
+  // The press never reaches the canvas: the script posts its own Range's Text line rects for the app's overlay and reads
+  // the text through the canvas's Selection within one task, so nothing is painted. `remote`: Hand's drag (pointerId -1).
   type TextDrag = { pointerId: number; node: Text; offset: number; screen: { x: number; y: number }; boundary: Element; state: TextDragState; remote: boolean };
   let textDrag: TextDrag | null = null;
   let textRange: Range | null = null;
@@ -1276,10 +1213,8 @@ export function canvasScript(lib: CanvasLib): void {
     for (const r of Array.from(glyph.getClientRects())) if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return true;
     return false;
   };
-  // Where a text drag may start: a caret in a Text node whose glyph on either side of the caret is under the press, or
-  // whose own element was pressed (its padding). A field, editable text, a nested iframe or a Shadow DOM host has no
-  // Text caret here; a frame's background or the root, no boundary.
-  // `target`: the element under the point, the press's own target.
+  // Where a text drag may start: a Text caret whose glyph beside it is under the press, or whose own element was pressed.
+  // Fields, editable text, nested iframes and Shadow DOM hosts have no caret here; a frame's background, no boundary.
   const textAt = (x: number, y: number, target: unknown): { node: Text; offset: number; boundary: Element } | null => {
     if (typeof document.caretPositionFromPoint !== "function") return null;
     const caret = document.caretPositionFromPoint(x, y);
@@ -1405,8 +1340,8 @@ export function canvasScript(lib: CanvasLib): void {
       textCopy = textRange === null ? null : readText(textRange);
       postText(false, textCopy ?? undefined);
     }
-    // The hover hid through the drag and the pointer may now rest where it was before it; without emptying the
-    // dedupe value the same rect would never be sent again (POSTMORTEM 2026-10-23).
+    // The hover hid through the drag and the pointer may rest where it was before; without emptying the dedupe value the
+    // same rect would never be sent again.
     lastHover = "";
     hoverEl = point === null ? null : document.elementFromPoint(point.x, point.y);
     postHover();
@@ -1430,10 +1365,8 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-  // Hand's text drag: the app's drag layer takes every press, so the app asks here, at a point in document
-  // coordinates, whether a Select press there would start a text drag (`text-at` for the cursor, `text-press` for a
-  // press, which also starts it), and then drives it: `text-move` carries the point and the app's own px, in which the
-  // 4 px are measured, and `text-release` ends it as a pointerup would.
+  // Hand's text drag: the app's drag layer takes every press, so the app asks here whether a press at a document point
+  // would start one (`text-at`, `text-press`), then drives it with `text-move` (the app's px) and `text-release`.
   const handText = (x: number, y: number) => textAt(x - scrollX, y - scrollY, document.elementFromPoint(x - scrollX, y - scrollY));
 
   const textCommand = (data: Record<string, unknown>) => {

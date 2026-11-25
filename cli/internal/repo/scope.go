@@ -7,9 +7,8 @@ import (
 	"strings"
 )
 
-// Scope is the one serving-scope computation shared by `doan ls` (which the app
-// serves from) and `doan check` (css_not_served), so the two cannot disagree.
-// Entries are real repo-relative paths in on-disk spelling.
+// Scope is the one serving-scope computation shared by `doan ls` (which the app serves from) and `doan check`
+// (css_not_served), so the two cannot disagree. Entries are real repo-relative paths in on-disk spelling.
 func Scope(root string, config Config) ([]string, error) {
 	metadataState, metadataRoot, err := Resolve(root, root, ".doan")
 	if err != nil {
@@ -75,9 +74,8 @@ func Scope(root string, config Config) ([]string, error) {
 	return scope, nil
 }
 
-// defaultServeDirs returns the default directories that are served without
-// configuration. A linked default (or a linked .doan) would otherwise serve its
-// real target, such as source code, which must be configured explicitly.
+// defaultServeDirs returns the default directories served without configuration, skipping a linked one (or all under
+// a linked .doan): its real target, such as source code, must be configured explicitly.
 func defaultServeDirs(root string) ([]string, error) {
 	dirs := []string{}
 	linked := func(p string) (bool, error) {
@@ -105,14 +103,26 @@ func defaultServeDirs(root string) ([]string, error) {
 	return dirs, nil
 }
 
-// Withheld reports whether a real repo-relative path is a .git directory or a
-// .env file, or lies under one. These are never served, whatever
-// .doan/config.json lists (ARCHITECTURE §3 'Never served').
-// Letter case is ignored because the volume usually ignores it.
+// Withheld reports whether any segment is .git or starts with .env, ignoring case as the volume usually does: never served,
+// whatever .doan/config.json lists (ARCHITECTURE §3 'Never served').
 func Withheld(p string) bool {
 	for _, segment := range strings.Split(p, "/") {
 		segment = strings.ToLower(segment)
 		if segment == ".git" || strings.HasPrefix(segment, ".env") {
+			return true
+		}
+	}
+	return false
+}
+
+// Served reports whether repo-relative real path p is equal to or under a Scope entry, by path segment, and not Withheld.
+// doan check (css_not_served) and export judge serving with it.
+func Served(p string, scope []string) bool {
+	if Withheld(p) {
+		return false
+	}
+	for _, s := range scope {
+		if p == s || strings.HasPrefix(p, s+"/") {
 			return true
 		}
 	}

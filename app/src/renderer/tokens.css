@@ -5,7 +5,7 @@
       A buddy switch (--buddy-*) between the palette and the roles points the accent roles at the
       chosen buddy's ramp.
    2. Roles: what a value is for. Renderer code reads roles only, never palette steps.
-   3. Legacy names: var() aliases of roles that keep drafts drawn before this system
+   3. Legacy names: var() aliases of roles that keep old drafts
       resolving. The renderer does not read them.
    Keep plain :root variables only: the file is served to canvases as-is and scanned by
    `doan check`, so Tailwind directives or CSS imports would break both (an imported file is
@@ -126,14 +126,16 @@
 
   --red-3: #feebec;
   --red-9: #e5484d;
+  --red-11: #ce2c31;
   --red-12: #641723;
   --amber-3: #fff7c2;
   --amber-11: #ab6400;
   --amber-12: #4f3422;
   --green-3: #e6f6eb;
+  --green-11: #218358;
   --green-12: #193b2d;
 
-  /* Malmoi's project fallback palette, Tailwind 600; kept apart from status hues. */
+  /* Project fallback palette (Tailwind 600), kept apart from status hues. */
   --rose-600: oklch(58.6% 0.253 17.585);
   --orange-600: oklch(64.6% 0.222 41.116);
   --amber-600: oklch(66.6% 0.179 58.318);
@@ -231,6 +233,10 @@
   --text-danger: var(--red-12);
   --text-warning: var(--amber-12);
   --text-success: var(--green-12);
+  /* Line counts of an agent's edit in the thread: lighter than success/danger so added and removed tell apart from
+     neutral text at a glance; both still clear 4.5:1 on white (4.72 and 5.21). */
+  --text-diff-added: var(--green-11);
+  --text-diff-removed: var(--red-11);
 
   --identity-project-rose: var(--rose-600);
   --identity-project-orange: var(--orange-600);
@@ -245,7 +251,7 @@
   --border-standard: var(--neutral-3);
   --border-prominent: var(--neutral-8);
   --border-focus: var(--neutral-12);
-  /* A composer card shows focus quietly; its shadow steps up with it (2026-10-31 user). */
+  /* A composer card shows focus quietly; its shadow steps up with it. */
   --border-field-focus: var(--neutral-5);
   --border-danger: var(--red-9);
   --border-warning: var(--amber-11);
@@ -290,7 +296,7 @@
   --surface-accent-subtle: var(--buddy-3);
   --text-accent-subtle: var(--buddy-11);
 
-  /* Option-hover distance measurement on the canvas: Figma's measurement red, observed in the Figma editor, and fixed
+  /* Option-hover distance measurement on the canvas: Figma's measurement red, fixed
      like Figma's own (not the buddy accent), so the lines read as measurement and never as a selection. */
   --border-measure: #e34c2c;
   --affordance-measure: var(--border-measure);
@@ -364,6 +370,8 @@
   --time-state: 150ms;
   --time-panel-enter: 180ms;
   --time-settle: 220ms;
+  /* A sent message entering the conversation thread: slower than a dialog's settle, so the rise reads as arrival. */
+  --time-thread-enter: 400ms;
   --ease-state: ease;
   --ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-settle: cubic-bezier(0.645, 0.045, 0.355, 1);
@@ -371,7 +379,7 @@
   /* Type roles: size, line height, tracking and weight travel together. Regular
      is for reading and form labels, medium for actions and structure. */
   --type-family: "Geist", var(--font-system-sans);
-  /* Code in agent replies only (2026-10-31 user): the system mono stack, no bundled font. */
+  /* Code in agent replies only: the system mono stack, no bundled font. */
   --type-family-mono: ui-monospace, "SF Mono", Menlo, monospace;
   --type-weight-regular: 400;
   --type-weight-medium: 500;

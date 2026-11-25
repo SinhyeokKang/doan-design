@@ -1,8 +1,7 @@
 import { screenToBoard, type Rect, type Size, type View } from "./viewport";
 
-// The frame the person is looking at: the one under the viewport center (the
-// last in document order when frames nest, so the innermost), else the one
-// nearest to it. `frames` are in board coordinates, like `layout.frames`.
+// The frame under the viewport center (the innermost when frames nest), else the nearest one. `frames` are in board
+// coordinates, like `layout.frames`.
 export function currentFrame(frames: readonly Rect[], view: View, viewport: Size): number | null {
   const center = screenToBoard(view, { x: viewport.width / 2, y: viewport.height / 2 });
   if (!Number.isFinite(center.x) || !Number.isFinite(center.y)) return null;

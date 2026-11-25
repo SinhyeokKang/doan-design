@@ -7,9 +7,8 @@ import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { ConversationThread, type ConversationThreadProps } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// A sent list in the bubble, laid out by the app's own Chromium: which layout keeps the copied text equal to the sent
-// text, and where markers and bodies sit, are decided by the engine, which no fake DOM reproduces. Selection.toString()
-// follows the same line-break rules as a copy (a grid item's edge becomes a break in both), without the system clipboard.
+// Which layout keeps the copied text equal to the sent text is decided by the engine, which no fake DOM reproduces.
+// Selection.toString() follows a copy's line-break rules without the system clipboard.
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 // styles.css as written: its @import and @theme rules are left to fail, so the tokens come in on their own. Geist comes
@@ -28,7 +27,7 @@ afterAll(async () => { await dom?.close(); }, 30_000);
 const noop = () => {};
 const sent = (text: string) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...{
   items: [{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, attachments: [], parts: [{ text }] }] as unknown as ConversationThreadProps["items"],
-  conversationId: "c1", provider: "claude", project: "p", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+  conversationId: "c1", provider: "claude", project: "p", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true,
 }} /></TooltipProvider>);
 

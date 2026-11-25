@@ -35,14 +35,14 @@ CI runs the same gate (without `--eval`), split into three parallel shard jobs, 
 ## Commits
 
 - [Conventional Commits](https://www.conventionalcommits.org/), in English (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, optionally with a scope).
-- Code comments are in English and explain only the "why": constraints and pitfalls the code cannot say. Comments do not cite the planning documents under `docs/features/`, which are deleted when a feature is done; state the reason, or point to PRODUCT or ARCHITECTURE.
+- Code comments are in English, one or two lines, and explain only what the code cannot say: a non-obvious constraint or pitfall. No restated "what" and no history; a longer reason goes in ARCHITECTURE. Comments do not cite the planning documents under `docs/features/`, which are deleted when a feature is done; state the reason, or point to PRODUCT or ARCHITECTURE.
 
 ## Working with agents
 
 - [AGENTS.md](https://github.com/SinhyeokKang/doan-design/blob/main/AGENTS.md) holds the working rules that Claude Code and Codex both read. It also carries maintainer preferences, such as the language agents reply in.
 - `.claude/settings.json` has a `UserPromptSubmit` hook that re-injects that preference (Korean replies) on every Claude Code turn. To turn it off for yourself, add `.claude/settings.local.json` with `{ "disableAllHooks": true }`; that file is not committed.
 - `docs/features/<slug>/` holds the maintainer's plans for features in progress. They are written in Korean, and when a feature is done its conclusions move into the English PRODUCT and ARCHITECTURE documents and the directory is deleted.
-- Some development skills cannot run outside the maintainer's setup: `/release` (merges into `main`, pushes a release tag, and approves and publishes the release), `/publish` (merges documentation into `main` and back into `develop`), `/tester-build` (pushes a tag to this repository and needs the maintainer to approve the signing environment), `/agent-eval` (uses existing agent credentials and can change real agent state). The lead/conductor workflows for `/ship`, `/orchestrate`, `/chain`, `/audit-loop` and `/sec-audit-loop` require Orca.
+- Some development skills cannot run outside the maintainer's setup: `/release` (merges into `main`, pushes a release tag, and approves and publishes the release), `/publish` (merges documentation into `main` and back into `develop`), `/tester-build` (pushes a tag to this repository and needs the maintainer to approve the signing environment), `/agent-eval` (uses existing agent credentials and can change real agent state). The lead/conductor workflows for `/deliver`, `/orchestrate`, `/chain`, `/audit-loop` and `/sec-audit-loop` require Orca.
 
 ## License
 

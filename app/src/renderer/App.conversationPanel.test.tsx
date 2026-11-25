@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// the canvas page's right column is the conversation panel shell, and its
-// open state and width are remembered once ui-state was read. Driven with hooks as plain state (App.settings.test.tsx).
+// The canvas page's right column is the conversation panel shell; its open state and width are remembered once
+// ui-state was read. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -65,7 +65,7 @@ vi.mock("./CanvasController", async original => ({
 }));
 // The rows the Overview asks thumbnails for, and the fields given focus.
 const probe = vi.hoisted(() => ({ thumbRows: [] as unknown[], focused: [] as unknown[], fields: {} as Record<string, unknown> }));
-vi.mock("./thumbnails", () => ({ useThumbnails: (_root: unknown, rows: unknown[]) => { probe.thumbRows = rows; return { thumbnails: new Map(), onVisible: vi.fn() }; } }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: (_hub: unknown, _root: unknown, rows: unknown[]) => { probe.thumbRows = rows; return { thumbnails: new Map(), onVisible: vi.fn() }; } }));
 vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { if (field) probe.focused.push(field); } }));
 
 const { App, TopBar } = await import("./App");
@@ -143,8 +143,8 @@ const panel = () => find<Panel>(ConversationPanel)[0]?.props;
 const pane = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")?.props as Pane | undefined;
 const saved = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown } | undefined;
 
-// A workspace on /w/a without an Overview: the canvas page of its open canvas, here under a config error's overlay
-// (a problem root's canvas page; PRODUCT §5 item 3 'Problem states').
+// A workspace on /w/a without an Overview: its canvas page, here under a config error's overlay
+// (PRODUCT §5 item 3 'Problem states').
 async function canvasPage(state: unknown = null) {
   render();
   readUiState(state); await Promise.resolve(); await Promise.resolve(); render();
@@ -237,8 +237,8 @@ test("no save is sent before the initial ui-state read after a Fast switch or a 
   expect((saved() as { home?: { fast?: unknown } }).home?.fast).toEqual({ claude: true });
 });
 
-// Fast changed before the startup read lands only for the provider it
-// changed; the read keeps every other provider's Fast, an auto-off seen first still holds, and a later switch on wins.
+// Fast changed before the startup read lands only for its provider; the read keeps every other provider's Fast,
+// an auto-off seen first still holds, and a later switch on wins.
 const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
 const fastOff = (conversationId: string) => listeners.conversation!({ v: 1, conversationId, seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never);
 const savedFast = () => (saved() as { home?: { fast?: unknown } }).home?.fast;
@@ -266,7 +266,6 @@ test("a switch on after an auto-off, both before the startup read, wins", async 
   expect(savedFast()).toEqual({ codex: true, claude: true });
 });
 
-// a live auto-off for a conversation the lists do not name yet waits for its provider.
 test("a live auto-off waits until a list names the conversation's provider", async () => {
   render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: { fast: { claude: true, codex: true } } }); await Promise.resolve(); await Promise.resolve(); render();
@@ -294,8 +293,7 @@ test("a read that fails still lets saves through, with the panel's own state", a
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
 });
 
-// the Overview's canvas conversations panel has its own handle and its own remembered
-// width; changing one panel's width leaves the other's alone.
+// The Overview's canvas conversations panel has its own handle and remembered width.
 type Handle = { label?: string; onResize(width: number | undefined): void };
 const overviewHandle = () => find<Handle>(ResizeHandle).find(element => element.props.label === "Resize conversations")?.props;
 const savedPanels = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown; overviewPanel?: unknown } | undefined;
@@ -332,8 +330,8 @@ test("the read Overview width is kept; one changed before the read wins, and not
   expect(savedPanels()?.overviewPanel).toEqual({ width: 600 });
 });
 
-// the last canvas tool is saved with the rest of ui-state, only
-// after the startup read, and the read's tool goes to the controller, which keeps a tool the person chose before it.
+// The last canvas tool is saved only after the startup read; the read's tool goes to the controller, which keeps
+// a tool the person chose before it.
 const publishTool = (tool: "select" | "hand") => { harness.setState!({ ...initialCanvasState(), tool }); render(); };
 const savedTool = () => doan.saveUiState!.mock.lastCall?.[0] as { canvasTool?: unknown; rightPanel?: unknown } | undefined;
 
@@ -389,8 +387,8 @@ test("tells the controller whether the canvas page is the one shown", async () =
   expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
 });
 
-// the agent notice's Open unfolds the panel and moves focus into it; a Stop
-// failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
+// The agent notice's Open unfolds the panel and moves focus into it; a Stop failure is the shared toast; a page
+// without a listed canvas gives the indicator no canvas.
 type Agent = { canvas: unknown; running: boolean; list: unknown; shown: string | null; onOpen(conversationId: string): void };
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
@@ -420,7 +418,7 @@ test("Open with the panel already open only moves focus to the panel", async () 
   expect(doan.saveUiState!.mock.calls.length).toBe(before);
 });
 
-// The board has no Stop (user decision), so the indicator is handed no Stop failure callback.
+// The board has no Stop, so the indicator is handed no Stop failure callback.
 test("the board indicator is handed no Stop failure callback", async () => {
   await canvasPage();
   expect(agent()).not.toHaveProperty("onStopFailed");
@@ -553,7 +551,6 @@ test("a folded panel's open button carries the news dot while a conversation of 
   expect(badge()).toBeNull();
 });
 
-// The badge: the strongest signal across every conversation of the canvas, working included.
 test("the badge shows the strongest signal across the canvas's conversations: working over another's unseen ending", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", unseen: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "running", working: true })]);
   await openCanvas(FOLDED);
@@ -592,8 +589,8 @@ test("the board's indicator gets the conversation the panel shows, also while it
   expect(agent()?.shown).toBeNull();
 });
 
-// While the panel is folded the board follows the conversation the panel picked, not the badge's: the notice stays on
-// one conversation whichever way the panel is unfolded later.
+// Folded, the board follows the conversation the panel picked, not the badge's, so the notice stays on one
+// conversation whichever way the panel unfolds later.
 test("folded, the board follows the picked working conversation while the badge names another waiting one", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", phase: "running", working: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "waiting", working: true })]);
   await openCanvas(FOLDED);
@@ -625,8 +622,8 @@ test("the panel opens on the conversation last seen on the canvas, and what is s
   expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1" } });
 });
 
-// POSTMORTEM 2026-11-01: a conversation seen before the startup ui-state read sends no save; the first save after the
-// read carries the read memory with the newly seen conversation laid over it, per canvas.
+// POSTMORTEM 2026-11-01: the first save after the startup read carries the read memory with the newly seen
+// conversation laid over it, per canvas.
 test("a conversation seen before the ui-state read sends no save, and the first save merges it into the read memory", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
   render(); folders([listed("/w/a")]);
@@ -667,9 +664,8 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-// the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
-// that working slot and keeps the panel as it was.
-// A sidebar row whose slot unfolds the panel names its conversation; otherwise the shared rule picks.
+// The row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
+// that working slot; a row whose slot unfolds the panel names its conversation.
 test("a sidebar canvas row with an unseen ending shows that conversation, not the most recent one", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", fromHome: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", fromHome: true, unseen: true })]);
   await openCanvas(FOLDED);
@@ -701,7 +697,6 @@ test("a sidebar canvas row without a mark keeps a folded panel folded", async ()
   expect(conversation()?.arrival).toBeNull();
 });
 
-// each entry is a new arrival, also after the panel consumed the previous one.
 test("a second entry after the first was consumed is a new arrival the panel applies", async () => {
   await openCanvas();
   listeners.menu!("newConversation" as never); render();
@@ -714,9 +709,8 @@ test("a second entry after the first was consumed is a new arrival the panel app
   expect(second.seq).toBeGreaterThan(first.seq);
 });
 
-// POSTMORTEM 2026-10-23 R-L: the picker's waiting
-// focus moves carry the intent they started with; focus that went elsewhere meanwhile is never pulled back, and a
-// composing field gets its chip later but no focus or caret call.
+// POSTMORTEM 2026-10-23: the picker's waiting focus moves carry the intent they started with; focus moved
+// elsewhere is never pulled back, and a composing field gets its chip but no focus or caret call.
 type Link = { insert: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; composing: ReturnType<typeof vi.fn>; element: ReturnType<typeof vi.fn> };
 type ConversationProps = { pick: { pressed: boolean; enabled: boolean; onToggle(): void }; composerLink: { current: unknown } };
 const ANCHOR = { frame: { id: "cart" } };
@@ -751,8 +745,8 @@ test("a pick ends with focus back in the composer while focus stayed with the pi
   expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
 });
 
-// A chip a pick inserts always lands focus in the field, even after focus went elsewhere meanwhile, such as
-// into the Presets popover the canvas click then closed; only the cancels keep focus the person moved.
+// A chip a pick inserts always lands focus in the field, even after focus went elsewhere (such as the Presets
+// popover the canvas click then closed); only the cancels keep focus the person moved.
 test("a pick that inserts a chip takes focus to the field even after focus went elsewhere; a cancel then leaves focus alone", async () => {
   const { link, conversation } = await canvasWithComposer();
   conversation.pick.onToggle();
@@ -779,7 +773,6 @@ test("a pick that ends while the field composes keeps the chip waiting and makes
   expect(link.focus).not.toHaveBeenCalled();
 });
 
-// the toolbar's Picker and ⌘L run the composer's own pick.
 type ToolsProps = { picking: boolean; picker: { enabled: boolean; reason: string | null; onToggle(): void }; onTool(tool: string): void };
 const toolbar = () => pane() as unknown as ToolsProps;
 const ended = () => harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
@@ -871,8 +864,8 @@ test("a pick cancelled by Esc returns focus to where it was before the pick, nev
   expect(second.link.focus).toHaveBeenCalledOnce();
 });
 
-// going back to where focus was is for focus the pick left behind (the page, the canvas, the element
-// before it), never for focus the person moved meanwhile, such as into the field they type in.
+// Going back to where focus was is for focus the pick left behind (the page, the canvas, the element before it),
+// never for focus the person moved meanwhile.
 test("Esc pressed in the field after a pick started from the toolbar's Picker keeps focus in the field", async () => {
   const { link, field } = await canvasWithComposer();
   const picker = element("Picker");
@@ -908,8 +901,8 @@ test("the canvas page hands the controller's press subscription to the panel's c
   expect((conversation() as unknown as { canvasPress?: unknown }).canvasPress).toBe(press);
 });
 
-// Capture area's availability, its chip in the panel's composer, and when
-// the panel unfolds. The controller hands each captured area to App's listener; the listener's snapshot calls main.
+// Capture area's availability, its chip in the panel's composer, and when the panel unfolds. The controller hands
+// each captured area to App's listener, whose snapshot calls main.
 type CaptureProps = { capturing: boolean; capture: { enabled: boolean; reason: string | null; onToggle(): void } };
 type Store = { drafts: ReadonlyMap<string, { attachments: readonly { key: string; name: string; pasted: boolean; status: string; id?: string }[] }>; setDrafts(change: (drafts: Map<string, unknown>) => Map<string, unknown>): void };
 type Run = { store: Store; composerKey(): string | null; choose(choice: string): void };
@@ -981,8 +974,8 @@ test("Capture area is unavailable once the composer's draft holds 10 files", asy
   expect(captureTool()).toMatchObject({ enabled: false, reason: CAPTURE_LIMIT });
 });
 
-// Export's rule: a press that lands while a page is locked does nothing. The pane is
-// not shown on a page, so the press is the handler taken before the page opened, as the reply chip test does.
+// The pane is not shown on a page, so the press is the handler taken before the page opened, as the reply chip
+// test does.
 test("a Capture area press that lands while a page is locked does nothing", async () => {
   await canvasWithComposer();
   const press = captureTool().onToggle;
@@ -1010,8 +1003,8 @@ test("a captured area lands as a checking Canvas capture chip at once, and main'
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// unfolding narrows the canvas area, so it waits for main's answer,
-// which comes after main has read the pixels; the checking chip goes in at once.
+// Unfolding narrows the canvas area, so it waits for main's answer, which comes after main read the pixels; the
+// checking chip goes in at once.
 test("a folded panel unfolds, with focus for the composer, only once main answers the capture", async () => {
   for (const reply of [captured(), { ok: false, name: "Canvas capture", error: "capture_failed" }]) {
     reset();
@@ -1057,7 +1050,6 @@ test("a draft that reached 10 files after the render takes no snapshot and says 
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Only 10 attachments can be added. 1 was left out.");
 });
 
-// a role=status line above the tools, in the picking hint's look.
 test("capture mode shows its hint line above the tools, with Esc and a spoken cancel", async () => {
   await canvasWithComposer();
   const paneTree = () => {
@@ -1076,8 +1068,8 @@ test("capture mode shows its hint line above the tools, with Esc and a spoken ca
   expect(order[0]).toBe(line);
 });
 
-// capture mode does not end when the composer turns to one that refuses files, so the release checks the
-// composer again, with captureAvailability's order and copy, before any chip or snapshot.
+// Capture mode does not end when the composer turns to one that refuses files, so the release checks the composer
+// again, with captureAvailability's order and copy.
 test("a release after the composer turned to a terminal session takes no snapshot and gives Attach's reason", async () => {
   doan.conversationResumeTarget!.mockResolvedValue({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
   await canvasWithComposer();
@@ -1123,7 +1115,6 @@ test("a release after another canvas took the same ID takes no snapshot and give
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(DUPLICATE_CANVAS_TEXT);
 });
 
-// an answer that lands after the composer changed settles on its chip but moves no panel or focus.
 test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
   for (const leave of ["conversation", "home"] as const) {
     reset();
@@ -1144,8 +1135,8 @@ test("a late answer after the panel switched conversation or the canvas page lef
   }
 });
 
-// The inspector column (PRODUCT §5 item 4): closed until the person opens it, open state and width kept per device,
-// sized after the conversation and taken away, with its saved open flag kept, from a window too narrow for it.
+// The inspector column (PRODUCT §5 item 4): open state and width kept per device, sized after the conversation,
+// and taken away, with its saved open flag kept, from a window too narrow for it.
 describe("the inspector column", () => {
   type Column = { shown: boolean; width: number; bounds: { min: number; max: number }; onHide(): void; onResize(width: number | undefined): void };
   type InspectorPane = { inspector: { open: boolean; fits: boolean; show(): void; focused?(node: Element): void } };
@@ -1253,8 +1244,8 @@ describe("the inspector column", () => {
     expect(column()).toMatchObject({ shown: true, width: 320 });
   });
 
-  // Found in the real app: the column turns inert in the same commit that hides it, so focus has already fallen to the
-  // page when App's effect runs; the last control focused inside the column is what says focus was there.
+  // The column turns inert in the same commit that hides it, so focus has already fallen to the page when App's
+  // effect runs; the last control focused inside the column says focus was there.
   test("narrowing the window with focus in the inspector hands focus to Show inspector", async () => {
     await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
     measure(1470);
@@ -1273,8 +1264,8 @@ describe("the inspector column", () => {
     expect(focus).toHaveBeenCalled();
   });
 
-  // POSTMORTEM 2026-11-13: the narrow window's hand-off put focus on Show inspector; widening again removes that
-  // button, so focus goes on to Hide inspector, as unfolding does.
+  // POSTMORTEM 2026-11-13: widening again removes Show inspector, so focus goes on to Hide inspector, as unfolding
+  // does.
   test("widening again after the narrow window's hand-off gives focus to Hide inspector", async () => {
     await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true, width: 320 } });
     measure(1100);
@@ -1310,8 +1301,7 @@ describe("the inspector column", () => {
     expect(focus).toHaveBeenCalled();
   });
 
-  // Found in the real app: the closing menu stays mounted for its exit animation, with focus still on its row, when
-  // App's effect runs.
+  // The closing menu stays mounted for its exit animation, with focus still on its row, when App's effect runs.
   test("narrowing the window while focus is still on the closing element menu hands focus to Show inspector", async () => {
     vi.stubGlobal("HTMLElement", class {});
     const HTMLElementFake = (globalThis as unknown as { HTMLElement: new () => object }).HTMLElement;
@@ -1326,8 +1316,8 @@ describe("the inspector column", () => {
     expect(asked).not.toContain(SHOW);
   });
 
-  // POSTMORTEM 2026-11-17: in a background window the platform's own restore on activation would put focus back on the
-  // remembered row (now inert) and fall to Hide sidebar; the hand-off is made again once the window is active.
+  // POSTMORTEM 2026-11-17: the platform's restore on activation would put focus back on the remembered row (now
+  // inert), so the hand-off is made again once the window is active.
   test("a hand-off made in a background window is made again on activation", async () => {
     const { asked, focus } = await narrowWithFocusIn({ closest: (selector: string) => selector.includes(".doan-insp-column") ? {} : null }, false);
     expect(asked).toContain(SHOW);
@@ -1375,9 +1365,8 @@ describe("the inspector column", () => {
     expect(document.activeElement).toBe(bubble);
   });
 
-  // Found in the real app: hiding the sidebar animates the shell's columns, so the measure taken when it hides still saw
-  // the sidebar, and at 1000 the inspector stayed away until the next window resize. The end of the shell's own
-  // transition measures again.
+  // Hiding the sidebar animates the shell's columns, so the measure taken when it hides still sees the sidebar; the
+  // end of the shell's own transition measures again.
   test("the shell measures again when its columns finish moving, so a hidden sidebar makes room for the inspector", async () => {
     await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, inspector: { open: true } });
     const main = measure(1000);
@@ -1402,8 +1391,8 @@ describe("the inspector column", () => {
   });
 });
 
-// The Overview's Conversations list: project conversations beside canvas conversations; the shown one is current and
-// a project row opens in the Overview's main column (PRODUCT §5 item 3 'Project Overview').
+// Project conversations beside canvas conversations; a project row opens in the Overview's main column
+// (PRODUCT §5 item 3 'Project Overview').
 describe("the Overview's Conversations list", () => {
   type Run = { view(root: string): { kind: string; conversationId?: string }; select(root: string, id: string | null): void; started(root: string, id: string, provider?: string): void;
     scrollRequest(id: string): unknown; revision(root: string): number; show(root: string | null): void };
@@ -1509,5 +1498,57 @@ describe("the Overview's Conversations list", () => {
     expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
     run().show(null); run().show("/w/a"); render();
     expect(run().view("/w/a")).toEqual({ kind: "conversation", conversationId: "p2" });
+  });
+});
+
+// A notification's Open from Home enters the workspace and arms the panel's arrival in one commit; the panel applies it
+// first (child effects run first) and, with no item to focus, gives focus to its composer in a microtask. With the
+// window in the background App's screen entry would arm its own replay after the panel's, and activation would end on
+// the sidebar row (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar').
+describe("a screen entry that brings a panel arrival", () => {
+  const row = { focus: vi.fn(), isConnected: true, closest: () => ({}), matches: () => false, getClientRects: () => [{}] };
+  async function enterFromHome(applies: boolean, windowFocused: boolean) {
+    doan.listConversations!.mockResolvedValue([rowSummary()]);
+    render();
+    readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+    folders([listed("/w/a")]);
+    await flushAll();
+    probe.fields['.side [role="treeitem"][tabindex="0"]'] = row;
+    Object.assign(document, { hasFocus: () => windowFocused });
+    listeners.notificationClick!({ conversationId: "c1", root: "/w/a" } as never); render();
+    await flushAll();
+    const call = harness.controller!.openCanvas!.mock.lastCall as [string, CanvasRow, unknown, { opened(): void }] | undefined;
+    expect(call, "the notification opens the canvas").toBeDefined();
+    harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+    row.focus.mockClear();
+    call![3].opened();
+    // One commit: App renders, the panel's effect applies the arrival, then App's effects run.
+    hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = []; hooks.dirty = false;
+    tree = App();
+    const arrival = conversation()?.arrival;
+    expect(arrival).toMatchObject({ focus: "composer" });
+    if (applies) find<{ onArrived(seq: number): void }>(CanvasConversation)[0]!.props.onArrived(arrival!.seq);
+    for (const run of hooks.pending.splice(0)) run();
+    render();
+  }
+
+  test("in the background, the sidebar row takes no focus now or on activation", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await enterFromHome(true, false);
+      windowListeners.focus?.(new Event("focus") as never);
+      vi.runAllTimers();
+      expect(row.focus).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+
+  test("with the window focused, focus is left to the panel without a stop on the sidebar row", async () => {
+    await enterFromHome(true, true);
+    expect(row.focus).not.toHaveBeenCalled();
+  });
+
+  test("an arrival the panel has not applied yet (its request still loading) leaves the entry's default as before", async () => {
+    await enterFromHome(false, true);
+    expect(row.focus).toHaveBeenCalledOnce();
   });
 });

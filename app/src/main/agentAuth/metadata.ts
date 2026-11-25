@@ -6,11 +6,12 @@ function keys(value: Record<string, unknown>, required: readonly string[], optio
 }
 // Conversation IDs share this path-safe shape (conversation/store.ts validId).
 export function validAuthId(value: unknown): value is string { return typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value); }
-function label(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
-function nullableLabel(value: unknown): value is string | null { return value === null || label(value); }
+// Also the bound providers.ts applies to account fields it reads from a provider.
+export function validLabel(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
+function nullableLabel(value: unknown): value is string | null { return value === null || validLabel(value); }
 export function validAccount(value: unknown): value is AccountIdentity {
   return object(value) && keys(value, ["id", "workspace"], ["displayName", "email"]) && nullableLabel(value.id) && nullableLabel(value.workspace) &&
-    (value.displayName === undefined || label(value.displayName)) && (value.email === undefined || label(value.email));
+    (value.displayName === undefined || validLabel(value.displayName)) && (value.email === undefined || validLabel(value.email));
 }
 export function validConnection(value: unknown): value is AccountConnection {
   return object(value) && keys(value, ["provider", "connectionId", "profile", "account"]) && validProvider(value.provider) &&

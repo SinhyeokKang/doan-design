@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,4 +73,48 @@ test("a missing log or a recorded watch error leaves the names unknown", () => {
   assert.equal(readCanvasNames(null), null);
   assert.equal(readCanvasNames(`".doan/canvases/a.html"\n{"error":"EMFILE"}\n`), null);
   assert.deepEqual(readCanvasNames(`".doan/canvases/a.html"\nnull\n`), [".doan/canvases/a.html", null]);
+});
+
+function watchPid(): number {
+  const pids = execFileSync("pgrep", ["-P", String(process.pid), "-f", "canvas-watch.ts"], { encoding: "utf8" }).trim().split("\n");
+  assert.equal(pids.length, 1, `watch pids: ${pids}`);
+  return Number(pids[0]);
+}
+
+const settlesWithin = (promise: Promise<void>, ms: number) =>
+  Promise.race([promise.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), ms))]);
+
+// Like the fake app's close (POSTMORTEM 2026-10-23): a run's disposal must not wait on a watch that cannot answer.
+test("stop settles when the watch process was killed before it", async () => {
+  const root = repo();
+  const log = join(root, "..", `${root.split("/").pop()}.jsonl`);
+  try {
+    const watch = await watchCanvasDirs(root, log);
+    process.kill(watchPid(), "SIGKILL");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.ok(await settlesWithin(watch.stop(), 5000), "stop still pending after the watch was killed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(log, { force: true });
+  }
+});
+
+test("stop settles and kills a watch process that does not exit on its own", { timeout: 60_000 }, async () => {
+  const root = repo();
+  const log = join(root, "..", `${root.split("/").pop()}.jsonl`);
+  try {
+    const watch = await watchCanvasDirs(root, log);
+    const pid = watchPid();
+    // A stopped process never reads the closed stdin.
+    process.kill(pid, "SIGSTOP");
+    try {
+      assert.ok(await settlesWithin(watch.stop(), 30_000), "stop still pending for an unresponsive watch");
+      assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    } finally {
+      try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(log, { force: true });
+  }
 });

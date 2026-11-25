@@ -8,16 +8,13 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
+import { CANVAS_ID } from "./replyAnchor";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
-import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
+import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
-// model and effort are the conversation's latest choice; canvasesAtStart is an earlier build's: the root's canvas list
-// when a project conversation's most recent turn was accepted, for its promotion; still read, never written. fromHome
-// marks a newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is
-// the last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
-// permissionMode is the conversation's chosen mode; Default is stored as no key. claudeRunMode is the mode Claude
-// Code's own settings ran the last Ask first turn in; no key when none was seen. It is kept whatever mode is stored.
+// canvasesAtStart: an earlier build's, still read, never written. fromHome: a Home newDesign whose turns carry Home's
+// paragraph. seenSeq: absent counts as seen. permissionMode: Default is no key. claudeRunMode: absent when none seen.
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string;
   model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; claudeRunMode?: ClaudeRunMode; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
@@ -37,7 +34,7 @@ function insideCanvasDir(path: string): boolean {
 export function validCanvas(value: unknown): value is Canvas {
   return object(value) && typeof value.path === "string" && insideCanvasDir(value.path) && value.path.length <= 4096 &&
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
-    (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
+    (value.id === undefined || (typeof value.id === "string" && CANVAS_ID.test(value.id)));
 }
 function label(value: unknown): value is string { return str(value) && value.length > 0; }
 type IndexVersion = 1 | 2 | 3;
@@ -68,9 +65,8 @@ export function parseIndex(text: string): IndexRead {
   const read = parseIndexFile(text);
   return read.ok ? { ok: true, entries: read.entries } : read;
 }
-// v1 and v2 are read into the v3 shape in memory; the first save writes v3, and earlier builds refuse v3 as an unknown
-// version. An archived conversation becomes an ordinary one without seenSeq, which counts its whole history as seen:
-// otherwise the interruption recorded when it was archived would light up as an unseen end.
+// v1 and v2 are read into the v3 shape; the first save writes v3, which earlier builds refuse. An archived conversation
+// loses seenSeq, so its whole history counts as seen and its archive interruption does not show as unseen.
 function parseIndexFile(text: string): IndexFile {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { return { ok: false, code: "corrupt" }; }
@@ -112,7 +108,7 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     // A handoff's first message holds the earlier agent's text as written, so its markers are not anchor tokens.
     case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) &&
       (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : origin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
-      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
+      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(validAttachment)));
     case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
     case "handoff.resolved":
       if (value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) return false;
@@ -121,24 +117,28 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
       return value.outcome === "cancelled";
     case "handoff.missed": case "canvas.drawn": return validCanvas(value.canvas);
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
-    case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
+    case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean") && (value.callId === undefined || bounded(value.callId, LIMITS.label));
+    // path takes an activity's own check: a narrower limit would end the turn on one long path.
+    case "activity.result": return bounded(value.callId, LIMITS.label) && (value.path === undefined || str(value.path)) && object(value.lines) && count(value.lines.added) && count(value.lines.removed);
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && (value.reason === undefined || str(value.reason)) && Array.isArray(value.options) && value.options.length > 0 &&
       [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)) && (o.detail === undefined || str(o.detail)));
     case "permission.resolved": return str(value.requestId) && str(value.optionId);
     case "question.request": return str(value.requestId) && Array.isArray(value.questions) && questions([...value.questions]);
     case "question.resolved": return str(value.requestId) && ["answered", "skipped", "expired"].includes(String(value.outcome)) &&
       (value.answers === undefined || (value.outcome === "answered" && storedAnswers(value.answers)));
-    case "fast.unused": return (value.reason === undefined || (typeof value.reason === "string" && ["plan", "extra_usage", "model", "policy", "cooldown"].includes(value.reason))) &&
+    case "fast.unused": return (value.reason === undefined || oneOf(FAST_UNUSED_REASONS, value.reason)) &&
       (value.turnedOff === undefined || (value.turnedOff === true && value.reason !== undefined && value.reason !== "cooldown"));
     case "context.usage": return Number.isSafeInteger(value.used) && (value.used as number) >= 0 && Number.isSafeInteger(value.size) && (value.size as number) >= 1;
-    case "interrupted": return ["user", "appQuit", "crashed"].includes(String(value.reason));
-    case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "model_unavailable", "prompt_unread", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail)) &&
+    case "interrupted": return oneOf(INTERRUPT_REASONS, value.reason);
+    case "turn.failed": return oneOf(FAILURE_CODES, value.code) && (value.detail === undefined || str(value.detail)) &&
       (value.code === "model_unavailable" ? str(value.model) && value.model !== "" : value.model === undefined);
     default: return false;
   }
 }
 // The limits the runners read with: a line past them came from no build that reads it.
 function bounded(value: unknown, max: number, empty = false): value is string { return str(value) && value.length <= max && (empty || value.length > 0); }
+function oneOf(list: readonly string[], value: unknown): boolean { return typeof value === "string" && list.includes(value); }
+function count(value: unknown): boolean { return Number.isSafeInteger(value) && (value as number) >= 0; }
 function questions(list: unknown[]): boolean {
   const L = QUESTION_LIMITS;
   return list.length > 0 && list.length <= L.questions && list.every(q => object(q) && bounded(q.id, L.label) && bounded(q.header, L.label, true) && bounded(q.question, L.text) &&
@@ -152,7 +152,8 @@ function storedAnswers(value: unknown): boolean {
   return object(value) && Object.keys(value).length <= L.questions && Object.values(value).every(a => object(a) &&
     Array.isArray(a.selected) && a.selected.length <= L.options && [...a.selected].every(s => bounded(s, L.label)) && (a.other === undefined || bounded(a.other, L.text)));
 }
-function attachment(value: unknown): boolean {
+// drafts.ts reads its attachments with this check too, so a draft keeps whatever a history keeps.
+export function validAttachment(value: unknown): value is AttachmentRecord {
   if (!object(value) || !label(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
   if (value.kind === "directory") return !("size" in value);
   return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
@@ -183,9 +184,8 @@ function parseDeletions(text: string): string[] | null {
   return ids.every(validId) && new Set(ids).size === ids.length ? ids : null;
 }
 export interface JournalWrite { id: string; turn: string; body: EventPayload }
-// What an accepted change does to the index. replaced: the current conversations it archives, always empty from this
-// build; restore and a non-empty replaced (and a start that pins other histories) are an earlier build's, settled only
-// beside its v1 or v2 index.
+// What an accepted change does to the index. replaced is always empty from this build; restore, a non-empty replaced
+// and a start pinning other histories are an earlier build's, settled only beside its v1 or v2 index.
 export type JournalChange =
   | { kind: "start"; id: string }
   | { kind: "bind" | "promote"; id: string; canvas: Canvas; replaced: string[] }
@@ -199,9 +199,8 @@ function validChange(change: JournalChange): boolean {
   if ((change.kind === "bind" || change.kind === "promote") && !validCanvas(change.canvas)) return false;
   return Array.isArray(change.replaced) && change.replaced.every(validId) && !change.replaced.includes(change.id) && new Set(change.replaced).size === change.replaced.length;
 }
-// Whether an index holds the change, does not hold it yet, or neither (a damaged or foreign record). others: every
-// touched conversation besides the target, all current before the change and archived by it. wasArchived reads only
-// an earlier build's v1 or v2 index; migrated entries carry no state.
+// Whether an index holds the change, does not hold it yet, or neither (a damaged or foreign record). others: touched
+// conversations besides the target. wasArchived reads only an earlier build's v1 or v2 index.
 function changeState(change: JournalChange, others: readonly string[], index: readonly ConversationMetadata[], wasArchived = (_m: ConversationMetadata) => false): "committed" | "uncommitted" | null {
   const find = (id: string) => index.find(m => m.conversationId === id);
   const state = (id: string) => { const m = find(id); return m && wasArchived(m); };
@@ -284,10 +283,8 @@ export class ConversationStore {
   acceptStart(entries: ConversationMetadata[], id: string, writes: JournalWrite[]): ConversationEvent[] {
     return this.acceptChange({ kind: "start", id }, entries, writes);
   }
-  // An earlier build's binding and promotion changed a conversation already in the index, so its log was cut back to its
-  // prefix instead of removed; each kind has its own test of whether the new index holds it. A change touches its own
-  // conversation only: the archiving kinds (restore, a non-empty replaced, a start writing to another history), binding
-  // and promotion are an earlier build's, which only recovery reads.
+  // An earlier build's binding and promotion cut a conversation's log back to its prefix instead of removing it; each
+  // kind has its own test of the new index. This build's changes touch their own conversation only.
   acceptChange(change: JournalChange, entries: ConversationMetadata[], writes: JournalWrite[]): ConversationEvent[] {
     this.recover();
     const currentIndex = this.readIndex();
@@ -316,11 +313,8 @@ export class ConversationStore {
     try { unlinkSync(journal); } catch (error) { console.error("doan: committed change cleanup deferred", error); }
     return saved;
   }
-  // The deletion is recorded (deletions.json) before the index rename, its commit point: only a recorded deletion's
-  // history and drafts are removed later (finishDeletions), so a history the index does not list for another reason,
-  // such as an index.json that was lost and written anew, is never taken for one. A history removed before the commit
-  // would leave an indexed conversation that cannot be read. not_found when the index does not hold it; a record that
-  // cannot be read or written refuses the deletion before anything changes.
+  // The deletion is recorded (deletions.json) before the index rename, its commit point, so only a recorded deletion's
+  // history and drafts are removed later (finishDeletions), never a history a lost index merely omits.
   delete(id: string): void {
     this.recover();
     const next = deleteEntries(this.readIndex(), id); if (!next) throw new Error("not_found");
@@ -339,10 +333,8 @@ export class ConversationStore {
     try { unlinkSync(join(this.directory, `${id}.jsonl`)); }
     catch (error) { if (!object(error) || error.code !== "ENOENT") console.error("doan: deleted conversation history left for the next start", error); }
   }
-  // At start, after recovery: each recorded deletion the index no longer lists committed, so its history (a regular
-  // file only, never a link) and its drafts (discard) go; one the index still lists never committed and is only
-  // dropped from the record. An index that is missing or cannot be read decides nothing, and the record waits. An id
-  // whose cleanup failed stays recorded for the next start. Never throws.
+  // At start, after recovery: a recorded deletion the index no longer lists committed, so its history (regular file only)
+  // and drafts go; one still listed is only dropped from the record. Failures stay recorded. Never throws.
   finishDeletions(discard: (id: string) => void): void {
     const record = join(this.directory, "deletions.json");
     let recorded: string[];
@@ -378,9 +370,8 @@ export class ConversationStore {
     const journal = parseJournal(JSON.parse(text));
     const index = this.readIndexFile(), ids = journal.previous.map(old => old.id);
     const others = ids.filter(id => id !== journal.id);
-    // A journal that archives or restores was written by an earlier build, which never writes v3: it is settled by its
-    // own meaning against the states of the v1 or v2 index beside it, and is damaged beside a v3 one. Every other
-    // journal is read against the migrated index, where nothing is archived.
+    // An archiving or restoring journal is an earlier build's, which never writes v3: it is settled against the v1 or v2
+    // index beside it and is damaged beside a v3 one. Every other journal is read against the migrated index.
     const earlier = journal.kind === "restore" || others.length > 0;
     if (earlier && index.version === 3) throw new Error(`Invalid ${journal.kind} recovery record`);
     const state = changeState(journal, others, index.entries, earlier ? m => index.archived.has(m.conversationId) : undefined);
@@ -441,9 +432,8 @@ export class ConversationStore {
   append(id: string, turnId: string, body: EventPayload): ConversationEvent {
     return this.appendAll(id, turnId, [body])[0]!;
   }
-  // Several events of one turn in one write: an invalid event, the size limit or a failed open or read leaves none of
-  // them, so those failures never save a send's user.message without its turn.started. A short write is not rolled
-  // back, as with one event; only journaled changes (acceptChange) recover a prefix.
+  // Several events of one turn in one write: an invalid event, the size limit or an open or read failure leaves none, so
+  // a send's user.message is never saved without its turn.started. A short write is not rolled back.
   appendAll(id: string, turnId: string, bodies: readonly EventPayload[]): ConversationEvent[] {
     if (!this.accepting) this.recover();
     if (!validId(id)) throw new Error("Invalid conversation ID");
@@ -469,9 +459,8 @@ export class ConversationStore {
     const bytes = Buffer.from(text); if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete conversation write");
   }
 }
-// An append failure that every later append of the same history meets again: the size limit, content that no longer
-// parses (a torn last line from an incomplete write included), or an event the history cannot take. Other failures
-// (an open or I/O error) may pass.
+// An append failure every later append of the same history meets again: the size limit, content that does not parse (a
+// torn last line included), or an event the history cannot take; an open or I/O error may pass.
 export function refusesForGood(error: unknown): boolean {
   if (error instanceof SyntaxError) return true;
   return error instanceof Error && ["File exceeds limit", "Invalid conversation event", "Incomplete conversation write"].includes(error.message);

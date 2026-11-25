@@ -45,7 +45,7 @@ test("W13 fail fixture leaves a render copy that shares the canvas id", async ()
   assert.deepEqual(await run("fail"), ["canvas_folders_only_target", "doan_check_clean"]);
 });
 
-// The incident's shape: the copy is gone before doan check runs, so only the watch sees it.
+// The copy is gone before doan check runs, so only the watch sees it.
 test("W13 rejects a copy written into a canvas folder and removed again", async () => {
   const copy = (dir: string, name: string) => (repo: string) => {
     mkdirSync(join(repo, dir), { recursive: true });

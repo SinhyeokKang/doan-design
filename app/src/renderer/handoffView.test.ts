@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
-import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffCardView, handoffGoneText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, target: { conversationId: "c2", canvas: CHECKOUT } };
@@ -65,9 +65,17 @@ describe("handoffArrival: the wait for the target's list read", () => {
 });
 
 describe("handoff copy", () => {
-  test("the card head, the toast and the vanished target's answer", () => {
-    expect(handoffCardHead({ canvas: DRAFTS }, "acme-web", true)).toBe("Handed off from drafts.html");
-    expect(handoffCardHead({ canvas: DRAFTS }, "acme-web", false)).toBe("Handed off from drafts.html · No longer in acme-web");
+  test("the card names the source canvas and says the direction; a gone source has its tail and no Open", () => {
+    expect(handoffCardView({ canvas: DRAFTS }, "acme-web", true)).toEqual({ kind: "canvas", name: "drafts.html", status: "Handed off to this conversation",
+      label: "drafts.html, Handed off to this conversation", open: true, openLabel: "Open drafts.html" });
+    expect(handoffCardView({ canvas: DRAFTS }, "acme-web", false)).toEqual({ kind: "canvas", name: "drafts.html", status: "Handed off to this conversation · No longer in acme-web",
+      label: "drafts.html, Handed off to this conversation · No longer in acme-web", open: false, openLabel: "Open drafts.html" });
+  });
+  test("a long source name stays whole: the card cuts it, the accessible names hold it", () => {
+    const name = "onboarding-permissions-for-returning-workspace-admins.html";
+    expect(handoffCardView({ canvas: { path: `.doan/canvases/${name}` } }, "acme-web", true)).toMatchObject({ name, openLabel: `Open ${name}` });
+  });
+  test("the toast and the vanished target's answer", () => {
     expect(handoffToastText(notice, "acme-web")).toBe("drafts.html handed off to checkout-flow.html");
     expect(handoffGoneText(CHECKOUT.path, "acme-web")).toBe("Couldn’t open checkout-flow.html. The canvas isn’t in acme-web.");
   });
@@ -109,7 +117,9 @@ describe("a handoff from the Overview", () => {
   });
   test("the toast names the project, since it shows on any screen; the card names the Overview alone", () => {
     expect(handoffToastText(fromOverview, "acme-web")).toBe("acme-web Overview handed off to checkout-flow.html");
-    expect(handoffCardHead({}, "acme-web", true)).toBe("Handed off from Overview");
-    expect(handoffCardHead({}, "acme-web", false)).toBe("Handed off from Overview · Conversation deleted");
+    expect(handoffCardView({}, "acme-web", true)).toEqual({ kind: "overview", name: "Overview", status: "Handed off to this conversation",
+      label: "Overview, Handed off to this conversation", open: true, openLabel: "Open the source conversation in the Overview" });
+    expect(handoffCardView({}, "acme-web", false)).toMatchObject({ kind: "overview", status: "Handed off to this conversation · Conversation deleted",
+      label: "Overview, Handed off to this conversation · Conversation deleted", open: false });
   });
 });

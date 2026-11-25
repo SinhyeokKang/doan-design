@@ -107,9 +107,8 @@ test("D4b sees a shell profile written through Codex apply_patch", () => {
   assert.deepEqual(result(rollout({ type: "custom_tool_call", name: "exec", call_id: "c3", input: `await tools.apply_patch(${JSON.stringify(repoPatch)});` })), []);
 });
 
-// The shell expands `~` and `$HOME` only unquoted (and `$HOME` in double quotes), so a quoted `'~/.zshrc'` is a file
-// named `~` under the working directory; an escaped `\>` and a `[[ ]]` comparison redirect nothing; a variable that
-// holds the home directory names it as `~` does.
+// `~` and `$HOME` expand only unquoted (`$HOME` also in double quotes); `\>` and `[[ ]]` comparisons redirect
+// nothing, and a variable holding the home directory names it as `~` does.
 test("D4b reads a profile write the way the shell expands it", () => {
   for (const read of [
     "echo x >> '~/.zshrc'",

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
+import { SCREENS } from "./menuState";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
 const DEFAULTS = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } };
@@ -123,7 +124,7 @@ const mocks = await vi.hoisted(async () => {
     discardRootStarts: vi.fn(),
     discardCanvasStarts: vi.fn(),
     createUiStateStore: vi.fn(),
-    thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
+    thumbnails: { get: vi.fn(), visible: vi.fn(), viewerClosed: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
     readFolder: vi.fn(),
     nativeTheme: { themeSource: "system" },
@@ -241,7 +242,7 @@ let launchEligibility = "dev";
 let launchFeed = false;
 const HELD = Symbol("held");
 // Runs inside startShell with the options main passed, as the shell's first folder reads do before it resolves.
-let atShellStart: ((options: { autoRemoved?: (paths: string[], before: unknown[]) => void }) => void) | undefined;
+let atShellStart: ((options: { left?: (paths: string[], before: unknown[]) => void }) => void) | undefined;
 let settleSetup: (value: unknown) => void = () => {};
 // The previous test's launch. A hook that timed out is not cancelled: its launch still opens a window later, which must
 // land before this launch resets the instances, not in the next test.
@@ -615,10 +616,10 @@ test("an auto-removed worktree goes through Remove's clean-up: selection, thumbn
   const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
   await invoke("selection:set", window().webContents, null, { ...SELECTION, root: W });
   expect(runtimeState().selection()).toMatchObject({ root: W });
-  const options = mocks.startShell.mock.calls[0]?.[3] as { autoRemoved?: (paths: string[], before: unknown[]) => void } | undefined;
-  if (!options?.autoRemoved) throw new Error("no auto-removal hook");
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  if (!options?.left) throw new Error("no left-roots hook");
   mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
-  options.autoRemoved([W], before);
+  options.left([W], before);
   expect(runtimeState().selection()).toBeNull();
   expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([W], before);
   expect(stop).toHaveBeenCalledExactlyOnceWith([W]);
@@ -626,10 +627,28 @@ test("an auto-removed worktree goes through Remove's clean-up: selection, thumbn
   expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
 });
 
+// A stored root the shell re-roots upward leaves the list as Locate's old root does (shell.ts `left`).
+test("a re-rooted stored root goes through Remove's clean-up, as Locate's old root does", async () => {
+  const SUB = `${ROOT}/web`;
+  const before = [{ path: SUB }];
+  mocks.shell.entries.mockReturnValue(before);
+  const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+  await invoke("selection:set", window().webContents, null, { ...SELECTION, root: SUB });
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  if (!options?.left) throw new Error("no left-roots hook");
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  options.left([SUB], before);
+  expect(runtimeState().selection()).toBeNull();
+  expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([SUB], before);
+  expect(stop).toHaveBeenCalledExactlyOnceWith([SUB]);
+  expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([SUB]);
+  expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([SUB]);
+});
+
 // A worktree that vanished while Doan was closed is found by the first folder read, before main has its other stores.
 describe("a worktree found gone while the shell starts", () => {
   const W = "/orca/workspaces/repo/gone";
-  beforeAll(() => { atShellStart = options => options.autoRemoved?.([W], [{ path: W }]); });
+  beforeAll(() => { atShellStart = options => options.left?.([W], [{ path: W }]); });
   afterAll(() => { atShellStart = undefined; });
   test("still drops its quit-stopped starts", () => {
     expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
@@ -646,8 +665,8 @@ test("restores launchd's CA certificates once at import, then trusts the file it
 test("an auto-removed worktree keeps another root's selection", async () => {
   mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/w" }]);
   await invoke("selection:set", window().webContents, null, SELECTION);
-  const options = mocks.startShell.mock.calls[0]?.[3] as { autoRemoved?: (paths: string[], before: unknown[]) => void } | undefined;
-  options?.autoRemoved?.(["/w"], []);
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  options?.left?.(["/w"], []);
   expect(runtimeState().selection()).toEqual(SELECTION);
 });
 
@@ -812,7 +831,7 @@ describe("design skills", () => {
 });
 
 describe("the GitHub star card", () => {
-  // A copy that updates gets an enabled store: 'app updates' > 'in a copy that updates' below.
+  // A copy that updates gets an enabled store ('app updates' below).
   test("a development launch makes a store that neither counts nor asks", () => {
     expect(mocks.createStarPrompt.mock.calls[0]![0]).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: false });
   });
@@ -924,9 +943,8 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
 });
 
-// ARCHITECTURE §7 'Settings IPC' 'Storage writes' (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a
-// setup kept out of Git writes the shared exclude file, so every worktree of the project is read again, as after a
-// Project Settings write.
+// ARCHITECTURE §7 'Settings IPC': a setup kept out of Git writes the shared exclude file, so every worktree of the
+// project is read again, as after a Project Settings write.
 test("a local setup reads every worktree of its project again; a setup in Git or a failed one does not", async () => {
   const A = "/w/studio", B = "/w/studio-b";
   const git = { common: `${A}/.git`, main: A, worktrees: [A, B] };
@@ -972,7 +990,7 @@ test("wires packaged CLI selection with the runtime environment", () => {
 });
 
 // First run is open from a launch without a v1 completion record until the session reports completion, from the
-// window or the CLI. Nothing else opens or closes it (POSTMORTEM "The setup menu discarded an open wizard session").
+// window or the CLI. Nothing else opens or closes it.
 async function completeFirstRun(): Promise<void> {
   mocks.readCompletion.mockReturnValue(COMPLETE);
   const contents = window().webContents;
@@ -1154,6 +1172,14 @@ describe("menus", () => {
     expect(menuEnabled("Zoom In")).toBe(false);
   });
 
+  // The parser's screen list is menuState's, so a new screen cannot be refused while every test passes.
+  test.each(SCREENS)("accepts the %s screen", async (screen) => {
+    await invoke("menu:state", window().webContents, null, state(screen === "home" ? "canvas" : "home"));
+    const builds = mocks.menu.mock.calls.length;
+    await invoke("menu:state", window().webContents, null, state(screen));
+    expect(mocks.menu.mock.calls.length).toBeGreaterThan(builds);
+  });
+
   test.each(["did-navigate", "render-process-gone"])("a renderer that is replaced (%s) is back on Home", async (event) => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, state("canvas"));
@@ -1222,7 +1248,7 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(true);
     expect(menuEnabled("Pick from Canvas")).toBe(false);
     expect(submenu("Edit").some(item => item.label === "Add Selection to Conversation")).toBe(false);
-    // `selection` is no longer a menu input, so a state carrying it is refused.
+    // `selection` is not a menu input, so a state carrying it is refused.
     for (const bad of [{ ...ready, pickerAvailable: 1 }, { ...ready, selection: true }, { ...ready, unknown: true }]) {
       await invoke("menu:state", contents, null, bad);
       expect(menuEnabled("Pick from Canvas")).toBe(false);
@@ -1452,7 +1478,7 @@ describe("removing from the CLI", () => {
     expect(mocks.discardRootStarts).not.toHaveBeenCalled();
   });
 
-  // A start or send main has not accepted yet runs for the person (PRODUCT §5 item 10, POSTMORTEM 2026-11-17).
+  // A start or send main has not accepted yet runs for the person (PRODUCT §5 item 10).
   test("a conversation not accepted yet in another worktree of the group refuses and changes nothing", async () => {
     const service = mocks.conversationService as unknown as { pendingRoots(): ReadonlySet<string> };
     vi.spyOn(service, "pendingRoots").mockReturnValue(new Set([APP]));
@@ -1523,6 +1549,34 @@ describe("locate and reveal", () => {
     expect(mocks.shell.replace).toHaveBeenCalledOnce();
   });
 
+  // POSTMORTEM 2026-10-25, 2026-11-17: every path that drops a stored root clears what is keyed by it.
+  test.each([
+    ["a new folder", "/code/moved"],
+    ["a folder already stored", APP],
+  ])("locating %s clears the old root as Remove does, and leaves the new root alone", async (_name, picked) => {
+    const contents = window().webContents;
+    const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [picked] });
+    mocks.flow.judge.mockResolvedValueOnce({ root: picked });
+    mocks.shell.replace.mockImplementationOnce(async () => { mocks.shell.entries.mockReturnValue(entries.filter(entry => entry.path !== "/code/other")); });
+    expect(await invoke("folders:locate", contents, null, { path: "/code/other" })).toEqual({ kind: "located", root: picked });
+    expect(stop).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith(["/code/other"]);
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith(["/code/other"], entries);
+  });
+
+  test("locating a root to itself drops nothing", async () => {
+    const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/code/other"] });
+    mocks.flow.judge.mockResolvedValueOnce({ root: "/code/other" });
+    expect(await invoke("folders:locate", window().webContents, null, { path: "/code/other" })).toEqual({ kind: "located", root: "/code/other" });
+    expect(stop).not.toHaveBeenCalled();
+    expect(mocks.prototypeRootsRemoved).not.toHaveBeenCalled();
+    expect(mocks.discardRootStarts).not.toHaveBeenCalled();
+    expect(mocks.thumbnails.removed).not.toHaveBeenCalled();
+  });
+
   test("a located folder removed from the list while the picker was open is not replaced", async () => {
     mocks.dialog.showOpenDialog.mockImplementation(async () => {
       mocks.shell.entries.mockReturnValue([]);
@@ -1543,9 +1597,8 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
   });
 
-  // PRODUCT §5 item 3 'Problem states': a Config error's Show in Finder selects the file the CLI named as the one to
-  // fix, which Finder would otherwise hide inside `.doan/`, and which may be a parent folder's. The renderer still
-  // passes the root only; main picks the target from the entry it holds.
+  // PRODUCT §5 item 3 'Problem states': Show in Finder selects the config the CLI named, which may be a parent folder's.
+  // The renderer still passes the root only; main picks the target from the entry it holds.
   test("reveal selects the config the CLI named for a Config error project, else the root", async () => {
     const contents = window().webContents;
     const base = mkdtempSync(join(tmpdir(), "doan-reveal-"));
@@ -1771,7 +1824,7 @@ describe("thumbnails", () => {
     const contents = window().webContents;
     mocks.thumbnails.get.mockResolvedValue({ kind: "pending" });
     expect(await invoke("thumbnails:get", contents, null, { root: "/repo", path: ".doan/canvases/a.html", visible: true })).toEqual({ kind: "pending" });
-    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", true);
+    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", true, "main");
     mocks.thumbnails.get.mockClear();
     const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
     for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
@@ -1786,7 +1839,7 @@ describe("thumbnails", () => {
     const contents = window().webContents;
     const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
     await invoke("thumbnails:visible", contents, null, good);
-    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", false);
+    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", false, "main");
     mocks.thumbnails.visible.mockClear();
     for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
       await invoke("thumbnails:visible", contents, null, bad);
@@ -1933,9 +1986,8 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });
 
-// Saved roots are real paths, so the home folder they are shortened against and compared with (no repository at HOME
-// or above it) is read through a symlink, here macOS's /var → /private/var. HOME is the link before this launch reads
-// it, so a site that kept the spelled HOME would see the link.
+// Saved roots are real paths, so HOME is read through a symlink (macOS's /var → /private/var). HOME is the link
+// before this launch reads it, so a site that kept the spelled HOME would see the link.
 test("the home path, the shell's home and the project flow's home are HOME's real path", async () => {
   const real = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-home-"))), link = `${real}-link`;
   symlinkSync(real, link);
@@ -2015,8 +2067,8 @@ describe("canvas trash and export", () => {
   });
 });
 
-// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
-// (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
+// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks; the root is part of
+// the identity.
 describe("canvas trash on main's grounds", () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
   afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -2027,7 +2079,7 @@ describe("canvas trash on main's grounds", () => {
     mkdirSync(join(dir, ".doan/canvases"), { recursive: true });
     mkdirSync(join(dir, ".doan/comments"));
     writeFileSync(join(dir, path), "<!doctype html>");
-    // Left from before comments were removed, named after the canvas id: Move to Trash leaves it.
+    // A leftover comments file named after the canvas id: Move to Trash leaves it.
     writeFileSync(join(dir, ".doan/comments/a.jsonl"), "{}\n");
     return dir;
   };
@@ -2077,7 +2129,7 @@ describe("canvas trash on main's grounds", () => {
   });
 
   // PRODUCT §5 'Canvas row menu': a conversation still being prepared counts, and the first one of a canvas is listed
-  // only once main accepts it (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  // only once main accepts it.
   test("refuses as busy for a start on this canvas main has not accepted yet, asking only this root", async () => {
     service();
     const s = mocks.conversationService as unknown as { startingCanvases(root: string): { path: string; id?: string }[] };
@@ -2236,8 +2288,8 @@ describe("main-window setup and settings", () => {
     expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
   });
 
-  // The Project step's screen can go (the page left, first run closed) while the window stays: a Create that returns
-  // after its request was cancelled makes nothing (spec: the step that asked is gone).
+  // The Project step's screen can go while the window stays: a Create that returns after its request was cancelled
+  // makes nothing.
   test("New folder: a request cancelled while its panel is open makes nothing, and a live one still creates", async () => {
     const contents = window().webContents;
     const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
@@ -2263,9 +2315,8 @@ describe("main-window setup and settings", () => {
     expect(stillWanted).toBe(true);
   });
 
-  // A reloaded or crashed renderer cannot cancel its own request (its step never disposed): main drops the window's
-  // pending requests then, whatever the original event's frame still reports, and a request from the new renderer
-  // is not removed when the old one answers.
+  // A reloaded or crashed renderer cannot cancel its own request: main drops the window's pending requests then, and a
+  // request from the new renderer is not removed when the old one answers.
   test.each(["did-navigate", "render-process-gone"])("New folder: a %s with the panel open makes nothing on the late Create, and leaves the new renderer's request", async (event) => {
     const contents = window().webContents;
     const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
@@ -2326,9 +2377,8 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
-// conversation:delete answers busy while quitting as while working, so the
-// renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
-// stopped (the service stays quitting), so main never takes it back.
+// conversation:delete answers busy while quitting, so the renderer learns of the quit from main and its refusal toast
+// can stay quiet. An aborted quit leaves the conversations stopped, so main never takes it back.
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
@@ -2752,8 +2802,8 @@ describe("settings page", () => {
     expect(mocks.runConfig).toHaveBeenLastCalledWith(expect.any(String), ROOT, ["--storage", "local", "--git-init"], expect.objectContaining({ PATH: "" }));
   });
 
-  // ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode belongs to every worktree of the project, so writing it
-  // in worktree A reads B again, and opening the page reads its group again for a mode changed outside Doan.
+  // ARCHITECTURE §7 'Settings IPC': the mode belongs to every worktree of the project, so writing it in A reads B again,
+  // and opening the page reads its group again for a mode changed outside Doan.
   test("a mode written in one worktree reads every worktree of its project again", async () => {
     const git = { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT, `${ROOT}-b`, `${ROOT}-c`] };
     const entries = [{ ...LIST, git }, { path: `${ROOT}-b`, kind: "list", canvases: [], servedRev: 0, git }, { path: `${ROOT}-c`, kind: "uninitialized" }, { path: "/elsewhere", kind: "list", canvases: [], servedRev: 0 }];
@@ -3576,8 +3626,7 @@ describe("app updates", () => {
       expect(mocks.clipboard.writeText.mock.calls.at(-1)?.[0]).toMatch(/^Doan 9\.8\.7\nUpdates: 0\.2\.0 ready, last checked \d{4}-\d\d-\d\dT[\d:.]+Z\n/);
     });
 
-    // Install happens only after the conversations are saved and the debounced state is flushed (POSTMORTEM
-    // 2026-10-25 'A crash during quit teardown lost the debounced ui-state').
+    // Install happens only after the conversations are saved and the debounced state is flushed.
     test("Restart to Update quits through main's own quit and installs only after the flush", async () => {
       readyUpdate();
       expect(await invoke("update:install", window().webContents, null)).toEqual({ kind: "allowed" });

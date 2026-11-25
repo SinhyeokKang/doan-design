@@ -20,7 +20,6 @@ test("the page heading is 'Add a project', named for the landmark, without Your 
   expect(html).toContain(">New folder</button>");
 });
 
-// One submit for the page: "Add project" at the bottom right, whatever the step, and no other submit label.
 test("the page footer is Cancel and Add project in every unlocked phase, and no other submit appears", () => {
   const footer = (disabled: boolean) => new RegExp(`<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent"${disabled ? ' disabled=""' : ""} data-consent="">Add project<svg`);
   expect(page({})).toMatch(footer(true));
@@ -38,7 +37,6 @@ test("the page footer is Cancel and Add project in every unlocked phase, and no 
     expect(html).not.toMatch(/Use this folder|Clone and add|Set up and add/);
 });
 
-// The setup panel's consent is Add project: it carries the panel's inspection and is described by the git init line.
 test("on the setup panel Add project is the consent, described by the git init line under Keep out of Git", () => {
   const setUp = vi.fn();
   const NEW_REPO: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i-7", url: null, path: "/w/new", changes: [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"], storage: "local" };
@@ -58,8 +56,8 @@ test("a cancelled clone on the page offers Choose local folder in its notice and
   expect(html).toMatch(/data-ui-variant="prominent" data-consent="">Add project<svg/);
 });
 
-// the page's footer only leaves, so a local folder's setup offers Choose
-// another folder under its panel, as drawn; first run keeps its shipped setup panel.
+// The page's footer only leaves, so a local folder's setup offers Choose another folder under its panel;
+// first run keeps its own setup panel.
 test("a local folder's setup offers Choose another folder on the page only", () => {
   const setup: Partial<ProjectStepState> = { phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } };
   const other = '<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>';
@@ -138,8 +136,8 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
   }
 });
 
-// the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
-// development styles'), from the draft's add-panel, card drop and lock rules.
+// The page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
+// development styles').
 test("the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -151,9 +149,8 @@ test("the panel scrolls whole, the card holds its drop target, and the lock take
   for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
 });
 
-// the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
-// like the onboarding overlay; the panel otherwise passes on the app body's 13px/normal and tabular numerals. The
-// panel scrolls only vertically, as drawn.
+// The page's shared Project screen uses first run's 14/20 body text with plain numerals; the panel otherwise
+// inherits the app body's 13px/normal and tabular numerals.
 test("the page panel sets first run's body text and clips sideways", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -162,8 +159,8 @@ test("the page panel sets first run's body text and clips sideways", async () =>
     expect(rule).toContain(declaration);
 });
 
-// a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
-// worktree keeps its own fill and check, and a busy row (a running list Retry) keeps its highlight.
+// A locked menu item gets no highlight fill and disabled ink; the selected worktree keeps its fill and check,
+// and a busy row (a running list Retry) keeps its highlight.
 test("locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -171,7 +168,6 @@ test("locked project-menu items get no highlight fill and disabled ink on their 
   expect(css).toContain('.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }');
 });
 
-// a drop notice never takes focus, so an error that follows it is the one announced.
 test("focus: the drop notice is never the alert focus goes to", () => {
   const dropNotice = node(), error = node(), heading = node();
   const scene = { querySelector: (selector: string) => !selector.includes('role="alert"') ? null : selector.includes(":not(.ob-drop-notice)") ? error : dropNotice };
@@ -179,8 +175,8 @@ test("focus: the drop notice is never the alert focus goes to", () => {
     expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: { ...base, error: { code: "remote_mismatch" } }, agentReady: true, busy: false })).toBe(error);
 });
 
-// Draft canvas local-doan-files frames setup-panel and clone: the "Doan files" card above the button, or the fact for a
-// project already kept out of Git; on the clone screen under Save to, disabled while the clone runs.
+// The "Doan files" card sits above the button, or the fact for a project already kept out of Git; on the clone
+// screen it sits under Save to, disabled while the clone runs.
 test("the setup panel offers where the Doan files go, or says the project already keeps them out of Git", () => {
   const setup = (over: object, state: Partial<ProjectStepState> = {}) => page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/canvases/", ".doan/config.json", ".gitattributes"], ...over }, ...state });
   const html = setup({});
@@ -226,8 +222,8 @@ test("a clone that landed but whose storage failed says so on the clone screen",
   }
 });
 
-// A failure after a sheet goes to its notice, not back to the button that opened the sheet; a sheet opened
-// from a notice's button and cancelled returns to that button while the notice stays, else to the card's Choose folder.
+// A failure after a sheet goes to its notice; a sheet opened from a notice's button and cancelled returns to
+// that button while the notice stays, else to the card's Choose folder.
 test("focus: an error after a sheet goes to the notice; a cancelled sheet from a notice's button returns to it, else to Choose folder", () => {
   const opener = node(), heading = node(), alert = node(), card = node(), action = node();
   const scene = root({ ".ob-local-option": card, 'role="alert"': alert, "button:not(:disabled)": action });
@@ -257,8 +253,8 @@ test("focus: lost focus on a page step never lands on Add project", () => {
   expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: candidates, agentReady: true, busy: false })).toBe(heading);
 });
 
-// A folder chosen from a cancelled clone's notice can fail its check; the failure replaces the cancelled status and
-// takes its place: an alert with its own recoveries, focused, and Add project off while it shows.
+// A folder chosen from a cancelled clone's notice can fail its check: its alert replaces the cancelled status,
+// with its own recoveries, focused, and Add project off while it shows.
 test("after a cancelled clone, a chosen folder's failure shows its own alert instead of the cancelled status", () => {
   const url = "https://github.com/acme/tokens";
   const cancelled = { kind: "cloneCancelled", url, destination: "/Users/ada/code/tokens" } as const;

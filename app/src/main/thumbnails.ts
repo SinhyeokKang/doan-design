@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { canvasKind } from "../formats/canvasPath";
 import { thumbnailGarbage, thumbnailKey, thumbnailStale, tokenSignature, type ThumbnailMeta, type TokenFile } from "./thumbnailCache";
 import { initialThumbnailQueue, thumbnailQueue, type ThumbnailQueueEvent } from "./thumbnailQueue";
+import type { WindowKind } from "./senderAllowed";
 import type { Capturer } from "./thumbnailWindow";
 import type { CanvasRow, FolderEntry } from "./view";
 
-// `pending` is answered later with `thumbnails:changed`; `unavailable` is a
-// canvas that cannot be captured now (no `doan:width`, not listed, or a failed
-// capture until the canvas changes).
+// `pending` is answered later with `thumbnails:changed`; `unavailable`: no `doan:width`, not listed, or a failed capture
+// until the canvas changes.
 export type ThumbnailReply = { kind: "ready"; png: Uint8Array } | { kind: "pending" } | { kind: "unavailable" };
 export interface ThumbnailTarget { root: string; path: string }
 
@@ -25,11 +25,13 @@ export interface ThumbnailDeps {
 }
 
 export interface Thumbnails {
-  get(root: string, path: string, visible: boolean): Promise<ThumbnailReply>;
-  visible(root: string, path: string, visible: boolean): void;
-  // Every folder update: forgets canvases that left the list, re-checks a
-  // folder whose served files changed or only the canvases whose row revision
-  // moved, and cleans the cache once at start.
+  // `viewer` is the window asking; a canvas counts as visible while any window shows it.
+  get(root: string, path: string, visible: boolean, viewer: WindowKind): Promise<ThumbnailReply>;
+  visible(root: string, path: string, visible: boolean, viewer: WindowKind): void;
+  // A closed window reports nothing more, so what it showed stops counting as visible.
+  viewerClosed(viewer: WindowKind): void;
+  // Every folder update: forgets canvases that left the list, re-checks a folder whose served files changed or only the
+  // rows whose revision moved, and cleans the cache once per start (`trim`, then `sweep`).
   entriesChanged(entries: readonly FolderEntry[]): void;
   // Removed projects lose their cache files; `before` is the list before removal.
   removed(roots: readonly string[], before: readonly FolderEntry[]): Promise<void>;
@@ -40,19 +42,16 @@ export interface Thumbnails {
 
 const isTemp = (name: string) => name.endsWith(".tmp");
 
-// Entries (directories and files alike) visited for one folder's served
-// signature. A folder serving more stops the walk there and counts as changed at every served revision, so its
-// thumbnails are taken again rather than shown stale.
+// Entries visited for one folder's served signature. A folder serving more counts as changed at every served
+// revision, so its thumbnails are taken again rather than shown stale.
 export const SERVED_WALK_LIMIT = 2000;
 
 // Canvases are tracked by their own mtime and size; every other served file
 // can restyle all of them.
 const isCanvas = (path: string) => canvasKind(path) !== null;
 
-// Every non-canvas file the folder serves, or null once the walk has visited
-// SERVED_WALK_LIMIT entries, canvases and empty directories included.
-// Symlinked files count; symlinked directories are not entered, so a link
-// cycle cannot run the walk forever.
+// Every non-canvas file the folder serves, or null past SERVED_WALK_LIMIT entries. Symlinked directories are not
+// entered, so a link cycle cannot run the walk forever.
 async function servedFiles(root: string, scope: readonly string[]): Promise<TokenFile[] | null> {
   const files = new Map<string, TokenFile>();
   let visited = 0;
@@ -112,8 +111,14 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const known = new Map<string, ThumbnailTarget>();
   // What the cache file, or the attempt now running or last failed, describes.
   const basis = new Map<string, ThumbnailMeta>();
-  // A visibility update can arrive while get is awaiting the cache.
-  const visibility = new Map<string, boolean>();
+  // The windows showing each key. A visibility update can arrive while get is awaiting the cache.
+  const visibility = new Map<string, Set<WindowKind>>();
+  const see = (key: string, viewer: WindowKind, visible: boolean): boolean => {
+    const viewers = visibility.get(key) ?? new Set<WindowKind>();
+    if (visible) viewers.add(viewer); else viewers.delete(viewer);
+    if (viewers.size > 0) visibility.set(key, viewers); else visibility.delete(key);
+    return viewers.size > 0;
+  };
   // Per root, the servedRev and row revisions of the last update.
   const revs = new Map<string, { served: number; rows: Map<string, number | undefined> }>();
   // One served signature per folder and served revision.
@@ -122,7 +127,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   // cannot finish while a write it overtook still makes files.
   const locks = new Map<string, Promise<void>>();
   let running = false;
-  let cleaned = false;
+  let trimmed = false;
+  let swept = false;
   let disposed = false;
   // Startup collection may overlap a cache write from an already-loaded root.
   const activeTemps = new Set<string>();
@@ -154,9 +160,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     if (queue.active !== null && !running && !disposed) void run(queue.active);
   };
 
-  // Token CSS and every other served file restyle the folder's canvases
-  // while the canvas files stay put. The watcher bumps `servedRev` for each
-  // served change, so the walk runs once per revision, not per get.
+  // Token CSS and other served files restyle the folder's canvases while the canvas files stay put; the watcher bumps
+  // `servedRev` for each served change, so the walk runs once per revision.
   const tokens = (root: string): Promise<string> => {
     const entry = deps.entries().find((candidate) => candidate.path === root);
     const rev = entry?.kind === "list" ? entry.servedRev : undefined;
@@ -199,9 +204,13 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     const target = known.get(key);
     const row = target === undefined ? undefined : listedRow(deps.entries(), target);
     let png: Buffer | null = null;
+    // A job with nothing to capture when it starts (no width, no file, or forgotten while get read the cache) made no
+    // attempt, so it is not kept as failed: the next get decides again.
+    let attempted = false;
     if (target !== undefined && row?.width !== undefined) {
       const meta = await current(target);
       if (meta !== null) {
+        attempted = true;
         basis.set(key, meta);
         const captured = await deps.capturer.capture(row.url, row.width);
         png = captured;
@@ -222,7 +231,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     }
     const stale = queue.activeStale;
     running = false;
-    dispatch({ type: png === null ? "fail" : "done", key });
+    dispatch({ type: png === null && attempted ? "fail" : "done", key });
     if (target !== undefined && !stale && !disposed) deps.changed(target);
   };
 
@@ -235,7 +244,12 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const recheck = async (root: string, paths?: ReadonlySet<string>) => {
     for (const [key, target] of known) {
       const before = basis.get(key);
-      if (target.root !== root || before === undefined || (paths !== undefined && !paths.has(target.path))) continue;
+      if (target.root !== root || (paths !== undefined && !paths.has(target.path))) continue;
+      // Nothing captured to compare, and nothing queued: the renderer asks again only when told.
+      if (before === undefined) {
+        if (queue.active !== key && !queue.pending.some((job) => job.key === key)) deps.changed(target);
+        continue;
+      }
       const now = await current(target);
       if (basis.get(key) !== before) continue;
       if (now === null || thumbnailStale(before, now, deps.appVersion, now.tokens)) {
@@ -245,29 +259,66 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     }
   };
 
-  const collect = async (entries: readonly FolderEntry[]) => {
+  const listedKeys = (entries: readonly FolderEntry[]) =>
+    entries.flatMap((entry) => (entry.kind === "list" ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
+
+  // No root can reuse these: an inactive temp, or a key without both files, with unreadable meta or another app version.
+  // Checked inside the key's lock, so a write in progress is never seen half done.
+  const trim = async () => {
     let names: string[];
     try {
       names = await readdir(deps.dir);
     } catch {
       return;
     }
-    const live = entries.flatMap((entry) => (entry.kind === "list" ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
-    const garbage = [...thumbnailGarbage(names, live), ...names.filter(name => isTemp(name) && !activeTemps.has(join(deps.dir, name)))];
+    const temps = names.filter(name => isTemp(name) && !activeTemps.has(join(deps.dir, name)));
+    const keys = new Set(thumbnailGarbage(names, []).map((name) => name.slice(0, name.indexOf("."))));
+    const unusable = async (key: string) => {
+      try {
+        await stat(files(key).png);
+        const meta = parseMeta(await readFile(files(key).json, "utf8"));
+        return meta === null || meta.appVersion !== deps.appVersion;
+      } catch {
+        return true;
+      }
+    };
+    await Promise.all([
+      ...temps.map((name) => unlink(join(deps.dir, name)).catch(() => {})),
+      ...[...keys].map((key) => serial(key, async () => {
+        if (await unusable(key)) await Promise.all([files(key).png, files(key).json].map((file) => unlink(file).catch(() => {})));
+      })),
+    ]);
+  };
+
+  // Every root listed in `entries`; the list is read again after the directory, so a canvas listed meanwhile keeps its
+  // cache, and a root that stopped listing meanwhile puts the sweep off to a later update.
+  const sweep = async (entries: readonly FolderEntry[]) => {
+    let names: string[];
+    try {
+      names = await readdir(deps.dir);
+    } catch {
+      return;
+    }
+    const now = deps.entries();
+    if (!now.every((entry) => entry.kind === "list")) {
+      swept = false;
+      return;
+    }
+    const garbage = thumbnailGarbage(names, [...listedKeys(entries), ...listedKeys(now)]);
     await Promise.all(garbage.map((name) => unlink(join(deps.dir, name)).catch(() => {})));
   };
 
   return {
-    async get(root, path, visible) {
+    async get(root, path, visible, viewer) {
       const target = { root, path };
       const row = listedRow(deps.entries(), target);
       if (row?.width === undefined) return { kind: "unavailable" };
       const key = thumbnailKey(root, path);
       known.set(key, target);
-      visibility.set(key, visible);
+      const shown = see(key, viewer, visible);
       if (queue.failed.includes(key)) return { kind: "unavailable" };
       if ((queue.active === key && !queue.activeStale) || queue.pending.some((job) => job.key === key)) {
-        dispatch({ type: "visible", key, visible });
+        dispatch({ type: "visible", key, visible: shown });
         return { kind: "pending" };
       }
       const [now, cached] = await Promise.all([current(target), readCache(key)]);
@@ -276,14 +327,16 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
         basis.set(key, cached.meta);
         return { kind: "ready", png: cached.png };
       }
-      dispatch({ type: "request", key, visible: visibility.get(key) ?? false });
+      dispatch({ type: "request", key, visible: visibility.has(key) });
       return { kind: "pending" };
     },
-    visible(root, path, visible) {
+    visible(root, path, visible, viewer) {
       const key = thumbnailKey(root, path);
       if (!known.has(key) || listedRow(deps.entries(), { root, path }) === undefined) return;
-      visibility.set(key, visible);
-      dispatch({ type: "visible", key, visible });
+      dispatch({ type: "visible", key, visible: see(key, viewer, visible) });
+    },
+    viewerClosed(viewer) {
+      for (const [key, viewers] of [...visibility]) if (viewers.has(viewer) && !see(key, viewer, false)) dispatch({ type: "visible", key, visible: false });
     },
     entriesChanged(entries) {
       for (const [key, target] of known) {
@@ -310,9 +363,15 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       }
       for (const root of revs.keys()) if (!entries.some((entry) => entry.path === root)) revs.delete(root);
       for (const root of signatures.keys()) if (!entries.some((entry) => entry.path === root)) signatures.delete(root);
-      if (!cleaned && entries.every((entry) => entry.kind !== "loading")) {
-        cleaned = true;
-        void collect(entries);
+      // Once per start. Keys hash root and path, so a root that does not list yet hides which files are its own: what no
+      // root can reuse goes once nothing is loading, the rest once every root lists.
+      if (!trimmed && entries.every((entry) => entry.kind !== "loading")) {
+        trimmed = true;
+        void trim();
+      }
+      if (!swept && entries.every((entry) => entry.kind === "list")) {
+        swept = true;
+        void sweep(entries);
       }
     },
     async removed(roots, before) {

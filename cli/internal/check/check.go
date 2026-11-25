@@ -2,7 +2,6 @@ package check
 
 import (
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -32,8 +31,7 @@ type Input struct {
 	Unparsable map[string]string
 	Reach      map[string][]CSSRef
 	CSS        map[string]canvas.Scan
-	// CustomCSS holds, by real path, what each reached stylesheet does with
-	// custom properties. It is apart from CSS so canvas.Scan stays as it is.
+	// CustomCSS holds, by real path, what each reached stylesheet does with custom properties.
 	CustomCSS  map[string]canvas.CustomText
 	TokenCSS   TokenCSS
 	Served     func(string) bool
@@ -81,9 +79,6 @@ func Summarize(findings []Finding, canvases int) Summary {
 // canvas uses it without defining it; nothing defines it on the board.
 const viewportHeightVar = "--doan-viewport-height"
 
-var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-func validID(c canvas.Canvas) bool { return c.HasID && !c.IDDup && idPattern.MatchString(c.ID) }
 func Run(in Input) []Finding {
 	findings := []Finding{}
 	seen := map[Finding]bool{}
@@ -114,7 +109,7 @@ func Run(in Input) []Finding {
 	sort.Slice(canvases, func(i, j int) bool { return canvases[i].Path < canvases[j].Path })
 	counts := map[string]int{}
 	for _, c := range canvases {
-		if validID(c) {
+		if c.ValidID() {
 			counts[c.ID]++
 		}
 	}
@@ -138,7 +133,7 @@ func Run(in Input) []Finding {
 				f.Message = "missing canvas id in head (found in body)"
 			}
 			add(f)
-		} else if !validID(c) {
+		} else if !c.ValidID() {
 			emit("invalid_canvas_id")
 		} else if counts[c.ID] > 1 {
 			emit("duplicate_canvas_id")
@@ -333,7 +328,7 @@ func Run(in Input) []Finding {
 			if shared {
 				for _, u := range append(append([]string(nil), s.URLs...), s.Imports...) {
 					if canvas.IsExternal(u) {
-						output("external_url", trimURL(u))
+						output("external_url", canvas.TrimURL(u))
 					}
 				}
 			}
@@ -393,10 +388,8 @@ func Run(in Input) []Finding {
 	return findings
 }
 
-// ambiguousURLs reports each url() in a custom property that the folders
-// using the property, among the canvas and every stylesheet it reaches,
-// resolve to different paths. export refuses the same url()s with the same
-// canvas functions; check reaches every stylesheet export reads.
+// ambiguousURLs reports each custom-property url() its users' folders resolve to different paths. check reaches every stylesheet
+// export reads (ARCHITECTURE §3 'Custom property `url()`s resolve from their user'), and export refuses the same url()s.
 func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]string]bool) {
 	users := canvas.CustomUsers{Elements: c.Elements}
 	users.Add(path.Dir(c.Path), c.Custom.Uses)
@@ -418,7 +411,7 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 			}
 			cssSeen[key] = true
 			f := Finding{Severity: "warning", Code: "ambiguous_custom_url", Path: file, Token: r.Custom, Value: r.Value,
-				Message: "Custom property " + r.Custom + " holds url(" + r.Value + "), which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
+				Message: "Custom property " + r.Custom + " holds the URL " + r.Value + ", which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
 			if !shared {
 				f.Canvas = c.ID
 			}
@@ -430,4 +423,3 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 		report(p, true, in.CustomCSS[p].URLs)
 	}
 }
-func trimURL(s string) string { return strings.TrimFunc(s, func(r rune) bool { return r <= 32 }) }

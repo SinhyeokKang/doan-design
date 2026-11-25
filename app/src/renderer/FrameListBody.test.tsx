@@ -8,8 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DrawerListbox, FrameRowMarks } from "./FrameListBody";
 import type { DrawerGroup } from "./frameDrawerList";
 
-// The frame drawers' shared list (draft prototype-link-play frames drawer-groups and toolbar-play): one listbox of link
-// groups, each a named `role="group"`, with aria-hidden separators only between groups.
+// One listbox of link groups, each a named `role="group"`, with aria-hidden separators only between groups.
 const row = (id: string, number: number, name: string, group: number, current = false) => ({ key: id, id, number, name, current, group });
 const GROUPS: DrawerGroup[] = [
   { label: "Cart and 2 more", rows: [row("cart", 2, "Cart", 0), row("checkout", 3, "Checkout", 0, true), row("done", 5, "Order confirmation", 0)] },

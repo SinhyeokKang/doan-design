@@ -3,10 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// a title menu row's Delete asks in the alert, the store's deleting
-// mark pairs with exactly one of deleted/cancelled, the runs are cleaned after main deletes (or no longer has it), a
-// refusal toasts and leaves focus on the menu's trigger, and deleting the shown conversation focuses that screen's
-// composer. Driven with hooks as plain state (App.conversationPanel.test.tsx).
+// A title menu row's Delete asks in the alert; the store's deleting mark pairs with exactly one of
+// deleted/cancelled, and runs are cleaned after main deletes. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -66,7 +64,7 @@ vi.mock("./CanvasController", async original => ({
 }));
 const focused = vi.hoisted(() => ({ calls: [] as unknown[] }));
 vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { focused.calls.push(field); } }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -89,7 +87,7 @@ let doan: Record<string, ReturnType<typeof vi.fn>>;
 let tree: ReactNode;
 let calls: string[];
 const FIELDS: Record<string, { field: string }> = { ".workspace .ov-main .composer-input": { field: "overview" }, ".doan-conv-panel .composer-input": { field: "canvas" } };
-// The canvas panel's title menu trigger, where focus goes after the shown conversation is deleted (draft frame delete-shown).
+// The canvas panel's title menu trigger, where focus goes after the shown conversation is deleted.
 const TITLE_TRIGGER = ".doan-conv-panel .doan-conv-title .ov-title";
 
 function reset() {
@@ -160,8 +158,8 @@ function trigger() {
 function deferred<T>() { let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
 const target = (conversationId: string, from: "overview" | "canvas" = "overview"): Target => ({ conversationId, root: "/w/a", title: `Title ${conversationId}`, provider: "claude", from });
 
-// The Overview of /w/a showing c1, with c2 also listed. c1's ending is unseen, so the first entry of the run reopens it
-// rather than starting fresh (PRODUCT §5 item 3 'Which conversation shows').
+// c1's ending is unseen, so the first entry of the run reopens it rather than starting fresh
+// (PRODUCT §5 item 3 'Which conversation shows').
 async function openOverview(list: unknown[] = [summary("c1", { unseen: true }), summary("c2")]) {
   doan.listConversations!.mockResolvedValue(list);
   render();
@@ -295,7 +293,6 @@ test.each([
   expect(button.focus).toHaveBeenCalledOnce();
 });
 
-// main no longer has it, so the screens are cleaned as for a deletion, with the toast.
 test("not_found cleans up as a deletion and says it was already deleted", async () => {
   await openOverview();
   doan.deleteConversation = vi.fn(async () => ({ error: "not_found" }));
@@ -309,7 +306,6 @@ test("not_found cleans up as a deletion and says it was already deleted", async 
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
-// Deleting the shown conversation: the next conversation by the shared rule, else the new conversation state; focus on the title menu button.
 test("deleting the shown conversation from its Title menu shows the next one and focuses the title menu button", async () => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => undefined);
@@ -334,8 +330,8 @@ test("deleting the last conversation of the canvas leaves the new conversation s
   expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledOnce();
 });
 
-// PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second
-// request for the same conversation would share the store's one deleting mark with the first.
+// A busy dialog refuses its cancel: cancelling would stop nothing, and a second request for the same
+// conversation would share the store's one deleting mark.
 test("while its request is out the alert refuses Cancel and Escape, and stays until main answers", async () => {
   await openOverview();
   const reply = deferred<undefined>();
@@ -356,8 +352,8 @@ test("while its request is out the alert refuses Cancel and Escape, and stays un
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
-// main answers busy for a refusal while the app quits too: after its quitting push the refusal shows no toast, and the
-// mark is still cancelled.
+// main answers busy for a refusal while the app quits too: after its quitting push the refusal shows no toast,
+// and the mark is still cancelled.
 test("a refusal after main said the app is quitting shows no toast", async () => {
   await openOverview();
   doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
@@ -371,8 +367,8 @@ test("a refusal after main said the app is quitting shows no toast", async () =>
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// a throw in any cleanup must still end the deleting mark and close the alert, which refuses
-// its cancel while busy and would otherwise hold the window until a reload.
+// A throw in any cleanup must still end the deleting mark and close the alert, which refuses its cancel while
+// busy and would otherwise hold the window until a reload.
 test("a cleanup that throws after a deletion still ends the mark and closes the alert", async () => {
   await openOverview();
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -402,7 +398,6 @@ test("a re-read that throws after a refusal still ends the mark, closes the aler
   expect(error).toHaveBeenCalled();
 });
 
-// the canvas panel's refusal and Cancel return focus to the panel's title trigger.
 test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus returns to the panel's title trigger", async (_name, confirm) => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
@@ -415,8 +410,8 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
 
-// a Conversations list row's Delete takes the title menu's confirmation and deletion;
-// focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
+// A Conversations list row's Delete takes the title menu's confirmation; focus goes to the target the list
+// computed before the alert opened, and Cancel or Escape returns it to that Delete.
 type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };
 const canvasList = () => find<ListProps>(CanvasConversations)[0]?.props;
@@ -483,8 +478,8 @@ test.each([["a refusal", true], ["Cancel", false]])("Conversations list, %s: the
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-// the row the list chose left too before focus moved (another deletion, a re-read): focus goes to the
-// panel title, not to the deleted row's Delete, which leaves with its row and would drop focus to the page.
+// The row the list chose left too before focus moved: focus goes to the panel title, not to the deleted row's
+// Delete, which would drop focus to the page.
 test("a Conversations list deletion whose next row also left sends focus to the panel title", async () => {
   const { row, head } = listTargets();
   delete FIELDS['.ov-right .cv-row[data-key="c3"]'];
@@ -533,7 +528,7 @@ test("the shown project conversation's row, the list's only one: the new convers
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });
 
-// sidebar-canvas-conversations: the viewed canvas's conversation rows in the sidebar.
+// The viewed canvas's conversation rows in the sidebar.
 type SidebarTarget = { conversationId: string; root: string; title: string; provider: string; from: "sidebar"; after: string; canvasRow: string };
 type SidebarConversations = { shown: string | null; folded: boolean; fold(folded: boolean): void; open(root: string, row: CanvasRow, conversationId: string): void; remove(target: SidebarTarget, trash: unknown): void };
 const sidebarConversations = () => find<{ conversations: SidebarConversations; open(root: string, row: CanvasRow, listed?: boolean): void }>(ShellSidebar)[0]!.props;
@@ -632,7 +627,7 @@ test("a conversation row unfolds the panel on that conversation without a move, 
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
 });
 
-// The sidebar says whether the pressed row's list shows (review R2): App follows what the row shows, not its own guess.
+// The sidebar says whether the pressed row's list shows: App follows what the row shows, not its own guess.
 test("with the list unfolded the viewed canvas row's press keeps the panel; folded, its slot opens the conversation it stands for", async () => {
   await openCanvasFolded([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { unseen: true })]);
   sidebarConversations().open("/w/a", rowA, true); render(); await flushAll();
@@ -650,4 +645,52 @@ test("a canvas row whose list shows elsewhere (held above it) uses its own slot,
   sidebarConversations().open("/w/a", rowA, false); render(); await flushAll();
   expect(panelOpen()).toBe(true);
   expect(sidebarConversations().conversations.shown).toBe("c2");
+});
+
+// POSTMORTEM 2026-11-20 'The prototype hid an unread ending': a refused seen write leaves the shown ending eligible, so the
+// next check sends the same end again instead of leaving the unread mark until the next turn end.
+test.each([
+  ["the Overview", () => openOverview(), () => overview()!.run.focusChanged()],
+  ["the canvas panel", () => openCanvasPanel([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z", unseen: true }), onCanvas("c2")]), () => title()!.run.focusChanged()],
+] as const)("a refused seen mark in %s is sent again for the same end on the next check", async (_name, open, check) => {
+  const ev = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t1", at: "2026-11-01T00:00:00.000Z", ...payload });
+  doan.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => ({
+    events: [ev(conversationId, 1, { type: "user.message", text: "Draw it", anchors: [] }), ev(conversationId, 2, { type: "turn.started" }), ev(conversationId, 3, { type: "turn.done" })], lastSeq: 3, turn: "idle",
+  }));
+  doan.markConversationSeen!.mockResolvedValueOnce({ error: "unknown" });
+  await open();
+  expect(doan.markConversationSeen).toHaveBeenCalledOnce();
+  const sent = doan.markConversationSeen!.mock.calls[0]![0];
+  await flushAll();
+  check(); await flushAll();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+  expect(doan.markConversationSeen!.mock.calls[1]![0]).toEqual(sent);
+  check(); await flushAll();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+});
+
+// Main's reply can arrive after the person moved to another app; activation then restores the focus the window had
+// before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the move is made again then, to the
+// field the selector finds at that time.
+test("a deletion that ends with the window in the background focuses the composer again on activation", async () => {
+  await openOverview();
+  const reply = deferred<undefined>();
+  doan.deleteConversation = vi.fn(() => reply.promise);
+  ask(target("c1"));
+  dialog()!.confirm(); render();
+  const win = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", win);
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    reply.resolve(undefined); await flushAll();
+    const composer = ".workspace .ov-main .composer-input", first = FIELDS[composer];
+    expect(focused.calls).toEqual([first]);
+    const redrawn = { field: "redrawn overview" };
+    FIELDS[composer] = redrawn;
+    win.dispatchEvent(new Event("focus"));
+    vi.runAllTimers();
+    expect(focused.calls).toEqual([first, redrawn, redrawn]);
+    FIELDS[composer] = first!;
+  } finally { vi.useRealTimers(); }
 });

@@ -2,11 +2,10 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
-import { conversationWork, scheduledOf } from "./conversationList";
+import { conversationWork, scheduledOf, UNSEEN_LABEL } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
-// Which conversation the project Overview shows and how its dropdown and canvas rows read.
 // The Overview host owns the list reads and every call to main; these functions only decide.
 
 export interface ShortTime { text: string; label: string }
@@ -14,7 +13,7 @@ export interface ShortTime { text: string; label: string }
 const MINUTE = 60_000, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
 const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 
-// now, 3m, 1h, 1d, then a date; the label spells it out for screen readers. A time ahead of the clock reads now.
+// A time ahead of the clock reads now.
 export function shortAgo(at: string, now: number): ShortTime | null {
   const time = Date.parse(at);
   if (at === "" || Number.isNaN(time)) return null;
@@ -31,18 +30,17 @@ export function shortAgo(at: string, now: number): ShortTime | null {
 }
 
 export interface ConversationStatus { kind: Slot["kind"]; label: string }
-const STATUS_LABELS: Record<Exclude<Slot["kind"], "scheduled">, string> = { permission: "Needs your answer", working: "Working", unseen: "Conversation finished — unread" };
+const STATUS_LABELS: Record<Exclude<Slot["kind"], "scheduled">, string> = { permission: "Needs your answer", working: "Working", unseen: UNSEEN_LABEL };
 
-// From the sidebar slot's own per-conversation rule (conversationWork), so a row and its slot never disagree between
-// renders. Unlike the sidebar, every conversation counts here, not only those started from Home. A scheduled slot keeps
-// its own label, which names the reset.
+// From the sidebar slot's rule (conversationWork), so a row and its slot never disagree. Unlike the sidebar, every
+// conversation counts here, not only those started from Home.
 export function conversationStatus(c: ConversationSummary, seen: ReadonlySet<string>, scheduled: Slot | null = null): ConversationStatus | null {
   const slot = conversationWork(c, seen, scheduled);
   if (!slot) return null;
   return { kind: slot.kind, label: slot.kind === "scheduled" ? slot.label : STATUS_LABELS[slot.kind] };
 }
 
-// One dropdown item or canvas row line: the same component draws both.
+// The same component draws both.
 export interface ConversationLine {
   conversationId: string; provider: Provider; status: ConversationStatus | null; time: ShortTime | null; preview: string;
 }
@@ -55,20 +53,17 @@ export function conversationLine(c: ConversationSummary, now: number, seen: Read
   };
 }
 
-// A conversation bound to no canvas; one an earlier build promoted carries its canvas from then on.
+// A project conversation an earlier build promoted carries its canvas from then on.
 const isProject = (c: ConversationSummary) => c.canvas === undefined;
 
-// The most recent activity first. ISO times compare as strings, and an unreadable history's empty time sorts last; the
-// id breaks ties so the default pick and the dropdown agree whatever order main lists them in. Shared with the canvas
-// panel's dropdown.
+// An unreadable history's empty time sorts last; the id breaks ties so the default pick and the dropdown agree
+// whatever order main lists them in.
 export function byActivity(a: ConversationSummary, b: ConversationSummary): number {
   if (a.lastActivityAt !== b.lastActivityAt) return a.lastActivityAt < b.lastActivityAt ? 1 : -1;
   return a.conversationId < b.conversationId ? -1 : a.conversationId > b.conversationId ? 1 : 0;
 }
 
-// deletable: whether the row's Delete can be used, with the reason when it cannot.
 export interface MenuItem extends ConversationLine { title: string; readError: boolean; deletable: DeleteAvailability }
-// One dropdown row, the same in the Overview and the canvas panel.
 export function menuItem(c: ConversationSummary, now: number, seen: ReadonlySet<string>): MenuItem {
   return { ...conversationLine(c, now, seen), title: c.title, readError: c.readError === true, deletable: deleteAvailability(c) };
 }
@@ -77,10 +72,8 @@ export function projectConversationMenu(list: readonly ConversationSummary[], no
   return list.filter(isProject).sort(byActivity).map(c => menuItem(c, now, seen));
 }
 
-// wait: the list was not read yet, so nothing is shown rather than a new conversation that then changes. reread: the
-// requested conversation is not listed yet (a start's reply can overtake its list notice); read again with it held.
-// forget: the remembered conversation is on a canvas now (an earlier build promoted it), so ui-state drops it. fresh:
-// the first pick of the run found nothing left for the person in the conversation it would reopen.
+// wait: nothing rather than a new conversation that then changes. forget: the remembered conversation is on a canvas
+// now, so ui-state drops it.
 export type OverviewPick =
   | { kind: "wait" }
   | { kind: "reread"; conversationId: string }
@@ -88,18 +81,13 @@ export type OverviewPick =
   | { kind: "canvas"; conversationId: string; canvas: Canvas }
   | { kind: "new"; forget: boolean; fresh?: true };
 
-// Nothing left for the person: no turn running or starting, nothing queued or waiting out a usage limit, no returned
-// draft, no pending request, and its last turn's end already seen (main's mark, or this run's `seen` that a list read
-// has not shown yet). An unreadable history says nothing about having been seen, so it never counts.
+// An unreadable history says nothing about having been seen, so it never counts.
 function endedAndSeen(c: ConversationSummary, seen: ReadonlySet<string>): boolean {
   return !c.readError && c.phase === "ended" && !c.working && c.queued === 0 && c.scheduledAt === undefined && !c.returnedDraft && (!c.unseen || seen.has(c.conversationId));
 }
 
-// The requested conversation, the one last shown on this device, the latest project conversation,
-// else a new one. A remembered conversation that is gone is skipped; an unreadable one is not the latest, but a
-// requested or remembered one still opens so its thread can say it cannot be read. `fresh` is given only for the root's
-// first automatic pick of the run (this run's seen marks): a person coming back to the app starts with a new
-// conversation rather than one already finished and read.
+// A requested or remembered unreadable one still opens so its thread can say so. `fresh`: a person coming back to the
+// app starts with a new conversation rather than one already finished and read.
 export function pickOverviewConversation(list: readonly ConversationSummary[] | null, remembered: string | undefined, request: string | null, fresh: ReadonlySet<string> | null = null): OverviewPick {
   if (list === null) return { kind: "wait" };
   if (request !== null) {
@@ -115,15 +103,13 @@ export function pickOverviewConversation(list: readonly ConversationSummary[] | 
   return { kind: "conversation", conversationId: candidate.conversationId };
 }
 
-// The Overview's main conversation: null is the new conversation state. listed: it has appeared in a list read, so its
-// absence later means it is gone rather than not listed yet.
+// listed: its absence later means it is gone rather than not listed yet.
 export interface OverviewCurrent { root: string; conversationId: string | null; listed: boolean }
 export interface DraftMove { from: string; to: string }
 export type OverviewChange = { kind: "keep" } | { kind: "gone"; draft: DraftMove };
 
-// After a list read for `root`: a listed conversation that is gone resets the Overview, its draft moving to the root's
-// new conversation key so the typed text, composition included, stays in the same field. Nothing else moves the main
-// conversation, not even a canvas an earlier build's promotion gave it.
+// A gone conversation's draft moves to the root's new conversation key, so the typed text, composition included,
+// stays in the same field.
 export function overviewAfterListChange(current: OverviewCurrent, change: { root: string; list: readonly ConversationSummary[] }): OverviewChange {
   const id = current.conversationId;
   if (change.root !== current.root || id === null) return { kind: "keep" };

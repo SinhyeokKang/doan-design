@@ -202,8 +202,7 @@ describe("canvasConversationError", () => {
   });
 });
 
-// In the canvas conversation panel, the terminal session choice waits while that
-// session (provider:id) is in the working list. Identified sessions span roots; an anonymous one matches nothing.
+// Identified sessions span roots; an anonymous one matches nothing.
 describe("resumeHeld", () => {
   const reply = { available: true as const, runtime: "codex" as const, session: "s1" };
   const item = (patch: Partial<WorkItem>): WorkItem => ({ session: "s1", provider: "codex", root: "/w/a", path: ".doan/canvases/a.html", touched: 0, turn: "none:t", ...patch });
@@ -233,7 +232,6 @@ describe("resumeHeld", () => {
   });
 });
 
-// The canvas panel's New conversation names the usage limit's reset as the Overview's does (usage-limit-resume.html).
 test("a start refused by the usage limit names the reset time in the canvas panel", () => {
   const NEW: DockedMode = { kind: "new", root: "/code/acme", canvas: billing };
   expect(canvasConversationError("rate_limited", NEW, "claude", "acme-web", [], "at 3:00\u202fPM"))
@@ -285,7 +283,6 @@ describe("pickShownConversation", () => {
   test("the remembered conversation, else the most recent activity", () => {
     expect(pick({ remembered: "a" })).toEqual({ kind: "conversation", conversationId: "a" });
     expect(pick({ remembered: null })).toEqual({ kind: "conversation", conversationId: "b" });
-    // A remembered conversation that is gone, on another canvas or of another root's list is passed over.
     expect(pick({ remembered: "deleted" })).toEqual({ kind: "conversation", conversationId: "b" });
     expect(pick({ remembered: "elsewhere" })).toEqual({ kind: "conversation", conversationId: "b" });
   });

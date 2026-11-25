@@ -69,8 +69,8 @@ test("a permission request is an alert keyed to the request; Allow is drawn prom
   expect(html).not.toMatch(/autofocus/i);
 });
 
-// The strip shows the request on one cut line; the whole of it stays readable in the shared tooltip (DESIGN 'Tooltip'),
-// and a choice that saves a rule names it in its button's tooltip. No native title.
+// The request stays readable in the shared tooltip (DESIGN 'Tooltip'), and a choice that saves a rule names it in its
+// button's tooltip. No native title.
 test("the request line keeps its whole text in a name tooltip, and a saving choice names its rule in the shared tooltip", () => {
   const detail = "Adds the allow rule Edit in this session.";
   const state: StripState = { ...ASK, options: [{ id: "aa", label: "Allow with suggested permissions", kind: "allowAlways", detail }] };
@@ -132,8 +132,8 @@ test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Dis
   expect(render({ kind: "done" }, CTX)).toContain('<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
 });
 
-// The alert line is keyed to its request, so React keeps the node (one announcement) while the
-// same request is redrawn and replaces it for a new one; Stop is marked for App's arrival focus.
+// The alert line is keyed to its request, so React keeps the node (one announcement) while the same request is redrawn;
+// Stop is marked for App's arrival focus.
 test("the alert line keeps its key across redraws of one request and changes it for the next; Stop carries its marker", () => {
   hooks.mock = true;
   const line = (state: StripState) => {
@@ -152,9 +152,8 @@ test("the alert line keeps its key across redraws of one request and changes it 
   expect(render(ASK).match(/data-strip-stop/g)).toHaveLength(1);
 });
 
-// Defect (2026-10-30): a Copilot Deny ended the turn right after the answer; Stop went away with focus on it and
-// focus fell to the page. The move depends on Stop holding focus when it leaves, not on an answer
-// made earlier, and a strip is keyed by its conversation in App.
+// Stop going away with focus on it must hand focus on: the move depends on Stop holding focus when it leaves, not on an
+// earlier answer, and a strip is keyed by its conversation in App.
 function strip() {
   const dismissFocus = vi.fn();
   const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.effects = []; const all = elements(ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop })); hooks.reuse = true; return all; };
@@ -182,8 +181,8 @@ test("when the turn ends while Stop has focus, focus moves from the vanished Sto
   expect(dismissFocus).toHaveBeenCalledTimes(1);
 });
 
-// POSTMORTEM 2026-11-17: a turn ending while the person is in another app takes Stop away in the background;
-// activation would otherwise put focus back on the Stop that went, or on the first focusable control.
+// POSTMORTEM 2026-11-17: a turn ending in the background takes Stop away; activation would otherwise put focus back on
+// the Stop that went.
 test("a turn that ends with the window in the background moves focus to Dismiss again when the window activates", () => {
   const win = Object.assign(new EventTarget(), { doan: { answerConversationPermission: vi.fn(async () => {}), interruptConversation: vi.fn() } });
   vi.stubGlobal("window", win);
@@ -221,8 +220,8 @@ test("the strip App draws is keyed by its conversation, so another conversation 
   expect(strip("c2").key).toBe("c2");
 });
 
-// A Skip or a permission answer main refuses shows the strip's error line with the alert mark (PRODUCT §5 item 1);
-// the buttons stay, and the line goes on the next press, another request or the turn's end.
+// A refused Skip or permission answer shows the error line with the alert mark (PRODUCT §5 item 1); the line goes on the
+// next press, another request or the turn's end.
 test("a refused Skip or permission answer shows its error line until the next press, another request or the turn's end", async () => {
   const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
   const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop }); hooks.reuse = true; return tree; };

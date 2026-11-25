@@ -4,6 +4,7 @@ import { Popover } from "radix-ui";
 import { RotateCw, Settings } from "lucide-react";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import { AlertIcon } from "./AlertIcon";
+import { useActivationFocus } from "./activationFocus";
 import { usageDescription } from "./agentUsage";
 import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView, type WindowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
@@ -24,9 +25,8 @@ function Ring({ ring }: { ring: RingView }) {
   </ProgressRing>;
 }
 
-// Below the button: the shared tooltip's default side (above) put the popover's tooltips over the header button.
-// onEscape: a focused title-row button's tooltip is the top dismissable layer, so without it the first Escape closed
-// only the tooltip and the popover needed a second one.
+// Below the button: the default side (above) put these tooltips over the header button. onEscape: the tooltip is
+// the top dismissable layer, so without it the first Escape closed only the tooltip.
 function IconTip({ label, onEscape, children }: { label: string; onEscape?(): void; children: ReactElement }) {
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent side="bottom" onEscapeKeyDown={onEscape}>{label}</TooltipContent></Tooltip>;
 }
@@ -54,8 +54,8 @@ function Row({ row }: { row: RowView }) {
   </li>;
 }
 
-// The popover body (draft frame 03). Agent settings and Refresh usage come after the list so Tab goes body →
-// Agent settings → Refresh usage; the grid draws them back in the title row.
+// Agent settings and Refresh usage come after the list so Tab goes body → Agent settings → Refresh usage; the
+// grid draws them back in the title row.
 export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings, onOpenChange }: Pick<UsageViewProps, "titleId" | "rows" | "busy" | "listRef" | "onRefresh" | "onSettings" | "onOpenChange">) {
   const close = () => onOpenChange(false);
   return <>
@@ -68,7 +68,6 @@ export function UsagePanel({ titleId, rows, busy, listRef, onRefresh, onSettings
   </>;
 }
 
-// The header button and its non-modal popover, drawn from state (draft frames place-header and ring-states).
 export function UsageView(props: UsageViewProps) {
   const { rings, folded, description, descriptionId, open } = props;
   const fold = folded ? foldedRing(rings) : null;
@@ -96,9 +95,8 @@ function freeEnd(header: HTMLElement): number {
   return end - modes.getBoundingClientRect().right;
 }
 
-// Agent usage at the header's right end on every screen. Each header holds its own button; main is the source of
-// the entries, and opening or Refresh usage only asks it to read.
-// openSettings answers whether it went to Settings: a locked page stays, and focus then returns to the button.
+// Each header holds its own button; main is the source of the entries, and opening or Refresh usage only asks it
+// to read. openSettings answers whether it went to Settings: a locked page stays, and focus returns to the button.
 export function AgentUsageButton({ openSettings, canvasPress }: { openSettings(): boolean; canvasPress?: CanvasPress | undefined }) {
   const [entries, setEntries] = useState<UsageEntry[]>([]);
   const [open, setOpen] = useState(false);
@@ -147,13 +145,15 @@ export function AgentUsageButton({ openSettings, canvasPress }: { openSettings()
     const timer = setTimeout(() => setTick(tick => tick + 1), Math.min(nextReset - Date.now(), 2 ** 31 - 1));
     return () => clearTimeout(timer);
   }, [nextReset]);
-  // The last provider signed out under the open popover: the button goes, so focus goes to the current tab.
+  // The last provider signed out under the open popover: the button goes, so focus goes to the current tab. A usage push
+  // can do this while the window is behind, so the hand-off is made again on activation.
+  const handFocus = useActivationFocus();
   useEffect(() => {
     if (!gone || !open) return;
     keepFocus.current = true;
     setOpen(false);
-    header.current?.querySelector<HTMLElement>('.shell-modes [aria-current="page"]')?.focus();
-  }, [gone, open]);
+    handFocus(() => header.current?.querySelector<HTMLElement>('.shell-modes [aria-current="page"]')?.focus());
+  }, [gone, open, handFocus]);
   useHeaderNoDrag(open, button);
   // A press in the canvas iframe never reaches the app's document, so Radix cannot see it as an outside press.
   useEffect(() => {

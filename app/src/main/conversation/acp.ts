@@ -2,9 +2,10 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
-import { contextBefore, contextValue, displayPath, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { countTextChange } from "./editLines";
+import { callIdOf, contextBefore, contextValue, displayPath, editResult, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, storableText, transportError } from "./transport";
 import { clip, quoted } from "./cardText";
-import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
+import type { EventPayload, FailureCode, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
 // (`agent acp`), Copilot (`copilot --acp --stdio`) and Antigravity (agy_acp_server) speak it.
@@ -104,7 +105,7 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   const tool = object(params.toolCall) ? params.toolCall : {};
   const title = str(tool.title);
   const summary = clip(acpOperation(tool, root) || title || GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"], PERMISSION_SUMMARY_MAX);
-  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary, ...permissionReason(title, summary), options: choices.map(c => c.option) }, choices };
+  return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? storableText(tool.kind) : "other", summary, ...permissionReason(title, summary), options: choices.map(c => c.option) }, choices };
 }
 // What an ACP request lets run, when its tool call names it: the command (Copilot's title is a fixed phrase and the
 // command is only in rawInput), else every path it touches. Cursor's requests carry neither; their title is the command.
@@ -118,18 +119,18 @@ function acpOperation(tool: Record<string, unknown>, root: string): string {
   return paths.map(path => displayPath(path, root)).join(", ");
 }
 
-// Antigravity asks the person through a standard permission request whose options are the answers:
-// two or more, all allow_once, no reject, the question as toolCall.title. Anything else, or past the question
-// limits, stays a permission request, which can still be answered; a cut question or a merged answer could not.
+// Antigravity asks through a permission request whose options are the answers (two or more, all allow_once, no reject).
+// Anything else, or past the limits, stays a permission request: a cut question or a merged answer could not be answered.
 export function acpQuestion(params: Record<string, unknown>, requestId: string): { event: Extract<EventPayload, { type: "question.request" }>; optionIds: string[] } | null {
   const L = QUESTION_LIMITS;
   const tool = object(params.toolCall) ? params.toolCall : {};
   const question = tool.title;
-  if (typeof question !== "string" || !question || question.length > L.text) return null;
+  // U+0000 is refused like a length, as Claude's questions are; the permission request escapes it (storableText).
+  if (typeof question !== "string" || !question || question.length > L.text || question.includes("\0")) return null;
   if (!Array.isArray(params.options) || params.options.length < 2 || params.options.length > L.options) return null;
   const options = params.options.filter(object);
   if (options.length !== params.options.length) return null;
-  if (!options.every(o => o.kind === "allow_once" && typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.name === "string" && o.name && o.name.length <= L.label)) return null;
+  if (!options.every(o => o.kind === "allow_once" && typeof o.optionId === "string" && o.optionId.length <= 512 && typeof o.name === "string" && o.name && o.name.length <= L.label && !o.name.includes("\0"))) return null;
   const labels = options.map(o => o.name as string);
   if (new Set(labels).size !== labels.length) return null;
   return {
@@ -138,12 +139,21 @@ export function acpQuestion(params: Record<string, unknown>, requestId: string):
   };
 }
 
-// thinking: thought chunks came and nothing that ends thinking since (normalizeAcp). running (TransportState) holds the
-// tool calls still pending or in progress.
-export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true }
-interface AcpTool { kind: string; path: string; title: string }
-export function initialAcp(turn: string): AcpTransport {
-  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
+// thinking: thought chunks came and nothing ended thinking since. running holds the pending or in-progress tool calls.
+// countsEdits: only Copilot's completed diff is the applied change (ARCHITECTURE §7 'Edit line counts').
+export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, AcpTool>; thinking?: true; countsEdits?: true }
+// diffs: the last diff content of a running call; it may come before a completion that carries none.
+interface AcpTool { kind: string; path: string; title: string; diffs?: AcpDiff[] }
+interface AcpDiff { path: string; oldText: string; newText: string }
+export function initialAcp(turn: string, countsEdits = false): AcpTransport {
+  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {}, ...(countsEdits ? { countsEdits: true } : {}) };
+}
+// undefined when the content holds no diff, so the last diff received stays.
+function acpDiffs(content: unknown): AcpDiff[] | undefined {
+  if (!Array.isArray(content) || !content.some(item => object(item) && item.type === "diff")) return undefined;
+  const diffs: AcpDiff[] = [];
+  for (const item of content) if (object(item) && item.type === "diff" && typeof item.newText === "string") diffs.push({ path: str(item.path), oldText: str(item.oldText), newText: item.newText });
+  return diffs;
 }
 function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   if (!state.text) return { state, events: [] };
@@ -154,15 +164,18 @@ function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
 type AcpActivityKind = keyof typeof GENERIC_SUMMARY;
 const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command", terminal: "command" };
 function str(value: unknown): string { return typeof value === "string" ? value : ""; }
+// A path with U+0000 goes, and summaries escape it (storableText): the store refuses the character, and one refused
+// event fails the turn's whole write.
+const storable = (path: string) => path.includes("\0") ? "" : path;
 function toolPath(update: Record<string, unknown>): string {
-  if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return str(location.path);
+  if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return storable(str(location.path));
   const input = object(update.rawInput) ? update.rawInput : {};
-  return str(input.path) || str(input.fileName) || str(input.file_path);
+  return storable(str(input.path) || str(input.fileName) || str(input.file_path));
 }
 // One rule for a tool call's words, whether it still runs (its stage) or completed (its activity). A shell command's
 // title is the command itself; activity is stored and published, so it gets the generic phrase.
 function acpToolSummary(kind: AcpActivityKind, tool: AcpTool, root: string): string {
-  return kind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[kind]).slice(0, 512);
+  return kind === "command" ? GENERIC_SUMMARY.command : storableText(tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[kind]).slice(0, 512);
 }
 function acpToolStage(kind: AcpActivityKind, tool: AcpTool, root: string): TurnStage {
   return { kind: "tool", activity: kind, ...(tool.path ? { path: tool.path.slice(0, 512) } : {}), summary: acpToolSummary(kind, tool, root) };
@@ -178,9 +191,8 @@ function awake(state: AcpTransport): { state: AcpTransport; stage?: TurnStage } 
   const { thinking: _, ...rest } = state;
   return { state: rest, stage: GENERAL_STAGE };
 }
-// Updates arriving while no prompt is running (session/load replays the stored history) are not events of this turn.
-// Thinking (Copilot's thought chunks) ends on a message chunk, a tool call or a tool update with a status; usage, plan,
-// command-list and status-less tool updates come in the middle of it (Copilot sends usage about 2.5 s into a turn).
+// Updates while no prompt runs (session/load replays history) are not this turn's events. Thinking ends on a message
+// chunk, a tool call or a tool update with a status; usage, plan, command-list and status-less updates come within it.
 export function normalizeAcp(state: AcpTransport, update: Record<string, unknown>, root: string): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
   const kind = update.sessionUpdate;
@@ -188,12 +200,11 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   if (kind === "agent_message_chunk") {
     const woke = awake(state);
     const content = object(update.content) ? update.content : {};
-    const text = content.type === "text" ? str(content.text) : "";
+    const text = content.type === "text" ? storableText(str(content.text)) : "";
     if (!text) return { state: woke.state, events: [], ...(woke.stage ? { stage: woke.stage } : {}) };
     return { state: { ...woke.state, text: woke.state.text + text }, events: [{ type: "message.delta", messageId: woke.state.messageId, text }], ...(woke.stage ? { stage: woke.stage } : {}) };
   }
-  // used is what the provider reports; ACP does not define it. Antigravity's ACP server 1.3.0 sends the last model
-  // call's size (its first value after session/load was that turn's context, not a session total).
+  // used is what the provider reports; ACP does not define it (Antigravity sends the last model call's size).
   if (kind === "usage_update") {
     const value = contextValue(update.used, update.size);
     return { state: value ? { ...state, context: value } : state, events: [] };
@@ -214,10 +225,11 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
     return { state: { ...rest, ...(running.length ? { running } : {}) }, events: [], stage: endedStage(running, woke.state.tools, root) };
   }
   const known = woke.state.tools[id] ?? { kind: "", path: "", title: "" };
-  const tool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
-  const flushed = flush(woke.state);
-  const tools = { ...woke.state.tools, [id]: tool };
   const runs = status === "pending" || status === "in_progress";
+  const diffs = woke.state.countsEdits ? acpDiffs(update.content) ?? known.diffs : undefined;
+  const tool: AcpTool = { kind: str(update.kind) || known.kind, path: toolPath(update) || known.path, title: str(update.title) || known.title };
+  const flushed = flush(woke.state);
+  const tools = { ...woke.state.tools, [id]: diffs && (runs || !status) ? { ...tool, diffs } : tool };
   const before = woke.state.running ?? [];
   const running = !status ? before : runs ? (before.includes(id) ? before : [...before, id]) : before.filter(other => other !== id);
   const { running: _, ...rest } = flushed.state;
@@ -230,10 +242,15 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (status !== "completed") return { state: next, events: flushed.events, ...(stage ? { stage } : {}) };
   const summary = acpToolSummary(activityKind, tool, root);
+  const callId = activityKind === "edit" ? callIdOf(id) : undefined;
+  const call = callId ? { callId } : {};
   const event: EventPayload = tool.path
-    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary }
-    : { type: "activity", kind: activityKind, summary };
-  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event], stage: ended };
+    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary, ...call }
+    : { type: "activity", kind: activityKind, summary, ...call };
+  // A multi-file call is one step named by one path, so only that path's diff items count (all when it has none).
+  const counted = (diffs ?? []).filter(diff => !tool.path || diff.path === tool.path);
+  const results = callId ? counted.flatMap(diff => editResult(callId, tool.path, countTextChange(diff.oldText, diff.newText))) : [];
+  return { state: { ...next, activities: [...woke.state.activities, id] }, events: [...flushed.events, event, ...results], stage: ended };
 }
 function finishAcp(state: AcpTransport, event: EventPayload): TransportResult & { state: AcpTransport } {
   if (state.terminal) return { state, events: [] };
@@ -249,7 +266,21 @@ export function acpPromptDone(state: AcpTransport, result: unknown): TransportRe
   if (typeof reason !== "string") return finishAcp(state, { type: "turn.failed", code: "unknown", detail: "ACP prompt returned no stopReason" });
   return finishAcp(state, { type: "turn.done" });
 }
+// One reading of a failure's text whether the session was opening or a prompt ran, for the words a recorded provider
+// message or Doan itself backs. The rest of transportError's patterns have no recorded ACP answer, so opening keeps
+// its earlier reading of them: a Cursor rate_limited refusal comes only from its usage read (limitReached).
+export function acpFailureCode(detail: string, phase: "open" | "prompt"): FailureCode {
+  // AcpConnection's own deadline for a request: "<method> timed out".
+  if (/^(?:initialize|authenticate|session\/[\w-]+) timed out$/.test(detail)) return "process_exited";
+  // Cursor's and Antigravity's "Authentication required", Copilot CLI's "Please sign in".
+  // "sign in" as whole words: "design in" or "assign in" is no sign-in.
+  if (/authentication required|not logged in|unauthorized|\bsign in\b/i.test(detail)) return "not_logged_in";
+  // cursor-agent's session/load for a session it never saved: "Session not found".
+  if (/session.*(not found|unavailable)/i.test(detail)) return "session_unavailable";
+  if (phase === "prompt") return transportError(detail);
+  return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
+}
 export function acpPromptFailed(state: AcpTransport, detail: string): TransportResult & { state: AcpTransport } {
-  return finishAcp(state, { type: "turn.failed", code: transportError(detail), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+  return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: storableText(detail).slice(0, 4096) } : {}) });
 }
 export function acpEnded(state: AcpTransport): TransportResult & { state: AcpTransport } { return finishAcp(state, { type: "turn.failed", code: "process_exited" }); }

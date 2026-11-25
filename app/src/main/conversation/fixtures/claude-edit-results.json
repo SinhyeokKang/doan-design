@@ -1,0 +1,2826 @@
+{
+ "source": "thread-edit-lines T0 probe, 2026-11-25: Claude Code through the Agent SDK query (see README)",
+ "2.1.284": {
+  "delete": {
+   "numstat": [
+    {
+     "path": "old.txt",
+     "added": 0,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Bash",
+        "input": {
+         "command": "rm /repo/old.txt",
+         "description": "Delete old.txt file"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "(Bash completed with no output)",
+        "is_error": false
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false,
+      "noOutputExpected": true
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "deny": {
+   "numstat": [],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/notes.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "1\tline 1: alpha\n2\tline 2: bravo\n3\tline 3: apple\n4\tline 4: delta\n5\tline 5: echo\n6\tline 6: foxtrot\n7\tline 7: golf\n8\tline 8: hotel\n9\tline 9: india\n10\tline 10: juliet\n11\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/notes.txt",
+       "content": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+       "numLines": 11,
+       "startLine": 1,
+       "totalLines": 11
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 3: apple",
+         "new_string": "line 3: banana"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "The person denied this edit.",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic02"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: The person denied this edit.",
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic02",
+       "non_execution_kind": "permission-rule"
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DENIED"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DENIED",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "edit": {
+   "numstat": [
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/notes.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "1\tline 1: alpha\n2\tline 2: bravo\n3\tline 3: apple\n4\tline 4: delta\n5\tline 5: echo\n6\tline 6: foxtrot\n7\tline 7: golf\n8\tline 8: hotel\n9\tline 9: india\n10\tline 10: juliet\n11\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/notes.txt",
+       "content": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+       "numLines": 11,
+       "startLine": 1,
+       "totalLines": 11
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 3: apple",
+         "new_string": "line 3: banana"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic02",
+        "type": "tool_result",
+        "content": "The file /repo/notes.txt has been updated successfully. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/notes.txt",
+      "oldString": "line 3: apple",
+      "newString": "line 3: banana",
+      "originalFile": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 6,
+        "newStart": 1,
+        "newLines": 6,
+        "lines": [
+         " line 1: alpha",
+         " line 2: bravo",
+         "-line 3: apple",
+         "+line 3: banana",
+         " line 4: delta",
+         " line 5: echo",
+         " line 6: foxtrot"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "fail": {
+   "numstat": [],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 3: mango",
+         "new_string": "line 3: kiwi"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic01"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: File has not been read yet. Read it first before writing to it.",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "overwrite": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 2,
+     "removed": 4
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/config.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "1\tmode = draft\n2\tlevel = 3\n3\towner = nobody\n4\tretries = 2\n5\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/config.txt",
+       "content": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+       "numLines": 5,
+       "startLine": 1,
+       "totalLines": 5
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Write",
+        "input": {
+         "file_path": "/repo/config.txt",
+         "content": "mode = final\nlevel = 9\n"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic02",
+        "type": "tool_result",
+        "content": "The file /repo/config.txt has been updated successfully. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "update",
+      "filePath": "/repo/config.txt",
+      "content": "mode = final\nlevel = 9\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 4,
+        "newStart": 1,
+        "newLines": 2,
+        "lines": [
+         "-mode = draft",
+         "-level = 3",
+         "-owner = nobody",
+         "-retries = 2",
+         "+mode = final",
+         "+level = 9"
+        ]
+       }
+      ],
+      "originalFile": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+      "userModified": false
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "parallel": {
+   "numstat": [
+    {
+     "path": "colors.txt",
+     "added": 1,
+     "removed": 1
+    },
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 2: bravo",
+         "new_string": "line 2: BRAVO"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic01"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: File has not been read yet. Read it first before writing to it.",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/colors.txt",
+         "old_string": "green leaf",
+         "new_string": "green fern"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic02"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: File has not been read yet. Read it first before writing to it.",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic03",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/notes.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic03",
+        "type": "tool_result",
+        "content": "1\tline 1: alpha\n2\tline 2: bravo\n3\tline 3: apple\n4\tline 4: delta\n5\tline 5: echo\n6\tline 6: foxtrot\n7\tline 7: golf\n8\tline 8: hotel\n9\tline 9: india\n10\tline 10: juliet\n11\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/notes.txt",
+       "content": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+       "numLines": 11,
+       "startLine": 1,
+       "totalLines": 11
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic04",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/colors.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic04",
+        "type": "tool_result",
+        "content": "1\tred sky\n2\tblue sea\n3\tred rose\n4\tgreen leaf\n5\tred brick\n6\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/colors.txt",
+       "content": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+       "numLines": 6,
+       "startLine": 1,
+       "totalLines": 6
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic05",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 2: bravo",
+         "new_string": "line 2: BRAVO"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic05",
+        "type": "tool_result",
+        "content": "The file /repo/notes.txt has been updated successfully. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/notes.txt",
+      "oldString": "line 2: bravo",
+      "newString": "line 2: BRAVO",
+      "originalFile": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         " line 1: alpha",
+         "-line 2: bravo",
+         "+line 2: BRAVO",
+         " line 3: apple",
+         " line 4: delta",
+         " line 5: echo"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic06",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/colors.txt",
+         "old_string": "green leaf",
+         "new_string": "green fern"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic06",
+        "type": "tool_result",
+        "content": "The file /repo/colors.txt has been updated successfully. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/colors.txt",
+      "oldString": "green leaf",
+      "newString": "green fern",
+      "originalFile": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         " red sky",
+         " blue sea",
+         " red rose",
+         "-green leaf",
+         "+green fern",
+         " red brick"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic04",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic04",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic04",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic04",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 7,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "replaceall": {
+   "numstat": [
+    {
+     "path": "colors.txt",
+     "added": 3,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/colors.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "1\tred sky\n2\tblue sea\n3\tred rose\n4\tgreen leaf\n5\tred brick\n6\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/colors.txt",
+       "content": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+       "numLines": 6,
+       "startLine": 1,
+       "totalLines": 6
+      }
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Edit",
+        "input": {
+         "replace_all": true,
+         "file_path": "/repo/colors.txt",
+         "old_string": "red",
+         "new_string": "crimson"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic02",
+        "type": "tool_result",
+        "content": "The file /repo/colors.txt has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/colors.txt",
+      "oldString": "red",
+      "newString": "crimson",
+      "originalFile": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         "-red sky",
+         "+crimson sky",
+         " blue sea",
+         "-red rose",
+         "+crimson rose",
+         " green leaf",
+         "-red brick",
+         "+crimson brick"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": true
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "write": {
+   "numstat": [
+    {
+     "path": "hello.txt",
+     "added": 3,
+     "removed": 0
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Write",
+        "input": {
+         "file_path": "/repo/hello.txt",
+         "content": "one\ntwo\nthree"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "File created successfully at: /repo/hello.txt (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "create",
+      "filePath": "/repo/hello.txt",
+      "content": "one\ntwo\nthree",
+      "structuredPatch": [],
+      "originalFile": null,
+      "userModified": false
+     },
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-4-5-20251001",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  }
+ },
+ "2.1.332": {
+  "delete": {
+   "numstat": [
+    {
+     "path": "old.txt",
+     "added": 0,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 489,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Bash",
+        "input": {
+         "command": "rm old.txt",
+         "description": "Delete old.txt in the repo root"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "(Bash completed with no output)",
+        "is_error": false
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "stdout": "",
+      "stderr": "",
+      "interrupted": false,
+      "isImage": false,
+      "noOutputExpected": true
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "deny": {
+   "numstat": [],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 977,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 3: apple",
+         "new_string": "line 3: banana"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "The person denied this edit.",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic01"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: The person denied this edit.",
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "non_execution_kind": "permission-rule",
+       "permission_decision": {
+        "decision": "reject",
+        "source": "user_reject"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "thinking_duration_ms": 242,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DENIED"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DENIED",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "edit": {
+   "numstat": [
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 725,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 3: apple",
+         "new_string": "line 3: banana"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "The file /repo/notes.txt has been updated successfully."
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/notes.txt",
+      "oldString": "line 3: apple",
+      "newString": "line 3: banana",
+      "originalFile": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 6,
+        "newStart": 1,
+        "newLines": 6,
+        "lines": [
+         " line 1: alpha",
+         " line 2: bravo",
+         "-line 3: apple",
+         "+line 3: banana",
+         " line 4: delta",
+         " line 5: echo",
+         " line 6: foxtrot"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false,
+      "contentNotInModelContext": true
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "fail": {
+   "numstat": [],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 364,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "notes.txt",
+         "old_string": "line 3: mango",
+         "new_string": "line 3: kiwi"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "type": "tool_result",
+        "content": "<tool_use_error>String to replace not found in file.\nString: line 3: mango</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "toolu_synthetic01"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": "Error: String to replace not found in file.\nString: line 3: mango",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "thinking_duration_ms": 173,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "overwrite": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 2,
+     "removed": 4
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 497,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Read",
+        "input": {
+         "file_path": "/repo/config.txt"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "1\tmode = draft\n2\tlevel = 3\n3\towner = nobody\n4\tretries = 2\n5\t"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "text",
+      "file": {
+       "filePath": "/repo/config.txt",
+       "content": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+       "numLines": 5,
+       "startLine": 1,
+       "totalLines": 5
+      }
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "config",
+        "reason_type": "mode"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "thinking_duration_ms": 418,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Write",
+        "input": {
+         "file_path": "/repo/config.txt",
+         "content": "mode = final\nlevel = 9\n"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic02",
+        "type": "tool_result",
+        "content": "The file /repo/config.txt has been updated successfully. (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "update",
+      "filePath": "/repo/config.txt",
+      "content": "mode = final\nlevel = 9\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 4,
+        "newStart": 1,
+        "newLines": 2,
+        "lines": [
+         "-mode = draft",
+         "-level = 3",
+         "-owner = nobody",
+         "-retries = 2",
+         "+mode = final",
+         "+level = 9"
+        ]
+       }
+      ],
+      "originalFile": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+      "userModified": false
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic02",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic03",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic03",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "parallel": {
+   "numstat": [
+    {
+     "path": "colors.txt",
+     "added": 1,
+     "removed": 1
+    },
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 1488,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/notes.txt",
+         "old_string": "line 2: bravo",
+         "new_string": "line 2: BRAVO"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "The file /repo/notes.txt has been updated successfully."
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/notes.txt",
+      "oldString": "line 2: bravo",
+      "newString": "line 2: BRAVO",
+      "originalFile": "line 1: alpha\nline 2: bravo\nline 3: apple\nline 4: delta\nline 5: echo\nline 6: foxtrot\nline 7: golf\nline 8: hotel\nline 9: india\nline 10: juliet\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         " line 1: alpha",
+         "-line 2: bravo",
+         "+line 2: BRAVO",
+         " line 3: apple",
+         " line 4: delta",
+         " line 5: echo"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false,
+      "contentNotInModelContext": true
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic02",
+        "name": "Edit",
+        "input": {
+         "replace_all": false,
+         "file_path": "/repo/colors.txt",
+         "old_string": "green leaf",
+         "new_string": "green fern"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic02",
+        "type": "tool_result",
+        "content": "The file /repo/colors.txt has been updated successfully."
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/colors.txt",
+      "oldString": "green leaf",
+      "newString": "green fern",
+      "originalFile": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         " red sky",
+         " blue sea",
+         " red rose",
+         "-green leaf",
+         "+green fern",
+         " red brick"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": false,
+      "contentNotInModelContext": true
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic02",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 3,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "replaceall": {
+   "numstat": [
+    {
+     "path": "colors.txt",
+     "added": 3,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "thinking_duration_ms": 844,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Edit",
+        "input": {
+         "replace_all": true,
+         "file_path": "/repo/colors.txt",
+         "old_string": "red",
+         "new_string": "crimson"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "The file /repo/colors.txt has been updated. All occurrences were successfully replaced."
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "filePath": "/repo/colors.txt",
+      "oldString": "red",
+      "newString": "crimson",
+      "originalFile": "red sky\nblue sea\nred rose\ngreen leaf\nred brick\n",
+      "structuredPatch": [
+       {
+        "oldStart": 1,
+        "oldLines": 5,
+        "newStart": 1,
+        "newLines": 5,
+        "lines": [
+         "-red sky",
+         "+crimson sky",
+         " blue sea",
+         "-red rose",
+         "+crimson rose",
+         " green leaf",
+         "-red brick",
+         "+crimson brick"
+        ]
+       }
+      ],
+      "userModified": false,
+      "replaceAll": true,
+      "contentNotInModelContext": true
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  },
+  "write": {
+   "numstat": [
+    {
+     "path": "hello.txt",
+     "added": 3,
+     "removed": 0
+    }
+   ],
+   "frames": [
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic01",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "tool_use",
+        "id": "toolu_synthetic01",
+        "name": "Write",
+        "input": {
+         "file_path": "/repo/hello.txt",
+         "content": "one\ntwo\nthree\n"
+        },
+        "caller": {
+         "type": "direct"
+        }
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic01",
+     "session_id": "session-1"
+    },
+    {
+     "type": "user",
+     "message": {
+      "role": "user",
+      "content": [
+       {
+        "tool_use_id": "toolu_synthetic01",
+        "type": "tool_result",
+        "content": "File created successfully at: /repo/hello.txt (file state is current in your context — no need to Read it back)"
+       }
+      ]
+     },
+     "parent_tool_use_id": null,
+     "tool_use_result": {
+      "type": "create",
+      "filePath": "/repo/hello.txt",
+      "content": "one\ntwo\nthree\n",
+      "structuredPatch": [],
+      "originalFile": null,
+      "userModified": false
+     },
+     "tool_result_meta": [
+      {
+       "id": "toolu_synthetic01",
+       "permission_decision": {
+        "decision": "accept",
+        "source": "user_temporary"
+       }
+      }
+     ],
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "thinking",
+        "thinking": "<thinking>",
+        "signature": "<signature>"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "thinking_duration_ms": 148,
+     "thinking_display": "updates",
+     "session_id": "session-1"
+    },
+    {
+     "type": "assistant",
+     "message": {
+      "id": "msg_synthetic02",
+      "role": "assistant",
+      "model": "claude-haiku-5-5",
+      "content": [
+       {
+        "type": "text",
+        "text": "DONE"
+       }
+      ],
+      "stop_reason": null
+     },
+     "parent_tool_use_id": null,
+     "request_id": "req_synthetic02",
+     "session_id": "session-1"
+    },
+    {
+     "type": "result",
+     "subtype": "success",
+     "is_error": false,
+     "num_turns": 2,
+     "result": "DONE",
+     "stop_reason": "end_turn",
+     "terminal_reason": "completed",
+     "session_id": "session-1"
+    }
+   ]
+  }
+ }
+}

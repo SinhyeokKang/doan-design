@@ -8,11 +8,8 @@ import { StorageField } from "./StorageChoice";
 import type { StorageChoice } from "./storageRules";
 import { NameTip } from "./NameTip";
 
-// One project setup form, used by the wizard's Project step and the sidebar's
-// Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
-// kept: another worktree of the project keeps its Doan files out of Git, so setup follows it with plain init and the
-// form offers no choice (PRODUCT §5 item 0 'Doan files'). A refused setup keeps the chosen mode. notGit: no Git
-// repository holds the folder (main never says so for the home folder or above it), so Keep out of Git creates one.
+// Main keeps the picked CSS file, the renderer its ID. kept: another worktree keeps Doan files out of Git, so setup uses plain
+// init (PRODUCT §5 item 0 'Doan files'); a refused setup keeps the chosen mode. notGit: Keep out of Git creates a repository.
 export function useProjectSetup(root: string, kept = false, notGit = false) {
   const [token, setToken] = useState<{ id: string; path: string } | null>(null);
   const [storage, setStorage] = useState<StorageChoice>("repo");

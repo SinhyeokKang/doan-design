@@ -54,7 +54,6 @@ const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));
 function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 
-// The Project Settings page, not yet wired into App.
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 const { SettingsDialog } = await import("./SettingsDialog");
 const { AlertIcon } = await import("./AlertIcon");
@@ -171,8 +170,8 @@ test("Read failed: Retry reads the settings again here, without asking App", asy
   unmount();
 });
 
-// D1: a retry read keeps the failed notice drawn, so the pressed Retry stays mounted with focus, busy with the spinner
-// inside; another failure leaves it in place.
+// A retry read keeps the failed notice drawn, so the pressed Retry stays mounted with focus, busy with the spinner inside;
+// another failure leaves it in place.
 test("Read failed: while Retry's read is out the notice stays and Retry is busy and aria-disabled; a press does nothing", async () => {
   doan.readConfig!.mockResolvedValueOnce({ kind: "error", message: "busy" });
   await open();
@@ -207,7 +206,7 @@ test("No token CSS and nothing shared: the empty guidance with Choose, and Add f
   unmount();
 });
 
-// One row per problem tile of the draft ('alt-2-page-problem', 'alt-2-states-problem').
+// One row per problem kind.
 const PROBLEM_TILES: [string, () => FolderEntry, string, string[], boolean][] = [
   ["Missing", missing, "Doan can’t find this folder, so its settings can’t be read or changed.", ["Locate"], false],
   ["Not set up", uninitialized, "This folder isn’t set up for Doan yet, so it has no settings to change.", ["Set up"], true],
@@ -292,7 +291,7 @@ test("Config error: Details opens the error under the notice and closes it again
   unmount();
 });
 
-// U30: the disclosure's label shows its state with ▸/▾, as ErrorDetails does; the name stays "Details".
+// The disclosure's label shows its state with ▸/▾, as ErrorDetails does; the name stays "Details".
 test("Details shows ▸ while closed and ▾ while open, and is named Details", async () => {
   await open({ entries: [configError("~/code/acme-web/.doan/config.json: unexpected token } at line 4, column 3")] });
   expect(button("Details").props["aria-label"]).toBe("Details");
@@ -382,7 +381,7 @@ test("Add file or folder asks first over the page: the title names the path, Can
   click("Add file or folder"); await flush(); render();
   expect(doan.chooseConfigPath).toHaveBeenCalledWith(ROOT, "serve");
   const dialog = confirmation()!;
-  // The title shows the path as code, as the draft does; the dialog's accessible name is the plain sentence.
+  // The title shows the path as code; the dialog's accessible name is the plain sentence.
   expect(dialog.props).toMatchObject({ label: "Share design/brand with canvases?", verb: "Share" });
   expect(words(dialog.props.title)).toBe("Share design/brand with canvases?");
   expect(all(dialog.props.title as ReactNode).some(element => element.type === "code" && element.props.children === "design/brand")).toBe(true);
@@ -499,10 +498,8 @@ test("Show in Finder and Remove from Doan are not locked, but every control that
   unmount();
 });
 
-// The confirmation is a modal dialog, so the page behind it is inert already; the draft's confirmation tile draws the
-// page's controls enabled. The lock (nothing leaves the page) stays while it is open.
-// The controls behind the confirmation are drawn enabled, so only the modal dialog's inertness kept a press from
-// starting a pick or a write; the handlers refuse it themselves.
+// The controls behind the modal confirmation are drawn enabled, so the handlers refuse a press themselves rather than rely on
+// the dialog's inertness. The page lock stays while it is open.
 test("a press that reaches a control behind an open Share confirmation starts no pick and no write", async () => {
   await open();
   click("Add file or folder"); await flush(); render();
@@ -799,6 +796,43 @@ test("after Share, focus returns to Add file or folder once the write has settle
   unmount();
 });
 
+// The write can settle after the person moved to another app; activation then restores the focus the window had before
+// (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the return is made again on activation.
+test("a write that settles with the window in the background returns focus again when the window activates", async () => {
+  await open();
+  const add = node(); focusOn(add);
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
+  click("Add file or folder"); render(); await flush(); render();
+  focusOn(document.body);
+  const activate = inBackground();
+  try {
+    (confirmation()!.props.answer as (allow: boolean) => void)(true); render(); await flush(); render();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    activate();
+    expect(add.focus).toHaveBeenCalledTimes(3);
+  } finally { vi.useRealTimers(); unmount(); }
+});
+
+// A push can redraw the target row before activation; the replay finds the control as drawn then, not the one gone.
+test("a write that settles in the background returns focus on activation to the control as drawn then", async () => {
+  await open();
+  const add = node(); focusOn(add);
+  const ref = button("Add file or folder").props.ref as { current: unknown };
+  ref.current = add;
+  click("Add file or folder"); render(); await flush(); render();
+  focusOn(document.body);
+  const activate = inBackground();
+  try {
+    (confirmation()!.props.answer as (allow: boolean) => void)(true); render(); await flush(); render();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    const redrawn = node();
+    add.isConnected = false; ref.current = redrawn;
+    activate();
+    expect(add.focus).toHaveBeenCalledTimes(1);
+    expect(redrawn.focus).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); unmount(); }
+});
+
 test("a read in flight when the worktree turns into a config error leaves Retry usable", async () => {
   let answer: (value: unknown) => void = () => {};
   doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
@@ -853,8 +887,7 @@ test("the lock is released through the latest onState when the page goes", async
   expect(latest).toHaveBeenCalledWith({ locked: false });
 });
 
-// PRODUCT §5 item 0 'Doan files' and draft canvas local-doan-files frames settings-modes, settings-changes,
-// settings-disabled, not-set-up.
+// PRODUCT §5 item 0 'Doan files'.
 const radios = () => all(tree).filter(element => element.type === "input" && element.props.name === "project-settings-storage");
 const chosen = () => radios().map(element => element.props.checked);
 const closed = () => radios().map(element => element.props.disabled);
@@ -948,7 +981,7 @@ test("a failed write puts its alert under the options and goes back to the mode 
 });
 
 test("an option that cannot be chosen is disabled, with one reason each", async () => {
-  // Outside Git, Keep out of Git is open now (it asks first; see the tests below).
+  // Outside Git, Keep out of Git is open (it asks first; see the tests below).
   doan.readConfig!.mockImplementation(withStorage({ storage: "unknown", storageReason: "git_unreadable" }));
   await open();
   expect(chosen()).toEqual([false, false]);
@@ -1037,9 +1070,8 @@ test("a listed mode change during a write is read after the write, also when the
   expect(doan.readConfig).toHaveBeenCalledTimes(2);
 });
 
-// Seen in the real app: the group re-read after a mode write reached the open page as a listed change;
-// its config read disabled the options and dropped the focus just returned to the chosen radio. A read for a change
-// made elsewhere refreshes quietly: the controls stay as they are.
+// The group re-read after a mode write reaches the open page as a listed change; a read for a change made elsewhere refreshes
+// quietly, so the controls stay and the focus just returned to the chosen radio is not dropped.
 test("a listed mode change refreshes the settings without disabling the controls", async () => {
   const git = { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] };
   const at = (storage: "repo" | "local"): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, storage });
@@ -1137,8 +1169,8 @@ test("selectable: the untrack command and the copy-failed alert, not the Copy bu
   unmount();
 });
 
-// Draft keep-out-git-init, frame project-settings: outside Git, Keep out of Git creates the repository, so that one
-// press asks first with the Share confirmation's dialog; Create repository writes `--git-init`.
+// Outside Git, Keep out of Git creates the repository, so that one press asks first with the Share confirmation's dialog;
+// Create repository writes `--git-init`.
 const OUTSIDE = { storage: "repo", storageReason: "not_git" };
 const createDialog = () => all(tree).find(element => element.type === SettingsDialog && element.props.verb === "Create repository");
 const answer = (allow: boolean) => (createDialog()!.props.answer as (allow: boolean) => void)(allow);

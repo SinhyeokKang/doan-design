@@ -15,9 +15,8 @@ const entries = [
     "renderer/rightPanelSize": "inspectorBounds, panelWidth, nudgePanel, PANEL_MIN",
     "renderer/treeScrollLeft": "treeScrollLeft",
   }],
-  // The board's Play prototype, play drawer, size bubble and Option measurement, and the player's history, fit, run
-  // script, run reports, view rules and toast: the app's own judgments, so the browser and the app cannot drift. `*`
-  // re-exports a whole module.
+  // The app's own judgments that the exported board and player reuse, so browser and app cannot drift.
+  // `*` re-exports a whole module.
   ["viewerApp.js", "viewerApp", {
     "main/prototype/playability": "PLAY_REASONS, playability, playableFrames",
     "main/prototype/links": "linkGroups",
@@ -67,9 +66,8 @@ async function canvasReaders() {
 for (const [file, name, sources] of entries) {
   let entry = Object.entries(sources).map(([path, names]) => `export ${names === "*" ? "*" : `{ ${names} }`} from ${JSON.stringify(app + "src/" + path + ".ts")};`).join("\n");
   if (name === "inspectCanvas") entry += "\n" + await canvasReaders();
-  // The run report checks share requests.ts with main's other requests, whose imports reach Node and the
-  // conversation modules. No app module the viewer bundles needs its side effects, so unused imports go whole and
-  // the Node built-ins they name are never bundled.
+  // requests.ts imports reach Node and the conversation modules; no bundled app module needs their side effects,
+  // so unused imports are dropped whole and the Node built-ins they name are never bundled.
   const bundle = await rolldown({
     input: "viewer-entry", treeshake: { moduleSideEffects: false }, external: [/^node:/],
     plugins: [{ name: "viewer-entry", resolveId: id => id === "viewer-entry" ? "\0viewer-entry" : null, load: id => id === "\0viewer-entry" ? { code: entry, moduleType: "ts" } : null }],

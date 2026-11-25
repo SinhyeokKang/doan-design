@@ -1,12 +1,12 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
+import type { CanvasRow } from "../main/view";
 import type { ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 
-// A streamed delta must draw only the reply it extends: every other thread item is skipped by its memo comparison.
-// There is no DOM in these tests (no jsdom), so the thread body runs twice with its hooks kept by call order, as React
-// keeps them, and each item element the two runs produced goes through the comparison React would use.
+// A streamed delta must draw only the reply it extends. No DOM here: the thread body runs twice with hooks kept by call
+// order, and each item element goes through the comparison React would use.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -39,13 +39,14 @@ type EntryProps = { entry: ThreadItem };
 type Memo = { compare: (a: EntryProps, b: EntryProps) => boolean };
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
+const NOW = Date.parse("2026-11-01T00:10:00Z");
 const ev = (turnId: string, payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId, at: "2026-11-01T00:00:00Z", ...payload } as ConversationEvent);
 
 // What a host passes on every render: new callbacks and a new canvasListed each time, as App's inline arrows are.
 const props = (items: ThreadItem[], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
   conversationId: "c1", items, provider: "claude", project: "acme", liveAfter: 0, canvasListed: canvas => canvas.path !== ".doan/canvases/gone.html", visibility: { onWindowVisible: () => () => {} },
   onAnswer: () => {}, onStop: () => {}, onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {},
-  onCopy: async () => true, onLocate: async () => "shown", frames: [{ id: "f1", title: "Hero" }], homeDirectory: "/Users/ada", ...patch,
+  onCopy: async () => true, onLocate: async () => "shown", frames: [{ id: "f1", title: "Hero" }], homeDirectory: "/Users/ada", now: NOW, ...patch,
 });
 
 // Runs the thread body once and returns its item elements by key.
@@ -148,6 +149,28 @@ test("handoffs, asks and attachments draw again when what they read from outside
   expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
   expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
   expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: null }) }, "question")).toBe(true);
+});
+
+// A card's meta reads its canvas's row and the time: the host's clock ticks each second, the meta's words once a minute.
+test("canvas and handoff cards draw again when their canvas's row or the minute changes, not with each second", () => {
+  const items = threadItems(asks(), ROOT, true);
+  const key = (kind: ThreadItem["kind"]) => items.find(item => item.kind === kind)!.key;
+  const row: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "", width: 390, mtimeMs: Date.parse("2026-11-01T00:00:00Z"), frames: [{ id: "f" }] };
+  const at = (patch: Partial<ConversationThreadProps> = {}) => props(items, { canvasRows: [row], ...patch });
+  const base = run(at());
+  const changed = (patch: Partial<ConversationThreadProps>, kind: ThreadItem["kind"]) => {
+    const next = run(at(patch));
+    run(at());
+    return !same(base.get(key(kind))!, next.get(key(kind))!);
+  };
+  for (const kind of ["canvasCard", "handoffCard"] as const) {
+    expect(changed({ canvasRows: [{ ...row, mtimeMs: row.mtimeMs! + 1 }] }, kind), kind).toBe(true);
+    expect(changed({ canvasRows: [{ ...row, frames: [] }] }, kind), kind).toBe(true);
+    expect(changed({ now: NOW + 60_000 }, kind), kind).toBe(true);
+    expect(changed({ now: NOW + 1_000 }, kind), kind).toBe(false);
+    // A new row object with the same values, as every list read makes.
+    expect(changed({ canvasRows: [{ ...row }] }, kind), kind).toBe(false);
+  }
 });
 
 // Finds the first element in a drawn item with `prop` and returns its onClick.

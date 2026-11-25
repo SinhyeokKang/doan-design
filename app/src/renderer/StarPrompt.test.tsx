@@ -4,8 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Drawn } from "./drawnTarget.test-support";
 
-// The star card with hooks as plain state (UpdateHeaderButton.interaction.test.tsx style): main's moment, the 1.2 s
-// wait for no input, the put-off checks, the buttons and Esc. The view's markup is rendered on its own below.
+// The star card with hooks as plain state: main's moment, the 1.2 s wait for no input, the put-off checks, the buttons and Esc.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0,

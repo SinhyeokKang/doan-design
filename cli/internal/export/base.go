@@ -4,20 +4,16 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 	"golang.org/x/net/html"
 )
 
-// movedBase stands for the canvas folder in the custom property use record
-// when a <base href> moves the folder: a property the canvas itself uses
-// then resolves against a base export does not follow. No folder path holds
-// a NUL byte.
+// movedBase stands for the canvas folder in the custom property use record when a <base href> moves it: a property
+// the canvas uses then resolves against a base export does not follow. No folder path holds a NUL byte.
 const movedBase = "\x00base"
 
-// templateTag follows <template> nesting the way the HTML parser does and
-// reports whether the tag named name is a template tag. A start tag opens a
-// template at any depth, self-closing included (the parser ignores the flag
-// on <template>), and an end tag closes one only while one is open. Every
-// walk that skips template content uses it, so they agree on what is inert.
+// templateTag follows <template> nesting as the HTML parser does (self-closing ignored, an end tag closes only an
+// open one). Every walk that skips template content uses it, so they agree on what is inert.
 func templateTag(depth *int, tt html.TokenType, name string) bool {
 	if name != "template" {
 		return false
@@ -33,11 +29,8 @@ func templateTag(depth *int, tt html.TokenType, name string) bool {
 	return true
 }
 
-// firstBaseHref returns the href of the first <base> outside <template>
-// that has one, decoded as the parser decodes attribute values. A <base>
-// inside inline <svg> or <math> counts too, though the browser ignores it
-// there: the tokenizer does not track foreign content, and the cost is an
-// unneeded refusal, not a wrong file.
+// firstBaseHref returns the decoded href of the first <base> outside <template>. One inside <svg> or <math> counts too,
+// though the browser ignores it: the tokenizer does not track foreign content, and the cost is an unneeded refusal.
 func firstBaseHref(src []byte) (string, bool) {
 	z := html.NewTokenizer(bytes.NewReader(src))
 	template := 0
@@ -65,15 +58,12 @@ func firstBaseHref(src []byte) (string, bool) {
 	}
 }
 
-// baseMoves reports whether a base href resolves relative references from
-// anywhere but the canvas folder. Only an empty value, "." or "./", or one
-// file name in that folder (after an optional "./") keeps it; everything
-// else moves it, including values that lead back to the same folder, which
-// is simpler to refuse than to prove.
+// baseMoves reports whether a base href resolves relative references from anywhere but the canvas folder. Only "",
+// ".", "./" or one file name there keeps it; values leading back to the same folder are simpler to refuse than prove.
 func baseMoves(href string) bool {
 	// The URL parser drops tab and newline anywhere in the value and reads
 	// %2E as a dot segment.
-	h := trimURL(strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(href))
+	h := canvas.TrimURL(strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(href))
 	h = strings.NewReplacer("%2e", ".", "%2E", ".").Replace(h)
 	if i := strings.IndexAny(h, "?#"); i >= 0 {
 		h = h[:i]
@@ -86,9 +76,8 @@ func baseMoves(href string) bool {
 	return strings.ContainsAny(h, `/\:`) || h == ".."
 }
 
-// dropBaseHref returns a <base> start tag without its href attributes, and
-// false when it has none. Every reference in the result is a data URI, so
-// the base has no use there.
+// dropBaseHref returns a <base> start tag without its href attributes, or false when it has none: every reference
+// in the result is a data URI, so the base has no use there.
 func dropBaseHref(tok html.Token) (html.Token, bool) {
 	kept := tok
 	kept.Attr = nil

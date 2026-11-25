@@ -11,7 +11,7 @@ import { PROVIDERS } from "./types";
 
 const run = (code: number | null, stdout = "", stderr = "") => ({ code, stdout, stderr, profileDir: "/data/profiles/x" });
 
-// Shapes observed from cursor-agent 2026.10.22-27dcf5f "status --format json" (personal values replaced).
+// Shapes of cursor-agent "status --format json" (personal values replaced).
 const cursorSignedIn = { status: "authenticated", isAuthenticated: true, hasAccessToken: true, hasRefreshToken: true,
   userInfo: { email: "ada@example.com", userId: 384452313, firstName: "Ada", lastName: "Lovelace", createdAt: "2026-07-13T14:35:33.123Z" } };
 const cursorSignedOut = { status: "unauthenticated", isAuthenticated: false, hasAccessToken: false, hasRefreshToken: false, message: "Not logged in" };
@@ -46,7 +46,7 @@ describe("provider auth adapters", () => {
     expect(PROVIDER_AUTH.claude.parseStatus(run(null))).toEqual({ status: "failed", code: "check_failed" });
   });
   it("takes only Claude's localhost-callback sign-in link from the browser hook", () => {
-    // claude 2.1.312 `auth login`: $BROWSER gets the localhost redirect; the printed link is the manual-code one.
+    // `auth login`: $BROWSER gets the localhost redirect; the printed link is the manual-code one.
     const query = "code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&scope=user%3Ainference&code_challenge=abc&code_challenge_method=S256&state=st-1";
     const link = (redirect: string, rest = query) => `https://claude.com/cai/oauth/authorize?${rest}&redirect_uri=${encodeURIComponent(redirect)}`;
     const hookLink = PROVIDER_AUTH.claude.hookLink!;
@@ -146,8 +146,8 @@ describe("provider auth adapters", () => {
       Object.entries(PROVIDER_AUTH[provider].settings).filter(([rel]) => rel.endsWith("skills/doan/SKILL.md")).map(([, text]) => text));
     expect(stubs).toEqual([[stub], [stub], [stub], [stub], [stub]]);
   });
-  // GEMINI_HOME is <profile>/.gemini (environment.ts). ACP server 1.3.0 does not read <GEMINI_HOME>/skills: in a live
-  // turn (2026-11-06) it found no doan skill there, and found one once the stub was copied to <GEMINI_HOME>/config/skills.
+  // GEMINI_HOME is <profile>/.gemini (environment.ts). The ACP server reads skills from <GEMINI_HOME>/config/skills, not
+  // <GEMINI_HOME>/skills.
   it("puts the Antigravity stub where its ACP server reads skills", () => {
     expect(Object.keys(PROVIDER_AUTH.antigravity.settings)).toEqual([".gemini/config/skills/doan/SKILL.md"]);
   });

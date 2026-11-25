@@ -119,8 +119,7 @@ beforeAll(async () => {
   server = await startServer();
   // `web`, `.env` and `.git`-holding entries stand for a config that lists them: the server still holds them back.
   key = server.addFolder({ root: repo, scope: [".doan/canvases", "tokens.css", "web", ".env", "web/.git"] });
-  // Worst case on purpose: even if `doan -> .` reached the scope, realpath
-  // must turn `.doan/canvases/.env` back into `.env`.
+  // Even if `doan -> .` reached the scope, realpath must turn `.doan/canvases/.env` back into `.env`.
   dotKey = server.addFolder({ root: dotRepo, scope: [".doan/canvases"] });
   base = `/t/${server.token}/${key}`;
 });

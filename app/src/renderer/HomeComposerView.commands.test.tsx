@@ -8,8 +8,7 @@ import * as Parts from "./ComposerParts";
 import { emptyComposer, HeroComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 
-// Home's composer with provider commands (draft `.doan/canvases/provider-commands.html`). Hooks run as plain state
-// (HomeComposerView.interaction).
+// Home's composer with provider commands; hooks run as plain state.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[], deps: [] as (unknown[] | undefined)[], redraw: () => {} }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -51,11 +50,13 @@ beforeEach(() => {
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
-// The composer's own primitives (ComposerParts) are drawn in place, so their elements and handlers are found as they
-// were before the split; any other component stays an element with its props.
+// The composer's own primitives are drawn in place, so their elements and handlers are found directly; any other component
+// stays an element with its props.
 const PRIMITIVES = new Set<unknown>(Object.values(Parts));
 function expand(type: unknown, props: Record<string, unknown>): ReactNode {
   if (typeof type === "function") return (type as (p: unknown) => ReactNode)(props);
@@ -89,7 +90,7 @@ const COMMANDS = { skills: [{ kind: "skill", name: "deploy", description: "Deplo
 const said = (tree: Record<string, unknown>[]) => String(find(tree, props => props.className === "sr-only" && props.role === "status").children).trim();
 
 test("a command starts the conversation alone: no preset line, and the files stay in the composer", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const file = { key: "k", id: "f", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const, size: 5, path: "/Users/ada/notes.md" };
   const { box, render, start } = setup({ text: "/compact", preset: PRESETS[4]!, attachments: [file] });
@@ -103,7 +104,7 @@ test("a command starts the conversation alone: no preset line, and the files sta
 });
 
 test("a built-in Doan does not run starts nothing: its card shows under the composer, the text stays, and Dismiss closes it", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const { box, render, start, props } = setup({ text: "/model opus" });
   render(); runEffects(); await flush();
@@ -127,7 +128,7 @@ test("a built-in Doan does not run starts nothing: its card shows under the comp
 });
 
 test("while the field starts with a command the preset chip leaves for the notice; the field highlights the command", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const { render } = setup({ text: "/compact ", preset: PRESETS[4]! });
   render(); runEffects(); await flush();
@@ -141,7 +142,7 @@ test("while the field starts with a command the preset chip leaves for the notic
 // Codex's first /review: main has no permission mode the thread was told (no message yet), so it refuses with
 // command_mode_stale. Home says why with the stale-mode card, not a start error with Retry, and keeps the text.
 test("Codex's first /review on Home shows the stale-mode card and keeps the text", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ kind: "command", name: "compact", description: "" }, { kind: "command", name: "review", description: "" }] });
   const { box, render, start } = setup({ text: "/review", provider: "codex", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } });
   start.mockImplementation(async () => ({ error: "command_mode_stale" }) as never);
@@ -158,7 +159,7 @@ test("Codex's first /review on Home shows the stale-mode card and keeps the text
 
 // A command takes no attachments, so a moved or checking file does not hold it on Home either.
 test("a missing attachment does not hold a command on Home; a message keeps the shipped check", async () => {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const missing = { key: "m", id: "fm", name: "notes.md", kind: "file" as const, pasted: false, status: "missing" as const, size: 5, path: "/Users/ada/notes.md" };
   const { render, start } = setup({ text: "/compact", attachments: [missing] });

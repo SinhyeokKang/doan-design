@@ -8,12 +8,8 @@ import (
 
 const hexDigits = "0123456789ABCDEF"
 
-// dataURI writes text as percent-encoded UTF-8 and everything else as base64.
-// The escaped set makes one URI safe in every place export writes it: a
-// srcset candidate (no ASCII whitespace, no trailing comma), CSS url("…")
-// (no quote, backslash or newline), an HTML attribute (no quote or &), and
-// <style> text (no "<", so a nested "</style>" cannot end the element).
-// "#" and "%" are escaped so the payload is neither a fragment nor an escape.
+// dataURI percent-encodes text and base64-encodes the rest. The escaped set keeps one URI safe in a srcset candidate, CSS
+// url("…"), an HTML attribute and <style> text; "#" and "%" are escaped so it is neither a fragment nor an escape.
 func dataURI(mime string, b []byte) string {
 	mime = strings.ReplaceAll(mime, " ", "")
 	if !textual(mime) || !utf8.Valid(b) {

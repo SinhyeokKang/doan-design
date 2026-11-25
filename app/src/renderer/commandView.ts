@@ -6,12 +6,8 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { composeRequest, type PresetRef } from "./homeComposer";
 import { skillWords } from "./skillWords";
 
-// Pure parts of provider built-in commands in the composers and the thread. Copy follows the confirmed draft
-// `.doan/canvases/provider-commands.html`.
-
-// The names a first word is read against. A project skill wins over a command, an alias or a card of its name.
-// aliases: an unlisted name and the listed command it runs as, only while that command is listed. passthrough: the ACP
-// conversation's server-reported commands no live check confirmed (conversation:skills `passthrough`), sent as written.
+// A project skill wins over a command, an alias or a card of its name. passthrough: the ACP conversation's
+// server-reported commands no live check confirmed, sent as written.
 export interface CommandLists { skills: ReadonlySet<string>; commands: ReadonlySet<string>; aliases: ReadonlyMap<string, string>; unsupported: ReadonlySet<string>; passthrough: ReadonlySet<string> }
 export function commandLists(provider: Provider, rows: readonly SkillSummary[], reported: readonly string[] = []): CommandLists {
   const skills = new Set(rows.filter(r => r.kind === "skill").map(r => r.name));
@@ -21,8 +17,8 @@ export function commandLists(provider: Provider, rows: readonly SkillSummary[], 
   return { skills, commands, aliases, unsupported: new Set(UNSUPPORTED_COMMANDS[provider].filter(name => !skills.has(name) && !commands.has(name))), passthrough };
 }
 
-// Only the first word can be a command: a provider runs a command only at the start of the message. It is cut as the
-// skill highlight cuts a word (attached Hangul, trailing punctuation), so the highlight and the send agree.
+// A provider runs a command only at the start of the message. Cut as the skill highlight cuts a word, so the
+// highlight and the send agree.
 export type FirstWord =
   | { kind: "command"; name: string; args: string }
   | { kind: "passthrough"; name: string; args: string }
@@ -41,12 +37,8 @@ export function classifyFirstWord(text: string, lists: CommandLists): FirstWord 
   return { kind: "unsupported", name: run.name };
 }
 
-// A command goes out alone: no preset or skill line, which would put it after the first line where the provider no
-// longer reads it as a command, and none of the composer's attachments, which stay there for the next message (a Codex
-// command request has no place for them). It is sent under its listed name, an alias as the command, and its argument
-// follows after one space, also when the person wrote it attached.
-// unsupported: nothing is sent; the composer shows the card and keeps the text and attachments.
-// passthrough: an unconfirmed ACP command, sent the same way with no running label or boundary.
+// A command goes out alone: a preset or skill line would push it past the first line, where the provider no longer
+// reads it as a command, and a Codex command request has no place for attachments, which stay for the next message.
 export type SendPlan =
   | { kind: "message"; text: string; sendsAttachments: true }
   | { kind: "command" | "passthrough"; name: string; text: string; sendsAttachments: false }
@@ -58,7 +50,7 @@ export function planSend(text: string, preset: PresetRef | null, skills: readonl
   return { kind: "message", text: composeRequest(text, preset, skills, attachments), sendsAttachments: true };
 }
 
-// A running command turn's label; the others keep the shipped turn progress.
+// null: the turn keeps the ordinary progress words.
 export function commandRunningLabel(provider: Provider, name: string): string | null {
   if (name === "compact") return "Compacting…";
   if (provider === "claude" && name === "clear") return "Clearing context…";
@@ -68,8 +60,7 @@ export function commandRunningLabel(provider: Provider, name: string): string | 
 
 export type CommandCardTarget = "modelPicker" | "permissionPicker" | "agentsSettings";
 export interface CommandCard { title: string; body: string; action: { label: string; target: CommandCardTarget } | null }
-// A built-in Doan does not run: where Doan has the same feature, the card points to it; otherwise to the provider's
-// terminal. The name is plain text, not code style.
+// Where Doan has the same feature, the card points to it; otherwise to the provider's terminal.
 export function commandCard(provider: Provider, name: string): CommandCard {
   const title = `/${name} doesn’t run in Doan`;
   if (name === "model") return { title, body: "Choose the model from the model picker.", action: { label: "Open model picker", target: "modelPicker" } };
@@ -82,22 +73,19 @@ export function commandCard(provider: Provider, name: string): CommandCard {
   return { title, body: `Run it in ${PROVIDER_NAMES[provider]} in a terminal.`, action: null };
 }
 
-// Main's refusal of a Codex /review (command_mode_stale): review/start takes no permission mode, so the review would run
-// in the mode the thread was last told on a turn, not the picker's. The text goes back to the composer.
+// review/start takes no permission mode, so the review would run in the mode the thread was last told on a turn, not
+// the picker's.
 export const STALE_MODE_CARD: CommandCard = { title: "/review can’t use the new permission mode yet", body: "Send a message first so Codex picks up the permission mode, then run /review again.", action: null };
 
 export function boundaryLabel(kind: BoundaryKind): string {
   return kind === "compacted" ? "Context compacted — the agent keeps a summary of messages above" : "Context cleared — the agent won’t see messages above";
 }
 
-// The chips row's line while the field starts with a command: the preset chip stays in the draft but leaves the row,
-// and comes back once the command word is gone.
+// The preset chip stays in the draft but leaves the row, and comes back once the command word is gone.
 export const PRESET_NOTICE = "Presets don’t apply to commands";
 
-// The thread's command turns: each command turn's name, from its own first message as main reads a stored turn
-// (providerCommands messageCommand), and the boundaries the read and this run's conversation:boundary signals gave.
-// usageStale: the last boundary is a clear and no later turn reported a context value, so the record's last value is the
-// previous session's; the ring shows none until a turn measures the new session (nothing is made up meanwhile).
+// usageStale: the last boundary is a clear and no later turn reported a context value, so the ring shows none until a
+// turn measures the new session.
 export interface ThreadCommands { turns: ReadonlyMap<string, string>; boundaries: ReadonlyMap<string, BoundaryKind>; usageStale: boolean }
 export function threadCommands(provider: Provider, events: readonly ConversationEvent[], boundaries: ReadonlyMap<string, BoundaryKind>): ThreadCommands {
   const turns = new Map<string, string>(), order: string[] = [], opened = new Set<string>(), measured = new Set<string>();
@@ -115,19 +103,17 @@ export function threadCommands(provider: Provider, events: readonly Conversation
   return { turns, boundaries, usageStale: after !== -1 && !order.slice(after + 1).some(turnId => measured.has(turnId)) };
 }
 
-// A running command turn's indicator label; null keeps the shipped words.
+// null: the turn keeps the ordinary progress words.
 export function commandTurnLabel(provider: Provider, commands: ThreadCommands, turnId: string): string | null {
   const name = commands.turns.get(turnId);
   return name ? commandRunningLabel(provider, name) : null;
 }
 
-// The message a conversation's title falls back to before main's list names it: the first one that is no command (main
-// leaves a conversation started by a command untitled until such a message).
+// main leaves a conversation started by a command untitled until such a message.
 export function firstTitleMessage(provider: Provider, events: readonly ConversationEvent[]): Extract<ConversationEvent, { type: "user.message" }> | undefined {
   return events.find((event): event is Extract<ConversationEvent, { type: "user.message" }> => event.type === "user.message" && messageCommand(provider, event) === null);
 }
 
-// A queued row's text is a command main sends alone: one the provider runs, or an unconfirmed ACP command.
 export function queuedCommand(provider: Provider, text: string, passthrough: readonly string[]): boolean {
   return commandName(provider, text) !== null || passthroughName(text, passthrough) !== null;
 }

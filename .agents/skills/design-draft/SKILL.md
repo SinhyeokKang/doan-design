@@ -74,7 +74,7 @@ then add this repo through the Add Projects page (File > Add Projects…, ⌘O) 
 - Only the canvas, plus any new file under `.doan/assets/` it needs and any token added under 'Tokens first' with its `docs/DESIGN.md` line: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
 - Commit on whichever branch is checked out; do not switch or create a branch for the draft, but never commit on `main` (switch to develop first).
-- On develop, push straight to develop, so chain links and workers that start from `origin/develop` see the draft. On a `<type>/<slug>` branch do not push; the draft reaches develop with that branch (`/ship` or `/orchestrate` pushes it).
+- On develop, push straight to develop, so chain links and workers that start from `origin/develop` see the draft. On a `<type>/<slug>` branch do not push; the draft reaches develop with that branch (`/deliver` or `/orchestrate` pushes it).
 
 ## Report
 

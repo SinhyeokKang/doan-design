@@ -2,8 +2,7 @@ import { expect, test } from "vitest";
 import type { ShellProject } from "../restore/uiState";
 import { afterRemoved, type RemovedState } from "./afterRemoved";
 
-// What the window forgets about roots that left the list, whether its own Remove from Doan took them out or
-// `doan remove` did (folders:removed): one transformation, so both leave the same state.
+// Remove from Doan and `doan remove` (folders:removed) share one transformation, so both leave the same state.
 
 const app: ShellProject = { roots: ["/w/app", "/w/app-fix"], expanded: true, selectedRoot: "/w/app-fix", selectedAt: 5, groups: { ds: false } };
 const other: ShellProject = { roots: ["/w/other"], expanded: false, collapsed: true };
@@ -42,4 +41,9 @@ test("roots the state no longer holds change nothing: every part keeps its ident
 test("an empty history stays empty", () => {
   const empty: RemovedState = { shellProjects: {}, expanded: {}, history: { visits: [], cursor: -1 } };
   expect(afterRemoved(empty, ["/w/app"])).toBe(empty);
+});
+
+test("a project losing some roots keeps the person's hand fold", () => {
+  const folded: RemovedState = { ...state(), shellProjects: { app: { ...app, collapsed: true }, other } };
+  expect(afterRemoved(folded, ["/w/app-fix"]).shellProjects.app).toEqual({ roots: ["/w/app"], expanded: true, collapsed: true, groups: { ds: false } });
 });

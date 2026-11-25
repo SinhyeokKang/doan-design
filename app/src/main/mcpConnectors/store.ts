@@ -3,7 +3,7 @@ import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONNECTOR_NAME } from "./names";
 import {
-  parseConnectorsFile, parsePendingLogouts, patchConnectors, patchPendingLogouts,
+  parseConnectorsFile, parsePendingLogouts, patchConnectors, patchPendingLogouts, validLogout,
   type ConnectorsFile, type ConnectorsPatch, type ConnectorsRead, type PendingLogout,
 } from "./files";
 import type { McpProvider } from "./presets";
@@ -26,13 +26,8 @@ export type StoreWrite = { ok: true; file: ConnectorsFile } | { ok: false; code:
 const key = (provider: McpProvider, name: string) => `${provider}\0${name}`;
 const missing = (error: unknown) => typeof error === "object" && error !== null && (error as { code?: unknown }).code === "ENOENT";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors').
-// Both are read from disk at every use and replaced whole (temporary file, then rename); writes are
-// synchronous, so two patches never interleave. Neither file is ever read as defaults when it cannot be read: the
-// providers keep Doan's registrations and tokens, which an empty file would lose track of. An unreadable connectors
-// file is left in place and refuses writes; an unreadable pending file is moved aside (as preferences.ts does) and its
-// records count as unknown: every doan- server stays blocked for both providers until one logout of it succeeds in
-// this run. A pending file from a newer Doan is unknown too, and is kept.
+// Read from disk at every use and replaced whole, synchronously. Never read as defaults: an unreadable connectors file
+// refuses writes, an unreadable or newer pending file blocks every doan- server (ARCHITECTURE §7 'MCP connectors').
 export class ConnectorStore {
   private readonly fs: StoreFs;
   // Pending logouts that could not be written, or whose removal could not be: they block Connect for this run.
@@ -74,12 +69,14 @@ export class ConnectorStore {
   unknown(): boolean { this.pendingFile(); return this.unknownRecords; }
 
   // false: kept in memory only, so it blocks Connect until the app quits.
-  record(entries: PendingLogout[]): boolean {
+  record(all: PendingLogout[]): boolean {
+    // An invalid entry (a name or URL Doan did not make) blocks nothing, and never costs the valid ones their record.
+    const entries = all.filter(validLogout);
+    if (entries.length < all.length) console.error(`doan: ${all.length - entries.length} pending MCP logout record(s) were not in Doan's form and were dropped`);
+    if (!entries.length) return false;
     const file = this.pendingFile();
     const next = file && patchPendingLogouts(file, { add: entries });
     if (next && this.write("mcp-connectors-pending.json", next)) return true;
-    // An invalid record (a name Doan did not make) blocks nothing.
-    if (!patchPendingLogouts({ v: 1, logouts: [] }, { add: entries })) return false;
     console.error("doan: pending MCP logouts could not be recorded; Connect stays blocked until Doan quits");
     for (const entry of entries) this.memory.set(key(entry.provider, entry.name), { provider: entry.provider, name: entry.name, url: entry.url });
     return false;

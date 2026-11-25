@@ -1,15 +1,13 @@
+import { MAX_SELECTOR } from "../renderer/canvasMessage";
 import type { DocumentBindings, LoadedDocument } from "./document/bindings";
 import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
 import { shownDocument } from "./seenProof";
 import type { DebuggerLike, WindowDebugger } from "./windowDebugger";
 
-// Inspector values come from CDP on the main window's debugger, not from the canvas script: CDP also sees sheets a
-// canvas CSP or a CDN without CORS hides from the page. The document must be the one the window shows (the read-state
-// proof, seenProof.ts), and commands go only to the session that owns its frame now (WindowDebugger.sessionOf).
+// Values come from CDP on the main window's debugger, which also sees sheets a canvas CSP or a CDN without CORS hides.
+// The document must be the one the window shows (seenProof.ts), and commands go only to the session that owns its frame.
 
 const BUDGET_MS = 2000;
-// The cap is the selector cap of the canvas messages (UTF-16 units, as `String.length` counts).
-const SELECTOR_LIMIT = 1000;
 
 export interface InspectRequest {
   selector: string;
@@ -30,7 +28,7 @@ const text = (value: unknown): value is string => typeof value === "string" && v
 export function parseInspectRequest(value: unknown): InspectRequest | null {
   if (!exactKeys(value, ["selector", "canvas", "seq"])) return null;
   const { selector, canvas, seq } = value;
-  if (typeof selector !== "string" || selector.length < 1 || selector.length > SELECTOR_LIMIT) return null;
+  if (typeof selector !== "string" || selector.length < 1 || selector.length > MAX_SELECTOR) return null;
   if (!exactKeys(canvas, ["root", "path"]) || !text(canvas.root) || !text(canvas.path)) return null;
   if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 0) return null;
   return { selector, canvas: { root: canvas.root, path: canvas.path }, seq };
@@ -64,9 +62,8 @@ interface DomNode {
 }
 
 // An ancestor's name as the element menu names nodes (canvasScript.ts `nodeLabel`, canvasTree.ts `frameLabel`), without
-// the menu's quote of a tag's text, so an inherited row says where the value comes from in the person's terms: a frame
-// by its title, else its id; an element by its data-doan-id; anything else by its tag.
-function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
+// the menu's quote of a tag's text. The exported viewer's copy (cssomMatched.ts) must answer the same.
+export function ancestorLabel(node: Pick<DomNode, "localName" | "attributes">): string {
   const attributes = new Map<string, string>();
   const list = node.attributes ?? [];
   for (let i = 0; i + 1 < list.length; i += 2) attributes.set(list[i]!, list[i + 1]!);
@@ -114,9 +111,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
       return doc !== null && (doc.root !== canvas.root || doc.path !== canvas.path);
     });
 
-  // A frame with the requested canvas's URL is committed under the main frame without a proof yet. Right after a switch
-  // the new iframe can commit before the previous canvas's frame detaches, so a proven other canvas alone does not mean
-  // the request lost. A frame whose proof names another canvas at that URL is no such frame: it is the other canvas.
+  // Right after a switch the new iframe can commit before the previous canvas's frame detaches, so a proven other canvas
+  // alone does not mean the request lost. A frame whose proof names another canvas at that URL is that other canvas.
   const requestedPending = (main: string, canvas: InspectRequest["canvas"]): boolean => {
     const url = deps.canvasUrl(canvas);
     return url !== null && deps.documents.frames().some((frame) => frame.parentId === main && frame.url === url && deps.documents.current(frame.id, frame.url) === null);
@@ -137,9 +133,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
     void end.then(() => { spent = true; });
     const main = await deps.window.mainFrame();
     if (main === null) return failed("unavailable");
-    // No proof yet (a load still finishing, or one lost to a debugger detach) is judged again on each bindings change,
-    // as read-state does. Only a confirmed other canvas is not-shown: the renderer asks again when that document's
-    // selection settles, while a missing proof gives it no such moment, so it gets unavailable and its Retry.
+    // No proof yet is judged again on each bindings change. Only a confirmed other canvas is not-shown (the renderer asks
+    // again when its selection settles); a missing proof gives no such moment, so it gets unavailable and its Retry.
     let shown = shownNow(main, canvas);
     while (shown === null) {
       if (otherShown(main, canvas) && !requestedPending(main, canvas)) return failed("not-shown");
@@ -170,10 +165,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
     } catch {
       return failed(still() ? "unavailable" : "not-shown");
     } finally {
-      // Left on, the whole tree known from `getDocument` turns every later DOM mutation of the canvas into an event to
-      // main: about 6,300 a second on a canvas with a 60 fps counter and a rebuilt list. A run that timed out and a
-      // later one has started since leaves them to that run, which needs them on and turns them off when it ends. A run
-      // can start while CSS.disable is in flight, so DOM.disable checks again.
+      // Left on, the DOM agent sends every later mutation of the canvas to main (thousands a second). A timed-out run leaves
+      // them to a run started since; a run can start while CSS.disable is in flight, so DOM.disable checks again.
       if (started === ticket) await command("CSS.disable").catch(() => undefined);
       if (started === ticket) await command("DOM.disable").catch(() => undefined);
     }
@@ -181,9 +174,8 @@ export function createInspector(deps: InspectorDeps): Inspector {
 
   return {
     inspect(request) {
-      // The budget counts from the call, so time spent waiting in the queue counts too. A timeout does not cancel the
-      // CDP commands already sent; their late answers are dropped. A request a newer one overtook while it waited runs
-      // nothing: the renderer drops its answer anyway, and its CDP work would eat into the newer one's budget.
+      // The budget counts queue time too. A timeout does not cancel CDP commands already sent; late answers are dropped. A
+      // request a newer one overtook while it waited runs nothing, so its CDP work does not eat the newer one's budget.
       const ticket = ++latest;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const end = new Promise<void>((resolve) => {

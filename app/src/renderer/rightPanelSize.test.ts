@@ -1,8 +1,7 @@
 import { expect, test } from "vitest";
 import { canvasPanelDefault, canvasPanelsLayout, nudgePanel, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } from "./rightPanelSize";
 
-// The shell column is the window minus the sidebar (220) and the shell's side margins; 960 → 716 is what
-// leaves the max of 356 there. Wider windows are never limited by it.
+// 960 → 716 is where the shell (window minus the 220 sidebar and margins) leaves the 356 max.
 const W960 = { window: 960, shell: 716 };
 const W1238 = { window: 1238, shell: 994 };
 const W1440 = { window: 1440, shell: 1196 };
@@ -122,8 +121,7 @@ test("nudgePanel on an end edge", () => {
   expect(nudgePanel(220, "Enter", side, "end")).toBeNull();
 });
 
-// The canvas page's two right panels. With the sidebar shown the shell column is the window minus 244 (the sidebar's
-// 220 and the shell's margins); with it hidden only the margins (24) go.
+// With the sidebar shown the shell is the window minus 244 (sidebar and margins), hidden minus 24.
 const shown = (window: number) => ({ windowWidth: window, shellWidth: window - 244 });
 const open = { open: true }, closed = { open: false };
 
@@ -171,7 +169,7 @@ test("a folded inspector takes no width and reserves nothing from the conversati
   const layout = canvasPanelsLayout({ ...shown(1280), conversation: open, inspector: closed });
   expect(layout.inspector.width).toBe(0);
   expect(layout.conversation).toEqual({ width: 358, bounds: { min: 280, max: 640 } });
-  // It would fit, so Show inspector is available.
+  // The inspector would fit, so Show inspector is available.
   expect(layout.inspectorFits).toBe(true);
   expect(canvasPanelsLayout({ ...shown(1140), conversation: open, inspector: closed }).inspectorFits).toBe(false);
 });
@@ -194,7 +192,6 @@ test("widths saved in a wide window, then the window narrows: the conversation k
   expect(narrow.inspectorFits).toBe(false);
   expect(narrow.conversation).toEqual({ width: 600, bounds: { min: 280, max: 640 } });
   expect(narrow.inspector).toEqual({ width: 0, bounds: null });
-  // Widening again brings both back from the same saved values.
   expect(canvasPanelsLayout({ ...shown(1512), conversation, inspector })).toEqual(wide);
 });
 

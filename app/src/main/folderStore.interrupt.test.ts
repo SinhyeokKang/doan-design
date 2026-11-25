@@ -1,7 +1,5 @@
-// A hand-added alias and an auto-registered real spelling of one folder
-// (`folders=[alias, real]`, `marks=[real]`) collapse to one hand-added project. Whichever of the startup step's five
-// writes fails, or wherever the app stops, the run that failed and the next launch both keep it hand-added, so a
-// missing folder is never pruned as an auto-registered one.
+// A hand-added alias and an auto-registered real spelling of one folder collapse to one hand-added project, whichever
+// of the startup step's five writes fails or wherever the app stops, so a missing folder is never pruned as auto.
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";

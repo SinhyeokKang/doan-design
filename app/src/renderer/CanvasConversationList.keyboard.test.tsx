@@ -3,8 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 
-// ↑/↓, Home and End from a focused row Delete move between rows only.
-// The list's hooks run as plain state (App.conversationPanel.test.tsx), so its own key handling runs without a DOM.
+// ↑/↓, Home and End from a focused row Delete move between rows only; the list's hooks run as plain state, so its own
+// key handling runs without a DOM.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, layouts: [] as (() => void)[] }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();

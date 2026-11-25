@@ -17,9 +17,8 @@ import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun"
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// The Overview's composer shows the conversation's stored Fast, a new start sends the
-// Fast it shows, an existing conversation's send names Fast only once the person switched it, and only a switch is
-// remembered. The canvas panel's composer follows the same lines (CanvasConversationPanel.tsx).
+// The composer shows the stored Fast, a new start sends the Fast it shows, an existing send names Fast only once switched, and
+// only a switch is remembered. The canvas panel's composer follows the same lines.
 
 const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -136,8 +135,8 @@ test("Fast turned off in a conversation drops the switch its composer still held
   expect(support.picks[KEY]).toEqual({ model: "opus" });
 });
 
-// Claude Code's default row has the id "default", the same word the pre-list Default
-// row used to pass. Picking it must choose that model, not fall back to the conversation's stored one.
+// Claude Code's default row has the id "default"; picking it must choose that model, not fall back to the conversation's
+// stored one.
 test("an existing conversation on another model can pick Claude Code's default row", async () => {
   const paired = (support: DockedSupport) => { support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [{ id: "default", label: "Opus 5.5", default: true, efforts: ["high"] }, SONNET] } }; };
   const { support, composer } = render([summary({ model: "sonnet" })], A, {}, paired);
@@ -213,9 +212,8 @@ test("a send that waits for the usage limit's reset carries no pick, and the nex
 });
 
 
-// The context ring's drawer: until the list holds the shown conversation's summary its owner is unknown, so the usage
-// stays hidden (a legacy conversation's first frame neither shows a Doan connection's row nor reads); a conversation on
-// the person's CLI profile keeps it hidden.
+// Until the list holds the shown conversation's summary its owner is unknown, so the usage stays hidden; a conversation on the
+// person's CLI profile keeps it hidden.
 test("the ring's usage is hidden until the summary arrives and for a legacy external conversation", () => {
   const hidden = (list: ListView) => (render(list, A).composer as unknown as { usage: { hidden: boolean } }).usage.hidden;
   expect(hidden("loading")).toBe(true);

@@ -13,9 +13,8 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// linearMatch is the per-segment rule of the original linear scan: an exact
-// name wins; otherwise every name equal to part under NFC and Go's simple case
-// folding is a candidate for the identity check, in ReadDir order.
+// linearMatch is the per-segment rule as a plain linear scan: an exact name wins; otherwise every name equal to part
+// under NFC and Go's simple case folding is a candidate for the identity check, in ReadDir order.
 func linearMatch(names []string, part string) (bool, []string) {
 	for _, name := range names {
 		if name == part {
@@ -70,9 +69,8 @@ func TestDirIndexMatch(t *testing.T) {
 	}
 }
 
-// Every pair of names from runes with unusual folding orbits (long s, Kelvin
-// sign, final sigma, dotted and dotless i, sharp s), canonical equivalents and
-// invalid UTF-8 must give the linear scan's candidates in the same order.
+// Pairs of names from unusual folding orbits (long s, Kelvin sign, final sigma, dotted and dotless i, sharp s),
+// canonical equivalents and invalid UTF-8 must give the linear scan's candidates in the same order.
 func TestDirIndexMatchesLinearScan(t *testing.T) {
 	alphabet := []string{"a", "A", "s", "S", "ſ", "ß", "ẞ", "k", "K", "K", "i", "I", "İ", "ı", "σ", "Σ", "ς", "가", "가", "é", "é", "\xff", "\xfe"}
 	var all, names []string

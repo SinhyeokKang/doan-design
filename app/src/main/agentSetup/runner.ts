@@ -1,16 +1,15 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { PROVIDERS } from "../agentAuth/types";
 import { readRegularBytesSync, readRegularFileNoFollowSync } from "../regularFile";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Eligibility, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
-// Agent setup's thin I/O shell: reads each target right before deciding, writes only
-// Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
-// provider folder.
+// Reads each target right before deciding, writes only Doan's own links and rule file plus its merged Claude allow
+// rules, and never creates a provider folder.
 
 export type AdminResult = { kind: "ok" } | { kind: "cancelled" } | { kind: "failed"; message: string };
 export interface AgentSetupOptions {
@@ -42,6 +41,15 @@ function decode(bytes: Buffer): string | null { try { return UTF8.decode(bytes);
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
+// The login shell spells PATH from its own $HOME, which can be a link to the canonical HOME (POSTMORTEM 2026-10-21):
+// an absolute entry that resolves to ~/.local/bin's real path, or starts with the HOME spelling, is respelled from home.
+function canonicalPath(loginPath: string | null, home: string, spelled: string): string | null {
+  if (loginPath === null) return null;
+  const localBin = `${home}/.local/bin`, realLocalBin = canonical(localBin);
+  return loginPath.split(":").map(entry => !isAbsolute(entry) ? entry
+    : realLocalBin !== null && canonical(entry) === realLocalBin ? localBin
+    : entry === spelled || entry.startsWith(`${spelled}/`) ? home + entry.slice(spelled.length) : entry).join(":");
+}
 function isDirectory(path: string): boolean { try { return statSync(path).isDirectory(); } catch { return false; } }
 function kindOf(path: string): Observation["kind"] | { error: string } {
   try { const s = lstatSync(path); return s.isSymbolicLink() ? "symlink" : s.isDirectory() ? "directory" : s.isFile() ? "file" : "other"; }
@@ -177,10 +185,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
-// When the dialog is needed, /usr/local/bin is root-owned (or absent under a root-owned /usr/local), so no process
-// running as the person can create an entry there while it is open. `ln` without -f refuses an existing file or link
-// and -h refuses to follow a link; a folder already there was classified foreign and never reaches this command. Only
-// SIP-protected system binaries run, with a cleared environment, so nothing the person can replace runs as root.
+// Runs as root: only SIP-protected binaries, cleared env; the dialog's folder is root-owned, so the person cannot race it.
+// `ln -h` without -f refuses a file or link, not a folder: classifyTarget must keep a folder (foreign) from reaching it.
 export function adminCommand(target: Pick<PlannedTarget, "path" | "want">): string {
   const run = "/usr/bin/env -i PATH=/usr/bin:/bin";
   return `${run} /bin/mkdir -p ${quote(dirname(target.path))} && ${run} /bin/ln -s -h ${quote(target.want)} ${quote(target.path)}`;
@@ -233,7 +239,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
     return { home, items: [{ target: "copy", path: bundle, providers: [...PROVIDERS], reason: "not-eligible", eligibility }], steps: [] };
   }
   const providerDirs = (["claude", "codex", "gemini"] as const satisfies readonly ProviderDir[]).filter(dir => isDirectory(join(home, `.${dir}`)));
-  const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(options.loginPath, home), options.systemBin);
+  const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(canonicalPath(options.loginPath, home, options.home), home), options.systemBin);
   const outcomes = new Map<SetupTarget, Outcome>(), items: SetupItem[] = [], steps: Step[] = [];
   for (const target of targets) {
     const before = observe(target);
@@ -253,7 +259,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
 }
 
 function appleScriptString(value: string): string { return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`; }
-// The macOS administrator dialog, as ego lite does. No timeout: the dialog waits for the person.
+// No timeout: the dialog waits for the person.
 export function osascriptAdmin(command: string): Promise<AdminResult> {
   return new Promise(resolve => {
     execFile("/usr/bin/osascript", ["-e", `do shell script ${appleScriptString(command)} with administrator privileges`], (error, _stdout, stderr) => {

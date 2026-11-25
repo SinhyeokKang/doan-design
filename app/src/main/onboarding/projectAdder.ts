@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { QUIT_WAIT_MS } from "../agentAuth/manager";
 import type {
   OnboardingChange, OnboardingInspection, OnboardingOperation, OnboardingOperationErrorCode, OnboardingProject, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingStorage,
@@ -8,9 +9,8 @@ import { refuse, TERMINAL, type Finished, type Tracked, type WriteRequest } from
 import type { Candidate, CloneTarget, ProjectOutcome } from "./projects";
 import { parseGitHubUrl, type GitHubUrl } from "./repository";
 
-// Adding one project: inspect a folder or GitHub URL, then select or clone.
-// First run's session and the Add Projects page each own one; the page's has no session record, completion,
-// socket or CLI.
+// First run's session and the Add Projects page each own one; the page's has no session record, completion, socket or
+// CLI.
 
 // Folder work (projects.ts and clone.ts), wired by index.ts.
 export interface AdderProjects {
@@ -49,8 +49,6 @@ export interface ProjectSession {
 
 // Folder work that ends this fast answers its final state; anything slower answers running and is read with status.
 const QUICK_REPLY_MS = 1000;
-// Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
-const QUIT_WAIT_MS = 5000;
 // The most a clone can need: whether the repository brings its own setup is known only after the clone. A clone is a
 // new repository, so kept out of Git it always needs the exclude entry.
 const CLONE_CHANGES: Record<OnboardingStorage, OnboardingChange[]> = {
@@ -106,6 +104,7 @@ export class ProjectAdder {
       if (tracked.done) work.push(tracked.done);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
     await Promise.race([Promise.allSettled(work), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
@@ -205,9 +204,8 @@ export class ProjectAdder {
           if (remaining.length > 0) { leftovers.set(parent, remaining); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(remaining) }; }
           leftovers.delete(parent);
         }
-        // 2026-10-29: the rename into the destination publishes the clone. After this commit a cancel returns the
-        // running operation unchanged and registration and setup continue: cancelling would delete a folder already in
-        // its final place.
+        // The rename into the destination publishes the clone. After this commit a cancel returns the running operation
+        // unchanged: cancelling would delete a folder already in its final place.
         const commit = () => { if (abort.signal.aborted) return false; tracked.committed = true; return true; };
         const result = await projects.clone(repo.url, target, abort.signal, commit, storage);
         if ("cancelled" in result) return { state: "cancelled" };

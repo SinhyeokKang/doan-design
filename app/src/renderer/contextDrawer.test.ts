@@ -7,7 +7,6 @@ import {
 } from "./contextDrawer";
 import { contextRing } from "./contextWindow";
 
-// The confirmed draft .doan/canvases/context-ring-drawer.html (frames trigger and drawer).
 const NOW = Date.UTC(2026, 10, 16, 12, 0, 0);
 const MIN = 60_000, HOUR = 60 * MIN;
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };

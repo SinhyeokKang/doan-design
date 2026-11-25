@@ -18,11 +18,8 @@ import type { ConversationEvent, EventPayload } from "./types";
 const TERMINALS = ["turn.done", "turn.failed", "interrupted"];
 const ends = (events: readonly { type: string }[]) => events.filter(e => e.type === "context.usage" || TERMINALS.includes(e.type)).map(e => e.type);
 
-// A Claude CLI in streaming-input mode that exits once its stdin ends. FAKE_CTX: "done" answers with a top-level call
-// whose usage and model the result's modelUsage names, a subagent call, then a prompt suggestion after the terminal
-// (the real CLI sends no assistant frame for the suggestion's call; transport tests cover frames after the terminal).
-// "hold" and "eof" make the call, and on a steered message answer with a success result that leaves it unread, so the
-// transport holds a value with no terminal (the steer wait); then "hold" waits and "eof" exits.
+// A Claude CLI in streaming-input mode that exits once its stdin ends. FAKE_CTX "done" answers with a call, a subagent
+// call and a suggestion after the terminal; "hold" and "eof" leave a steered value unread, then wait or exit.
 function claudeCli(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -85,8 +82,7 @@ describe("Claude", () => {
       await vi.waitFor(() => expect(ends(store.read(id))).toEqual(["context.usage", "turn.done"]));
       const events = store.read(id);
       expect(events.at(-2)).toMatchObject({ type: "context.usage", used: 35771, size: 1_000_000, turnId: events.at(-1)!.turnId });
-      // The value comes from the stream: no get_context_usage, and the CLI's input closes on the terminal as before
-      // (POSTMORTEM 2026-10-28), so the next send waits no longer.
+      // The value comes from the stream: no get_context_usage, and the CLI's input closes on the terminal.
       expect(seenLines(root).filter(r => r.type === "control_request").map(r => r.request.subtype)).toEqual(["initialize"]);
       await vi.waitFor(() => expect(existsSync(join(root, "closed"))).toBe(true));
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
@@ -119,10 +115,8 @@ describe("Claude", () => {
   }, 15000);
 });
 
-// A Codex app-server. On resume it replays the previous turn's thread/tokenUsage/updated before the new turn/start
-// reply (as Codex 0.158.0 did after thread/resume), then sends two notifications for the new turn. FAKE_CTX: "done" completes the turn; "garbage" breaks
-// the protocol after the notifications; "hold" waits and completes as interrupted on turn/interrupt; "twice" completes
-// the first turn like "done" and a second one with no notification.
+// A Codex app-server that replays the previous turn's tokenUsage before the new turn/start reply on resume. FAKE_CTX:
+// "done" completes; "garbage" breaks the protocol; "hold" waits for turn/interrupt; "twice" ends a second turn silently.
 function codexServer(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node
@@ -189,7 +183,7 @@ describe("ACP", () => {
   afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
   const SERVER = join(__dirname, "fixtures", "fake-acp-server.cjs");
   const session = copilot.turn[0]!.params!.sessionId;
-  // The recorded Copilot handshake with the recorded Copilot 1.0.105 tool turn's frames as its turn.
+  // The recorded Copilot handshake with the recorded tool turn's frames as its turn.
   function fixture(frames: unknown[]): string {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-context-acp-"))), path = join(dir, "acp-copilot.json"); dirs.push(dir);
     const turn = JSON.parse(JSON.stringify(frames).replaceAll('"session-1"', JSON.stringify(session)));

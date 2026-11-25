@@ -49,9 +49,8 @@ describe("nextHeight", () => {
   });
 });
 
-// `fonts` counts the document's `loadingdone` events. Each round measures the
-// document at the viewport we set from the previous round (measure → send →
-// resize → measure), as the canvas and renderer do.
+// `fonts` counts the document's `loadingdone` events. Each round measures the document at the viewport set from the
+// previous round (measure → send → resize → measure), as the canvas and renderer do.
 describe("nextHeight after web fonts load", () => {
   type Round = { applied: boolean; fonts: number };
   const run = (inner: number, rounds: Round[], measure: (inner: number, applied: boolean) => number) => {
@@ -66,7 +65,7 @@ describe("nextHeight after web fonts load", () => {
   };
   const rounds = (applyAt: number, eventAt: number, count = 7) =>
     Array.from({ length: count }, (_, n) => ({ applied: n >= applyAt, fonts: n >= eventAt ? 1 : 0 }));
-  // doan-project-settings: 7,832 px in the fallback font, 7,932 px once Geist applies.
+  // 7,832 px in the fallback font, 7,932 px once Geist applies.
   const swap = (_inner: number, applied: boolean) => (applied ? 7932 : 7832);
 
   test("grows from the fallback height to the web font height when the event comes with it", () => {
@@ -117,9 +116,8 @@ describe("nextHeight after web fonts load", () => {
   });
 });
 
-// Measured in Electron 45 (800×150 viewport, 2,000px of content): a plain canvas
-// reports its rect (2016), `html,body{height:100%}` and `html{height:100%}` report
-// a 150 rect with scrollHeight 2000 and 2008.
+// Electron 45, 800×150 viewport, 2,000px of content: a plain canvas reports its rect (2016); `html,body{height:100%}`
+// and `html{height:100%}` report a 150 rect with scrollHeight 2000 and 2008.
 describe("documentHeight", () => {
   test("uses the rect of a canvas that sizes to its content", () => {
     expect(documentHeight(2016, 2016, 150, 0)).toBe(2016);
@@ -254,9 +252,8 @@ describe("frameBottom", () => {
   });
 });
 
-// An element's ancestors, nearest first, up to body: position, overflow on each
-// axis, display and the box that clips on that ancestor's overflow, all in the
-// viewport. The same ancestors clip as for frameBottom, on both axes.
+// An element's ancestors, nearest first, up to body, in the viewport: position, overflow and display on each axis,
+// and the box that clips. The same ancestors clip as for frameBottom.
 describe("visibleRect", () => {
   const box = (x: number, y: number, width: number, height: number) => ({ x, y, width, height });
   const clipper = (clip: ReturnType<typeof box>, overflow = "hidden", position = "static", display = "block") => ({ position, overflowX: overflow, overflowY: overflow, display, box: clip });
@@ -765,8 +762,8 @@ describe("canvasScriptSource", () => {
     expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7832, 7932]);
   });
 
-  // An iframe outside the visible area gets no animation frames, and after a
-  // confirming layout the renderer pulls no more measures (POSTMORTEM 2026-10-26).
+  // An iframe outside the visible area gets no animation frames, and after a confirming layout the renderer pulls no
+  // more measures.
   test("posts the web font height without an animation frame after a confirming layout", () => {
     const canvas = fakeCanvas({ height: 7832 });
     canvas.ready();
@@ -1212,9 +1209,8 @@ describe("canvasScript selection input", () => {
     ]);
   });
 
-  // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats stay in the canvas.
-  // A press inside a nested iframe shows here only as focus moving into it (no pointerdown), and it is still the next
-  // press in the canvas: the text range goes.
+  // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats stay in the canvas. A press inside a
+  // nested iframe shows only as focus moving into it, and it still drops the text range.
   test("focus moving into a nested iframe drops the text range and posts an empty one", () => {
     const t = textCanvas();
     t.canvas.fireWindow("pointerdown", input({ target: t.one, clientX: 60, clientY: 5, screenX: 1060, screenY: 1005, pointerId: 7 }));
@@ -1436,9 +1432,8 @@ describe("canvasScript hover", () => {
     expect(ofType(canvas, "hover")).toHaveLength(1);
   });
 
-  // The app never sees pointer moves inside the canvas frame and hover is sent only when
-  // its rect changes, so trusted moves also post an activity message, at most once a second and without an animation
-  // frame, which an off-screen frame never gets.
+  // The app never sees pointer moves inside the canvas frame and hover is sent only when its rect changes, so trusted
+  // moves also post activity, at most once a second and without an animation frame (an off-screen frame gets none).
   test("trusted moves post activity at most once a second, over the same element too", () => {
     const { canvas, span } = heroCanvas();
     canvas.state.now = 10_000;
@@ -1808,7 +1803,7 @@ describe("chip anchors", () => {
     expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
     canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
     expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 1, answer: "select-anchor" });
-    // The pin command went with the app's comment pins: an anchors node selects nothing.
+    // An anchors node selects nothing.
     const selects = messages().filter(p => p.type === "select").length;
     canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 2, node: reply?.results[3]?.candidates.selector?.[0] });
     expect(messages().filter(p => p.type === "select")).toHaveLength(selects);
@@ -1834,8 +1829,7 @@ test("same-size replacement recovers selected anchor token without another event
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
 });
 
-// The app's comment drafts and their guard are gone: a click, a background click and an
-// ⌥-clicked link act at once, and the guard's messages from the app change nothing.
+// A click, a background click and an ⌥-clicked link act at once; draft-guard messages from the app change nothing.
 describe("selection without a draft guard", () => {
   test("a click selects at once, and draft-guard and transition-answer messages are ignored", () => {
     const { canvas, span, hero } = heroCanvas();
@@ -2015,7 +2009,6 @@ describe("canvasScript picking", () => {
     expect(target).not.toHaveProperty("element");
   });
 
-  // Shift had no meaning in the canvas before (a Shift-click selected like a click, and still does outside picking).
   test("a Shift-click is a point at that spot in document coordinates, whatever element is under it, also with ⌥", () => {
     const { canvas, hero, span } = heroCanvas();
     startPick(canvas, 1);
@@ -2247,7 +2240,7 @@ describe("anchors-query reply", () => {
   });
 });
 
-// The spec's state table, as frames outermost first: [] is no selection or one outside every frame.
+// Frames outermost first: [] is no selection or one outside every frame.
 describe("frameStep", () => {
   const [A, B, C, D] = ["A", "B", "C", "D"];
   test.each<[string, string[], string[], string | null]>([
@@ -2603,7 +2596,7 @@ describe("canvasScript hover across a pick", () => {
   });
 });
 
-// Select's text drag (PRODUCT §5 item 4): a press on text that moves 4 screen px becomes a range the script holds.
+// Select's text drag: a press on text that moves 4 screen px becomes a range the script holds.
 describe("textDragState", () => {
   const start = { x: 100, y: 100 };
   test("stays a press under the threshold and becomes a drag at it, in screen px", () => {
@@ -2766,7 +2759,7 @@ function textCanvas() {
 
 describe("canvasScript text drag", () => {
   type T = ReturnType<typeof textCanvas>;
-  // Screen px are the client px plus 1000, so a drag's 4 px are measured in screen px only.
+  // Screen px are the client px plus 1000, so a drag's 4 px count in screen px only.
   const at = (x: number, y: number, over: Partial<FakeEvent> = {}): Partial<FakeEvent> => ({ clientX: x, clientY: y, screenX: x + 1000, screenY: y + 1000, pointerId: 7, ...over });
   const down = (t: T, target: unknown, x: number, y: number, over: Partial<FakeEvent> = {}) => { const e = input({ target, type: "pointerdown", ...at(x, y, over) }); t.canvas.fireWindow("pointerdown", e); return e; };
   // The primary button is held unless a test says otherwise.
@@ -3115,9 +3108,8 @@ describe("canvasScript text drag", () => {
   });
 });
 
-// Hand's text drag: the app's drag layer takes the press, so the app asks the canvas whether the press is on text and
-// then drives the drag with commands. Points are canvas document coordinates (scrollY is 40); `sx`/`sy` are the app's
-// own px, in which the 4 px are measured.
+// Hand's text drag: the app's drag layer takes the press, asks the canvas whether it is on text, then drives the drag.
+// Points are canvas document coordinates (scrollY is 40); `sx`/`sy` are the app's own px, in which the 4 px count.
 describe("canvasScript Hand text drag", () => {
   type T = ReturnType<typeof textCanvas>;
   const hits = (t: T) => ofType(t.canvas, "text-hit");
@@ -3257,9 +3249,8 @@ const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototyp
 type BoardFrame = { id: string; prototype?: string; cut?: true; parent?: number };
 type BoardLayout = { type: "layout"; frames: BoardFrame[]; gotos: { value: string; frame?: number }[]; truncated: boolean };
 
-// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
-// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
-// before the test limit.
+// One Electron serves every real-DOM block in this file, so these hooks are the file's. Each helper step is bounded
+// at 15 s, so a step that hangs fails by its own name before the 60 s test limit.
 let dom: ElectronDom;
 beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
 afterAll(async () => { await dom?.close(); }, 30_000);

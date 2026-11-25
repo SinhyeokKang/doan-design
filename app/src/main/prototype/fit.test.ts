@@ -99,8 +99,8 @@ describe("fitPrototypeWindow", () => {
   });
 });
 
-// A mark shorter than the window's 360 minimum height (600x10) used to open a window 74 high, holding an open
-// conversation panel to that height.
+// A mark shorter than the window's 360 minimum height (600x10) still opens a window 360 high, so an open conversation
+// panel is not held to the mark's height.
 describe("the minimum height", () => {
   test("a short mark opens a window 360 high, centred in the work area", () => {
     // 10 + 56 + 8 = 74 is under 360; 616 keeps the name on the first row.

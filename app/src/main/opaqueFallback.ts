@@ -1,9 +1,5 @@
-// A vibrancy window has a transparent background, and its translucent fills composite over the native material. If
-// Chromium falls back to software compositing, those fills may lose their alpha (seen once as opaque black fills and
-// fringed sidebar text until restart; not reproduced by killing the GPU process on Apple Silicon). From then on, for
-// the rest of the session, each such window drops the material and shows the styles it already has for macOS "Reduce
-// transparency": emulating that media feature reuses every `prefers-reduced-transparency: reduce` rule, so no colour
-// or rule is duplicated for this case.
+// After a software-compositing fallback a vibrancy window's translucent fills may lose their alpha, so each such window
+// drops the material and emulates "Reduce transparency", reusing every `prefers-reduced-transparency: reduce` rule.
 
 export interface FallbackWindow {
   isDestroyed(): boolean;
@@ -28,10 +24,8 @@ function opaque(window: FallbackWindow): void {
   window.setVibrancy(null);
   const contents = window.webContents;
   const failed = (error: unknown) => console.error("doan: cannot make the window opaque", error);
-  // Attach fails while DevTools holds the page; the window then keeps its own fills over the plain background. The
-  // command goes to the page's own session only: canvases are out-of-process iframes with their own targets, so their
-  // media stays the system's (ARCHITECTURE §1: the app never changes a canvas's styles). Measured in Electron 45 with a
-  // canvas holding a reduced-transparency rule, in the main and prototype windows, opened before and after the fallback.
+  // Attach fails while DevTools holds the page, which then keeps its own fills. Only the page's own session gets the
+  // command, so canvases' media stays the system's (ARCHITECTURE §1: the app never changes a canvas's styles).
   const emulate = () => {
     try {
       if (!contents.debugger.isAttached()) contents.debugger.attach();

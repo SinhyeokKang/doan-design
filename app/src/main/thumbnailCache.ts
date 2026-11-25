@@ -14,9 +14,8 @@ export interface TokenFile {
   size: number;
 }
 
-// Token CSS and other served files restyle every canvas of the folder while
-// the canvas files' own mtime and size stay put, so the thumbnail records what
-// those files looked like. Order-independent; `path` only has to be consistent per folder.
+// Token CSS and other served files restyle every canvas while its own mtime and size stay put, so the thumbnail records
+// what they looked like. Order-independent; `path` only has to be consistent per folder.
 export function tokenSignature(files: readonly TokenFile[]): string {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return createHash("sha256").update(JSON.stringify(sorted.map((file) => [file.path, file.mtimeMs, file.size]))).digest("hex");
@@ -28,9 +27,8 @@ export function thumbnailKey(root: string, path: string): string {
   return createHash("sha256").update(`${root}\n${path}`).digest("hex");
 }
 
-// Any mtime difference counts, not only a newer one: a restored older file is
-// a different canvas. `tokens` is the current `tokenSignature`, so a token edit
-// is caught whether it happened while the app ran or while it was closed.
+// Any mtime difference counts: a restored older file is a different canvas. `tokens` is the current signature, so a
+// token edit is caught whether it happened while the app ran or while it was closed.
 export function thumbnailStale(meta: ThumbnailMeta | null, stat: { mtimeMs: number; size: number }, appVersion: string, tokens: string): boolean {
   if (meta === null) return true;
   return meta.mtimeMs !== stat.mtimeMs || meta.size !== stat.size || meta.appVersion !== appVersion || meta.tokens !== tokens;

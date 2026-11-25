@@ -5,7 +5,7 @@ import { open, realpath } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { signInLink } from "../agentAuth/antigravity";
-import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
+import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpFailureCode, acpPermission, acpPromptDone, acpQuestion, acpPromptFailed, initialAcp, normalizeAcp, type AcpChoice, type AcpTransport } from "./acp";
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { listProcesses, ownProtocolProcess } from "./process";
 import { object } from "./sessions";
@@ -134,10 +134,8 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     // unless the session already runs it: the setter is unverified for Copilot's only model.
     const running = object(current) && object(current.models) ? current.models.currentModelId : undefined;
     if (input.model && input.model !== running) await acp.request("session/set_config_option", { sessionId, configId: "model", value: input.model }, OPEN_TIMEOUT_MS);
-    // A session keeps its last mode (and Copilot its allow_all) across session/load, so the chosen mode is set after
-    // every open, Default included; a value the session already has is not set again. A mode this provider cannot
-    // take sets Default instead, since leaving the session alone could keep a wider mode from an earlier turn.
-    // Nothing when the server listed no mode the mapping table names.
+    // A session keeps its last mode (and Copilot its allow_all) across session/load, so the chosen mode is set after every
+    // open unless the session has it; a mode this provider cannot take sets Default, so no wider earlier mode stays.
     const acpModes = parseAcpModes(current), chosen = acpModeFor(input.runtime, input.permissionMode ?? "default", acpModes);
     for (const setting of chosen.length ? chosen : acpModeFor(input.runtime, "default", acpModes)) {
       if (setting.value !== acpCurrent(current, setting.configId)) await acp.request("session/set_config_option", { sessionId, configId: setting.configId, value: setting.value }, OPEN_TIMEOUT_MS);
@@ -151,7 +149,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     acp.close(); void group?.stop();
     const detail = failure || (error instanceof Error ? error.message : "");
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit and failure callbacks set these while the session opens
-    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : transportCode(detail);
+    const code = (dead || detail === "process_exited") && !failure ? "process_exited" : ["runtime_unsupported", "session_unavailable"].includes(detail) ? detail : acpFailureCode(detail, "open");
     // An exit the server chose (a stop closes the connection first, so dead is not yet set) leaves only process_exited;
     // its stderr names the cause, such as a store the fence keeps closed. dead is set once stderr has drained.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the exit callback sets this while the session opens
@@ -159,10 +157,8 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       const tail = stderrTail(recent.length === RECENT_STDERR ? recent.slice(recent.indexOf("\n") + 1) : recent);
       console.error(`doan: ${input.runtime} ACP server exited before it was ready (exit ${child.exitCode ?? child.signalCode ?? "unknown"})${tail ? `; stderr tail:\n  ${tail.split("\n").join("\n  ")}` : "; no stderr"}`);
     }
-    // Cursor answers a first turn that met the plan limit as a completed reply and saves no session, so the next load
-    // finds none; the protocol marks nothing, and the account's usage tells that apart from a session that is gone.
-    // The run's lease (and its credential copy) is released once the group stopped above is gone, so the read must take
-    // the credential before its first await: readCursorSummary reads the file synchronously when limitReached is called.
+    // Cursor answers a plan-limited first turn as completed and saves no session, so the next load finds none; usage tells
+    // that apart. The lease goes once the group is gone, so the read takes the credential before its first await.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the session/load rejection sets loadRefused while the session opens
     if (code === "session_unavailable" && loadRefused && /not found/i.test(detail) && input.limitReached && await input.limitReached().catch(() => false)) throw new Error("rate_limited");
     throw new Error(code);
@@ -180,7 +176,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     models: async () => ({ models, ...(modes ? { modes } : {}) }),
     async send(prompt, turnId, attachments = []) {
       if (ending() || prompting || finished) throw new Error("process_exited");
-      state = initialAcp(turnId); prompting = true;
+      state = initialAcp(turnId, input.runtime === "copilot"); prompting = true;
       try {
         // Antigravity's view_file refuses paths outside the workspace, so it also gets saved text and images.
         const blocks = input.runtime === "antigravity" && images ? (await Promise.all(attachments.map(imageBlock))).flat() : [];
@@ -218,14 +214,8 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     close: () => stopTurn("appQuit"),
   };
 }
-// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed because it
-// holds the permission allow list a later conversation runs under, so in a fenced run the request fails and the start
-// with it; `acp --model` writes the same file. Its ACP server opens session/new and session/load on acp-config.json's
-// selectedModelVariantId, the file's only member (2026.10.22 and 2026.11.22, probe), so Doan writes the choice there
-// from outside the fence; the server then reports it as current and no model request is sent. Two Cursor starts with
-// different choices at the same moment (a model list read has none) can read each other's: that run's request is sent
-// and refuses the start, as it does when the file cannot be written. Without a choice the file goes, so the account's
-// default model stands rather than an earlier conversation's.
+// Cursor's set_config_option writes cli-config.json, which the fence keeps closed (it holds the permission allow list), so
+// Doan writes acp-config.json's selectedModelVariantId from outside; no choice removes it (ARCHITECTURE §7 'Agent authentication').
 function chooseCursorModel(home: string, model: string | undefined): void {
   const dir = join(home, ".cursor"), file = join(dir, "acp-config.json"), temp = `${file}.${randomUUID()}.tmp`;
   if (!model) { try { rmSync(file, { force: true }); } catch { /* the server then opens on the earlier choice */ } return; }
@@ -285,9 +275,4 @@ function acpCurrent(result: unknown, configId: "mode" | "allow_all"): unknown {
   const listed = acpOption(result, configId)?.currentValue;
   if (listed !== undefined || configId !== "mode") return listed;
   return object(result) && object(result.modes) ? result.modes.currentModeId : undefined;
-}
-function transportCode(detail: string): string {
-  if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";
-  if (/session.*(not found|unavailable|exists)/i.test(detail)) return "session_unavailable";
-  return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
 }

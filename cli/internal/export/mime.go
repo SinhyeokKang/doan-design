@@ -7,11 +7,8 @@ import (
 	"strings"
 )
 
-// mimeTypes must stay equal to TYPES in app/src/main/serve/server.ts, so an
-// exported asset gets the type the app's server would send.
-// app/src/main/exportViewer.test.ts parses this literal as text: keep exactly
-// one `".ext": "mime",` entry per line between the braces (gofmt may pad the
-// space after the colon).
+// mimeTypes must equal TYPES in app/src/main/serve/server.ts. app/src/main/exportViewer.test.ts parses this literal as
+// text: keep one `".ext": "mime",` entry per line between the braces.
 var mimeTypes = map[string]string{
 	".html":  "text/html; charset=utf-8",
 	".css":   "text/css; charset=utf-8",

@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, rekeyReservation, releaseReservation, reserveSession } from "./ownership";
-import { transportError, type ClaudeModeReport } from "./transport";
+import { storableText, transportError, type ClaudeModeReport } from "./transport";
 import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
@@ -30,14 +30,11 @@ import { commandTurns } from "./commandTurns";
 import { acpCommandsAfter, acpReportedNames, type AcpCommandList } from "./skills";
 import { autoSchedule, claudeResetFromDetail, limitResetFromUsage, limitState, sendAt, sendDecision, SEND_DELAY_MS, turnHadActivity, type LimitEntry } from "./usageLimit";
 import type { UsageWindow } from "../agentAuth/usageTypes";
-// External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
-// model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
-// permissionMode: one of the common ids (ipc checks it); Default is never stored.
-// A start a handoff makes, never one ipc makes: the earlier conversation and the handoff text for the prompt (never read
-// for markers). turnId and path: the asking turn and its request, which a cancel meanwhile resolves and a later turn of
-// the same conversation may ask again (checkHandoffSource).
+// A start a handoff makes, never one ipc makes: the earlier conversation and the handoff text (never read for markers).
+// turnId and path: the asking turn and its request, which a later turn of the same conversation may ask again.
 export interface HandoffStart { origin: HandoffOrigin; handoffText: string; turnId: string; path: string }
-// defaultEffort: as SendExtras's, the level the first turn names when its model has no effort; it is never stored.
+// External runs are claude or codex only. model, effort and permissionMode come checked by ipc (Default never stored);
+// attachments were rechecked just now. defaultEffort: the first turn's level when its model has none; never stored.
 export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Prepared {
   runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
@@ -56,10 +53,8 @@ export interface Prepared {
   // The run's own Fast, never the stored choice: set only when the choice is on and this run's list says the turn's
   // model takes Fast now (ipc for a send, QueueOptions.fast otherwise). Claude and Codex runners only read it.
   fast?: true;
-  // The conversation's chosen permission mode for this run, absent for Default. modeReported (Claude only): a mode a
-  // top-level system/init or system/status reported, in Claude's own ids (runners.ts), with, as they were before it, the
-  // mode the turn's first top-level init reported (turnInit) and the mode the process reported last (previous); each
-  // undefined while none came. The service decides what it changes (claudeRunMode.ts).
+  // The chosen permission mode for this run, absent for Default. modeReported (Claude only): a mode init or status reported
+  // in Claude's ids, with turnInit and previous as before it; the service decides what it changes (claudeRunMode.ts).
   permissionMode?: PermissionModeId; modeReported?: (report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined) => void;
   // The agent read a message steer added (its messageId), in line with the run's events (runners.ts SteerHooks).
   steerConsumed?: (messageId: string) => void;
@@ -72,14 +67,11 @@ export interface Prepared {
   sessionChanged?: (sessionId: string) => void;
   // ACP only: each available_commands_update the server pushed for the run's session, whenever it came.
   acpCommands?: (update: unknown) => void;
-  // Doan-account Claude and Codex runs only: called after a turn ends done, or failed on the usage limit (limit), with
-  // a read of the account's usage on this run's own connection (no new process). The hook decides whether to read; a
-  // Claude run keeps its input open until it resolves, since the CLI exits once its input closes
-  // (agentAuth/usageService.ts withTurnUsage). The service reads the reset from it (QueueOptions.limitWindows).
+  // Doan-account Claude and Codex runs only: after a turn ends done, or failed on the usage limit (limit), with a usage
+  // read on this run's connection. A Claude run keeps its input open until it resolves (usageService.ts withTurnUsage).
   usageAtTurnEnd?: (read: () => Promise<unknown>, limit?: true) => Promise<void>;
-  // Doan-account Cursor runs only: reads the account's usage on this run's own connection and answers whether a window
-  // is used up (agentAuth/usageService.ts withTurnUsage). Cursor saves no session for a first turn that met its plan
-  // limit, so the runner asks it when session/load answers "not found" (acpRunner.ts).
+  // Doan-account Cursor runs only: whether a usage window is used up. Cursor saves no session for a plan-limited first
+  // turn, so the runner asks when session/load answers "not found" (acpRunner.ts).
   limitReached?: () => Promise<boolean>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
@@ -90,64 +82,41 @@ export interface Prepared {
   // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
-  // Doan-account conversation runs and Claude list reads only (never another provider's list read or a terminal
-  // session's run): what keeps the run out of the rest of Doan's userData (agentAuth/fence.ts). A fenced Claude run is
-  // always in the outer sandbox-exec with its own sandbox off at the flag tier. denied: the userData entries listed for
-  // Codex's permission profiles (every Codex run). exec: another sandbox-exec, for tests. socket: the app socket's path,
-  // whose directory a Codex profile server allows.
+  // Doan-account conversation runs and list reads (not Codex's): what keeps the run out of the rest of userData
+  // (agentAuth/fence.ts). denied: Codex profile entries. exec: for tests. socket: a Codex profile allows its directory.
   fence?: { paths: FencePaths; denied?: FenceEntry[]; socket?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
 export interface McpRun { generation(): number; labels(): Readonly<Record<string, string>> }
-// attachments: the turn's files, which only Antigravity also receives as image blocks. models: the provider's list for
-// this folder, from a runner opened only to read it.
 // A start's attachments, checked again right before acceptance (recheck throws attachment_missing with the missing
 // ids) and marked sent just before the commit.
 export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void }
-// The model, effort and permission mode of one send. Claude and ACP runs open a process per turn with them already; a
-// reused Codex server needs them on the turn itself. A send names its mode always, Default included, since a Codex
-// override holds for later turns.
-// reloadMcp: a reused Codex server whose provider's connectors changed since it opened reloads its MCP servers first.
-// fast: the turn's own Fast (Prepared.fast); a doan Codex turn states standard speed when it is absent.
+// One send's model, effort and mode: a reused Codex server needs them on the turn, and a send always names its mode (a
+// Codex override holds). reloadMcp: reload changed MCP servers first. fast: absent, a doan Codex turn states standard.
 export interface TurnChoice { model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; reloadMcp?: true }
-// What a send may carry besides its text: a new choice (model given, effort optional), a new permission mode (judged
-// apart from the model, Default included), a new Fast choice (judged apart from the model too) and rechecked attachments.
-// defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
-// fastTurn: the turn runs with Fast (ipc's judgement); it is never stored.
+// What a send may carry besides its text, each judged apart: a choice, a permission mode, Fast, rechecked attachments.
+// defaultEffort (models.ts ModelOption) and fastTurn (ipc's judgement) are never stored.
 export interface SendExtras extends Omit<TurnChoice, "fast"> { fast?: boolean; attachments?: AttachmentRecord[]; defaultEffort?: string; fastTurn?: true }
 function askingKey(event: { type: string; requestId: string }): string { return `${event.type.startsWith("question.") ? "question" : "permission"}:${event.requestId}`; }
-// steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
-// provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
-// endAfterTurn: Claude only; ends a finished turn's process for the conversation's next send (process.ts afterTurnCleanup).
-// mechanism: a fenced Codex server's, which holds only the modes of that mechanism (agentAuth/fence.ts codexRestart).
+// steer (Claude, Codex): resolves once the provider accepted it, before the agent reads it. endAfterTurn (Claude): ends a
+// finished turn's process for the next send. mechanism: a fenced Codex server's (agentAuth/fence.ts codexRestart).
 export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endAfterTurn?(): AfterTurnCleanup }
-// What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
-// (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
-// goes with it) and released once a returned draft no longer holds them (its take had no attachment for them, or its
-// conversation was deleted first).
 // A queued attachment's id with the record it was queued as (item.attachments and ids are in the same order).
 type Held = { id: string; record: AttachmentRecord | undefined };
 export type TakenDraft = ReturnedDraft & { ids?: (string | null)[] };
 // A scheduled conversation's waiting message (conversation `scheduled`), as the renderer shows a queued row. turnId: the
 // failed turn whose own message this is, sent again (the renderer hides that turn's Edit and resend meanwhile).
 export interface ScheduledItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; turnId?: string }
-// reissue: a sent message's files issued again by their recorded paths and held as a queued message's (a turn the usage
-// limit stopped goes out again); null when any of them cannot be.
+// The queue's hold on main's attachment store: reclaim rechecks queued ids, consume after acceptance, discard with a
+// removed message, release once no draft holds them; reissue: a stopped turn's files again by path, or null.
 export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void; reissue?(records: readonly AttachmentRecord[]): string[] | null }
-// drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
-// turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether
-// this run's list says the model (its default row when none) takes Fast now, for the turns ipc does not judge: a start,
-// a handoff's start and a queue flush (models.ts ModelCatalog.fast). Without it no such turn runs with Fast.
 // The Claude session transcript a turn's unreported steers are looked for in (io.ts claudeTranscript).
 export interface TranscriptReader { size(configDir: string, sessionId: string): number; read(configDir: string, sessionId: string, from: number): string | null }
 // The wall clock and the timers a usage-limit schedule runs on; a timer may fire late, never early by design.
 export interface ScheduleClock { now(): number; setTimer(run: () => void, ms: number): unknown; clearTimer(timer: unknown): void }
-// limitWindows: the usage windows of a Doan connection after a turn the usage limit stopped, once the read that turn's
-// end started is over (agentAuth/usageService.ts limitWindows); without it no limit is held and nothing is scheduled.
-// clock: the schedule's clock (tests pass a fake one). resumed: subscribes to the Mac waking from sleep, when timers
-// stopped while the wall clock went on. notice: a turn.failed published with its notice held back (publish's
-// deferNotice), once main knows the turn was not scheduled again.
+// defaultEffort, fast: for the turns ipc does not judge (a start, a handoff's start, a queue flush). limitWindows: usage
+// after a limit-stopped turn; without it nothing is scheduled. resumed: Mac wake. notice: a deferred turn.failed notice.
 export interface QueueOptions { transcripts?: TranscriptReader; drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean;
   limitWindows?: (provider: Provider, connectionId: string) => Promise<readonly UsageWindow[]>; clock?: ScheduleClock; resumed?: (listener: () => void) => void; notice?: (event: ConversationEvent) => void }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
@@ -161,14 +130,16 @@ export type ReadModels = ReadListing<ModelList>;
 // A start's composer: Home's for its root, or a canvas's (by path, which a start pressed during the quit names before
 // any listing resolves its id).
 function startComposer(request: { root: string; canvas?: Canvas }): string { return `start\0${request.root}\0${request.canvas?.path ?? ""}`; }
+// An open that failed before its spawn callback registered a stop (openRunner) left no process whose exit would release
+// the session. One whose spawn failure already reported exited() was released there; a later send may hold it now.
+function unspawned(live: Live): boolean { return !live.runner && !live.cleanup && !live.exited; }
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
-// A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
-// group was gone (packaged app, 2026-10-28). The wait allows twice the slowest observed.
+// ARCHITECTURE §7 'Send after a finished turn'.
 const EXIT_WAIT_MS = 10_000;
 // How long a Claude turn's end waits for its group to go before its unreported steers are looked for in the transcript;
-// past it they go back to the queue without the lookup, as before.
+// past it they go back to the queue without the lookup.
 const HELD_END_MS = 2_000;
 const TRANSCRIPTS: TranscriptReader = { size: transcriptSize, read: readTranscriptFrom };
 // setTimeout fires at once past this delay; a longer schedule is armed again when its timer fires early.
@@ -178,32 +149,11 @@ const CLOCK: ScheduleClock = {
   setTimer: (run, ms) => { const timer = setTimeout(run, Math.min(ms, MAX_TIMER_MS)); timer.unref(); return timer; },
   clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
 };
-// A scheduled conversation's send (usage limit): its queued messages go out together at `at`, after reset (the time the
-// renderer shows: scheduledAt and send's `at`; a same-reset retry keeps it), on the
-// Doan connection it was scheduled for. retried: it waits to go once more for a reset that already stopped it. due: its
-// time came while it could not go (the conversation still working); it goes once the conversation list says something
-// changed.
+// A scheduled send (usage limit): its queued messages go out together at `at`, after the reset, on the connection it was
+// scheduled for. retried: it goes once more for a reset that already stopped it. due: its time came while working.
 interface Schedule { at: number; reset: number; provider: Provider; connectionId: string; retried: boolean; timer?: unknown; due?: true }
-// provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
-// since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
-// endedAt: when the accepted turn's terminal event arrived.
-// closed: its runner is closing (a deletion, or a Codex server that must reopen under another fence); it is never reused.
-// holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
-// never lets go of the hold a later turn set.
-// mcpGeneration: the provider's connector generation the runner's MCP servers were read at (its opening or last reload).
-// asking: the accepted turn's permission requests and questions not answered yet, keyed by kind and id so one kind's
-// resolution never settles the other (restartHolds). A turn's end expires them.
-// done: the turn's terminal event was turn.done.
-// handoffKey: the DOAN_HANDOFF value of the runner it holds now (openRunner).
-// lastSeq: the conversation's last written seq (deliver). stage: the running turn's last stage signal, never stored;
-// stageRev counts this entry's signals, so stages that share a seq keep their order.
-// exitedAt: when its process group was seen gone. cleaned: the next send already asked its runner to end the finished
-// turn's process (endAfterTurn). background: the done turn turnId left background work running (memory only).
-// stopping: the person's Stop of the running turn was taken. quiet: the run's lease stops counting as a running
-// conversation. transcript: a Claude turn's session transcript, and its size at the turn's first Send now (Steer lookup).
-// held: a Claude turn's end kept back until the group is gone, to look for its unreported steers in the transcript.
-// lookup: a quit ended the turn with steers unreported; found ones leave the queue once the group is gone.
-// unheld: the held end is being written, so it is not held again.
+// holding: one object per hold, so a late flush never frees a later turn's. asking: by kind and id, so one kind never
+// settles the other. closed: never reused. held: the end waits for the group; unheld: being written, not held again.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string;
   exitedAt?: number; cleaned?: boolean; background?: { turnId: string; stopping?: true }; stopping?: true; quiet?: (on: boolean) => void;
   transcript?: { configDir: string; sessionId: string; size?: number }; held?: { event: EventPayload; timer: ReturnType<typeof setTimeout> };
@@ -211,9 +161,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
   // queue stays and no send goes first.
   limitLookup?: LimitLookup;
-  // The accepted turn's conversation as liveTurns reports it, kept here so `doan work` replies read no index on main's
-  // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas path
-  // (refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
+  // The accepted turn's conversation for liveTurns, so `doan work` replies read no index inside the CLI's 2 s deadline.
+  // refreshCanvas updates it too, since a running turn keeps this entry across a send refused as busy.
   turnOf?: TurnOf;
   // A start's root and canvas until acceptance, when the conversation joins the index (startingCanvases, pendingRoots).
   starting?: { root: string; canvas?: Canvas };
@@ -233,18 +182,11 @@ interface TurnOf { root: string; provider: Provider; canvas?: Canvas }
 function turnOf(m: ConversationMetadata): TurnOf {
   return { root: m.root, provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) };
 }
-// The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
-// or replacement and a deletion end it (cancelLimit). since: the stops count when it began. told: its deferred failure
-// notice was delivered, which happens once unless the turn's own message goes out again.
+// The usage read after a limit-stopped turn (limitEnded), ended by a Stop, a provider stop, a sign-out or a deletion
+// (cancelLimit). since: the stops count when it began. told: its deferred failure notice was delivered.
 interface LimitLookup { turnId: string; provider: Provider; connectionId: string; since: number; saved: Extract<ConversationEvent, { type: "turn.failed" }>; told: boolean }
-// A Doan-connected conversation's current turn for handoffs, a canvas or a project conversation's, in memory only.
-// snapshot: the root's listed canvases when the turn was accepted. startedBy: a handoff started it, so it cannot hand off.
-// requests: the handoffs it asked for, in request order. state: judging once the turn ended done and a canvas may still
-// be listed (the first folder refresh or the settle deadline); starting while the decided ones start; resolved once
-// every handoff.resolved is written. waiters: sends waiting for that.
-// guided: the turn was sent with the handoff guidance. edits: the paths of its own edit activities, for missed lines.
-// source: the conversation's canvas when its starts began, which the started conversations name as their origin; absent
-// for a project conversation, whose Overview they name instead.
+// A Doan-connected conversation's current turn for handoffs, in memory only. state: judging after a done end until a
+// canvas may be listed, starting while decided ones start, resolved once all are written. source: the origin canvas.
 interface HandoffTurn { root: string; turnId: string; snapshot: Canvas[]; startedBy?: "handoff"; requests: HandoffRequest[]; guided: boolean; edits: Set<string>; source?: Canvas; state?: "judging" | "starting" | "resolved"; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // taken while its turn runs, judging once the turn ended done, starting once every request of the turn is decided,
 // resolved once its handoff.resolved is written (or would be, after a quit). decision: its judgement, other than wait.
@@ -252,17 +194,13 @@ interface HandoffRequest { path: string; text: string; state: "taken" | "judging
 // A guided turn that ended done, waiting for the handoff's deadline to write its missed lines. Kept apart from the
 // HandoffTurn, which the next send replaces: it holds neither the queue nor the working state, and outlives that send.
 interface MissedWait { id: string; root: string; snapshot: Canvas[]; edits: string[]; requested: string[]; endedAt: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout> }
-// Any accepted turn's watch for the new canvases it draws, which get a canvas.drawn each once listed. snapshot: the root's
-// listed canvases when the turn was accepted, never the conversation's canvas metadata, which a refused send may change
-// (POSTMORTEM 2026-11-15). edits: its own edit paths in order. announced: what its canvas.drawn events named. Kept apart
-// from the live entry and the HandoffTurn, which the next send replaces: it holds neither the queue nor the working
-// state, and lasts until the turn's settle deadline.
+// Any accepted turn's watch for the new canvases it draws. snapshot: the listed canvases at acceptance, never the canvas
+// metadata a refused send may change (POSTMORTEM 2026-11-15). Apart from the live entry; lasts to the settle deadline.
 interface DrawWatch { id: string; root: string; snapshot: Canvas[]; edits: string[]; announced: Canvas[]; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout> }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
-// A queued message Send now put into a running turn (live, turnId) that the agent has not read yet. Its item stays in
-// drafts.json marked sending until the request is answered; message: the user.message appended once the agent reads
-// it. answered: the request already has its answer (a refusal), though the provider may still have taken it.
+// A queued message Send now put into a running turn that the agent has not read yet; its item stays marked sending until
+// answered. answered: the request has its answer (a refusal), though the provider may still have taken it.
 interface Steer { id: string; itemId: string; live: Live; turnId: string; message: EventPayload; ids: string[]; attached?: StartAttachments; answered: boolean; resolve(): void; reject(error: Error): void }
 export class ConversationService {
   private listings = new Set<Listing>();
@@ -270,14 +208,11 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
-  // After a quit that aborted, the service stays quitting while the composers stay open, and the busy refusal invites
-  // another press: each composer holds one message, its last, under one key (a start's root and canvas, a send's
-  // conversation), rather than one copy per press for the next launch to return.
+  // After an aborted quit the service stays quitting and the busy refusal invites another press: each composer holds only
+  // its last message under one key, not one copy per press for the next launch to return.
   private quitHolds = new Map<string, string>();
-  // appQuit interruptions a quit still has to write (conversation id → turn id, and whether a quit already failed it):
-  // a failure a retry could fix cancels that quit and is written again by the next, since the conversation already
-  // counts as ended. A refusal no retry fixes, or a second failure, is a known refusal like a failedPersistence
-  // history's: it is not owed again, or every later quit (update install, logout) would be cancelled.
+  // appQuit interruptions a quit still owes: a retryable failure cancels that quit and is retried by the next. A refusal no
+  // retry fixes, or a second failure, is not owed again, or every later quit (update, logout) would be cancelled.
   private owedAppQuit = new Map<string, { turnId: string; failed: boolean }>();
   private stops = 0;
   private lastStop = new Map<Provider, number>();
@@ -295,9 +230,8 @@ export class ConversationService {
   private drafts: DraftStore;
   // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
   private steers = new Map<string, Steer>();
-  // Claude's suggestion for each conversation's next message, in memory only: kept
-  // until the next turn is accepted, the conversation is deleted, or its Claude connection signs out or
-  // changes. connectionId: the doan connection the turn ran on; none for a legacy external run.
+  // Claude's suggestion for each conversation's next message, in memory only, until the next turn is accepted, the
+  // conversation is deleted, or its connection signs out or changes. connectionId: none for a legacy external run.
   private suggestions = new Map<string, { text: string; root: string; provider?: Provider; connectionId?: string }>();
   // Each provider's connection as auth last reported it (connectionChanged; undefined: signed out). A run on another
   // connection may still send its suggestion after the change, and must not bring it back.
@@ -323,23 +257,13 @@ export class ConversationService {
   // Each ACP conversation's last command list, as its connection pushed it (Prepared.acpCommands), with every name the
   // server reported; memory only.
   private acpLists = new Map<string, AcpCommandList & { provider: Provider; reported: string[] }>();
-  // The permission mode each Doan Codex conversation's thread was last told on a turn that ended done in this run. Codex
-  // keeps a turn's mode for later turns and across thread/resume, and review/start states none, so a /review runs in this
-  // mode (checkReview). Memory only: the record does not say which mode a turn stated, so after a restart it is unknown.
+  // The mode each Doan Codex thread was last told on a turn that ended done in this run: Codex keeps it and review/start
+  // states none (checkReview). Memory only, since the record does not say which mode a turn stated.
   private statedModes = new Map<string, PermissionModeId>();
   // A queued message that is a failed turn's own message sent again, by itemId, until it leaves the queue (forget).
   private repeats = new Map<string, { owner: string; turnId: string }>();
-  // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
-  // deleted: a conversation deleted (delete), once its index entry is gone.
-  // workEnded: the conversation's turn can no longer take a `doan work update` (its end, a deletion, a
-  // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
-  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, to the main window and, about the
-  // playing canvas, the prototype window), once all of them were resolved.
-  // staged: a running turn's stage changed (conversation:stage, routed like events); never written to the history.
-  // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
-  // (QueueOptions.notice).
-  // boundaryChanged: a command turn's provider reported its boundary (conversation:boundary, routed like events); never
-  // written to the history.
+  // workEnded: the turn can take no more `doan work update`, so main drops its work. staged, boundaryChanged: routed like
+  // events, never written to the history. publish's deferNotice: held until main knows the turn was not scheduled again.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}, private boundaryChanged: (signal: BoundarySignal) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
     this.clock = queueOptions.clock ?? CLOCK;
@@ -420,9 +344,8 @@ export class ConversationService {
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       // Every turn of a newDesign conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign";
-      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
-      // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
-      // A command names no conversation (it is left out of the title rule): the first message that is not one will.
+      // seenSeq 0: a new conversation's first end shows as unseen. The title leaves out fixed preset and skill lines, and a
+      // command names no conversation: the first message that is not one will.
       const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: command ? "" : messageLine(requestTitleText(request.text), request.anchors),
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), seenSeq: 0 };
       const runtime = input.runtime;
@@ -464,15 +387,13 @@ export class ConversationService {
       if (!this.quitting) this.drafts.release(id);
       else if (!handoff && !this.quitHolds.has(startComposer(request))) this.quitHolds.set(startComposer(request), id);
       this.changed(request.root);
-      if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
+      if (!opening || unspawned(live)) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
       throw error instanceof Error && error.message === "outside_root" ? new Error("session_unavailable") : error;
     }
   }
-  // extras: a model (with its effort, if any) replaces the stored choice from this turn on; attachments were checked by
-  // ipc, and attached rechecks them right before acceptance and marks pasted ones sent.
-  // The canvas's other conversations do not matter: they may run meanwhile, and none of them is touched.
-  // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
+  // extras: a model (with its effort) replaces the stored choice from this turn on; attached rechecks the attachments
+  // before acceptance. Other conversations of the canvas are untouched; a queue about to go out keeps its place.
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
     // Held from here, through the waits before the turn, until accepted or refused, as a start's message is (start).
@@ -485,9 +406,8 @@ export class ConversationService {
     });
   }
   private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments, held?: string): Promise<void> {
-    // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
-    // The finished turn's process is ended first: its suggestion or background work would otherwise hold the group, and
-    // a handoff's judgement with it, up to its bound.
+    // Only a send that waits yields here; any other runs up to its reservation in the caller's tick. The finished turn's
+    // process is ended first, or its suggestion or background work would hold the group and a handoff's judgement.
     this.endAfterTurn(id);
     const judged = this.handoffWait(id); if (judged) await judged;
     this.switchCodexServer(id, extras);
@@ -575,20 +495,20 @@ export class ConversationService {
       if (!live.terminal) this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
-      if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
+      if (reserved && (opening ? unspawned(live) : !live.runner)) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
       // A send the person stopped hands them back as stopped.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the send awaits
       if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
-      if (opening && !this.closeRemovalRunner(live)) void live.runner?.close();
+      // Closed, as switchCodexServer does: the next send waits for its exit instead of reusing it.
+      if (opening && !this.closeRemovalRunner(live)) { live.closed = true; void live.runner?.close(); }
       throw error;
     }
   }
-  // A Codex server's fence holds only the modes of its mechanism: Full access runs inside the outer sandbox-exec, the
-  // other modes on Doan's permission profiles. A send that needs the other one closes the idle server, waits for it
-  // (previousExit) and opens a new one, which resumes the thread.
+  // A Codex server's fence holds only its mechanism's modes (Full access in the outer sandbox-exec, the rest on Doan's
+  // profiles), so a send needing the other closes the idle server, waits for it and opens a new one on the thread.
   private switchCodexServer(id: string, extras: SendExtras): void {
     const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
     if (!live?.runner || live.busy || live.closed || metadata?.session.runtime !== "codex") return;
@@ -606,9 +526,8 @@ export class ConversationService {
     // closing.
     if (metadata.session.runtime === "codex" && live?.runner && !live.closed && !live.failedPersistence) return;
     if (this.waits.has(id)) throw new Error("busy");
-    // A finished Claude turn's process may go on with its suggestion (up to 30 s) or background work after its input
-    // closed, past this wait (EXIT_WAIT_MS): the runner ends it (endAfterTurn), and the reservation is still released only
-    // once the group is gone (POSTMORTEM 2026-10-28).
+    // A finished Claude turn's process may go on past this wait with its suggestion or background work, so the runner ends
+    // it (endAfterTurn); the reservation is still released only once the group is gone (POSTMORTEM 2026-10-28).
     this.endAfterTurn(id);
     return this.exitOf(id, live);
   }
@@ -646,17 +565,12 @@ export class ConversationService {
     const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); }
     const judging = this.judging.get(id); if (judging) { judging.cancelled = true; judging.wake(); }
   }
-  // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
-  // opening failed before anything was spawned.
-  // DOAN_CONVERSATION_ID: the CLI's `work update` names this conversation. Set here,
-  // for both the doan-account and the legacy external path; a reused Codex server keeps it across turns.
-  // DOAN_HANDOFF: a random key per runner of a Doan-connected conversation, a project one included. It only says which
-  // conversation asks: the socket token is the boundary, and the conversation id is readable in index.json. It is
-  // forgotten once the runner's process is gone.
   // A start's Fast for its run (Prepared.fast): chosen, a doan run, and this run's list says the model takes it now.
   private runFast(on: boolean, root: string, input: Prepared, model: string | undefined): { fast?: true } {
     return on && input.owner && this.queueOptions.fast?.(root, input.runtime, model) === true ? { fast: true } : {};
   }
+  // The lease goes when this runner's group is gone, or at once if nothing spawned. DOAN_HANDOFF: a per-runner key that
+  // only says which conversation asks (the socket token is the boundary), forgotten once the runner's process is gone.
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
     let spawned = false;
     // A fenced Claude turn opened only the pasted files it started with (Codex opens the whole store, ACP has no steer).
@@ -672,9 +586,8 @@ export class ConversationService {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn callback sets this while the runner opens
     } catch (error) { if (!spawned) release(); throw error; }
   }
-  // A `doan handoff` request after the socket's own checks: null when it was taken and written
-  // as handoff.requested in the asking turn. The key must be the one of the runner the conversation runs on now: a
-  // previous turn's process that is still exiting asks for no turn.
+  // A `doan handoff` request after the socket's own checks: null when it was taken and written as handoff.requested. The
+  // key must be the current runner's, so a previous turn's still-exiting process asks for no turn.
   requestHandoff(request: { root: string; handoff: string; path: string; text: string }): "not_app_conversation" | HandoffRefusal | null {
     const id = this.handoffKeys.get(request.handoff); if (id === undefined) return "not_app_conversation";
     const m = this.store.list().find(e => e.conversationId === id); if (!m) return "not_app_conversation";
@@ -696,13 +609,12 @@ export class ConversationService {
       // A turned-off Fast is saved before its event: a failed index write then takes this persistence-failure path with
       // no notice saying Fast went off, and a failed append leaves Fast off without one.
       if (event.type === "fast.unused" && event.turnedOff) this.turnFastOff(id);
-      // The agent may have taken a steered message without reporting it (only the uuid echo counts). Its end waits for
-      // the group to go and the transcript to be read, so no read can follow the end (exited).
-      // While an end is held, a later one (a Stop's) adds nothing: the turn is over and the held end is written.
+      // The agent may have taken a steered message without reporting it, so its end waits for the group to go and the
+      // transcript to be read. While an end is held, a later one (a Stop's) adds nothing.
       if (live.held && (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted")) return;
       if (event.type === "turn.done" && live.movedTo) event = this.followSession(id, live, live.movedTo);
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { delete live.movedTo; this.settleMode(id, live, event.type === "turn.done"); }
-      // Copilot's /compact says so only in its answer's text, the one sign over ACP (PoC, 1.0.105).
+      // Copilot's /compact says so only in its answer's text, the one sign over ACP.
       if (event.type === "message.done" && live.command === "compact" && live.turnOf?.provider === "copilot" && copilotCompacted(event.text)) this.boundary(id, "compacted");
       if ((event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") && this.holdsEnd(id, live)) {
         live.held = { event, timer: setTimeout(() => this.writeHeld(id, live, false), HELD_END_MS) }; live.held.timer.unref();
@@ -731,9 +643,8 @@ export class ConversationService {
       this.releaseFailed(id, live);
     }
   }
-  // A turn whose history stopped taking writes can save no terminal event. Once its process is gone it ends as a failed
-  // turn would: the conversation stops working, its queue comes back as a draft and the next send starts a new turn.
-  // Reached from the group's exit callback too, so a hand-back that throws is only logged.
+  // A history that stopped taking writes saves no terminal event; once the process is gone the turn ends as a failed turn
+  // would. Reached from the exit callback too, so a hand-back that throws is only logged.
   private releaseFailed(id: string, live: Live): void {
     if (!live.failedPersistence || !live.exited) return;
     live.busy = false;
@@ -747,9 +658,8 @@ export class ConversationService {
     const { fast: _fast, ...rest } = m;
     this.store.save(entries.map(e => e === m ? rest : e));
   }
-  // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
-  // its terminal event, a history that stopped taking writes, or the quit. A send being prepared is not
-  // running yet, so a previous turn's late update is dropped until the next turn is accepted.
+  // Each conversation's current turn for `doan work update` (conversationWork.ts), from acceptance to its end; a send
+  // being prepared is not running, so a previous turn's late update is dropped.
   liveTurns(): ReadonlyMap<string, LiveTurn> {
     const turns = new Map<string, LiveTurn>();
     for (const [id, live] of this.live) {
@@ -758,9 +668,8 @@ export class ConversationService {
     }
     return turns;
   }
-  // Starts main has not accepted yet on this root's canvases: the index names a conversation only from acceptance, so
-  // Move to Trash's busy check (canvasTrash.ts trashBusy) reads these beside the list. A later send needs none: its
-  // conversation is listed, and working while prepared.
+  // Starts main has not accepted yet on this root's canvases, which Move to Trash's busy check (canvasTrash.ts trashBusy)
+  // reads beside the list, since the index names a conversation only from acceptance.
   startingCanvases(root: string): Canvas[] {
     const canvases: Canvas[] = [];
     for (const live of this.live.values()) if (this.preparing(live) && live.starting?.root === root && live.starting.canvas) canvases.push(live.starting.canvas);
@@ -829,9 +738,8 @@ export class ConversationService {
       await new Promise<void>(resolve => setTimeout(resolve, Math.min(100, left)));
     }
   }
-  // Roots with a start or send main has not accepted yet, or a send waiting for its previous turn's handoffs or process:
-  // running for the person though liveTurns counts only accepted turns, so `doan remove` (cliRemove.ts) refuses for
-  // them as restartHolds holds the restart (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  // Roots with an unaccepted start or send, or a send waiting on its previous turn: running for the person, so `doan
+  // remove` (cliRemove.ts) refuses for them as restartHolds holds the restart (POSTMORTEM 2026-11-17).
   pendingRoots(): ReadonlySet<string> {
     const roots = new Set<string>(), indexed = new Map(this.store.list().map(m => [m.conversationId, m.root]));
     for (const [id, live] of this.live) {
@@ -842,10 +750,8 @@ export class ConversationService {
     return roots;
   }
   private preparing(live: Live): boolean { return live.busy && !live.accepted && !live.terminal && !live.closed && !live.failedPersistence; }
-  // What holds Restart to Update back (update installGate): turns running as liveTurns counts them, and the permission
-  // requests and questions they wait on, of every conversation, several of one canvas included. Memory only, since main
-  // asks on every conversation event. A history that stopped taking writes ends a turn without clearing `asking`, so
-  // only a turn still open counts its requests.
+  // What holds Restart to Update back: running turns as liveTurns counts them and the requests they wait on, from memory
+  // since main asks on every event. Only a turn still open counts its requests (a failed history leaves `asking` set).
   restartHolds(): { liveTurns: number; pendingAnswers: number } {
     let liveTurns = 0, pendingAnswers = 0;
     for (const live of this.live.values()) {
@@ -895,11 +801,10 @@ export class ConversationService {
     this.store.save(this.store.list().map(e => e.conversationId === id ? { ...e, seenSeq: next } : e));
     this.changed(m.root);
   }
-  // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
-  // The picker changed without a send. A running turn keeps the mode it was sent
-  // with; the next send that names none and a queue flushed later use this one. ipc refuses it for a
-  // legacy external conversation.
+  // The picker changed without a send: a running turn keeps its mode; the next send naming none and a later queue flush
+  // use this one. ipc refuses it for a legacy external conversation.
   setPermissionMode(id: string, permissionMode: PermissionModeId): void { this.storeMode(id, permissionMode); }
+  // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
   sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string; fast?: true } {
     const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m), ...fastOf(m) };
   }
@@ -969,9 +874,8 @@ export class ConversationService {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn callback sets this while the runner opens
     } catch (error) { if (!spawned) freeLease(input); throw error; }
   }
-  // A sign-out or account replacement the user chose to stop runs for. The provider's doan-account runs end as a user
-  // interruption; each lease is released once its group is gone (openRunner), which the auth attempt waits for. A run
-  // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
+  // A sign-out or replacement stops the provider's doan-account runs as a user interruption; each lease goes once its group
+  // is gone, which the auth attempt waits for. A run still opening stops once it spawns; external runs hold no lease.
   async stopRuns(provider: Provider): Promise<void> {
     this.stops += 1; this.lastStop.set(provider, this.stops);
     // A scheduled send would go out on the account the person is leaving.
@@ -989,7 +893,7 @@ export class ConversationService {
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
       // A held end is written once the group is gone, after the steers the transcript shows.
       if (live.accepted && !live.held) { live.terminal = true; live.busy = false; delete live.stage; }
-      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+      if (live.runner) { live.closed = true; closing.push(live.runner.close()); } else if (live.cleanup) closing.push(live.cleanup());
     }
     // A handoff waiting for its judgement or its start would start a turn on the provider the person chose to stop
     // (a sign-out cancels it). After the loop above, which handed its queue back.
@@ -1057,9 +961,8 @@ export class ConversationService {
     for (const [id, turn] of [...this.handoffTurns]) if (turn.root === root && turn.state === "judging") this.judgeHandoff(id, true);
     for (const [turnId, watch] of [...this.drawWatches]) if (watch.root === root) this.judgeDrawn(turnId);
   }
-  // A message sent while its conversation works waits in main, in drafts.json, until the turn ends.
-  // ids: the attachment ids main holds for it until it goes out. not_running: nothing is working to queue behind.
-  // The queue goes out in the mode stored when it is flushed (setPermissionMode), not one of its messages'.
+  // A message sent while its conversation works waits in main, in drafts.json, until the turn ends. ids: attachment ids
+  // held until it goes out. The queue goes out in the mode stored when it is flushed, not one of its messages'.
   queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
     const m = this.metadata(id);
     checkCommand(m.session.runtime, item.text, item.anchors, item.attachments?.length ?? 0, this.asIs(id, m.session.runtime, item.text));
@@ -1084,13 +987,8 @@ export class ConversationService {
     if (!this.drafts.queued(id).length) this.disarm(id);
     this.changed(m.root);
   }
-  // Send now: one queued message into the running turn, without stopping it. It resolves once the agent read the
-  // message, which is then in the turn's history and out of the queue; until then the item stays queued, marked sending.
-  // not_running: nothing runs that can take it (also a provider without steer), the provider refused it, or the turn
-  // ended first; the item then waits again where it was and follows the queue's rules. stale: the item is gone or
-  // already on its way out. The checks run again after the provider's answer (POSTMORTEM 2026-10-27). A turn's end is
-  // published before its refusals are answered, so the renderer knows why.
-  // async only so that every refusal is a rejection; everything up to the steer request runs in the caller's tick.
+  // Send now: resolves once the agent read the message; until then it stays queued, marked sending. The checks run again
+  // after the provider's answer (POSTMORTEM 2026-10-27). async only so every refusal is a rejection; the rest is sync.
   async sendNow(id: string, itemId: string): Promise<void> {
     const m = this.metadata(id), live = this.live.get(id);
     // A command goes out alone in its own turn, never into a running one.
@@ -1108,9 +1006,8 @@ export class ConversationService {
     try {
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
-      // The prompt a send of this message would carry, Home's paragraph and guidance included.
-      // A message steered into a handoff's first turn does not lift its limit. A turn that asked already may still hand
-      // off to its other new canvases.
+      // The prompt a send of this message would carry. A message steered into a handoff's first turn does not lift its limit;
+      // a turn that asked already may still hand off to its other new canvases.
       const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
       const handoff = handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
       prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
@@ -1193,9 +1090,8 @@ export class ConversationService {
     const m = this.store.list().find(e => e.conversationId === id);
     return !!m && m.owner.kind === "doan" && (m.owner.provider === "claude" || m.owner.provider === "codex");
   }
-  // Reads the connection's usage after the turn (the runner started that read right after it emitted the end, so this
-  // waits for it), then decides (settleLimit). The checks run again once the read is back (POSTMORTEM 2026-10-27
-  // 'Awaited conversation work outlived its current turn'): a deletion or the quit took the queue already.
+  // Waits for the usage read the runner started at the turn's end, then decides (settleLimit). The checks run again once
+  // it is back (POSTMORTEM 2026-10-27): a deletion or the quit may have taken the queue already.
   private limitEnded(id: string, live: Live, saved: Extract<ConversationEvent, { type: "turn.failed" }>, resent: { reset: number; retried: boolean } | undefined): void {
     const m = this.store.list().find(e => e.conversationId === id); if (m?.owner.kind !== "doan") return;
     const owner = m.owner, read = this.queueOptions.limitWindows!;
@@ -1204,7 +1100,7 @@ export class ConversationService {
     void (async () => {
       await Promise.resolve();
       let windows: readonly UsageWindow[] = [];
-      // A read that failed tells no reset: the turn then fails as before, unless Claude Code's own message names one.
+      // A read that failed tells no reset: the turn then fails as any turn does, unless Claude Code's own message names one.
       try { windows = await read(owner.provider, owner.connectionId); } catch { windows = []; }
       // Whatever ended the lookup meanwhile (cancelLimit, the quit, a later turn) took the queue and the notice.
       if (this.quitting || this.live.get(id) !== live || live.limitLookup !== lookup || live.turnId !== lookup.turnId || this.stopped(lookup)) return;
@@ -1214,7 +1110,7 @@ export class ConversationService {
       catch (error) { console.error("doan: a turn the usage limit stopped could not be scheduled", error); }
       try { if (!settled.armed) this.giveBack(id, this.connectionOf(owner) === owner.connectionId ? "turn_failed" : "interrupted"); }
       catch (error) { console.error("doan: queued messages could not be handed back", error); }
-      // A turn whose own message goes out again did not end for the person; any other failure is told as before.
+      // A turn whose own message goes out again did not end for the person; any other failure is told.
       if (!settled.again) this.tell(lookup);
       this.changedOf(id);
     })();
@@ -1231,9 +1127,8 @@ export class ConversationService {
     lookup.told = true;
     try { this.queueOptions.notice?.(lookup.saved); } catch (error) { console.error("doan: conversation notice failed", error); }
   }
-  // The reset from the usage read, else (Claude Code only) from its own limit message; the connection's limit; then
-  // whether the turn's own message waits for it (autoSchedule) and whether the queue behind it does. armed: something
-  // waits; again: the turn's own message is among it.
+  // The reset from the usage read, else (Claude Code only) its own limit message; then whether the turn's own message and
+  // the queue behind it wait for it. armed: something waits; again: the turn's own message is among it.
   private settleLimit(id: string, owner: Extract<ConversationOwner, { kind: "doan" }>, saved: Extract<ConversationEvent, { type: "turn.failed" }>, windows: readonly UsageWindow[], resent: { reset: number; retried: boolean } | undefined): { armed: boolean; again: boolean } {
     const none = { armed: false, again: false };
     const now = this.clock.now(), previous = resent?.reset;
@@ -1249,7 +1144,7 @@ export class ConversationService {
     if (!this.store.list().some(e => e.conversationId === id)) return none;
     const events = this.store.read(id).filter(e => e.turnId === saved.turnId);
     // A turn that also took a message by Send now holds more than one message of the person's: sending the first again
-    // would drop the other, so it fails as before (the queue behind it still waits).
+    // would drop the other, so it fails as any turn does (the queue behind it still waits).
     const decision = events.filter(e => e.type === "user.message").length > 1 ? "none" : autoSchedule({ code: saved.code, hadActivity: turnHadActivity(events), reset, ...(previous !== undefined ? { previousReset: previous } : {}), retriedSame: resent?.retried ?? false, now });
     const at = decision === "retry" ? now + SEND_DELAY_MS : reset !== null && reset > now ? sendAt(reset) : null;
     if (at === null) return none;
@@ -1259,9 +1154,8 @@ export class ConversationService {
     this.arm(id, { at, reset: reset!, provider: owner.provider, connectionId: owner.connectionId, retried: decision === "retry" });
     return { armed: true, again };
   }
-  // The turn's own message goes back to the front of the queue as the person wrote it: its text and anchors from the
-  // history, its files issued again by path as Edit and resend does. Not a handoff's first message, which the agent
-  // wrote. False when it cannot.
+  // The turn's own message goes back to the front of the queue as the person wrote it, its files issued again by path as
+  // Edit and resend does; never a handoff's first message, which the agent wrote. False when it cannot.
   private requeue(id: string, turnId: string, events: readonly ConversationEvent[]): boolean {
     const message = events.find(e => e.type === "user.message");
     if (message?.type !== "user.message" || message.origin) return false;
@@ -1350,13 +1244,8 @@ export class ConversationService {
       this.armLimitExpiry();
     }, Math.max(0, next - this.clock.now()));
   }
-  // Deleting removes Doan's own record of the conversation on this device: its index entry, history, queue and returned
-  // draft. The agent's session files stay. Refused (busy) while it works or the app quits. The check and the deletion
-  // run in one tick, so no send starts between them; an awaiting send is working, and later calls find no metadata.
-  // The canvas's other conversations go on: only this one's run is closed (closeRun). Its live entry stays, so its
-  // process's exit callback still releases the reservation (POSTMORTEM 2026-10-28), and terminal keeps a late event from
-  // recreating the history (store.append creates the file). The index commit is the result; cleanup after it only logs
-  // a failure.
+  // Removes Doan's own record (index entry, history, queue, draft), in one tick with the busy check. The live entry stays so
+  // the exit callback releases the reservation (POSTMORTEM 2026-10-28) and terminal keeps a late event from recreating it.
   delete(id: string): void {
     if (this.quitting || this.working(id)) throw new Error("busy");
     const m = this.metadata(id);
@@ -1372,18 +1261,15 @@ export class ConversationService {
     try { this.deleted(id); } catch (error) { console.error("doan: deleted conversation cleanup failed", error); }
     this.changed(m.root);
   }
-  // Working (the list's working, which Delete reads too): preparing, running or waiting for an answer, a turn whose
-  // handoffs wait for their judgement or start, a queue about to go out, or a send waiting for the previous process or
-  // for the handoffs.
+  // Working, as the list and Delete read it: preparing, running, waiting for an answer, handoffs waiting, a queue about to
+  // go out, or a send waiting for the previous process or the handoffs.
   private working(id: string): boolean {
     const live = this.live.get(id);
     const turn = this.handoffTurns.get(id);
     return !!live && (live.busy || !!live.holding || !!live.limitLookup) || this.waits.has(id) || this.judging.has(id) || (!!turn && this.handoffPending(turn));
   }
-  // A turn's terminal event: queued messages go out after a done turn and come back as a draft after a failed or stopped
-  // one. A turn that asked for a handoff cancels it unless done; a done one is judged now, or once its canvas may be
-  // listed, and its queue waits for that.
-  // A turn the usage limit stopped keeps its queue until main read when the limit resets (limitEnded).
+  // A turn's end: the queue goes out after done and comes back as a draft otherwise, or waits for a done turn's handoff
+  // judgement; a requested handoff is cancelled unless done. A limit-stopped turn keeps its queue for limitEnded.
   private ended(id: string, live: Live, saved: ConversationEvent): void {
     const type = saved.type as "turn.done" | "turn.failed" | "interrupted";
     const resent = this.resent.get(id); this.resent.delete(id);
@@ -1452,9 +1338,8 @@ export class ConversationService {
       await this.startHandoff(id, turn, request, m, request.decision.canvas);
     }
   }
-  // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now.
-  // It passes every check of a start; Last used is the person's choice and stays as it was.
-  // A project conversation's origin names no canvas: the new conversation came from the root's Overview.
+  // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now, and
+  // passes every check of a start; Last used stays. A project conversation's origin names no canvas.
   private async startHandoff(id: string, turn: HandoffTurn, request: HandoffRequest, m: ConversationMetadata, target: Canvas): Promise<void> {
     const origin: HandoffOrigin = { kind: "handoff", conversationId: id, ...(turn.source ? { canvas: turn.source } : {}) };
     const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
@@ -1495,9 +1380,8 @@ export class ConversationService {
     }
     if (turn.requests.every(r => r.state === "resolved")) this.settleHandoff(id, turn);
   }
-  // Once, after the turn's last resolution. A queue held for the judgement follows a single started handoff to its
-  // conversation, goes to this conversation after refusals or several requests as after any done turn, and comes back
-  // as a draft after a cancel, as a stop hands it back (handoff.ts handoffQueueOutcome). Then one notice for the turn.
+  // Once, after the turn's last resolution: the held queue goes where handoffQueueOutcome says (handoff.ts), then one
+  // notice for the turn.
   private settleHandoff(id: string, turn: HandoffTurn): void {
     clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
     const resolutions = turn.requests.flatMap(r => r.resolution ? [r.resolution] : []);
@@ -1519,10 +1403,8 @@ export class ConversationService {
     try { this.handedOff(notice); }
     catch (error) { console.error("doan: handoff could not be announced", error); }
   }
-  // A queue moved to a conversation whose turn already ended (its first turn's end came before the start was accepted):
-  // handled as that end handles a queue (ended), so nothing is left waiting. A usage-limit read that end started takes
-  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue). A conversation
-  // deleted, closed or whose history stopped taking writes gets it back as a draft.
+  // A queue moved to a conversation whose turn already ended: handled as that end handles a queue (ended), so nothing is
+  // left waiting; a deleted, closed or failed-history conversation gets it back as a draft.
   private queueAfterEnd(id: string): void {
     const live = this.live.get(id);
     if (!live?.terminal || live.busy || live.holding || live.limitLookup || this.schedules.has(id) || !this.drafts.queued(id).length) return;
@@ -1542,11 +1424,16 @@ export class ConversationService {
     clearTimeout(turn.timer); this.handoffTurns.delete(id);
     for (const wake of turn.waiters.splice(0)) wake();
   }
-  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn.
+  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn. What does not
+  // fit there is the source's draft, its attachment ids held for it as giveBack holds them.
   private moveQueue(from: string, to: string): void {
-    const moved = this.drafts.move(from, to);
+    const { moved, returned } = this.drafts.move(from, to);
     for (const item of moved) { const held = this.queuedExtras.get(item.itemId); if (held) held.owner = to; }
-    if (moved.length) this.changedOf(from);
+    if (returned.length) {
+      const held = this.forget(from, returned.map(item => item.itemId));
+      if (held.length) this.returnedHeld.set(from, [...this.returnedHeld.get(from) ?? [], ...held]);
+    }
+    if (moved.length || returned.length) this.changedOf(from);
   }
   // A deleted conversation's run: it is closed, a send waiting for its previous process is refused, and its queue comes
   // back as a draft before the deletion discards it.
@@ -1590,9 +1477,8 @@ export class ConversationService {
     }
     return held;
   }
-  // The queue goes out as one message: combined, its attachments checked again and the send's own checks run. Its
-  // messages stay in drafts.json, marked as on their way out, until the send is accepted. Anything that keeps it from
-  // going out hands the whole queue back as a draft with that reason.
+  // The queue goes out as one message, its attachments and the send's checks run again; its items stay marked sending in
+  // drafts.json until acceptance, and anything that stops it hands the whole queue back as a draft.
   private flush(id: string, live: Live): void {
     // A sign-out of its provider from here on stops it as it stops a run (stopRuns): it comes back as interrupted.
     const hold = live.holding, provider = live.provider, since = this.stops;
@@ -1608,9 +1494,8 @@ export class ConversationService {
     this.changedOf(id);
     // After the terminal event's own handling: the send changes this conversation's live state.
     void Promise.resolve().then(async () => {
-      // Taken back meanwhile: every path that hands the queue back as a draft (a Stop, a stop of its provider, a deletion)
-      // first drops this hold, so the copy captured above is not sent (POSTMORTEM 2026-11-14). A conversation deleted
-      // meanwhile gets its queue back instead.
+      // Every path that hands the queue back first drops this hold, so the copy captured above is not sent
+      // (POSTMORTEM 2026-11-14). A conversation deleted meanwhile gets its queue back instead.
       if (this.live.get(id) !== live || live.holding !== hold) return;
       if (!this.store.list().some(e => e.conversationId === id)) { this.giveBack(id, "interrupted"); this.release(id, live, hold); return; }
       try {
@@ -1646,9 +1531,8 @@ export class ConversationService {
       !live.exited && !this.stopped(live) && !!m && typeof live.runner?.steer === "function" && live.command === undefined;
   }
   private steering(id: string): [string, Steer][] { return [...this.steers].filter(([, steer]) => steer.id === id); }
-  // The agent read a steered message: it joins its turn's history at this point and leaves the queue. The read decides,
-  // also over a refusal already answered (a Codex answer that timed out while the server took it), as long as the turn
-  // it went into still runs and the message is still queued; a turn that ended dropped its steers first (dropSteers).
+  // The agent read a steered message: it joins the turn's history and leaves the queue, even over an answered refusal,
+  // while its turn still runs and it is still queued; a turn that ended dropped its steers first (dropSteers).
   private steerConsumed(id: string, messageId: string): void {
     const steer = this.steers.get(messageId); if (!steer || steer.id !== id) return;
     const live = steer.live;
@@ -1689,15 +1573,11 @@ export class ConversationService {
     this.changed(metadata.root);
     return refreshed;
   }
-  // The one mode Doan follows by itself: after the person approved a plan, the mode Claude reported becomes the
-  // conversation's, so its picker and its next turn show what now runs. Beside it, the mode Claude Code's own settings
-  // run an Ask first turn in is kept for the trigger (claudeRunMode). Only the turn that reported counts, and only while
-  // the conversation keeps the mode it was sent with: a mode the person picked during the turn stays. sent: the mode
-  // the turn was sent with. Both values go in one save, so one change is announced.
+  // After a plan approval the mode Claude reported becomes the conversation's, unless the person picked another during the
+  // turn; the Ask first run mode is kept beside it (claudeRunMode). Both go in one save, so one change is announced.
   private modeReported(id: string, live: Live, turnId: string, sent: PermissionModeId, report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined): void {
-    // Only while the turn runs and no one asked it to end: a Stop ends it at once (stopping), or holds its end while a
-    // steered message waits for its read check (held, not yet terminal), and the CLI still sends frames until its own
-    // result; a stopped turn changes nothing. An approval always comes before the result.
+    // Only while the turn runs and no one asked it to end: the CLI still sends frames after a Stop, which must change
+    // nothing. An approval always comes before the result.
     if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || live.terminal || live.held || live.stopping || live.closed || live.failedPersistence) return;
     const entries = this.store.list(), entry = entries.find(e => e.conversationId === id); if (!entry) return;
     const facts = { entry, sent, current: true, reported: report.mode };
@@ -1709,9 +1589,8 @@ export class ConversationService {
     try { this.store.save(entries.map(e => e === entry ? next : e)); } catch (error) { console.error("doan: the permission mode Claude reported could not be saved", error); return; }
     this.changed(entry.root);
   }
-  // A turn's suggestion counts only while nothing has moved past that turn: the same run and turn, ended done, no
-  // later send started or waiting (a queue about to go out included), not deleted or quitting
-  // (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
+  // A turn's suggestion counts only while nothing moved past that turn: the same run and turn, ended done, no later send
+  // started or waiting, not deleted or quitting (POSTMORTEM 2026-10-27).
   private suggested(id: string, live: Live, turnId: string, text: string): void {
     if (this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || !live.terminal || !live.done || live.busy ||
         live.closed || live.failedPersistence || live.holding || this.waits.has(id) || this.judging.has(id)) return;
@@ -1722,10 +1601,8 @@ export class ConversationService {
     this.suggestions.set(id, { text, root: m.root, ...(m.owner.kind === "doan" ? { provider: m.owner.provider, connectionId: m.owner.connectionId } : {}) });
     this.changed(m.root);
   }
-  // A provider's connection now (undefined: signed out). A suggestion made on another connection of it no longer
-  // belongs to what the person is signed into.
-  // The same holds for a usage limit and the messages scheduled on it: a sign-out or replacement hands them back as a
-  // draft at once.
+  // A provider's connection now (undefined: signed out). A suggestion, usage limit or scheduled message from another
+  // connection no longer belongs to the person's sign-in: scheduled messages come back as a draft at once.
   connectionChanged(provider: Provider, connectionId: string | undefined): void {
     this.connections.set(provider, connectionId);
     for (const [id, list] of [...this.acpLists]) if (list.provider === provider && list.connectionId !== connectionId) this.acpLists.delete(id);
@@ -1768,14 +1645,12 @@ export class ConversationService {
     try { this.staged(signal); } catch (error) { console.error("doan: conversation stage could not be delivered", error); }
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
-  // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an
-  // earlier run left unfinished folds as crashed. Nor is a turn whose history stopped taking writes once its process is
-  // gone: no terminal event can be saved for it, so it folds as ended with its pending requests expired.
+  // Only a turn accepted in this run can still be running; an earlier run's unfinished turn folds as crashed, and one whose
+  // history stopped taking writes folds as ended once its process is gone.
   private ran(id: string): boolean { const live = this.live.get(id); return !!live?.accepted && !(live.failedPersistence && live.exited); }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
-  // One session is one conversation: a terminal session resume is refused while a conversation in the index holds it,
-  // whether or not its process still runs (two conversations sending to one agent session would mix their histories).
-  // A deleted conversation no longer holds it.
+  // One session is one conversation: a terminal session resume is refused while an indexed conversation holds it, running
+  // or not, since two conversations sending to one agent session would mix their histories.
   private checkSessionFree(runtime: Provider, configDir: string, sessionId: string | undefined): void {
     if (sessionId !== undefined && this.sessionHeld(runtime, configDir, sessionId)) throw new Error("session_in_use");
   }
@@ -1860,9 +1735,8 @@ export class ConversationService {
     wait.timer = setTimeout(() => this.writeMissed(turnId), Math.max(0, this.deadline(wait.endedAt, wait.exitedAt) - Date.now()));
     wait.timer.unref();
   }
-  // Checked again right before the write: a deletion meanwhile drops the wait, and store.append would recreate a deleted
-  // history. A history that stopped taking writes takes none. A new canvas that has conversations of its own still
-  // counts: the turn could have handed off to it.
+  // Checked again right before the write: store.append would recreate a deleted history, and a failed history takes none.
+  // A new canvas with conversations of its own still counts: the turn could have handed off to it.
   private writeMissed(turnId: string): void {
     const wait = this.missedWaits.get(turnId); if (!wait) return;
     this.missedWaits.delete(turnId);
@@ -1892,9 +1766,8 @@ export class ConversationService {
     watch.timer = setTimeout(() => { this.judgeDrawn(turnId); this.dropDrawnTurn(turnId); }, Math.max(0, this.deadline(watch.endedAt!, watch.exitedAt) - Date.now()));
     watch.timer.unref();
   }
-  // Reached from receive, outside its persistence handling: a failed write here drops only this watch and is logged; the
-  // turn and its runner go on. Each write is checked again right before it, after the listing was read (POSTMORTEM
-  // 2026-10-27 'Awaited conversation work outlived its current turn'): store.append would recreate a deleted history.
+  // Reached from receive, outside its persistence handling: a failed write drops only this watch. Each write is checked
+  // again after the listing was read (POSTMORTEM 2026-10-27): store.append would recreate a deleted history.
   private judgeDrawn(turnId: string): void {
     const watch = this.drawWatches.get(turnId); if (!watch?.edits.length) return;
     try {
@@ -1993,9 +1866,8 @@ export class ConversationService {
     if (!command) return;
     const runs = this.commandRuns.get(id) ?? new Map<string, BoundaryKind | null>(); runs.set(live.turnId, null); this.commandRuns.set(id, runs);
   }
-  // A boundary the provider reported for the running command turn; one in any other turn (an automatic compaction) is
-  // not drawn, so this run shows what a restart rebuilds from the record. A clear is drawn only once the conversation
-  // followed its session (followSession): a clear Doan could not follow leaves the agent where it was.
+  // Only the running command turn's boundary is drawn (not an automatic compaction), matching what a restart rebuilds. A
+  // clear is drawn only once the conversation followed its session (followSession).
   private boundary(id: string, kind: BoundaryKind, followed = false): void {
     const live = this.live.get(id), runs = this.commandRuns.get(id);
     if (!live?.accepted || live.terminal || !live.command || !live.turnOf || !runs?.has(live.turnId) || (kind === "cleared" && !followed)) return;
@@ -2003,11 +1875,8 @@ export class ConversationService {
     runs.set(live.turnId, kind);
     this.boundaryChanged({ conversationId: id, turnId: live.turnId, kind });
   }
-  // A done turn that moved its Claude run to another session: only the person's /clear follows it, and only to a session
-  // its own transcript proves is the conversation's (its project folder, its cwd; PRODUCT 'Session identity') and no other
-  // conversation holds, running or not (one session is one conversation). Anything else fails the turn and keeps the
-  // binding and the reservation. The reservation moves with it, so the session the conversation left is free and the new
-  // one is held.
+  // Only the person's /clear is followed, to a session its transcript proves is this conversation's (PRODUCT 'Session
+  // identity and paths') and no other conversation holds; the reservation moves with it. Anything else fails the turn.
   private followSession(id: string, live: Live, moved: NonNullable<Live["movedTo"]>): EventPayload {
     const lost: EventPayload = { type: "turn.failed", code: "session_unavailable" };
     const entries = this.store.list(), m = entries.find(e => e.conversationId === id);
@@ -2067,7 +1936,7 @@ export class ConversationService {
       if (this.live.get(id) === live && live.turnId === turn) this.transportFailed(id, error);
     });
   }
-  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
+  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? storableText(error.message).slice(0, 4096) : "Transport failed" }); }
 }
 
 // A command message carries nothing but its text (its argument included): no anchors, and no attachments, which stay in
@@ -2075,10 +1944,8 @@ export class ConversationService {
 function checkCommand(provider: Provider, text: string, anchors: readonly Anchor[], attachments: number, asIs: boolean): void {
   if (unsupportedCommand(provider, text) || (asIs && (anchors.length || attachments))) throw new Error("bad_request");
 }
-// Codex's review/start takes no permission mode, so the review runs in the mode the thread was last told. A Doan
-// conversation's /review goes out only while that is the picker's mode now and known (statedModes); otherwise it is
-// refused with command_mode_stale and the composer keeps the text. A terminal session's thread runs on the person's own
-// settings, which Doan states nothing about. /compact runs no tools and goes out whatever the mode.
+// Codex's review/start runs in the mode the thread was last told, so a Doan /review goes out only while that is the known
+// picker mode (statedModes), else command_mode_stale. A terminal session's thread is the person's; /compact always goes.
 function checkReview(provider: Provider, text: string, doan: boolean, stated: PermissionModeId | undefined, picked: PermissionModeId | undefined): void {
   if (provider === "codex" && doan && commandName(provider, text) === "review" && (stated === undefined || stated !== picked)) throw new Error("command_mode_stale");
 }

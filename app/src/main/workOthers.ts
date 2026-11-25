@@ -13,9 +13,8 @@ export interface OthersInput {
   liveTurns: ReadonlyMap<string, LiveTurn>;
 }
 
-// Other sessions working on the request's canvas file, for the agent to ask before its first edit. The same file is the
-// same root and path as the CLI sent them: two worktrees share canvas paths, and roots are never recomputed here.
-// Elements describe a session only (kind, provider, frame, note), never an id that would let one agent track another.
+// Same file means the same root and path as the CLI sent: worktrees share canvas paths, and roots are never recomputed.
+// Elements describe a session only, never an id that would let one agent track another.
 export function othersOnCanvas({ request, now, work, conversationWork, liveTurns }: OthersInput): WorkOther[] {
   const here = (root: string, path: string) => root === request.root && path === request.path;
   const found: { other: WorkOther; touched: number }[] = [];

@@ -7,8 +7,7 @@ import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
 import { ProjectFields, ProjectSetupDialog, setupRequest, type StorageInput } from "./ProjectSetupDialog";
 
-// Draft canvas local-doan-files frame setup-dialog: a "Doan files" field between Token CSS and Will add; the list
-// follows it.
+// A "Doan files" field between Token CSS and Will add; the list follows it.
 const form: ProjectForm = { running: false, token: null, error: null, rerooted: null };
 const fields = (storage: Partial<StorageInput>, over: Partial<typeof form> = {}, root = "/Users/ada/code/plain") =>
   renderToStaticMarkup(<ProjectFields root={root} form={{ ...form, ...over }} choose={() => {}} storage={{ value: "repo", kept: false, notGit: false, change: () => {}, ...storage }} />);
@@ -44,13 +43,13 @@ test("a refused local setup keeps Keep out of Git chosen and shows why", () => {
   expect(fields({}, { running: true })).toContain('<input type="radio" aria-disabled="true" name="setup-storage" checked=""/>');
 });
 
-// design-sync (draft frame setup-dialog, 'Not a Git repository'): the command in the refusal is a code chip.
+// The command in the refusal is a code chip.
 test("the refusal's git init is a code chip", () => {
   const html = fields({ value: "local" }, { error: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first." });
   expect(html).toContain("<span>This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run <code>git init</code> here first.</span>");
 });
 
-// Draft frame setup-dialog, '.git/info/exclude couldn’t be written': the fixed path is a code chip.
+// The fixed path is a code chip.
 test("the exclude failure's path is a code chip", () => {
   const html = fields({ value: "local" }, { error: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
   expect(html).toContain("<span>Couldn’t add Doan’s lines to <code>.git/info/exclude</code>, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then try again.</span>");
@@ -72,8 +71,8 @@ test("selectable: the dialog's project path, but not its title or buttons", () =
   expect(html).not.toMatch(/<button[^>]*selectable/);
 });
 
-// Draft keep-out-git-init, frame setup-form: outside Git, Keep out of Git also creates the repository, so Will add says
-// so first, and Set Up names the list for a screen reader.
+// Outside Git, Keep out of Git also creates the repository, so Will add says so first, and Set Up names the list for a screen
+// reader.
 test("outside Git, Keep out of Git adds the new repository at the top of Will add", () => {
   const html = fields({ value: "local", notGit: true });
   expect(html).toContain('<span class="ob-changes" id="setup-changes"><span><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span>');
@@ -105,8 +104,8 @@ test("a failed creation shows its command and the .git it left as code chips", (
   expect(left).toContain("it created at <code>/Users/ada/a b/new/.git</code>. Remove it or keep it, then try again.");
 });
 
-// While Set Up writes, the Doan files options (aria-disabled, so a focused one keeps focus) take the disabled roles, as the setup panel's .storage-row does
-// (DESIGN 'States': disabled is a role, never opacity); a code chip in the description keeps its own ink.
+// While Set Up writes, the aria-disabled options take the disabled roles (DESIGN 'States': disabled is a role, never opacity);
+// a code chip in the description keeps its own ink.
 test("a disabled Doan files option reads disabled: label, description and radio", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

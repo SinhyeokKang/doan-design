@@ -39,15 +39,15 @@ import { runModeAnnouncement, type PermissionPickerView } from "./permissionPick
 import type { SettingsTarget } from "./settingsSections";
 import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
 import { useActivationFocus } from "./activationFocus";
+import { CAPTURE_TERMINAL } from "./canvasCapture";
 
-// The composer under a conversation (draft frame `docked-composer`). It has no screen
-// in this feature: its host (Overview, later the canvas panel) owns the conversation, the drafts map,
-// the model and preset lists and every call to main, and passes them in. This component decides shape, the Send slot,
-// the reason line and focus.
+// The docked composer's host (Overview, canvas panel) owns the conversation, the drafts map, the lists and every call to main; this component
+// decides shape, the Send slot, the reason line and focus.
 
 // files: the attachments' names, sizes and kinds, for the thread to draw a queued message Send now moves there; main
 // takes only the ids.
-export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
+// command: the request is a provider command, which goes out alone.
+export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[]; command?: true }
 
 // The canvas page's way into the shown composer's field. `insert` puts a chip at the field's
 // caret and shows the 32-place line itself when the chip would pass the limit.
@@ -59,8 +59,8 @@ export interface DockedFieldLink {
 }
 // The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
 export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
-// resetsAt: a usage-limit refusal's reset time (ISO), when main knew it.
-// conversationId: the conversation a start began, which the composer now shows (the host's run moved to it).
+// resetsAt: a usage-limit refusal's reset time (ISO), when main knew it. conversationId: the conversation a start began,
+// which the composer now shows.
 export type DockedOutcome = { ok: true; itemId?: string; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
 
 export interface DockedComposerProps {
@@ -69,9 +69,8 @@ export interface DockedComposerProps {
   // The host's placeholder: a reply or a new conversation in the project. A
   // preset's line and the suggestion stand in for it by composerPlaceholder.
   placeholder: string;
-  // The conversation's next-input suggestion from the host's latest list read;
-  // null: the list has none; undefined: the host has not read the list yet, so a suggestion that then appears is not
-  // announced as new.
+  // null: the list has none; undefined: the host has not read the list yet, so a suggestion that then appears is not announced
+  // as new.
   suggestion?: string | null | undefined;
   // The canvas whose chips the field takes (the canvas panel's); none in Overview, where a pasted chip reads as text.
   chipScope?: string | null;
@@ -93,17 +92,15 @@ export interface DockedComposerProps {
   skills: readonly SkillSummary[]; onSkillsWanted(): void;
   // The ACP conversation's commands sent as written but listed nowhere (useProjectSkills passthrough).
   passthrough?: readonly string[];
-  // A built-in Doan does not run, or main's refusal of a Codex /review: the card the host shows for this draft key, and
-  // null once a send went out. `card`: the one the host shows for this draft key, from here or a queue main returned; the
+  // `card`: the one the host shows for this draft key, from here or a queue main returned; null once a send went out. The
   // composer says each card once through its status region (the card is no live region of its own).
   onCard?(card: CommandCard | null): void;
   card?: CommandCard | null;
   presets: PresetListReply | undefined; suggested: readonly PresetSummary[];
   onPresetsOpen(): void; onPresetsRetry(): Promise<boolean>;
   thumbnails: Readonly<Record<string, string>>;
-  // Attachments are main's: the host chooses or adds them and writes the chips into the draft; a removed chip's id is
-  // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
-  // notice on the draft the files were added to, which may no longer be the one shown when an answer lands.
+  // A removed chip's id is handed back so the host can tell main. `report` shows a refusal as this composer's notice on the
+  // draft the files were added to, which may no longer be the one shown when an answer lands.
   onAttach(report: (text: string) => void): void; onFiles(files: File[], pasted: boolean, report: (text: string) => void): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   // Resolves true only while the saved chip still belongs to a draft, so only that success is announced.
   onPastedText(text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean>;
@@ -157,10 +154,8 @@ export interface DockedComposerProps {
   // The conversation provider's usage for the ring's drawer, from the host's subscription; absent: the drawer shows the
   // Context window line only.
   usage?: RingUsage;
-  // What the host shows over the card that the docked buddy steps aside for: a permission or question card at the
-  // thread's end waiting for an answer, and a new conversation's notice or choice with a button (the canvas panel's
-  // terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
-  // their list leaves room above the card for the buddy's body.
+  // What the docked buddy steps aside for: a permission or question card waiting at the thread's end, or a new conversation's
+  // notice or choice with a button. Suggested prompts leave room above the card, so they are no reason.
   stepAside?: { waiting: boolean; notice: boolean };
   // The prototype window's playing frame: pinned first in the card's chip row, outside the field (nothing removes or
   // undoes it), and put first in every message sent or queued, counted against the place limit.
@@ -200,9 +195,8 @@ export function DockedComposer(props: DockedComposerProps) {
   // Pending sends by draft key: a send in one conversation does not unlock or lock another (each reply settles only
   // its own key and generation).
   const [sending, setSending] = useState<ReadonlyMap<string, number>>(new Map());
-  // A refusal holds while its draft is the one that was refused; a change to that draft, by the person or the host
-  // (chips it added), drops it. A drop notice has no draft and lasts until the person edits.
-  // code: main's refusal code, which the usage limit's state reads.
+  // A refusal holds while its draft is the one refused; any change to that draft drops it. A drop notice has no draft and lasts
+  // until the person edits. code: main's refusal code, which the usage limit's state reads.
   const [refusals, setRefusals] = useState<ReadonlyMap<string, { refusal: DockedRefusal; draft?: DockedDraft; code?: string }>>(new Map());
   // The / list's Escape and highlight belong to the draft they were made on, so a switch reads them per key.
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
@@ -292,11 +286,8 @@ export function DockedComposer(props: DockedComposerProps) {
   usePresetListOutside(slashOpen, slashList, () => field.current?.element() ?? null, () => setDismissedKey(key), props.canvasPress);
   const chips = [...draft.attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(draft.preset ? [{ label: draft.preset.title, preset: true }] : [])];
 
-  // Every edit takes the shape rule with the overflow known without measuring (a typed line break); the wrap at the
-  // capsule's width is measured after the draw below. An edit also drops a refusal the person is answering.
-  // `shapeOnly`: the stored shape catching up with chips the host changed, not an edit: a refusal the host just reported
-  // with those chips (an attachment over the limit, a refused file taken out) stays, and a send refusal keeps its own
-  // draft comparison.
+  // An edit drops a refusal the person is answering; `shapeOnly` (the shape catching up with host chips) keeps one the host just
+  // reported with those chips, and a send refusal keeps its own draft comparison. The capsule's wrap is measured after the draw.
   const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false, shapeOnly = false) => {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
@@ -331,10 +322,15 @@ export function DockedComposer(props: DockedComposerProps) {
   }, [slash, rowKeys]);
   useEffect(() => { if (slashOpen) props.onSkillsWanted(); }, [slashOpen]);
 
+  // A send's reply or a turn's end can come with the window in the background, so their focus is made again on
+  // activation (POSTMORTEM 2026-11-17).
+  const handFocus = useActivationFocus();
   const focus = (after: FocusAction) => queueMicrotask(() => {
     const target = focusAfter(after, { pending: [] });
     if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
+  // Only while the same draft shows.
+  const focusSent = (at: string) => handFocus(() => { if (at === shown.current) focus({ kind: "sent" }); });
   const pickedSkill = useRef(false);
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
     if (kind === "preset") { choosePreset(id, fromSlash); return; }
@@ -434,7 +430,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
       : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) }]);
     // A command goes out alone: no preset or skill line, chip or playing frame, and no attachments, which stay here.
-    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [] }
+    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [], command: true }
       : { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     // Queue with no turn running is the usage limit's: main's send queues the message for the reset.
@@ -451,7 +447,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const left = command ? { ...EMPTY_DRAFT, preset: sent.preset, attachments: sent.attachments } : EMPTY_DRAFT;
       const settled = { ...left, shape: composerShape("capsule", { empty: true, chips: chipCount(left, pinned), overflows: false }) };
       props.onDrafts(drafts => settleSent(drafts, at, sent, settled, outcome.conversationId ? `conversation:${outcome.conversationId}` : undefined));
-      if (at === shown.current) focus({ kind: "sent" });
+      focusSent(at);
       return outcome;
     }
     if (outcome.error === "attachment_missing") {
@@ -469,7 +465,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const code = outcome.error;
       if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent, code }));
     }
-    if (at === shown.current) focus({ kind: "sent" });
+    focusSent(at);
     return outcome;
   };
   // Each card is a new object (commandCard, a copy of STALE_MODE_CARD), so the same refusal again is said again.
@@ -518,9 +514,8 @@ export function DockedComposer(props: DockedComposerProps) {
     const node = field.current?.element();
     if (node && node.ownerDocument.activeElement === node) setAnnouncement(`Suggestion: ${placeholder.suggestion}`);
   }, [key, props.suggestion]);
-  // A new run mode for the conversation on screen is said once. `previous` is the value this composer last saw for that
-  // same conversation: a first list read, a switch (either way) or a cleared value is left to the trigger. The status
-  // line is shared by every conversation shown here, so the same text said for another one is changed to be read again.
+  // `previous` is the value this composer last saw for that same conversation: a first read, a switch or a cleared value is left
+  // to the trigger. The status line is shared, so the same text said for another one is changed to be read again.
   const lastRunMode = useRef({ key, runMode: props.runMode });
   useEffect(() => {
     const last = lastRunMode.current;
@@ -530,15 +525,11 @@ export function DockedComposer(props: DockedComposerProps) {
     if (text) setAnnouncement(current => current === text ? `${text}\u00a0` : text);
   }, [key, props.runMode]);
 
-  // A turn that ends while main still works on the conversation turns Stop into a disabled Send under the person's focus,
-  // and a disabled button holds no focus: focus that was on Stop goes to the field (POSTMORTEM 2026-10-24). It is read as
-  // this render begins, before the commit disables the button; focus the person moved elsewhere stays.
+  // A disabled button holds no focus, so focus on Stop goes to the field when Stop turns into a disabled Send (POSTMORTEM
+  // 2026-10-24). Read as this render begins, before the commit disables it; focus moved elsewhere stays.
   const slotAction = useRef<ComposerAction>(action);
   const slotNode = slotAction.current === "stop" && action === "send" && !availability.enabled ? root.current?.querySelector(".composer-send") ?? null : null;
   const stopLeft = slotNode !== null && typeof document !== "undefined" && document.activeElement === slotNode;
-  // A turn can end with the window in the background, so the field takes focus again on activation (POSTMORTEM
-  // 2026-11-17).
-  const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     slotAction.current = action;
     if (stopLeft) handFocus(() => field.current?.focus());
@@ -590,7 +581,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
-      {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+      {props.fixed ? <FixedTip label={CAPTURE_TERMINAL}><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
         : <AttachButton tray disabled={isSending || locked} onClick={() => props.onAttach(reportFor(key))} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
@@ -643,9 +634,8 @@ export interface QueueRowsHandle {
 
 // command: main sends it alone and takes no Send now for it (a provider command is never steered into a turn).
 export interface QueuedRow { id: string; text: string; message?: { text?: string; attachments: readonly SentFile[] }; command?: boolean }
-// A row's text is for reading (list markers and request lines dropped), so `- /compact`, or a project skill named
-// like a command ("Use the project skill `compact`.\n\n/compact"), would read as a command there. main decides from
-// the request as sent (service flush), so the row does too.
+// A row's text drops list markers and request lines, so it could read as a command it is not; main decides from the request
+// as sent (service flush), so the row does too.
 function queuedRequest(item: QueuedRow): string {
   return item.message?.text ?? item.text;
 }
@@ -695,9 +685,8 @@ export function QueueRows(props: QueueRowsProps) {
     if (lost.current && !wanted) { lost.current = false; handFocus(() => props.focusInput()); }
   });
 
-  // The next row's buttons as they are drawn now; the row that leaves may already be gone from the latest list. Only
-  // while focus is still on that row (or was dropped with it): an agent may read the message long after the press,
-  // and focus the person moved meanwhile stays where they put it.
+  // Place focus only while it is still on the leaving row (or was dropped with it): an agent may read the message long after
+  // the press, and focus the person moved meanwhile stays.
   const focusAfter = (id: string, asked: QueueRowsProps["items"]) => {
     const active = document.activeElement;
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
@@ -718,8 +707,8 @@ export function QueueRows(props: QueueRowsProps) {
     if (!reply || !("error" in reply)) return;
     // Back in the queue: focus stays where it went, and a row that never left takes none later.
     if (pending.current?.leaving === id) pending.current = null;
-    // Only a turn that still runs says so; one that ended sends or returns the queue by its own rule (condition 10).
-    // The answer's reading of the turn decides: the last draw may not show an end that already came.
+    // Only a turn that still runs says so; one that ended sends or returns the queue by its own rule. The answer's reading of the
+    // turn decides: the last draw may not show an end that already came.
     if (!reply.turnRuns) return;
     setRefused(current => new Set(current).add(id));
     props.announce(SEND_NOW_REFUSED_TEXT);

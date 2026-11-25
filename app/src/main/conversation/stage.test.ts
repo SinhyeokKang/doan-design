@@ -200,7 +200,7 @@ describe("Codex stages", () => {
     expect(steps.map(step => step.stage)).toEqual([undefined, GENERAL, undefined, GENERAL]);
     expect(eventsOf(steps).map(e => e.type)).toEqual(["activity", "activity"]);
     expect(JSON.stringify(stagesOf(steps))).not.toMatch(/SECRET/);
-    // The recorded turns: Codex 0.163.0's file decline completes with no start and nothing else running.
+    // The recorded turns: Codex's file decline completes with no start and nothing else running.
     expect(stagesOf(codexSteps(codexFixture).steps)).toEqual([GENERAL]);
     // The Home run's unknown command never completes before turn/completed, so its file change's completion leaves a tool
     // running and gives no stage; the image view is no tool item.
@@ -452,7 +452,7 @@ describe("ACP stages", () => {
     expect(ended.terminal).toBe(true);
     expect(stagesOf(acpSteps(copilotThought.turn.filter(f => f.method), ended).steps)).toEqual([]);
   });
-  // Copilot started a search, a glob and a 6 s command within 4 ms; the first two completed 72 ms later.
+  // Copilot starts a search, a glob and a command at once; the first two complete while the command runs.
   it("keeps the command that still runs as the stage when Copilot's parallel search and glob complete", () => {
     const { steps } = acpSteps(copilotParallel.turn);
     const SEARCH: TurnStage = { kind: "tool", activity: "other", path: "/repo", summary: "Searching for 'QUERY'" };
@@ -503,9 +503,9 @@ describe("ACP stages", () => {
     expect(stages([startA, startB, startC, end("b", "completed"), end("c", "completed"), end("a", "completed")])).toEqual([A, B, COMMAND, COMMAND, A, GENERAL]);
     // An unknown status ends a tool too; a status-less update changes nothing.
     expect(stages([startA, startB, call("b", { sessionUpdate: "tool_call_update", content: [] }), end("b", "cancelled"), end("a", "cancelled")])).toEqual([A, B, A, GENERAL]);
-    // Thinking still comes and goes as before: a thought chunk is thinking, the next completion names the running tool.
+    // Thinking still comes and goes: a thought chunk is thinking, the next completion names the running tool.
     expect(stages([startA, startB, thought, end("b", "completed")])).toEqual([A, B, THINKING, A]);
-    // An update for a tool that already completed reports nothing, as before.
+    // An update for a tool that already completed reports nothing.
     expect(stages([startA, end("a", "completed"), startB, end("a", "completed")])).toEqual([A, GENERAL, B]);
     // A call marked done while it runs (the runner's Antigravity question) still ends on its completion.
     const asked = acpSteps([call("q", { sessionUpdate: "tool_call_update", title: "Which?", status: "pending" })] as Record<string, any>[]).state;
@@ -564,7 +564,7 @@ describe("ACP tool summary", () => {
     const tool = (u: Record<string, unknown>) => update({ toolCallId: "t", kind: "edit", locations: [{ path: "/repo/a.txt" }], ...u });
     const { steps } = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "completed" })] as Record<string, any>[]);
     expect(steps[0]!.stage).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit File" });
-    expect(steps[1]!.events).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "Edit `/repo/a.txt`" }]);
+    expect(steps[1]!.events).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "Edit `/repo/a.txt`", callId: "t" }]);
     // The same final record, still running, reads as the activity does.
     const running = acpSteps([tool({ sessionUpdate: "tool_call", title: "Edit File", status: "pending" }), tool({ sessionUpdate: "tool_call_update", title: "Edit `/repo/a.txt`", status: "in_progress" })] as Record<string, any>[]).steps[1]!.stage;
     expect(running).toEqual({ kind: "tool", activity: "edit", path: "/repo/a.txt", summary: "Edit `/repo/a.txt`" });
@@ -573,7 +573,7 @@ describe("ACP tool summary", () => {
     // The recorded turns are pinned whole in turnActivityFixtures.test.ts.
     const activities = (frames: readonly unknown[]) => eventsOf(acpSteps(frames as Record<string, any>[]).steps).filter(e => e.type === "activity");
     expect(activities(cursorFixture.turn)).toEqual([
-      { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
+      { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1" },
       { type: "activity", kind: "command", summary: GENERIC_SUMMARY.command },
     ]);
     expect(activities(copilotFixture.turn)).toEqual([{ type: "activity", kind: "command", summary: GENERIC_SUMMARY.command }]);

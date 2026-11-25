@@ -66,7 +66,7 @@ func TestConfigStorageRepoWritesOnlyTheLinguistLine(t *testing.T) {
 	}
 }
 
-// leftoverComments lays out what an older Doan may have left in .doan/comments/; Doan no longer reads any of it.
+// leftoverComments lays out what an older Doan may have left in .doan/comments/; Doan reads none of it.
 var leftoverComments = []struct {
 	name string
 	lay  func(t *testing.T, root string)

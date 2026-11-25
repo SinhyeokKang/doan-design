@@ -1,13 +1,10 @@
 import type { Provider } from "../agentAuth/types";
 import type { BoundaryKind } from "./commandRecords";
 
-// Provider built-in commands Doan runs, as a live PoC (2026-11-17) confirmed them: the oldest CLI
-// version that ran each provider's commands, and the commands in name order. A later CLI keeps them until a live check
-// shows otherwise; adding a command or moving a version is a decision backed by such a check. Its own module, like
-// minimumVersions.ts, because the composers read these tables and the renderer must not load sessions.ts.
-// description: Doan's copy, shown when the provider reports none (Codex app-server reports no commands at all; Claude's
-// SDK says only "Built-in command."). An ACP row takes the server's own description.
+// description: Doan's copy, shown when the provider reports none. An ACP row takes the server's own description.
 export interface CommandEntry { name: string; description: string }
+// Provider built-in commands Doan runs: the oldest CLI version that ran each provider's commands, then the commands;
+// moving either is a decision backed by a live check. Own module: the renderer reads it and must not load sessions.ts.
 export const COMMAND_ALLOWLIST: Record<Provider, { version: string; commands: readonly CommandEntry[] }> = {
   claude: { version: "2.1.326", commands: [
     { name: "clear", description: "Clear conversation history and free up context." },
@@ -33,11 +30,8 @@ export const COMMAND_ALIASES: Record<Provider, Readonly<Record<string, string>>>
   claude: { new: "clear", reset: "clear" }, codex: {}, cursor: {}, copilot: {}, antigravity: {},
 };
 
-// Built-ins that are never sent: Doan shows a card instead and gives the text back. Terminal-only commands Doan has
-// its own UI for, for every provider; and the PoC's candidates that did not run where they are not allowed, which the
-// model answers by claiming it cleared or compacted. Antigravity's /logout erases Doan's own sign-in, and its /plan
-// waits for an approval Doan has no UI for. A command an ACP server lists that the PoC never sent is in neither table:
-// it goes out as text and the server handles it.
+// Built-ins never sent: Doan shows a card and gives the text back. Terminal-only commands Doan has UI for, ones the model
+// only claims to run where not allowed, Antigravity's /logout (erases Doan's sign-in) and /plan (awaits an approval).
 const TERMINAL_ONLY = ["config", "login", "logout", "model", "permissions", "theme"];
 const CANDIDATES = ["clear", "compact", "context", "cost", "init", "review"];
 const notAllowed = (provider: Provider) => CANDIDATES.filter(name => !COMMAND_ALLOWLIST[provider].commands.some(c => c.name === name));
@@ -49,8 +43,8 @@ export const UNSUPPORTED_COMMANDS: Record<Provider, readonly string[]> = {
   antigravity: [...TERMINAL_ONLY, ...notAllowed("antigravity"), "plan"],
 };
 
-// Codex runs its commands only as app-server requests: text "/compact" reaches the model, which claims it compacted
-// (PoC). The params leave out threadId, which the runner adds.
+// Codex runs its commands only as app-server requests: text "/compact" reaches the model, which claims it compacted.
+// The params leave out threadId, which the runner adds.
 export type ReviewTarget = { type: "uncommittedChanges" } | { type: "custom"; instructions: string };
 export type CommandRequest =
   | { kind: "text"; text: string }
@@ -67,10 +61,8 @@ export function commandRequest(provider: Provider, text: string): CommandRequest
   return { kind: "request", method: "review/start", params: { target: instructions ? { type: "custom", instructions } : { type: "uncommittedChanges" } } };
 }
 
-// A command message: the whole text is "/<name>" or "/<name> <argument>", as send assembly writes it, named by the
-// provider's table (an alias as the command it runs). Main reads a send and a stored turn the same way, so a turn is the
-// same command in this run and after a restart. The table is read whole, not by the installed version or an ACP
-// server's last list: the record keeps neither.
+// A command message, "/<name>" or "/<name> <argument>", named by the provider's table (an alias as its command). A send
+// and a stored turn read the same, from the whole table, since the record keeps no version or ACP list.
 export function commandName(provider: Provider, text: string): string | null {
   const match = /^\/(\S+)(?:\s[\s\S]*)?$/.exec(text);
   if (!match) return null;
@@ -83,9 +75,8 @@ export function messageCommand(provider: Provider, message: { text: string; orig
   return message.origin === undefined ? commandName(provider, message.text) : null;
 }
 
-// The first word's command name as the composer's highlight cuts it (renderer skillWords.ts): the word itself, without
-// trailing punctuation, or up to attached Hangul. Main guards with the same cut, so it never refuses text the composer
-// sent as a message.
+// The first word's command name as the composer's highlight cuts it (renderer skillWords.ts): without trailing
+// punctuation, or up to attached Hangul, so main never refuses text the composer sent as a message.
 const HANGUL = /[가-힣ᄀ-ᇿ㄰-㆏]/u;
 const TRAILING = /[.,;:!?)\]}"'’”…。、，．！？：；）」』]+$/u;
 function firstWordNames(text: string): string[] {
@@ -102,15 +93,14 @@ export function unsupportedCommand(provider: Provider, text: string): string | n
 }
 
 // The boundary a command draws once it ran: /compact wherever it runs, and Claude's /clear (the only provider whose
-// /clear empties the context; PoC).
+// /clear empties the context).
 export function commandBoundary(provider: Provider, name: string): BoundaryKind | null {
   if (name === "compact") return "compacted";
   return provider === "claude" && name === "clear" ? "cleared" : null;
 }
 
-// An ACP server's reported commands Doan sends as the person wrote them: not in the table (no live check confirmed
-// them) and not a card. They show no row and no card; the server handles them. Claude's and Codex's built-ins are only
-// the table's.
+// An ACP server's reported commands that no live check confirmed: sent as the person wrote them, with no row and no card.
+// Claude's and Codex's built-ins are only the table's.
 export function passthroughCommands(provider: Provider, reported: readonly string[]): string[] {
   if (provider === "claude" || provider === "codex") return [];
   const known = new Set([...COMMAND_ALLOWLIST[provider].commands.map(c => c.name), ...UNSUPPORTED_COMMANDS[provider]]);

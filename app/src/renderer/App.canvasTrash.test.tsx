@@ -4,11 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { CanvasMenu } from "./ShellSidebar";
 
-// trashing the open canvas shows
-// its project's Overview with the trash reply's one toast and records no visit. The real CanvasController runs its
-// `clear {trashed}` path here, with fake elements for its board (CanvasController.test.ts), so the App-connected
-// derivation is what is tested (POSTMORTEM 2026-10-27: "Test the App-connected predicate, not just an injected
-// substitute"). Hooks run as plain state (App.canvasRowMenu.test.tsx).
+// The real CanvasController runs its `clear {trashed}` path with fake board elements, so the App-connected
+// derivation is tested (POSTMORTEM 2026-10-27), not an injected substitute.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -48,7 +45,7 @@ vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
 vi.mock("./agentSignIn", () => ({
   agentSignIn: () => ({ state: { auth: undefined }, subscribe: () => () => {}, onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

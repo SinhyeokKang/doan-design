@@ -1,4 +1,6 @@
 import type { OpenFrameResult, OpenRequest, OpenResponse } from "../formats/types";
+import { groupProjects } from "../renderer/homeCards";
+import type { FolderEntry } from "./view";
 
 export interface OpenLink { root: string; canvas: string; frame?: string }
 export type OpenLinkResult = ({ kind: "navigate" } & OpenLink) | { kind: "malformed" } | { kind: "unregistered-root" } | { kind: "canvas-not-listed"; project: string };
@@ -29,9 +31,8 @@ interface LinkFolder {
   canvases?: readonly { path: string }[];
   git?: { common: string; main?: string };
 }
-// The checks a doan:// link and a `doan open` request share (ARCHITECTURE §7 'Deep links' 'Security boundary'): an
-// exactly registered root and a listed canvas. A root still loading is not a list refusal; the caller decides what a
-// read in progress means. `project` is the sidebar card name.
+// The checks a doan:// link and a `doan open` request share (ARCHITECTURE §7 'Deep links' 'Security boundary'). A root
+// still loading is not a list refusal; the caller decides. `project` is the sidebar card name.
 export type OpenTarget = ({ kind: "listed" } & OpenLink) | { kind: "unregistered-root" } | { kind: "loading"; project: string } | { kind: "canvas-not-listed"; project: string };
 export function resolveOpenTarget(link: OpenLink, entries: readonly LinkFolder[]): OpenTarget {
   const entry = entries.find(entry => entry.path === link.root);
@@ -39,16 +40,13 @@ export function resolveOpenTarget(link: OpenLink, entries: readonly LinkFolder[]
   if (entry.kind === "list" && entry.canvases?.some(row => row.path === link.canvas)) return { kind: "listed", ...link };
   return { kind: entry.kind === "loading" ? "loading" : "canvas-not-listed", project: projectName(entry, entries) };
 }
-// Match the sidebar card name, including worktrees whose main root is not itself registered.
 function projectName(entry: LinkFolder, entries: readonly LinkFolder[]): string {
-  const key = (row: LinkFolder) => (row.kind === "list" ? row.git?.common : row.lastCommon) ?? row.path;
-  const group = entries.filter(row => key(row) === key(entry));
-  const main = group.find(row => row.kind === "list" && row.git?.main)?.git?.main;
-  const path = main ?? group[0]!.path;
-  return path.split("/").filter(Boolean).at(-1) ?? path;
+  const lastCommon = new Map(entries.flatMap(row => row.lastCommon ? [[row.path, row.lastCommon]] : []));
+  // `groupProjects` reads only fields LinkFolder holds.
+  const cards = groupProjects(entries as readonly FolderEntry[], lastCommon);
+  return cards.find(card => card.rows.some(row => row.path === entry.path))!.name;
 }
-// A link reaches here only once no root is loading (index.ts readyOpenLinks); one that was re-read since is refused as
-// unlisted, as it always was.
+// A link reaches here only once no root is loading (index.ts readyOpenLinks); one re-read since is refused as unlisted.
 export function resolveOpenLink(text: string, entries: readonly LinkFolder[]): OpenLinkResult {
   const link = parseOpenLink(text);
   if (!link) return { kind: "malformed" };
@@ -71,14 +69,8 @@ export function openLinkQueue(deliver: (url: string) => void): { receive(url: st
   };
 }
 
-// `doan open` (app-socket v4) after its schema, token and registered root passed (runtime.ts). Main answers what it can
-// decide itself at once, without holding the request: not ready yet (the launch restore or a project read is still
-// running; the CLI retries), and the shared root and list checks. A listed canvas is handed to the renderer with an id;
-// its answer, or the timeout, settles that request alone, so concurrent requests each get their own reply in the order
-// the renderer takes them. Each request carries `expires`, the wall-clock time (ms) at which main stops waiting and tells
-// the CLI busy; the renderer touches nothing for a request past it (App.tsx openCanvasRequest), and main drops any late
-// answer, so the window does not come forward either. Both processes read the same system clock.
-// The window comes forward only for an opened canvas; a refusal changes nothing the person sees.
+// `doan open` after schema, token and registered root passed (ARCHITECTURE §4 'Opening a canvas over app-socket v4').
+// Past `expires` the renderer touches nothing and main drops a late answer; only an opened canvas brings the window up.
 export type OpenBlock = "add_projects" | "settings" | "project_settings" | "first_run" | "dialog";
 export interface OpenAsk { id: string; root: string; canvas: string; frame?: string; expires: number }
 export type OpenResult = { kind: "opened"; frame: OpenFrameResult } | { kind: "busy"; reason: OpenBlock } | { kind: "canvas_not_found" };
@@ -108,7 +100,6 @@ export interface OpenRequestsHost {
   entries(): readonly LinkFolder[];
   // Sends the request to the renderer; false when there is no window to ask.
   ask(request: OpenAsk): boolean;
-  // Brings the window forward, a hidden app included.
   opened(): void;
 }
 export function openRequests(host: OpenRequestsHost, timeoutMs = OPEN_ANSWER_TIMEOUT_MS): { open(request: OpenRequest): Promise<OpenResponse>; answer(value: unknown): void } {

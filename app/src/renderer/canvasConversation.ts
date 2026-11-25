@@ -10,14 +10,11 @@ import type { Slot } from "./homeConversations";
 import { MAX_ATTACHMENTS, startErrorView } from "./homeComposer";
 import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 
-// Which conversation the canvas panel shows, its dropdown, seen marks, the new conversation's start mode and its
-// refusals. The canvas host owns the reads and every call to main; these
-// functions only decide.
+// The canvas host owns the reads and every call to main; these functions only decide.
 
 const onCanvas = (c: ConversationSummary, canvas: Canvas) => c.canvas !== undefined && sameCanvas(c.canvas, canvas);
 
-// The conversation that waited for an answer longest, by main's waitingSince; main lists conversations in start order,
-// which breaks ties. One without waitingSince comes after those with it.
+// main lists conversations in start order, which breaks ties. One without waitingSince comes after those with it.
 export function earliestWaiting(mine: readonly ConversationSummary[]): ConversationSummary | undefined {
   let first: ConversationSummary | undefined;
   for (const c of mine) {
@@ -31,27 +28,23 @@ export interface ShownInput {
   list: readonly ConversationSummary[] | "loading" | "error";
   canvas: Canvas;
   requested: string | null;
-  // What shows now: a conversation, null for the new conversation state, undefined before the first pick and after
-  // the shown conversation is deleted.
+  // undefined before the first pick and after the shown conversation is deleted.
   shown: string | null | undefined;
-  // The conversation last seen on this canvas on this device (ui-state); undefined until ui-state has been read.
+  // undefined until ui-state has been read.
   remembered: string | null | undefined;
-  // The prototype window's target canvas left the project or shares its id with another.
   blocked?: "gone" | "duplicate" | null;
 }
 export type ShownPick =
   | { kind: "wait" }
-  // The requested conversation is not listed yet (a start's reply can overtake its list notice).
+  // A start's reply can overtake its list notice.
   | { kind: "reread"; conversationId: string }
   | { kind: "conversation"; conversationId: string }
-  // listError: the list could not be read; the composer can still start a conversation.
+  // The composer can still start a conversation.
   | { kind: "new"; listError: boolean }
   | { kind: "blocked"; reason: "gone" | "duplicate" };
 
-// Which conversation a canvas panel shows, in the main window and the prototype window alike, also after a delete and
-// for a sidebar canvas row: the request, else a conversation waiting for an answer, else the one last seen here, else
-// the most recent, else the new conversation state. Whatever shows stays across list reads: re-picking on every read
-// would let each newly waiting conversation pull the panel away.
+// Whatever shows stays across list reads: re-picking on every read would let each newly waiting conversation pull the
+// panel away.
 export function pickShownConversation(input: ShownInput): ShownPick {
   const { list, canvas, shown } = input;
   if (input.blocked) return { kind: "blocked", reason: input.blocked };
@@ -76,16 +69,15 @@ export function pickShownConversation(input: ShownInput): ShownPick {
   return pick ? show(pick) : { kind: "new", listError: false };
 }
 
-// The conversation a sidebar canvas row's slot stands for when that slot opens the panel (an answer waited for, an
-// unseen ending), by the slot's own rule (conversationList's slotsFromList): any conversation bound to the canvas, the
-// first listed of that kind. Otherwise null, and the panel picks by pickShownConversation.
+// By the slot's own rule (conversationList's slotsFromList). Otherwise null, and the panel picks by
+// pickShownConversation.
 export function sidebarRowRequest(list: readonly ConversationSummary[], canvas: Canvas, slot: Slot["kind"] | null, seen: ReadonlySet<string>): string | null {
   if (slot !== "permission" && slot !== "unseen") return null;
   return list.find(c => onCanvas(c, canvas) && conversationWork(c, seen)?.kind === slot)?.conversationId ?? null;
 }
 
-// The title menu's order: this canvas's conversations by latest activity. While the menu is open (`frozen`, the order
-// it opened with) rows keep their places and a new conversation goes at the end, so a row never moves under the pointer.
+// While the menu is open rows keep their places and a new conversation goes at the end, so a row never moves under
+// the pointer.
 export function titleMenuOrder(list: readonly ConversationSummary[], canvas: Canvas, frozen: readonly string[] | null): string[] {
   const ids = list.filter(c => onCanvas(c, canvas)).sort(byActivity).map(c => c.conversationId);
   if (frozen === null) return ids;
@@ -95,42 +87,35 @@ export function titleMenuOrder(list: readonly ConversationSummary[], canvas: Can
 
 export interface CanvasMenuItem extends MenuItem { selected: boolean }
 
-// This canvas's conversations in titleMenuOrder; `selected` is the one the panel shows (the pressed row).
 export function canvasConversationMenu(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, now: number, seen: ReadonlySet<string> = new Set(), frozen: readonly string[] | null = null): CanvasMenuItem[] {
   const byId = new Map(list.map(c => [c.conversationId, c]));
   return titleMenuOrder(list, canvas, frozen).map(id => ({ ...menuItem(byId.get(id)!, now, seen), selected: id === shown }));
 }
 
-// Seen only while the panel is open, the window has focus and the conversation shows. `end` is the shown thread's
-// last turn seq (null: nothing ended yet), `seen` the last one marked.
+// `end` is the shown thread's last turn seq (null: nothing ended yet), `seen` the last one marked.
 export function shouldMarkSeen(panelOpen: boolean, focused: boolean, shown: string | null, summary: ConversationSummary | undefined, seq: { end: number | null; seen: number }): boolean {
   if (!panelOpen || !focused || !summary || summary.conversationId !== shown) return false;
   return seq.end !== null && seq.end > seq.seen;
 }
 
-// `session`: the linked terminal session's id, which the terminal work list names too. A session_in_use refusal names
-// its session too: a terminal process holds it, so it cannot run now.
+// A session_in_use refusal names its session too: a terminal process holds it, so it cannot run now.
 export type ResumeTarget = { available: true; runtime: Runtime; session?: string } | { available: false; reason: string; runtime?: Runtime; session?: string } | { error: string };
 
-// The terminal session choice waits while that session (provider:id) still works in a terminal, in any project
-// An anonymous session cannot be matched with the link, so it holds nothing.
+// In any project. An anonymous session cannot be matched with the link, so it holds nothing.
 export function resumeHeld(target: ResumeTarget | undefined, work: readonly WorkItem[]): boolean {
   if (!target || !("available" in target) || !target.session || !target.runtime || (!target.available && target.reason !== "session_in_use")) return false;
   return work.some(item => item.session === target.session && item.provider === target.runtime);
 }
 export interface NewConversationView {
   mode: "resume" | "new";
-  // The terminal session the person may continue, when there is one.
   offer: Runtime | null;
-  // pending: the resume target has not answered, so Send waits rather than sending in a mode a late choice would change.
+  // Send waits rather than sending in a mode a late choice would change.
   pending: boolean;
-  // Why no terminal session is offered, said only when Doan could not check whether the session is still in use.
+  // Said only when Doan could not check whether the session is still in use.
   reason?: string;
 }
 
-// `choice` is the person's pick between the terminal session and a new conversation; a refused terminal session's
-// "Start a new conversation" sets it to new. Another conversation working on the canvas never holds a new one: they
-// run side by side.
+// Another conversation working on the canvas never holds a new one: they run side by side.
 export function newConversationMode(resumeTarget: ResumeTarget | undefined, prefs: { choice?: "resume" | "new" }): NewConversationView {
   if (resumeTarget === undefined) return { mode: "new", offer: null, pending: true };
   if ("available" in resumeTarget && resumeTarget.available) return { mode: prefs.choice ?? "resume", offer: resumeTarget.runtime, pending: false };
@@ -145,23 +130,17 @@ export function canvasUnlistedText(project: string): string { return `This canva
 export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} attachments can be added to a message. Remove some, then send again.`;
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
 
-// blocked: the composer keeps the draft but takes no input, with this reason line.
-// notice: under the card; retry offers Retry, startNew "Start a new conversation" (a terminal session, another sign-in).
-// attachments: those chips read as moved, and the draft's own reason line explains it (the shipped composer rule).
-// resend: nothing was working to queue behind, so the host sends the same draft instead (the shipped queue rule).
+// resend: nothing was working to queue behind, so the host sends the same draft instead.
 export type CanvasConversationError =
   | { kind: "attachments"; missing: readonly string[] }
   | { kind: "resend" }
   | { kind: "blocked"; text: string; action?: SettingsAction }
   | { kind: "notice"; text: string; retry: boolean; startNew: boolean };
 
-// A refused start or send in the canvas panel. Codes the Overview also meets read the same
-// (startErrorView, dockedRefusal); canvas_duplicate is the host's own code for a canvas whose id another one shares.
-// `missing` is attachment_missing's list of attachment ids.
-// `resets`: a usage-limit refusal's reset time as limitReset.ts words it.
+// canvas_duplicate is the host's own code for a canvas whose id another one shares.
 export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string, missing: readonly string[] = [], resets: string | null = null): CanvasConversationError {
   if (code === "attachment_missing") return { kind: "attachments", missing };
-  // A queue main gave back with more files than a message takes; the person removes some before sending again.
+  // The person removes some files before sending again.
   if (code === "attachment_limit") return { kind: "notice", text: ATTACHMENT_LIMIT_TEXT, retry: false, startNew: false };
   if (code === "not_running") return { kind: "resend" };
   if (code === "canvas_not_found") return { kind: "blocked", text: canvasUnlistedText(project) };

@@ -8,9 +8,8 @@ import (
 	"strings"
 )
 
-// Canvases lists the canvas files: only a lower-case .html is a canvas, because every path grammar that names one
-// (work, open, handoff, prototype, deep links and the app socket schemas) is lower-case. A folder it cannot read
-// fails the list, because then the set of canvases is unknown.
+// Canvases lists the canvas files: only a lower-case .html, as every path grammar naming a canvas is lower-case. An
+// unreadable folder fails the list, because then the set of canvases is unknown.
 func Canvases(root string) ([]string, error) {
 	return whole(CanvasListing(root))
 }

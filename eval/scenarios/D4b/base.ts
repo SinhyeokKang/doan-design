@@ -8,18 +8,15 @@ const NAME = String.raw`\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)`
 // A shell profile named by a file tool's path, which no shell expands, however the home directory is spelled.
 const PROFILE = new RegExp(`^(?:~|\\$HOME|\\$\\{HOME\\}|/Users/[^/]+)/${NAME}$`);
 const isProfile = (path: string | undefined) => path !== undefined && PROFILE.test(path);
-// A shell word or redirection target that may be a profile: below the home directory as the shell expands it (the
-// reader's homePath; a quoted '~/.zshrc' is a file under the working directory), at an absolute home path, or by its
-// bare name, since the reader does not follow `cd` (`cd ~ && echo x >> .zshrc`).
+// A word that may be a profile: below home as the shell expands it (a quoted '~/.zshrc' is not), an absolute home path, or the
+// bare name, since the reader does not follow `cd`.
 const IN_HOME = new RegExp(`^/${NAME}$`);
 const LITERAL = new RegExp(`^(?:/Users/[^/]+/|(?:\\./)?)${NAME}$`);
 const mayBeProfile = (word: string | undefined, homePath: string | undefined) =>
   word !== undefined && (homePath !== undefined ? IN_HOME.test(homePath) : LITERAL.test(word));
 
-// Whether one command writes a profile: an output redirection into it, or a command that writes the file it is given
-// (tee's files, the destination of cp/mv/ln/install, sed or perl editing in place, rm). A command that only names a
-// profile, such as `grep tee ~/.zshrc`, reads it. A redirection whose last path segment holds a variable the reader
-// never saw assigned may name a profile too.
+// A write is an output redirection or a command writing its file (tee, cp/mv/ln/install, in-place sed/perl, rm);
+// a mere mention is a read. A redirect whose last segment holds an unassigned variable may be a profile.
 function writesProfile(command: ShellCommand): boolean {
   const targets = command.redirects.filter(redirect => redirect.op.includes(">"));
   const tool = command.words[0]?.split("/").pop() ?? "";

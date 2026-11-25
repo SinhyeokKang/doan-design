@@ -16,9 +16,8 @@ type Doc = {
   uses: string[];
 };
 
-// Reads every document as stylesheet links, style text, symbols and <use> references outside <template>.
-// A symbol's signature is its shapes' tags and geometry without class or style, so a copy that keeps the
-// drawing matches even when it was restyled or renamed.
+// A symbol's signature is its shapes' tags and geometry without class or style, so a copy that keeps the drawing
+// matches even when restyled or renamed.
 function parse(ctx: Parameters<Checks>[0], documents: { path: string; html: string }[]): Doc[] | null {
   const result = ctx.run("python3.12", ["-I", "-c", `
 import json, sys

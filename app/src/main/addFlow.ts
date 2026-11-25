@@ -9,15 +9,14 @@ export type PickDecision =
   | { kind: "refuse"; message: string };
 
 export interface PickFacts {
-  // The picked folder's realpath.
   path: string;
   isDir: boolean;
   // `doan ls --json` run in the picked folder, which does not search ancestors
   // for a repo it was not asked about: only Go decides what is a doan repo.
   ls: FolderState;
-  // `ls --repo <picked>`, run only when `ls` failed (see `openDecision`).
+  // Run only when `ls` failed (see `openDecision`).
   asRepo: FolderState | null;
-  // The picked folder itself has a `.git` entry (`lstat`).
+  // `lstat`, so a `.git` file counts too.
   hasGit: boolean;
   // Immediate child directories that have a `.git` entry.
   children: readonly string[];

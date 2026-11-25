@@ -9,11 +9,10 @@ import type { ProjectInitResult } from "../shell";
 import { EXCLUDE_LABEL } from "../storage";
 import { openDecision } from "../view";
 import { runClone, type CloneRequest, type CloneResult } from "./clone";
-import { HOME_REFUSAL, repositoryLeftoverMessage } from "./operations";
+import { setupRefusal } from "./operations";
 import type { RemoteRead } from "./gitConfig";
 import { findCandidates, folderMatch, type GitHubRepository } from "./repository";
 
-// Project inspection, selection and confirmation for onboarding.
 // Only the CLI decides what a doan repo is; remotes come from .git/config, never from running git.
 
 export interface ProjectDeps {
@@ -35,10 +34,8 @@ export interface ProjectDeps {
 // storage: "local" when the folder is set up that way or its setup is planned that way (app-socket v2 inspection);
 // absent means repo. The adder decides whether a reply may show it.
 export interface Candidate { path: string; changes: OnboardingChange[]; storage?: "local" }
-// leftovers: directories the clone made and could not remove (cleanup_failed only).
-// message: this failure's own account in place of the code's fixed message (a clone that stayed and was added).
-// detail: the CLI's own message for project_unreadable; it may hold paths and OS text, so it reaches the window only,
-// never a socket reply (operations.ts).
+// leftovers: directories the clone could not remove (cleanup_failed only). message: replaces the code's fixed message.
+// detail: the CLI's message for project_unreadable; it may hold paths, so it reaches the window only (operations.ts).
 export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[]; message?: string; detail?: string };
 
 // The line `doan init` adds to .gitattributes (cli/internal/cli/storage.go); it writes the file while it is missing.
@@ -64,9 +61,8 @@ export async function destinationState(path: string): Promise<"absent" | "exists
   return await canonicalFolder(dirname(path)) === null ? "no_parent" : "absent";
 }
 
-// A clone inside a set-up project would be read as that project (the CLI walks up from a folder), so it could never
-// be registered as its own.
-// The plan keeps the canonical spelling (its parent resolved), which is how the new folder is registered.
+// A clone inside a set-up project would be read as that project (the CLI walks up from a folder), so it could never be
+// registered as its own. The plan keeps the canonical spelling, which is how the new folder is registered.
 export type CloneTarget = { state: "absent"; path: string } | { state: "exists" | "no_parent" | "inside_project" };
 export async function cloneDestination(path: string, deps: ProjectDeps): Promise<CloneTarget> {
   const state = await destinationState(path);
@@ -76,12 +72,8 @@ export async function cloneDestination(path: string, deps: ProjectDeps): Promise
   return (await deps.ls({ cwd: parent })).kind === "list" ? { state: "inside_project" } : { state: "absent", path: join(parent, basename(path)) };
 }
 
-// New folder: the path the save panel returned, judged before anything is made. A location inside a set-up project
-// comes first, registered or not, as for a clone: the folder would be read as that project. An existing name, even a
-// broken link, is reported and never replaced (macOS may already have asked to replace it); mkdir is not recursive, so
-// nothing is nested either. Only EEXIST from mkdir reads as existing; every other error is a folder that cannot be made.
-// wanted: whether the step that asked is still there. It is read again right before mkdir, since the location's checks
-// (a CLI read of up to 10 s) leave time for the step to go; then nothing is made.
+// An existing name, even a broken link, is never replaced, and mkdir is not recursive; only EEXIST reads as existing.
+// wanted is read again right before mkdir, since the location's checks (a CLI read of up to 10 s) leave time for it to go.
 export type NewFolderTarget =
   | { kind: "cancelled" }
   | { kind: "created" | "failed"; path: string }
@@ -105,15 +97,12 @@ export async function newFolderTarget(path: string, deps: Pick<ProjectDeps, "ls"
   }
 }
 
-// How a setup would keep the Doan files: "repo" commits them; "local" adds the exclude entry instead of the
-// .gitattributes lines; "kept" is a folder whose project already keeps them out of Git, so plain init follows that
-// mode and its entry is already there (PRODUCT §5 item 0 'Doan files').
+// "local" adds the exclude entry instead of the .gitattributes lines; "kept": the project already keeps them out of Git,
+// so plain init follows that mode (PRODUCT §5 item 0 'Doan files').
 export type SetupPlan = "repo" | "local" | "kept";
 
-// What `doan init` would create here, read the way init reads it; a folder with any config gets nothing. The exclude
-// file sits in the repository's common Git directory, which TS never looks for (§13), so "local" names it by its label.
-// Outside Git (ls's not_git) "local" also creates the repository, except in the home folder or above it, where the CLI
-// refuses instead.
+// A folder with any config gets nothing. The exclude file is in the common Git directory, which TS never looks for (§13), so
+// "local" names it by its label; outside Git it also creates the repository, except at or above home.
 export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo", home = ""): Promise<OnboardingChange[]> {
   if (state.kind !== "uninitialized") return [];
   const changes: OnboardingChange[] = [];
@@ -162,10 +151,8 @@ async function candidate(path: string, deps: ProjectDeps, storage: OnboardingSto
   return planned(path, state, storage, deps);
 }
 
-// A picked folder: its repo, the repos directly inside it (one is chosen, the parent is never registered), or the
-// folder itself to be set up with the user's explicit initialize.
-// Picked for a GitHub URL, only folders that may be that repository stay (spec: a folder found from a URL is
-// connected only after its remote is checked); a config that cannot be read is no mismatch.
+// A picked folder: its repo, the repos directly inside it (the parent is never registered), or the folder itself. For a
+// GitHub URL only folders that may be that repository stay; a config that cannot be read is no mismatch.
 export async function inspectPath(real: string, deps: ProjectDeps, repo: GitHubRepository | null = null, storage: OnboardingStorage = "repo"): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }> {
   const found = await inspectFolder(real, deps, storage);
   if (!found.ok || repo === null) return found;
@@ -207,27 +194,23 @@ export async function inspectUrl(repo: GitHubRepository, deps: ProjectDeps, stor
 }
 
 // Registers at selection, then sets up only what the user asked for; a broken config is never written over.
-// storage "local": the plan named the exclude entry, so init keeps the files out of Git; null runs plain init.
-// gitInit: the plan named .git/, so init may create the repository.
+// storage "local": init keeps the files out of Git; null runs plain init. gitInit: init may create the repository.
 export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null, gitInit = false): Promise<ProjectOutcome> {
   if (await canonicalFolder(path) !== path) return failed("project_unavailable");
   if (repo && folderMatch(repo, deps.remotes(path)) === "mismatch") return failed("remote_mismatch");
   return register(path, initialize, deps, storage, false, gitInit);
 }
 
-// A refused setup, by the CLI's literal code (ARCHITECTURE §12 'Storage'). Plain init in a project already out of
-// Git can fail on the exclude file too, so the codes are read whatever was asked. A failed git init is the socket's
-// existing init_failed, whose shipped notice it keeps; a .git Doan could not remove is named in main's own words, and a
-// refusal in the home folder says why no repository is made there.
+// A refused setup, by the CLI's literal code (ARCHITECTURE §12 'Storage'), read whatever was asked: plain init in a
+// project already out of Git can fail on the exclude file too.
 function setupFailure(code: string, root: string, deps: ProjectDeps): ProjectOutcome {
-  if (code === "cleanup_failed") return { ok: false, code, message: repositoryLeftoverMessage(root) };
-  if (code === "local_not_git" && homeOrAbove(root, deps.home())) return { ok: false, code, message: HOME_REFUSAL };
+  const own = setupRefusal(code, root, deps.home());
+  if (own) return { ok: false, code: own.code, message: `${own.message} ${own.guidance}` };
   return failed(code === "local_not_git" || code === "local_exclude_failed" || code === "git_missing" ? code : "init_failed");
 }
 
-// keepChosen: the folder is a clone made for this choice, so a repository that brings its own setup still gets the
-// chosen Keep out of Git. A folder picked as it is never has its project's mode changed: the mode belongs to the root
-// and every worktree shares it (PRODUCT §5 item 0 'Doan files').
+// keepChosen: a clone made for this choice gets the chosen Keep out of Git even with its own setup. A folder picked as it
+// is never has its mode changed: the mode belongs to the root and every worktree (PRODUCT §5 item 0 'Doan files').
 async function register(path: string, initialize: boolean, deps: ProjectDeps, storage: "local" | null, keepChosen = false, gitInit = false): Promise<ProjectOutcome> {
   const stored = await deps.add(path);
   if (stored === null) return failed("project_unavailable");

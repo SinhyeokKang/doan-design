@@ -15,10 +15,8 @@ export class StorageError extends Error {
 export type VaultFiles = Record<string, Buffer>;
 export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-// The provider process owns the profile and may leave a link, a FIFO or a huge file where its credential was; working
-// files are read with the open refusing a link (ELOOP) and a special or oversized file throwing without a code, so
-// none of them reads as absent. The cap is far above any credential (a few KB of JSON), low enough that a file the
-// provider grew cannot stall main or flood the vault.
+// Working files are read refusing links (ELOOP; special or oversized files throw without a code), so none reads as absent.
+// The cap is far above any credential, low enough that a grown file cannot stall main or flood the vault.
 const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 // What readRegularFileNoFollowSync throws for a link, a special file or a file past its cap: not a file Doan can read.
@@ -102,7 +100,7 @@ export class AuthStorage {
     const files = await this.loadVault(provider) ?? {};
     for (const rel of rels) {
       const path = this.working(provider, rel);
-      if (files[rel]) this.replace(path, files[rel]); else this.remove(path);
+      if (files[rel]) this.replaceWorking(path, files[rel]); else this.removeWorking(path);
     }
   }
   // Returns whether the provider's copy differed from the vault (a refresh, a new login or a logout).
@@ -123,30 +121,27 @@ export class AuthStorage {
     try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
     return path;
   }
-  // A string is the whole file, which Doan owns. A SettingMerge is for a file the provider writes too (Claude Code's
-  // settings.json): it gets the current text and returns the text to write, or null to leave the file alone, so the
-  // provider's own keys are never replaced.
+  // A string is the whole file, which Doan owns. A SettingMerge returns the text to write for a file the provider writes
+  // too, or null to leave it alone, so the provider's own keys are never replaced.
   writeSetting(provider: Provider, rel: string, text: string | SettingMerge, profile: string = provider): void {
     const path = this.working(provider, rel, profile);
     if (typeof text !== "string") return this.mergeSetting(path, text);
     const bytes = Buffer.from(text);
-    // The provider process can leave a FIFO, a link or a huge file here, none of which is the text Doan owns: the
-    // rename replaces each of them without opening or following it.
+    // The provider process can leave a FIFO, a link, a huge file or a folder here, none of which is the text Doan owns:
+    // each is replaced without opening or following it.
     try { if (readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT).equals(bytes)) return; }
     catch (error) { if (!absent(error) && !notRegular(error)) throw new StorageError("unreadable", message(error)); }
-    this.replace(path, bytes);
+    this.replaceWorking(path, bytes);
   }
-  // Claude Code saves this file too, so Doan never renames its merge over a file it has not just re-verified
-  // (agentSetup/swap.ts swapFile): a file that is not the one Doan read, by identity and bytes, stays and the next run
-  // merges into it. A missing file is created exclusively with link(2). A link is the person's: it is never replaced or
-  // written through, whether or not its target has the rules.
+  // Claude Code saves this file too, so Doan renames its merge only over the file it just re-verified (swapFile); a missing
+  // file is created exclusively with link(2), and a link is the person's and never replaced or written through.
   private mergeSetting(path: string, merge: SettingMerge): void {
     let seen: Stats | null = null;
     try { seen = lstatSync(path); } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     if (seen !== null && !seen.isFile()) return;
     let bytes: Buffer | null = null, current: string | null = null;
     if (seen !== null) {
-      // The file can be swapped after the lstat; one that is no longer a regular file stays, as it would have at lstat.
+      // The file can be swapped after the lstat; one that is not a regular file any more stays, as it would have at lstat.
       try { bytes = readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
       // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
       catch (error) { if (error instanceof TypeError || absent(error) || notRegular(error)) return; throw new StorageError("unreadable", message(error)); }
@@ -197,7 +192,12 @@ export class AuthStorage {
   // A profile file no one but an agent would write and a later provider process loads (Codex's .env): unlinked, a link
   // without following it; anything rmSync cannot unlink (a directory) fails the start.
   removePlanted(provider: Provider, rel: string, profile: string = provider): void { this.remove(this.working(provider, rel, profile)); }
-  scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
+  removePlaintext(provider: Provider, rels: readonly string[], profile: string = provider): boolean {
+    let found = false;
+    for (const rel of rels) found = removePlaintextFile(this.working(provider, rel, profile), this.root) || found;
+    return found;
+  }
+  scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.removeWorking(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
     for (const rel of rels) {
@@ -249,7 +249,26 @@ export class AuthStorage {
       throw new StorageError("write_failed", message(error));
     }
   }
+  private replaceWorking(path: string, bytes: Buffer): void { clearFolder(path, this.root); this.replace(path, bytes); }
+  private removeWorking(path: string): void { clearFolder(path, this.root); this.remove(path); }
   private remove(path: string): void {
     try { rmSync(path); } catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
   }
+}
+
+// A fenced agent may write a Doan-written profile file, so it can also create a folder there, which a rename onto
+// the path or rmSync cannot replace. It is renamed into the auth root, which no fenced process can write, before its
+// tree is removed: a removal walking the profile path could follow a link the agent swaps in meanwhile.
+function clearFolder(path: string, root: string): void {
+  const aside = join(root, `.planted-${randomUUID()}`);
+  try { if (!lstatSync(path).isDirectory()) return; renameSync(path, aside); }
+  catch (error) { if (absent(error)) return; throw new StorageError("delete_failed", message(error)); }
+  // The path is clear either way; a tree that cannot be removed stays under its .planted- name until removed by hand.
+  try { rmSync(aside, { recursive: true, force: true }); } catch { /* See above. */ }
+}
+// A keychain provider's plaintext fallback (Claude's .credentials.json) in a profile under root, removed unread; the
+// fence leaves it writable. true: a file was there, not a planted folder.
+export function removePlaintextFile(path: string, root: string): boolean {
+  clearFolder(path, root);
+  try { rmSync(path); return true; } catch (error) { if (absent(error)) return false; throw new StorageError("delete_failed", message(error)); }
 }

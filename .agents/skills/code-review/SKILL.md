@@ -7,7 +7,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 
 > Claude Code has a built-in skill with the same name, `code-review`. In this repo, `/code-review` means **this project skill** (review against doan's decisions and conventions). To use the built-in skill, the user says so.
 
-"Report only" does not mean "end the turn here". Invoked on its own, it ends with the report; inside `/ship`, `/ship` continues to `/refactor` in the same turn.
+"Report only" does not mean "end the turn here". Invoked on its own, it ends with the report; inside `/deliver`, `/deliver` continues to `/refactor` in the same turn.
 
 ## Usage
 
@@ -38,7 +38,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - `doan check` judges differently from ARCHITECTURE §1 'Conventions' (including error/warning levels).
 - Code and `docs/PRODUCT.md` disagree.
 - Out-of-scope features creeping in (§3), configuration or abstraction nobody asked for.
-- Comments that repeat the "what" or are not in English.
+- Comments that repeat the "what", are not in English, tell history or draft narrative (drafts, frames, rounds, measurements, who chose what), or run past two lines where a pointer to ARCHITECTURE would do (AGENTS.md 'Commit conventions').
 - Comments that cite `docs/features/` documents (a section, a decision or task id, a slug) instead of stating the reason or pointing to a PRODUCT or ARCHITECTURE section.
 
 ### ⚪ Note
@@ -60,7 +60,7 @@ POSTMORTEM check: <recurrence-risk items / n/a / no file>
 🟡 <n> ...
 ⚪ <n> ...
 
-Next: /refactor (if any 🔴/🟡) / otherwise continue /ship
+Next: /refactor (if any 🔴/🟡) / otherwise continue /deliver
 ```
 
 Every 🔴 must have a failure scenario. If you cannot write a concrete input or situation, it is 🟡 or ⚪.

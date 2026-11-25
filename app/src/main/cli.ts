@@ -23,10 +23,8 @@ export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS)
   return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
 }
 
-// What the CLI's git (git init for Keep out of Git) is found with, under the names Go reads: the login shell's PATH and
-// the inherited DEVELOPER_DIR, as clone finds its git (onboarding/clone.ts locateGit, cloneEnv). A login shell that could
-// not be read gives an empty PATH, so the CLI finds no git and answers git_missing as clone does, rather than run one
-// from the app's own PATH (PRODUCT §3 'Launch environment').
+// The CLI's git (git init for Keep out of Git) is found as clone finds it: the login shell's PATH and DEVELOPER_DIR. An
+// unread login shell gives an empty PATH, so the CLI answers git_missing (PRODUCT §3 'Launch environment').
 export interface CliEnv { PATH?: string; DEVELOPER_DIR?: string }
 export function cliEnv(loginPath: string | null, inherited: NodeJS.ProcessEnv): CliEnv {
   return { PATH: loginPath ?? "", ...(inherited.DEVELOPER_DIR ? { DEVELOPER_DIR: inherited.DEVELOPER_DIR } : {}) };
@@ -43,23 +41,19 @@ export function runConfig(cli: string, root: string, args: readonly string[], en
   return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs, env);
 }
 
-// No repo and no cwd: the presets are embedded in the CLI. The id goes after
-// `--` so a value like `--repo` stays the positional id, never an option.
-// `spawn` throws synchronously on argv it cannot pass (an id with NUL), which
-// would reject the page's call; it is a CLI that could not start instead.
+// The id goes after `--` so a value like `--repo` stays positional. `spawn` throws synchronously on argv it cannot pass
+// (an id with NUL), so that is a CLI that could not start, not a rejected call.
 export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
   return runCli(cli, id === undefined ? ["design-skill", "--json"] : ["design-skill", "--json", "--", id], undefined, timeoutMs)
     .catch((error: unknown) => ({ exitCode: null, timedOut: false, spawnError: error instanceof Error ? error.message : String(error), stdout: "", stderr: "" }));
 }
 
-// `doan export` reads every asset of a canvas and may write up to 50 MiB, well past the 10 s of the other calls.
-// Measured: the slowest export found, 5,000 assets in one directory, takes about 1.5 s on the development machine;
-// 120 s leaves room for slower machines and disks.
+// `doan export` reads every asset and may write up to 50 MiB, well past the 10 s of the other calls; 120 s leaves room
+// for slow machines and disks.
 export const EXPORT_TIMEOUT_MS = 120_000;
 
-// `path` is a listed canvas row (`.doan/...`) and `output` the absolute file the save panel returned, so neither can
-// read as an option. `--force`: the save panel already asked before replacing a file. `frame`: the prototype window's
-// Export, in the flag's own argument, since a frame ID such as `--` or `-o` would otherwise read as a separator or flag.
+// Neither `path` (a listed `.doan/...` row) nor `output` (absolute) can read as an option; nor can `frame`, in the
+// flag's own argument. `--force`: the save panel already asked before replacing a file.
 export function runExport(cli: string, root: string, path: string, output: string, options: { frame?: string; timeoutMs?: number } = {}): Promise<CliRun> {
   const frame = options.frame === undefined ? [] : [`--frame=${options.frame}`, "--prototype"];
   return runCli(cli, ["export", path, ...frame, "-o", output, "--force", "--repo", root, "--json"], undefined, options.timeoutMs ?? EXPORT_TIMEOUT_MS)
@@ -82,12 +76,8 @@ function executable(path: string): boolean {
   try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; }
 }
 
-// Not `execFile`: its 1 MiB default `maxBuffer` is below a large repo's normal
-// `ls` output. stdin is ignored so the CLI never waits for an answer (POSTMORTEM
-// "A character device is not necessarily a terminal"). The launching terminal's session IDs would let the CLI record
-// session associations for that session, so the CLI gets the launchd environment. PATH is the app's own unless
-// `git` (CliEnv) names the login shell's: the CLI starts git through PATH only for git init. spawn looks a bare command
-// up on the child's PATH, so an unpackaged run's bare `doan` (cliCommand) is found on the app's own PATH first.
+// Not `execFile` (1 MiB maxBuffer); stdin ignored so the CLI never waits; the launchd env drops terminal session IDs.
+// spawn searches the child's PATH, so with git init's login PATH a bare `doan` is first resolved on the app's own.
 function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number, git: CliEnv = {}): Promise<CliRun> {
   return new Promise((resolve) => {
     const own = process.env.PATH ?? "";

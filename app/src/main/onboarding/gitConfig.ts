@@ -3,9 +3,8 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readRegularFileSync } from "../regularFile";
 
-// Remotes are read from the config files themselves. Running git in a user's repository can execute its
-// fsmonitor, hooks and filters (POSTMORTEM 2026-10-25 'Eval inspection executed repository-configured helpers').
-// urls are raw config values and may carry a user or token: main-only, never copied into a DTO or message.
+// Remotes come from the config files: git can run a repository's fsmonitor, hooks and filters (POSTMORTEM 2026-10-25 'Eval
+// inspection executed repository-configured helpers'). urls may carry a token: main-only, never in a DTO or message.
 export type RemoteRead = { ok: true; urls: readonly string[]; uncertain: boolean } | { ok: false; reason: "not_repository" | "unreadable" };
 // unsupported: a setting that can change or add remotes in ways this reader does not resolve (config.worktree,
 // URL rewrites). Its presence makes the read uncertain rather than complete.

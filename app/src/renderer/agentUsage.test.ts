@@ -45,7 +45,7 @@ describe("ringLimited", () => {
   });
 });
 
-// PRODUCT §5 item 0 'Agent usage': the ring follows the provider's weekly window, else its longest one.
+// PRODUCT §5 item 0 'Agent usage'.
 describe("ring window", () => {
   const FIVE = { periodMins: 300 }, WEEK = { periodMins: 10080 };
   const claude = (...windows: UsageWindow[]) => ({ reading: ok(...windows) });
@@ -101,8 +101,8 @@ describe("usageText", () => {
   });
 });
 
-// ARCHITECTURE §7 'Agent usage': a connection that can't be used reads as its Settings > Agents connection row does. The popover row
-// sits under the provider's name and keeps the sentence; the button's description leads a nameless one with the name.
+// ARCHITECTURE §7 'Agent usage': an unusable connection reads as its Settings > Agents row; the popover keeps
+// the sentence under the provider's name, while a nameless button's description leads with the name.
 describe("blocked wording", () => {
   const block = (cause: UsageBlock["readiness"]["cause"], more: Partial<UsageBlock> = {}): UsageBlock => ({ readiness: { ready: false, cause, action: "retry" }, phase: "connected", ...more });
   it.each([
@@ -124,7 +124,6 @@ describe("blocked wording", () => {
     const entry: UsageEntry = { provider, inFlight: false, blocked };
     expect(rowView(entry, NOW).note).toEqual({ text: row, kind: "warn" });
     expect(usageDescription([entry], NOW)).toBe(description);
-    // The same sentence the Settings > Agents row leads with for that connection, its account included.
     const status: AuthStatusDto = {
       provider, revision: 3, generation: 1, phase: blocked.phase, account: { email: "ada@example.com" }, readiness: blocked.readiness, actions: [],
       attempt: blocked.attempt ? { id: "a1", kind: blocked.attempt, cancelling: false } : null, error: blocked.error ? { code: blocked.error, retryable: true } : null,

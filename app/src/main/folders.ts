@@ -6,9 +6,8 @@ export function remove(list: readonly string[], path: string): string[] {
   return list.filter((entry) => entry !== path);
 }
 
-// A broken folders.json must not keep the app from starting, so anything
-// unexpected starts from an empty list. A hand-edited file may repeat a path;
-// keep it once, as `add` does, so one folder never gets two keys and watchers.
+// A broken folders.json must not keep the app from starting, so anything unexpected starts empty. A repeated path is
+// kept once, as `add` does, so one folder never gets two keys and watchers.
 export function load(text: string): string[] {
   let value: unknown;
   try {
@@ -20,9 +19,8 @@ export function load(text: string): string[] {
   return [...new Set(value.filter((entry) => entry !== ""))];
 }
 
-// Locate swaps a missing folder for the one picked, in the same place. If the
-// picked folder is already stored elsewhere, only the old entry goes, so one
-// folder never gets two keys and watchers.
+// Locate swaps a missing folder for the one picked, in place. If the picked folder is stored elsewhere already, only
+// the old entry goes, so one folder never gets two keys and watchers.
 export function replaceAt(list: readonly string[], from: string, to: string): string[] {
   if (!list.includes(from) || from === to) return [...list];
   if (list.includes(to)) return remove(list, from);

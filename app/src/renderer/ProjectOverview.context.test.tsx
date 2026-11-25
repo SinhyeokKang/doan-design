@@ -78,8 +78,8 @@ test("the shown conversation's last value, a live one, another conversation's ow
   expect(render()).toBeNull();
 });
 
-// The Overview passes its thread the same turn indicator the canvas panel does (CanvasConversationPanel
-// test of the same name): the store's stage for the live turn, the event rule without one, nothing once it ended.
+// The Overview passes its thread the same turn indicator the canvas panel does: the store's stage for the live turn, the event
+// rule without one, nothing once it ended.
 test("the thread shows the live turn's indicator from the store's stage, and none once the turn ended", async () => {
   reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
   const { run, html } = setup([{ ...summary(A), phase: "running", working: true }]);
@@ -93,8 +93,8 @@ test("the thread shows the live turn's indicator from the store's stage, and non
   expect(html()).not.toContain("ti-reply");
 });
 
-// The Overview follows the canvas panel's rules (CanvasConversationPanel test of the same name): a Stop main took hides
-// the indicator at once, and a done turn's background work shows its line until the next message enters.
+// A Stop main took hides the indicator at once, and a done turn's background work shows its line until the next message
+// enters, as in the canvas panel.
 test("a taken Stop hides the indicator at once; a done turn's background work shows its line until the next message", async () => {
   reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
   const list: ConversationSummary[] = [{ ...summary(A), phase: "running", working: true, stopping: true }];
@@ -113,8 +113,8 @@ test("a taken Stop hides the indicator at once; a done turn's background work sh
   expect(html()).not.toContain("Background work is still running");
 });
 
-// R1 defect 2: on an existing conversation's next turn main pushes the person's message and turn.started separately;
-// the render that draws the message already has the indicator (spec condition 1).
+// On an existing conversation's next turn main pushes the person's message and turn.started separately; the render that draws
+// the message already has the indicator.
 test("the next turn's indicator is in the render that draws the person's message", async () => {
   const { run, html } = setup([summary(A)]);
   run.select(ROOT, A);

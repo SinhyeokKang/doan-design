@@ -7,9 +7,8 @@ import { createPrototypeShowing } from "../../main/prototype/showing";
 import type { FolderEntry } from "../../main/view";
 import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
 
-// The prototype window's host against main's own list scope and showing record, put together the way main's
-// conversation handler does. Main's playing canvas moves at once on a play, while the window's view of it can wait
-// behind the still capture and arrive coalesced (A, B, A shows as one A), so the two disagree for a while.
+// Main's playing canvas moves at once while the window's view of it can arrive late and coalesced
+// (A, B, A shows as one A), so the two disagree for a while.
 
 const ROOT = "/w/acme";
 const A: Canvas = { id: "a", path: ".doan/canvases/a.html" }, B: Canvas = { id: "b", path: ".doan/canvases/b.html" };
@@ -27,7 +26,6 @@ const view = (canvas: Canvas, gen: number): PrototypeView => ({
 const draft = (text: string) => ({ segments: [{ kind: "text" as const, text }], preset: null, attachments: [], shape: "capsule" as const });
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 
-// Main's state: what plays, how many times the playing canvas changed, and the root's conversations.
 let playing: PlayingCanvas;
 let generation: number;
 let all: ConversationSummary[];
@@ -87,7 +85,6 @@ test("a list read while main already plays another canvas keeps the conversation
   expect(run.store.drafts.get("conversation:ca")).toEqual(draft("keep me"));
   expect(replies[1]!.payload).toEqual({ root: ROOT, canvas: A });
 
-  // The view of what plays now reads that canvas.
   run.setView(view(B, 2));
   expect(replies[2]!.payload).toEqual({ root: ROOT, canvas: B });
   await deliver(2);
@@ -95,8 +92,7 @@ test("a list read while main already plays another canvas keeps the conversation
   expect(run.store.drafts.get("conversation:ca")).toEqual(draft("keep me"));
 });
 
-// While main played B, list changes on A were answered "not_playing": the view of A again reads them, in either order
-// of that answer and the view.
+// List changes answered "not_playing" while main played B are read again with the view of A, in either order.
 test.each(["before", "after"] as const)("list changes answered while main played another canvas are read again with the next view (answer %s the view)", async order => {
   all = [summary("old", A)];
   run.setView(view(A, 1));

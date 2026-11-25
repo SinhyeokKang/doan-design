@@ -3,11 +3,8 @@ import type { BoundaryKind } from "./commandRecords";
 import { commandBoundary, messageCommand } from "./providerCommands";
 import type { ConversationEvent } from "./types";
 
-// A conversation's command boundaries, in record order; the renderer names its command turns and judges a stale context
-// value itself (commandView threadCommands). Boundaries are not stored: after a restart they are rebuilt from the
-// record, a /compact or /clear turn that ended done (no provider record is read). In this run the provider's own event
-// decides a turn this run sent (`live`: a boundary kind, or null while none came), so a command the provider did not
-// carry out draws none.
+// A conversation's command boundaries in record order, rebuilt after a restart from /compact or /clear turns that ended
+// done. In this run the provider's own event decides (`live`), so a command the provider did not carry out draws none.
 export interface CommandTurns { boundaries: { turnId: string; kind: BoundaryKind }[] }
 export function commandTurns(provider: Provider, events: readonly ConversationEvent[], live?: ReadonlyMap<string, BoundaryKind | null>): CommandTurns {
   const turns = new Map<string, string>(), seen = new Set<string>(), ended = new Map<string, string>();

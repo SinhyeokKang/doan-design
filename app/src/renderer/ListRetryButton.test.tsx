@@ -12,8 +12,8 @@ const { useRetry } = await import("./ListRetryButton");
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-// POSTMORTEM 2026-11-17: a Retry answered while the window is in the background (a slow read the person left) takes
-// its line away; activation would otherwise put focus back on the Retry that went, or on the first focusable control.
+// POSTMORTEM 2026-11-17: a Retry answered in the background takes its line away; activation would otherwise put focus back on
+// the Retry that went.
 test("a Retry that succeeded with the window in the background focuses its row's control again when the window activates", async () => {
   const win = new EventTarget(), body = {}, control = { focus: vi.fn() };
   vi.stubGlobal("window", win);

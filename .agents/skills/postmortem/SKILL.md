@@ -75,4 +75,4 @@ Prevention grep: <pattern>
 - Do not rewrite or delete existing entry content. Keep entries in descending heading-date order. Append recurrences to the matching entry without changing its heading date or position.
 - Do not record trivial items.
 - Do not write Prevention without running the grep.
-- Do not commit. Invoked on its own, the user commits; inside `/ship`, `/ship` commits with `docs(postmortem):`.
+- Do not commit. Invoked on its own, the user commits; inside `/deliver`, `/deliver` commits with `docs(postmortem):`.

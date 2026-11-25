@@ -6,8 +6,7 @@ import {
   canvasArrow, canvasDisclosure, canvasRowMark, conversationArrow, conversationRowKey, deleteFocus, listPlace, viewedCanvasConversations,
 } from "./sidebarConversations";
 
-// The viewed canvas's conversation list under its sidebar row: which conversations, in which order, with which signal,
-// and where the list sits. Pure, so ShellSidebar and App only wire it.
+// Pure, so ShellSidebar and App only wire it.
 
 const ROOT = "/w/a";
 const NOW = Date.parse("2026-11-14T12:00:00.000Z");
@@ -171,8 +170,8 @@ describe("deleteFocus", () => {
   });
 });
 
-// POSTMORTEM 2026-11-06: a line that moves under the pointer turns a second press into a different pick. Spec 정한 점 10
-// holds the list only when it was shown unfolded and the pointer pressed a canvas row below it.
+// POSTMORTEM 2026-11-06: a line moving under the pointer turns a second press into a different pick, so the list
+// holds only when it was unfolded and the pointer pressed a canvas row below it.
 describe("listPlace", () => {
   const order = ["/w/a", `${ROOT}\n${A.path}`, `${ROOT}\n${B.path}`, `${ROOT}\n${PLAIN.path}`];
   const a = order[1]!, b = order[2]!, plain = order[3]!;

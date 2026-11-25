@@ -13,19 +13,22 @@ import { announcedAgain } from "../listRetry";
 import { LIST_FAILED_TEXT, listRetryItem } from "../ListRetryButton";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
 import { NameTip } from "../NameTip";
+import { useThumbnailHub } from "../thumbnails";
 
-// The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the conversation
-// this window's own canvas run shows. Its thread chips, Sign in and Open buttons belong to the main window: they go to
-// main as a reveal, which brings the main window forward to act there; this window waits for nothing back.
+// The prototype panel's thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal, which brings the main window
+// forward to act there; this window waits for nothing back.
 
 export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {} }: {
   run: PrototypeConversationRun; calls: PrototypeConversationCalls; now: number; onNotice?(text: string): void;
 }) {
+  // Main answers this window's thumbnails for the playing root only.
+  const thumbnailHub = useThumbnailHub(calls);
   const view = run.currentView(), target = run.target();
   if (!view || !target) return null;
-  // The sidebar names a project by its folder; this window has no sidebar list to ask.
-  const project = view.root.split("/").filter(Boolean).at(-1) ?? view.root;
   const entry: FolderEntry = run.entry() ?? { path: view.root, kind: "loading" };
+  // Named as the main window names its group (homeCards.ts `groupProjects`): by the main worktree's folder, else the root's.
+  const named = entry.kind === "list" ? entry.git?.main ?? view.root : view.root;
+  const project = named.split("/").filter(Boolean).at(-1) ?? named;
   const settings = run.settings();
   const blocked = target.lost === "gone" ? canvasUnlistedText(project) : target.lost === "duplicate" ? DUPLICATE_CANVAS_TEXT : null;
   const reveal = (request: RevealPayload) => { void calls.reveal(request).catch(console.error); };
@@ -54,17 +57,14 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onOpenOverview={conversationId => reveal({ kind: "conversation", conversationId })}
     conversationListed={conversationId => run.conversationListed(conversationId)}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
-    work={run.work()} playing={run.playing()} />;
+    work={run.work()} playing={run.playing()} thumbnailHub={thumbnailHub} />;
 }
 
 // The menu's value for New conversation: conversation ids are never empty.
 const NEW = "";
 
-// The panel head's title as the canvas's conversation menu, the main window's menu model (New conversation, the
-// canvas's conversations with their marks, Delete), followed by the head's New conversation. While the list is read or
-// the canvas is blocked the trigger is `aria-disabled`, not `disabled`, and opens nothing: it stays focusable, so it is
-// where focus goes on opening the panel before a composer shows. While the menu is open the rows keep the order they
-// opened in and a conversation started meanwhile goes last.
+// While the list is read or the canvas is blocked the trigger is `aria-disabled`, not `disabled`, so it stays focusable as the
+// target on opening the panel. While open the rows keep their order and a new conversation goes last.
 export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
   run: PrototypeConversationRun; now: number;
   // A row or New conversation was chosen and the menu closed: focus goes on to the composer.
@@ -86,9 +86,8 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
     if (unavailable) return;
     setFrozen(Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, null) : []);
   };
-  // What this list draws, kept as the order to hold: titleMenuOrder sorts by activity whatever the order does not
-  // name, so a row added while open would move again at the next read unless its place is kept too. Kept during the
-  // render (React's state adjusted while rendering), so no frame draws the rows in another order first.
+  // titleMenuOrder sorts by activity whatever the order does not name, so a row added while open keeps its place too. Kept during the
+  // render (state adjusted while rendering), so no frame draws the rows in another order first.
   const drawn = frozen !== null && Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, frozen) : frozen;
   if (frozen !== null && drawn !== null && drawn.join("\n") !== frozen.join("\n")) setFrozen(drawn);
   const current = shown.kind === "conversation" ? shown.conversationId : null;

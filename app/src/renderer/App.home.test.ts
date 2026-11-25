@@ -10,7 +10,6 @@ const base = { screen: "home" as const, loadedRoot: null, open: null, expanded: 
 test("every main-window save carries Home's memory, and none is sent before that memory was read", () => {
   const home = { lastRoot: "/code/doan", lastProvider: "claude" as const, models: { claude: { model: "opus", effort: "high" } } };
   expect(savedUiState({ ...base, home })).toEqual({ screen: "home", expanded: {}, shellProjects: {}, lastByRoot: {}, home });
-  // Home → workspace: the workspace save keeps the same memory, so a restart still has it.
   const row = { path: ".doan/canvases/a.html", id: "a", url: "u" };
   const workspace = savedUiState({ ...base, home, screen: "workspace", loadedRoot: "/code/doan", open: { folder: "/code/doan", canvas: row.path, row } as never });
   expect(workspace).toMatchObject({ screen: "workspace", root: "/code/doan", canvas: row.path, canvasId: "a", home });
@@ -18,7 +17,7 @@ test("every main-window save carries Home's memory, and none is sent before that
   expect(savedUiState({ ...base, home: null })).toBeNull();
 });
 
-// the conversation last shown in each root's Overview is saved top-level with every save.
+// The conversation last shown in each root's Overview is saved top-level with every save.
 test("every save carries the Overview conversation memory by root, and an empty one is left out", () => {
   const home = {};
   const conversationByRoot = { "/code/doan": "aaaaaaaa-0000-4000-8000-000000000001" };
@@ -41,7 +40,7 @@ test("Edit on Home asks before replacing a different draft", () => {
   expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
 });
 
-// the start's ui-state read merges under what the run wrote, deletions included.
+// The startup ui-state read merges under what the run wrote, deletions included.
 test("a late ui-state read never brings back memory cleared by New or a removed root", () => {
   const saved = { "/a": "aaaaaaaa-0000-4000-8000-000000000001", "/b": "aaaaaaaa-0000-4000-8000-000000000002", "/c": "aaaaaaaa-0000-4000-8000-000000000003" };
   const now = { "/c": "aaaaaaaa-0000-4000-8000-000000000004" };
@@ -51,7 +50,7 @@ test("a late ui-state read never brings back memory cleared by New or a removed 
   expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
 });
 
-// The canvas conversation last seen on each canvas (ui-state conversationByCanvas), saved top-level like the Overview's.
+// Like the Overview's memory, the canvas one (ui-state conversationByCanvas) is saved top-level.
 test("every save carries the canvas conversation memory, and an empty one is left out", () => {
   const conversationByCanvas = { "/code/doan": { checkout: "aaaaaaaa-0000-4000-8000-000000000001" } };
   expect(savedUiState({ ...base, home: {}, conversationByCanvas })).toMatchObject({ conversationByCanvas });
@@ -68,8 +67,8 @@ test("a late ui-state read keeps the canvas memory seen before it, per canvas, a
   expect(mergeCanvasMemory(saved, {}, new Set())).toEqual(saved);
 });
 
-// the canvas page's conversation panel is saved with every save. App sends no save before
-// the initial ui-state read (App.conversationPanel.test.tsx), so the value saved is the read one or the person's.
+// App sends no save before the initial ui-state read (App.conversationPanel.test.tsx),
+// so the saved panel state is the read one or the person's.
 test("every save carries the conversation panel's state", () => {
   const home = {};
   expect(savedUiState({ ...base, home, rightPanel: { open: false, width: 400 } })).toMatchObject({ rightPanel: { open: false, width: 400 } });
@@ -78,8 +77,7 @@ test("every save carries the conversation panel's state", () => {
   expect(savedUiState({ ...base, home })).not.toHaveProperty("sidebar");
 });
 
-// The inspector's open flag and width, one per device for every canvas: saved as the person left them and read back
-// the same, so a restart or another canvas shows the same column. Without a saved value it is closed.
+// The inspector's open flag and width are one per device for every canvas; unsaved means closed.
 test("the inspector's state survives a save and a read", () => {
   for (const inspector of [{ open: true, width: 320 }, { open: false, width: 300 }, { open: true }]) {
     const saved = savedUiState({ ...base, home: {}, inspector });

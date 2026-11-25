@@ -11,9 +11,8 @@ function all(node: ReactNode): El[] {
 }
 const radios = (node: ReactNode) => all(node).filter(element => element.type === "input" && element.props.type === "radio");
 
-// While Set Up or a clone runs, the Doan files radios are unavailable but focusable (DESIGN 'Unavailable but
-// focusable'): aria-disabled, never native disabled, which would drop a focused radio's focus to the page; a click, an
-// arrow key's change and Enter then choose nothing.
+// DESIGN 'Unavailable but focusable': aria-disabled, never native disabled, which would drop a focused radio's focus to the page; a
+// click, an arrow key's change and Enter then choose nothing.
 describe("the Doan files radios while a setup or clone runs", () => {
   for (const [name, draw] of [["StorageField", StorageField], ["StorageCard", StorageCard]] as const) {
     test(`${name}: aria-disabled, not disabled, and no choice is made`, () => {

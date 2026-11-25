@@ -122,11 +122,8 @@ func pageProto(t *testing.T, page []byte) (srcdoc, font string, proto map[string
 	return g.Srcdoc, g.Font, meta.Prototype
 }
 
-// The file the player downloads is the file `doan export --frame <id> --prototype` writes: byte for byte for these
-// LF-only, valid UTF-8 canvases, for every frame the CLI exports, with slices small enough to split surrogate pairs
-// and the player's own size. The player's code runs, not a copy of it (POSTMORTEM 2026-11-14 'An eval check that
-// compared a prototype export only with a regenerated one accepted the canvas viewer': the file's own properties
-// are checked by TestAssembleStitchedPrototypeIsAssemblePrototype over the same join).
+// For these LF-only, valid UTF-8 canvases the player's download is byte for byte the `doan export --frame <id> --prototype` file,
+// for every frame, with slices small enough to split surrogate pairs. The player's code runs, not a copy of it.
 func TestPlayerJoinsTheCLIsPrototypeFile(t *testing.T) {
 	var requests []map[string]any
 	var wants []string
@@ -164,9 +161,8 @@ func TestPlayerJoinsTheCLIsPrototypeFile(t *testing.T) {
 	}
 }
 
-// The player refuses what the CLI refuses, by the file's own data, and looks ids up as keys of nothing: an id that
-// names an Object.prototype member is an id like any other. It refuses a page whose data does not hold together
-// rather than download a broken file.
+// The player refuses what the CLI refuses, by the file's own data, treats an id naming an Object.prototype member like any
+// other, and refuses a page whose data does not hold together rather than download a broken file.
 func TestPlayerRefusesWhatTheCLIRefuses(t *testing.T) {
 	src := doc(`<div data-doan-frame="dup" data-doan-prototype="1x1"></div><div data-doan-frame="dup" data-doan-prototype="1x1"></div>` +
 		`<div data-doan-frame="plain"></div><div data-doan-frame="bad" data-doan-prototype="0x0"></div>` +

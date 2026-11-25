@@ -3,9 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// The size bubble's Add to message on the canvas page: its availability, the chip it puts in the panel's composer, the
-// folded panel it unfolds, and where focus goes. Driven with hooks as plain state (App.settings.test.tsx), with the
-// harness of App.conversationPanel.test.tsx.
+// The size bubble's Add to message on the canvas page: availability, the chip it puts in the panel's composer,
+// the folded panel it unfolds, and where focus goes. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -53,7 +52,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton", "toolbarEscape"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton", "bubbleReturns", "toolbarEscape"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -64,7 +63,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -291,6 +290,73 @@ test("the bubble going with focus on Add to message hands it to the toolbar's Pi
   expect(picker.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
 });
 
+// An agent's write can reload the canvas and lose the selection while the prototype window is in front; activation then
+// restores the gone bubble button's focus to the first control (POSTMORTEM 2026-11-17 'Window activation put focus on
+// Hide sidebar'), so the hand-off is made again, unless the selection, and with it the bubble's button, came back.
+test.each(["Play", "Add to message"] as const)("the bubble going with focus on %s while the window is in the background hands focus again on activation", async which => {
+  await bubbleWithComposer();
+  const picker = element("Picker"), toolbarPlay = element("toolbar Play");
+  pane().picker.button!.current = picker;
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  const target = which === "Play" ? toolbarPlay : picker;
+  const lose = () => (which === "Play" ? (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay : hook()).onFocusLost();
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    lose();
+    expect(target.focus).toHaveBeenCalledOnce();
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(target.focus).toHaveBeenCalledTimes(3);
+    // The selection came back before activation and the controller returned focus to the bubble's own button.
+    target.focus.mockClear();
+    lose();
+    const back = { ...element(which), closest: () => null };
+    if (which === "Play") harness.controller!.bubblePlayButton!.mockReturnValue(back);
+    else bubble()!.button.current = back;
+    harness.controller!.bubbleReturns!.mockReturnValue(1);
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(target.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+// A reload that drops Play but finds the selection again returns focus to Add to message (Play no longer applies), so
+// any bubble button shown again ends the toolbar's hand-off, whichever hand-off activation replays first.
+test("the toolbar Play's hand-off is not made again once Add to message shows again instead of Play", async () => {
+  await bubbleWithComposer();
+  const toolbarPlay = element("toolbar Play");
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay.onFocusLost();
+    expect(toolbarPlay.focus).toHaveBeenCalledOnce();
+    bubble()!.button.current = { ...element("Add to message"), closest: () => null };
+    harness.controller!.bubbleReturns!.mockReturnValue(1);
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(toolbarPlay.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+// The reload lost the selection for good, and then an agent's `doan open --element` selected another element: the bubble
+// shows again, but nothing returned focus to it, so activation would restore the gone Play without the hand-off.
+test("the toolbar Play's hand-off is made again when the bubble shows again for another selection with no focus return", async () => {
+  await bubbleWithComposer();
+  const toolbarPlay = element("toolbar Play");
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay.onFocusLost();
+    bubble()!.button.current = { ...element("Add to message"), closest: () => null };
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(toolbarPlay.focus).toHaveBeenCalledTimes(3);
+  } finally { vi.useRealTimers(); }
+});
+
 test("the controller reads App's Add to message button", async () => {
   await bubbleWithComposer();
   const add = element("Add to message");
@@ -298,10 +364,8 @@ test("the controller reads App's Add to message button", async () => {
   expect(hook().button()).toBe(add);
 });
 
-// A pick clears the selection, so a bubble button it starts from goes away and the controller hands focus to the
-// toolbar (its onFocusLost). A cancel then sends focus to the composer field, never back to the hidden button and
-// never the page body, whether the panel was open or folded (a folded panel's field takes no focus until it unfolds).
-// Add to message's button stays in the DOM, hidden; Play's is removed.
+// A pick clears the selection, so the bubble button goes and the controller hands focus to the toolbar; a cancel
+// then sends focus to the composer field, never to the hidden button or the page body.
 test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "open"], ["Play", "folded"], ["Show inspector", "open"]] as const)(
   "a pick started with ⌘L from the bubble's %s, panel %s, ends in the composer field when cancelled", async (which, shown) => {
     const { link, field } = await bubbleWithComposer({ panel: shown === "open" });
@@ -320,8 +384,8 @@ test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "o
     const viewport = (all(tree).find(element => "viewport" in (element.props as object))!.props as { viewport: { current: Record<string, unknown> } }).viewport;
     viewport.current.contains = (node: unknown) => node === picker || node === toolbarPlay;
     viewport.current.focus = vi.fn();
-    // A hidden button refuses focus.
-    const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn() };
+    // A hidden button refuses focus; the cleared selection hides the bubble that holds Add to message.
+    const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn(), closest: (selector: string) => selector === "[hidden]" ? {} : null };
     Object.setPrototypeOf(bubbleButton, (globalThis.HTMLElement as unknown as { prototype: object }).prototype);
     if (which === "Show inspector") {
       bubble()!.inspectButton.current = bubbleButton;

@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -75,7 +74,6 @@ type Flags struct {
 }
 
 var Version = "dev"
-var kebabID = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>] [--storage local|repo] [--git-init]
@@ -110,8 +108,7 @@ Storage: repo = Include in Git; local = Keep out of Git (this Mac only).
 `
 
 // appConversation reports a shell inside a Doan app conversation, whose agent cannot use onboarding or remove projects
-// (PRODUCT §3 'Resume and permissions'). Refusing before dialling says so; the app would answer the conversation
-// credential bad_token, which reads as an app that is not running.
+// (PRODUCT §3 'Resume and permissions'). Refusing before dialling says so; the app's bad_token would read as not running.
 func appConversation() bool { return os.Getenv("DOAN_APP_CONVERSATION") == "1" }
 func conversationRefused(command string) *Error {
 	return &Error{Code: "conversation_refused", Message: "`doan " + command + "` cannot run from a Doan app conversation", NextSteps: []string{"Ask the user to run `doan " + command + "` in a terminal, outside Doan's conversations"}}

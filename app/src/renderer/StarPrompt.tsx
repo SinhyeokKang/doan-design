@@ -40,10 +40,8 @@ export interface StarPromptProps {
   restoreFocus?(previous: HTMLElement | null): void;
 }
 
-// The GitHub star card: main says a card is due, the card waits for 1.2 s with no key or pointer input and then shows
-// unless something else has the person's attention, in which case main's next moment tries again. It never takes focus
-// and is the app document's last Tab stop; outside presses and focus moves leave it alone (POSTMORTEM 2026-11-09, a
-// quiet popover closed by focus moving elsewhere), so it is not a Radix popover.
+// The star card shows after 1.2 s without input unless something else has attention (main asks again). It never takes focus
+// and ignores outside presses and focus moves (POSTMORTEM 2026-11-09), so it is not a Radix popover.
 export function StarPrompt(props: StarPromptProps) {
   const [card, setCard] = useState<StarCard | null>(null);
   const latest = useRef(props);

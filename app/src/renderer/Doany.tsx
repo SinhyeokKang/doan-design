@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The buddy on Home (Doany by default): the WebGL shell of the buddy draft .doan/assets/buddies/motion-preview.js
-// (MIT, Doan contributors), run with the chosen buddy's registry entry. Context options, shaders, mesh, blend,
-// texture parameters and texture units are the draft's, unchanged (Doany.test.tsx compares the WebGL calls with
-// the golden that app/scripts/doanyGolden.mjs records from the draft, and doanyRender.test.ts checks each buddy's
-// shader anchors against its artwork); the drawn pose is bounded per buddy (drawnPose). Motion lives in
-// doanyMotion.ts and the frame loop in doanyRig.ts.
+// The WebGL shell of .doan/assets/buddies/motion-preview.js (MIT, Doan contributors); context options, shaders, mesh, blend
+// and textures stay the draft's, pinned by Doany.test.tsx against the golden from app/scripts/doanyGolden.mjs.
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { EYE_TEXTURE, buddy as registry, type Buddy, type BuddyId, type BuddyRig } from "./buddies";
 import type { Pose } from "./doanyMotion";
@@ -68,20 +64,27 @@ export const fragmentFor = (c: BuddyRig) => `
       }
       gl_FragColor = col;
     }`;
-// The draft bounds the drawn pose per buddy while it writes the uniforms; the motion model stays unbounded
-// (doanyMotion.ts, pinned by the golden logs). The hop is drawn lower (Doany .9: the V2 beret had no headroom at the
-// apex with the pointer far left) and the accessory's tilt is held to its range: a scarf or headphones wrap the body,
-// glasses would leave the eyes. A single hop with the pointer anywhere stays inside Doany's range (about -.19 to +.13),
-// so only a burst of presses meets it. Together they keep at least 1.4 device px between the drawing and Home's 228 px
-// canvas edge for any press sequence (doanyRender.test.ts). The rest frame has no lift or tilt.
+// The motion model stays unbounded (pinned by the golden logs); the hop is drawn lower and the accessory's tilt held to its
+// range, keeping at least 1.4 device px between the drawing and Home's 228 px canvas edge (doanyRender.test.ts).
 export function drawnPose(pose: Pose, rig: BuddyRig): Pose {
   return { ...pose, lift: pose.lift * rig.liftScale, hatTilt: Math.max(rig.accessoryTilt[0], Math.min(rig.accessoryTilt[1], pose.hatTilt)) };
 }
 
 const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "layer", "energy", "look", "eyeOpen", "skin", "eyeTex"] as const;
 
-// Null without WebGL; throws when a shader does not compile or link, after releasing the context.
-function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget; textures: Promise<unknown> } | null {
+export interface SurfacePose { time: number; squash: number; lift: number; tilt: number; hatTilt: number; energy: number; eyeOpen: number; look: readonly [number, number] }
+export interface BuddySurface {
+  draw: (pose: SurfacePose) => void;
+  resize: (size: number) => void;
+  lost: () => boolean;
+  release: () => void;
+  // Any of the three failing leaves the still image, as the draft does.
+  textures: Promise<unknown>;
+}
+
+// Home's and the docked buddy's one WebGL shell, so the golden trace pins both. Null without WebGL; throws when a shader
+// does not compile or link, after releasing the context.
+export function buddySurface(canvas: HTMLCanvasElement, shaders: { vertex: string; fragment: string }, assets: { body: string; accessory: string }): BuddySurface | null {
   const gl = canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: false });
   if (!gl) return null;
   const release = () => { gl.getExtension("WEBGL_lose_context")?.loseContext(); };
@@ -93,8 +96,8 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
       return shader;
     };
     const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexFor(buddy.rig)));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentFor(buddy.rig)));
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, shaders.vertex));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, shaders.fragment));
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program) ?? "");
     gl.useProgram(program);
@@ -127,11 +130,10 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
         };
         img.onerror = () => reject(Error("Could not load " + path)); img.src = path;
       });
-    const target: DoanyTarget = {
+    return {
       draw(pose) {
         gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.useProgram(program);
-        const { time, squash, lift, tilt, hatTilt, energy, eyeOpen } = drawnPose(pose, buddy.rig);
-        for (const [key, value] of Object.entries({ time, squash, lift, tilt, hatTilt, energy, eyeOpen })) gl.uniform1f(locations[key as keyof typeof locations], value);
+        for (const key of ["time", "squash", "lift", "tilt", "hatTilt", "energy", "eyeOpen"] as const) gl.uniform1f(locations[key], pose[key]);
         gl.uniform2f(locations.look, pose.look[0], pose.look[1]);
         gl.uniform1i(locations.skin, 0);
         // The eye sits on unit 1 for both layers; the layers' own textures bind to unit 0.
@@ -139,30 +141,40 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
         for (let layer = 0; layer < 2; layer++) { gl.uniform1f(locations.layer, layer); gl.bindTexture(gl.TEXTURE_2D, textures[layer]!); gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0); }
       },
       resize(size) { canvas.width = size; canvas.height = size; },
-      isContextLost: () => gl.isContextLost(),
-      onLost(listener) {
-        const lost = (event: Event) => { event.preventDefault(); listener(); };
-        canvas.addEventListener("webglcontextlost", lost);
-        return () => canvas.removeEventListener("webglcontextlost", lost);
-      },
+      lost: () => gl.isContextLost(),
       release,
+      textures: Promise.all([texture(assets.body), texture(assets.accessory), texture(EYE_TEXTURE)]).then(([body, accessory, eyeTexture]) => { textures.push(body, accessory); eye = eyeTexture; }),
     };
-    // Any of the three failing leaves the still image, as the draft does.
-    return { target, textures: Promise.all([texture(buddy.assets.body), texture(buddy.assets.accessory), texture(EYE_TEXTURE)]).then(([body, accessory, eyeTexture]) => { textures.push(body, accessory); eye = eyeTexture; }) };
   } catch (error) {
-    // Home mounts Doany on every visit; a context left behind on each failure would reach Chromium's limit.
+    // Both buddies mount again and again; a context left behind on each failure would reach Chromium's limit.
     release();
     throw error;
   }
+}
+
+function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget; textures: Promise<unknown> } | null {
+  const shell = buddySurface(canvas, { vertex: vertexFor(buddy.rig), fragment: fragmentFor(buddy.rig) }, buddy.assets);
+  if (!shell) return null;
+  const target: DoanyTarget = {
+    draw(pose) { shell.draw(drawnPose(pose, buddy.rig)); },
+    resize: shell.resize,
+    isContextLost: shell.lost,
+    onLost(listener) {
+      const lost = (event: Event) => { event.preventDefault(); listener(); };
+      canvas.addEventListener("webglcontextlost", lost);
+      return () => canvas.removeEventListener("webglcontextlost", lost);
+    },
+    release: shell.release,
+  };
+  return { target, textures: shell.textures };
 }
 
 // What keepBuddy hears from a mount: WebGL is gone (ready: after it had drawn), or a lost context is back.
 interface BuddyWatch { failed(ready: boolean): void; restored(): void }
 const UNWATCHED: BuddyWatch = { failed: () => {}, restored: () => {} };
 
-// Everything the draft did on load, undone by dispose. React StrictMode runs effects twice in
-// development and a canvas keeps its released (lost) context for life, so each mount draws on a fresh
-// copy of React's canvas and puts React's back when it is disposed.
+// React StrictMode runs effects twice in development and a canvas keeps its released (lost) context for life, so each mount
+// draws on a fresh copy of React's canvas and puts React's back on dispose.
 export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement, watch = UNWATCHED): { rig: DoanyRig | null; dispose(): void } {
   const canvas = placeholder.cloneNode(false) as HTMLCanvasElement;
   placeholder.replaceWith(canvas);
@@ -233,13 +245,8 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
   return { rig, dispose() { rig.dispose(); canvas.removeEventListener("webglcontextrestored", restored); restore(); } };
 }
 
-// After a buddy that drew loses its context (a GPU process reset loses every context), it is mounted again once the
-// GPU is back: a context made while the GPU process restarts can fail or be lost again. webglcontextrestored says it
-// is back; when none comes, a mount is tried after RETRY_MS and again after each failed try, each wait twice the one
-// before, at most RETRIES times. Two GPU resets in a row make Chromium refuse WebGL to the page for about two minutes
-// with no restore event (measured in Electron 45), so the last try comes about four minutes after the loss. A buddy
-// that never drew is not tried again here: Home mounts it again on its next visit. The docked buddy
-// (dockedBuddyShell.ts) recovers on the same schedule.
+// Two GPU resets in a row make Chromium refuse WebGL for about two minutes with no restore event, so the doubling
+// retries from RETRY_MS must outlast that; a buddy that never drew is not retried here.
 export const RETRY_MS = 1000;
 export const RETRIES = 8;
 
@@ -261,9 +268,8 @@ export function keepBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImag
   return { get rig() { return mounted.rig; }, dispose() { clearTimeout(retry); mounted.dispose(); } };
 }
 
-// `size` is the drawing slot in CSS px (Home 114, Welcome 142.5); it includes the hop headroom. A new buddy is a new
-// mount (a context of its own, released on unmount), so the slot is keyed by the buddy. describedBy: the ids of text
-// beside the slot that the button reads with its name (Settings > General's lock countdown).
+// `size` is the drawing slot in CSS px, hop headroom included. A new buddy is a new mount (its own context), so the slot is
+// keyed by the buddy. describedBy: ids of text beside the slot the button reads with its name.
 export function Buddy({ buddy, size, describedBy, ref }: { buddy: BuddyId; size: number; describedBy?: string; ref?: Ref<BuddyHandle> }) {
   return <BuddySlot key={buddy} buddy={registry(buddy)} size={size} describedBy={describedBy} ref={ref} />;
 }

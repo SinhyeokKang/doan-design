@@ -21,7 +21,7 @@ describe("shell navigation", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false }, "a")).toBe(true);
     expect(projectExpanded({ roots: ["a"], expanded: false }, "b")).toBe(false);
   });
-  // project-row-disclosure: the loaded project folds by its chevron; the fold lives in memory only.
+  // The fold lives in memory only.
   it("keeps a hand-folded loaded project folded", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false, collapsed: true }, "a")).toBe(false);
     expect(projectExpanded({ roots: ["a"], expanded: true, collapsed: true }, "b")).toBe(true);
@@ -82,7 +82,6 @@ describe("shell project persistence", () => {
   });
 });
 
-// Dogfooding #2: there was no visible way back to Home or to the Overview from a canvas.
 describe("ways back", () => {
   it("the loaded project's row opens its Overview from a canvas and from Home, keeps the slot rule on the Overview, and re-enters from a page", () => {
     expect(loadedProjectRow({ screen: "workspace", overviewShown: false })).toBe("overview");
@@ -91,8 +90,7 @@ describe("ways back", () => {
     expect(loadedProjectRow({ screen: "addProjects", overviewShown: false })).toBe("enter");
     expect(loadedProjectRow({ screen: "settings", overviewShown: true })).toBe("enter");
   });
-  // The Project Settings page has no current row, and the loaded project's row
-  // opens its Overview there as it does from Home (POSTMORTEM 2026-11-02: every screen the branch runs on is pinned).
+  // POSTMORTEM 2026-11-02: every screen the branch runs on is pinned.
   it("the loaded project's row opens its Overview from the Project Settings page", () => {
     expect(loadedProjectRow({ screen: "projectSettings", overviewShown: false })).toBe("overview");
   });
@@ -105,9 +103,8 @@ describe("ways back", () => {
   });
 });
 
-// PRODUCT §5 item 1: where the person goes when the auto-registered worktree they were
-// on vanishes or hides. The worktree selected before it, else the main checkout, else the group's first list; the same
-// canvas there when listed, else that worktree's Overview.
+// PRODUCT §5 item 1: leaving a vanished or hidden auto worktree prefers the previous one, then the main checkout,
+// then the first list; the same canvas there if listed, else its Overview.
 describe("fallbackWorktree", () => {
   const P = ".doan/canvases/billing.html", Q = ".doan/canvases/other.html";
   const git = { common: "/repo/.git", main: "/w/main", worktrees: ["/w/main", "/w/b", "/w/c", "/w/gone"] };

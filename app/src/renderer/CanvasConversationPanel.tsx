@@ -11,6 +11,7 @@ import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { ThumbnailHub } from "./thumbnails";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
 import type { DoanApi } from "../preload";
@@ -20,7 +21,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./compon
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
-import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
+import { canvasKey, type CanvasRun, type CanvasTarget, type CanvasView, type ResumeReply } from "./canvasRun";
+import { useActivationFocus } from "./activationFocus";
 import { focusFieldEnd } from "./chipField";
 import { CommandCardNotice, focusPicker, SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { commandTurnLabel, firstTitleMessage, threadCommands, type CommandCardTarget } from "./commandView";
@@ -53,11 +55,8 @@ import { defaultPermission, permissionChoices, permissionPickerView } from "./pe
 import type { PlayingFrameChip } from "./prototype/conversation";
 import { NameTip } from "./NameTip";
 
-// The canvas page's conversation panel body (draft frames
-// panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
-// conversation shows; this component draws it and makes the calls to main the thread and composer ask for, as the
-// Overview's does (ProjectOverview). The body has no head: the main window's panel puts its title menu, New
-// conversation and Hide above it, and the prototype window shows it bare.
+// CanvasRun decides which conversation shows; this body draws it and makes the calls to main, as ProjectOverview does. It
+// has no head: the main window's panel puts its title menu, New and Hide above it.
 
 // The body's calls to main: `window.doan` in the main window, the same members of `window.doanPrototype` in the
 // prototype window, which has no `window.doan`.
@@ -79,7 +78,7 @@ export interface CanvasConversationProps {
   seen: ReadonlySet<string>;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
-  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
   now: number;
   // Why the composer keeps its draft but takes no input: the page shows a canvas outside the list, or one whose ID
@@ -118,6 +117,8 @@ export interface CanvasConversationProps {
   canvasPress?: CanvasPress | undefined;
   // The prototype window's playing frame, pinned on its composer and put first in every message.
   playing?: PlayingFrameChip | null;
+  // The window's thumbnails, for the thread's canvas and handoff cards.
+  thumbnailHub?: ThumbnailHub;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -127,9 +128,8 @@ const NEW = "";
 const NO_ROWS: readonly CanvasRow[] = [];
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
-// Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
-// terminal session, which keeps its own model and effort, or shows a conversation an external agent started. A resume
-// held while its terminal still works is a new conversation. App reads it too.
+// The composer refuses attachments (Attach, paste, drop, Capture area) when it continues a terminal session or shows an
+// external agent's conversation. A resume held while its terminal works is a new conversation.
 export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
   if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
   return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";
@@ -150,9 +150,8 @@ export function linkedAt(at: string | undefined, now: number): string | null {
   return date.toDateString() === today.toDateString() ? clock : `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock}`;
 }
 
-// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On the
-// new conversation state it is unavailable (`aria-disabled`, still focusable with its tooltip) and does nothing; while
-// the list is read (nothing shown yet) it focuses the composer.
+// The header's New conversation button. On the new conversation state it is aria-disabled, still focusable with its
+// tooltip, and does nothing; while the list is read it focuses the composer.
 export function startNewConversation(current: string | null, isNew: boolean, select: (id: string | null) => void, focus: () => void): void {
   if (isNew) return;
   if (current !== null) select(null);
@@ -226,9 +225,8 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   const summary = Array.isArray(list) ? list.find(c => c.conversationId === view.conversationId) : undefined;
   const provider = summary?.provider ?? run.store.providerOf(view.conversationId);
   const events = run.store.thread(view.conversationId)?.events ?? [];
-  // Before a list names it, the first message stands in as main's title does: chips by name (messageLine). A command
-  // names nothing (main leaves one a command started untitled until a message), so the lists' "Conversation" stands in
-  // once the history shows only commands; while it is read the title stays empty.
+  // Before a list names it, the first message stands in as main's title does. A command names nothing, so "Conversation"
+  // stands in once the history shows only commands; while it is read the title stays empty.
   const first = provider ? firstTitleMessage(provider, events) : undefined;
   const untitled = events.some(event => event.type === "user.message") ? "Conversation" : "";
   return { title: summary?.title || (first ? messageLine(requestTitleText(first.text), first.anchors) : untitled), current: view.conversationId };
@@ -279,10 +277,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
-  // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
+  // Arrivals and replies can land with the window behind, so their focus is made again on activation (POSTMORTEM
+  // 2026-11-17), and only while the same canvas shows the same conversation.
+  const handFocus = useActivationFocus();
+  const shownNow = () => { const target = run.target(); return target ? `${canvasKey(target)}\n${run.showing()?.conversationId ?? ""}` : null; };
   const editAndResend = (id: string) => {
     const shown = run.showing();
-    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) handFocus(() => { if (run.stillShowing(shown)) focusField(); }); });
   };
 
   // The composer's agent, model and effort, as the Overview's: a new conversation picks as Home does; an existing one
@@ -353,9 +354,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     run.takeScroll(conversationId);
     if (target.kind === "item") handle.current?.scrollToItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
-  // An entry's focus: a permission entry's first choice once its request draws, or a
-  // question's first option or answer input, else the composer. Each arrival is applied
-  // once; one whose request has nothing pending falls back to the composer.
+  // An entry's focus: a permission's first choice once its request draws, a question's first option or input, else the
+  // composer. Each arrival is applied once; one with nothing pending falls back to the composer.
   const arrived = useRef(0);
   // The canvas this render's view belongs to. Read here, not in the effect: the page's layout effect shows a newly
   // opened canvas before this effect runs, while the view and items below are still the canvas left behind.
@@ -363,6 +363,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   useEffect(() => {
     const arrival = props.arrival;
     if (!arrival || arrival.seq === arrived.current || view.kind === "wait") return;
+    // The item that takes focus, else the composer.
+    let item: string | null = null;
     if (arrival.focus === "permission" && conversationId) {
       if (!Array.isArray(items)) return;
       const ask = scrollTarget(items, asking);
@@ -371,7 +373,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       props.onArrived(arrival.seq);
       if (ask.kind === "item") {
         handle.current?.scrollToItem(ask.key);
-        if (handle.current?.focusItem(ask.key)) return;
+        item = ask.key;
       }
     } else if (arrival.focus === "handoff" && arrival.handoff) {
       // After a handoff's move: the receiving thread's card, once its history draws. The render that brings the arrival
@@ -385,10 +387,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const card = conversationId === to.conversationId && Array.isArray(items) ? items.find(item => item.kind === "handoffCard") : undefined;
       if (card) {
         handle.current?.scrollToItem(card.key);
-        if (handle.current?.focusItem(card.key)) return;
+        item = card.key;
       }
     } else { arrived.current = arrival.seq; props.onArrived(arrival.seq); }
-    focusField();
+    const shown = shownNow();
+    handFocus(() => {
+      if (shownNow() !== shown) return;
+      if (item === null || !handle.current?.focusItem(item)) focusField();
+    });
   }, [props.arrival?.seq, view.kind, conversationId, Array.isArray(items) ? items.length : -1, asking]);
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
@@ -447,9 +453,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     });
   };
 
-  // Send, start, resume and queue. Every reply carries the panel's revision from when it was sent, so a reply
-  // that lands after the person chose something else, or after another canvas opened, leaves that choice alone
-  // (POSTMORTEM 2026-10-26 late replies).
+  // Every reply carries the panel's revision from when it was sent, so a reply that lands after the person chose something
+  // else, or after another canvas opened, leaves that choice alone (POSTMORTEM 2026-10-26).
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
   const changedFast = fastToSend(pick.fast, fixed ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -464,6 +469,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const sending = run.startSending(target);
       const reply = await calls.startConversation(start).catch(() => ({ error: "unknown" })).finally(sending);
       if ("error" in reply) return sendRefusal(reply);
+      store.markSent(reply.conversationId, request.text, 0);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
@@ -477,10 +483,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = waitsForReset(summary);
+    const unmark = store.markSent(mode.conversationId, request.text);
     const reply = await calls.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
+    if (reply && ("error" in reply || "scheduled" in reply)) unmark();
     if (reply && "error" in reply) return sendRefusal(reply);
     if (reply && "scheduled" in reply) {
       store.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
@@ -545,7 +553,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
+        localSends={store.localSends(conversationId)} onSpendSends={marks => store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}
@@ -603,7 +613,7 @@ export function queuedText(request: DockedRequest): string {
 }
 // The row shows the line; the request itself is kept for the thread, where Send now moves the message.
 export function queuedMessage(itemId: string, request: DockedRequest): QueuedMessage {
-  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } };
+  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] }, ...(request.command ? { command: true as const } : {}) };
 }
 
 // The chips the canvas panel's field takes and pastes as chips: the open canvas's.
@@ -611,9 +621,8 @@ export function canvasScope(target: CanvasTarget): string {
   return draftKey({ kind: "new", root: target.root, canvas: target.canvas });
 }
 
-// The terminal session choice (draft panel-resume): the shared choice cards with their start radio. `held`: the session
-// still works in a terminal (draft resume-disabled); its card is disabled and its line becomes
-// the reason, which describes the radio.
+// `held`: the session still works in a terminal; its card is disabled and its line becomes the reason, which describes
+// the radio.
 function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; held: boolean; onChoose(choice: "resume" | "new"): void }) {
   const at = linkedAt(reply && "available" in reply && reply.available ? reply.lastCheckAt : undefined, now);
   const reason = useId();

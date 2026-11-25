@@ -7,8 +7,8 @@ import type { AuthStatusDto, Provider, Readiness } from "../main/agentAuth/types
 import type { McpSnapshot } from "../main/mcpConnectors/service";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 
-// Settings > MCP Connectors, driven with hooks as plain state so the component's own handlers
-// and effects run (SettingsAgents.test.tsx style). The watch is the real one over a fake snapshot feed.
+// Settings > MCP Connectors with hooks as plain state so its own handlers and effects run; the watch is the real one over a
+// fake snapshot feed.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0,
@@ -100,6 +100,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { doan: api, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", doc);
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+  vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal("HTMLElement", class {});
   running = new Set();
   watch = new McpConnectorsWatch({ api: api as never, running: provider => running.has(provider), pageShown: () => true, toast: vi.fn(), openPage: vi.fn() });
@@ -148,7 +149,7 @@ test("entering the page reads the statuses once; sections are groups named by th
   expect(titles.map(title => words(title.props.children))).toEqual(["Claude Code", "Codex"]);
   expect(all(tree).filter(element => element.props.className === "ob-live")).toHaveLength(1);
   const group = byLabel("Notion for Codex")!;
-  // Settings' shared preference row in a settings group (user decision).
+  // Settings' shared preference row in a settings group.
   expect(group.props).toMatchObject({ role: "group", tabIndex: -1, className: "doan-preference-row", "data-has-icon": "" });
   expect(all(tree).filter(element => element.props.className === "doan-settings-group" && element.props["data-layout"] === "rows")).toHaveLength(2);
   render();
@@ -215,7 +216,7 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   const error = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Enter a URL that starts with https://.")!;
   expect(input().props["aria-invalid"]).toBe(true);
   expect(input().props["aria-describedby"]).toBe(error.props.id);
-  // U31: the field and its error are one group (8px apart), so no negative margin pulls the line up.
+  // The field and its error are one group (8px apart), so no negative margin pulls the line up.
   const group = all(all(tree).find(element => element.props.className === "field-group")!);
   expect(group.some(element => element.type === "input" && element.props["aria-label"] === "Server URL")).toBe(true);
   expect(group.some(element => element.props.role === "alert" && element.props.id === error.props.id)).toBe(true);
@@ -227,7 +228,7 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   expect(nodes.get("[data-mcp-add]")?.focus).toHaveBeenCalled();
 });
 
-// D1: while main adds the server, Add keeps its fill and focus, busy with the spinner inside; a second press does nothing.
+// While main adds the server, Add keeps its fill and focus, busy with the spinner inside; a second press does nothing.
 test("while Add's request is out, Add is busy and aria-disabled with the spinner inside, not natively disabled", async () => {
   await settle();
   click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
@@ -288,8 +289,8 @@ test("after Add, focus goes to the new item's row group in the first section, sc
   expect(words(all(tree).find(element => element.props.className === "ob-live")?.props.children).replace(/\u200b/g, "")).toBe("new.example.com added for Claude Code and Codex");
 });
 
-// E1 defect 2: main reads the new server's status after Add (McpService.add); the page shows Checking until that read
-// publishes, then the item's Connect, without a read of its own or a second focus move.
+// Main reads the new server's status after Add (McpService.add); the page shows Checking until that read publishes, then the
+// item's Connect, without a read of its own or a second focus move.
 test("after Add, the new item shows Checking until main's read arrives, then its Connect", async () => {
   await settle();
   click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
@@ -348,8 +349,8 @@ test("Remove asks first and locks the page; Cancel returns to the … button, Re
   expect(nodes.get('[data-mcp-row="codex:doan-mcp-two-com"]')?.focus).toHaveBeenCalled();
 });
 
-// DESIGN 'Busy action': while Remove's request is out the alert is busy and refuses its cancel; a failure shows inside the alert, where
-// Remove is the retry, and the row's own Remove-failed notice waits until the alert closes.
+// DESIGN 'Busy action': while Remove's request is out the alert refuses its cancel; a failure shows inside it, where Remove is
+// the retry, and the row's own Remove-failed notice waits until the alert closes.
 test("while Remove is out the alert is busy and refuses Cancel and Escape; a failure shows inside it and Remove retries", async () => {
   await settle();
   (all(tree).find(element => element.props["data-mcp-remove"] === "codex:doan-mcp-example-com")!.props.onSelect as () => void)();
@@ -512,6 +513,19 @@ test("a failure stays on its row when the page is opened again", async () => {
   expect(all(tree).some(element => element.props.className === "doan-notice error" && words(element.props.children).startsWith("Codex stopped waiting for Notion"))).toBe(true);
 });
 
+test("leaving the page before the Remove alert's frame runs cancels it, so no ownerless lock stays", async () => {
+  await settle();
+  const frames = new Map<number, () => void>();
+  let next = 0;
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { frames.set(++next, run); return next; });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
+  const item = all(tree).find(element => element.type === DropdownMenu.Item && element.props["data-mcp-remove"] === "codex:doan-mcp-example-com")!;
+  (item.props.onSelect as () => void)();
+  for (const effect of hooks.effects) effect?.cleanup?.();
+  for (const run of frames.values()) run();
+  expect(props.onLock).not.toHaveBeenCalled();
+});
+
 test("Cancel in the URL dialog and in the Remove alert returns focus to the button that opened it", async () => {
   await settle();
   click(all(tree).find(element => element.props["data-mcp-add"] === ""));
@@ -549,7 +563,7 @@ test("Escape on a server's menu closes only the menu", async () => {
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
 
-// /design-sync (custom-url, remove-alert): the dialogs' actions are default-size buttons (40px), as drawn.
+// The dialogs' actions are default-size buttons (40px).
 test("the URL dialog and the Remove alert use default-size actions", async () => {
   await settle();
   click(all(tree).find(element => element.props["data-mcp-add"] === ""));

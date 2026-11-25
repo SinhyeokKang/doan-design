@@ -4,15 +4,12 @@ import type { Question } from "../main/conversation/question";
 import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
-// Once a card the person answered or stopped here folds, the focus that was on its button (now
-// gone, so on the page body) moves by composerRules.focusAfter: an answer to the next waiting request or the composer,
-// Stop to the composer. There is no DOM in these tests (ARCHITECTURE §7 'Home tests without a DOM'): the thread body
-// runs with its hooks kept by call order and its layout effects run after each run, against a stubbed document and a
-// scroller whose querySelector hands out the control focus would land on. A native button's Enter and Space reach its
-// onClick, so the click covers them here; the real-app probe presses the keys.
+// Once a card folds, focus that was on its button moves by composerRules.focusAfter. No DOM here (ARCHITECTURE §7 'Home
+// tests without a DOM'); a native button's Enter and Space reach onClick, so the click covers them.
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[], cursor: 0,
   layout: [] as ({ deps: unknown[] | undefined } | undefined)[], layoutCursor: 0, pending: [] as (() => void)[],
+  handle: null as { focusItem(key: string): boolean } | null,
 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -29,7 +26,7 @@ vi.mock("react", async original => {
     },
     useRef: (value: unknown) => hooks.slots[slot(() => ({ current: value }))],
     useMemo: (factory: () => unknown) => factory(),
-    useEffect: () => {}, useImperativeHandle: () => {},
+    useEffect: () => {}, useImperativeHandle: (_ref: unknown, make: () => { focusItem(key: string): boolean }) => { hooks.handle = make(); },
     useLayoutEffect: (run: () => void, deps?: unknown[]) => {
       const index = hooks.layoutCursor++, previous = hooks.layout[index];
       if (previous && deps && previous.deps && deps.every((dep, i) => Object.is(dep, previous.deps![i]))) return;
@@ -39,7 +36,7 @@ vi.mock("react", async original => {
     useId: () => "k",
   };
 });
-const { ConversationThread, QuestionCard, ThreadEntry } = await import("./ConversationThread");
+const { ConversationThread, HandoffCard, QuestionCard, ThreadEntry } = await import("./ConversationThread");
 
 const question: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
 const permission = (requestId: string, status: "pending" | "answered" | "expired" = "pending"): ThreadItem => ({ kind: "permission", key: `p${requestId}`, seq: 1, requestId, summary: `Run ${requestId}`,
@@ -59,7 +56,7 @@ beforeEach(() => {
   vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
-    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
     onAnswer: () => new Promise(() => {}), onAnswerQuestion: () => new Promise(() => {}), onFocusComposer: composer,
     onStop: vi.fn(), onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {}, onCopy: async () => true,
   };
@@ -73,9 +70,8 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   const drawn = node.type === ThreadEntry ? [(node.props.draw as (entry: unknown) => ReactNode)(node.props.entry)] : [];
   return [node, ...[node.props.children, ...drawn].flat().flatMap(child => all(child as ReactNode))];
 }
-// One render of the thread with these items, then its layout effects, as React commits.
-// commit: what happens to focus as React commits this render, before its layout effects (a folded card's control leaving
-// the page takes focus to the body).
+// One render with these items, then its layout effects. commit: what happens to focus as React commits this render (a
+// folded card's control leaving the page takes focus to the body).
 function draw(items: ThreadItem[], commit?: () => void): void {
   hooks.cursor = 0; hooks.layoutCursor = 0; hooks.pending = [];
   props = { ...props, items };
@@ -182,10 +178,8 @@ test("a cancelled card focus was not in, with nothing typed, moves no focus", ()
   expect(focusedOption()).toEqual([]);
 });
 
-// Two windows can answer one request and the first answer wins: the later one's reply is stale. Its card shows no
-// failure, whether that reply or permission.resolved arrives first (Electron does not order a handle reply against
-// an earlier send; POSTMORTEM 2026-10-26).
-// The card's own failure line; a live request's card is itself an alert.
+// The first of two windows' answers wins; the later one's stale reply shows no failure, whichever of it and
+// permission.resolved arrives first (Electron does not order a handle reply against an earlier send; POSTMORTEM 2026-10-26).
 const alerted = () => tree.some(element => String(element.props.className).split(" ").includes("ask-error"));
 test("a stale permission answer shows no failure, before or after the resolution arrives", async () => {
   for (const order of ["reply first", "resolved first"] as const) {
@@ -217,7 +211,7 @@ test("an answer main refused for another reason still asks to choose again", asy
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   draw([permission("a")]);
   expect(alerted()).toBe(true);
-  // U31: the shared inline error line with the alert icon.
+  // The shared inline error line with the alert icon.
   const line = tree.find(element => String(element.props.className).split(" ").includes("ask-error"))!;
   expect(line.type).toBe("p");
   expect(line.props).toMatchObject({ className: "settings-msg error ask-error", role: "alert" });
@@ -241,4 +235,21 @@ test("focus is not brought back to a card when the person moved it elsewhere or 
   active = inCard("ct1:a.html");
   draw([permission("p", "expired")], toBody);
   expect(focusedOption()).toEqual([]);
+});
+
+// After a handoff's move the panel focuses the receiving card itself (a labelled group, tabindex -1), whose next Tab is
+// its Open; the card keeps the .handoff-card class that focus and scrolling find it by.
+test("focusItem on a handoff card focuses the card itself, which is a focusable group", () => {
+  const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
+  const selectors: string[] = [];
+  draw([handoff]);
+  const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: { querySelector(selector: string): unknown } };
+  const query = scroller.current.querySelector.bind(scroller.current);
+  scroller.current.querySelector = (selector: string) => { selectors.push(selector); return query(selector); };
+  const card = tree.find(element => element.type === HandoffCard)!;
+  const group = all((card.type as (props: unknown) => ReactNode)(card.props)).find(element => typeof element.props.className === "string" && (element.props.className as string).split(" ").includes("handoff-card"))!;
+  expect(group.props).toMatchObject({ role: "group", tabIndex: -1, "aria-label": "drafts.html, Handed off to this conversation" });
+  expect(hooks.handle!.focusItem("u1")).toBe(true);
+  expect(selectors).toEqual(['[data-item="u1"] :is(.q-card input, .strip-actions button, .handoff-card)']);
+  expect(focusedOption()).toEqual(["u1"]);
 });

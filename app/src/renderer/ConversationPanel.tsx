@@ -12,14 +12,8 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
   return Math.min(bounds.max, Math.max(bounds.min, start + (edge === "start" ? startX - x : x - startX)));
 }
 
-// The canvas page's right column: the canvas conversation panel shell, its title row
-// reused from the Overview's right panel, and the resize handle on its left edge. The canvas conversation fills it:
-// `title` is its conversation menu, `children` its thread and composer; with no
-// canvas shown the shell keeps its own title and empty line. While folded the column stays in the DOM, out of the Tab
-// order, so the open button's aria-controls resolves.
-// `width` is the width shown; `onResize` commits a width (undefined: the window-relative default) and `preview` shows
-// one while a drag is still going, without a commit. `columnRef` and `onBlur` reach the column element itself, for a
-// host that reads focus inside it (the prototype window's composer focus, focus guard and docked buddy).
+// While folded the column stays in the DOM, out of the Tab order, so the open button's aria-controls resolves.
+// `preview` shows a width during a drag without a commit; `columnRef` and `onBlur` reach the column element itself.
 export function ConversationPanel({ open, width, bounds, onHide, onResize, preview, title, children, columnRef, onBlur }: {
   open: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
   title?: ReactNode; children?: ReactNode; columnRef?: Ref<HTMLDivElement> | undefined; onBlur?: ((event: FocusEvent<HTMLDivElement>) => void) | undefined;
@@ -40,10 +34,8 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }
 
-// Written by hand, not react-resizable-panels: its state attribute, keyboard step, Home/End direction and
-// percentage units differ from the design, and it needs the shell grid rebuilt as its Group. The look follows malmoi
-// components/ui/resizable.tsx (malmoi 6dcdd575): a 4px bar shown only on hover, drag and keyboard focus. The sidebar
-// uses the same handle on its end edge.
+// Hand-written, not react-resizable-panels: its state attribute, keyboard step, Home/End direction and units differ, and
+// it needs the shell grid as its Group. Look after malmoi components/ui/resizable.tsx (malmoi 6dcdd575).
 export function ResizeHandle({ width, bounds, onResize, preview, edge = "start", label = "Resize conversation panel", className }: {
   width: number; bounds: PanelBounds; onResize(width: number | undefined): void; preview(width: number): void;
   edge?: "start" | "end"; label?: string; className?: string;

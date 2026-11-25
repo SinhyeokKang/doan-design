@@ -44,12 +44,24 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   const request = events.find(e => e.type === "permission.request");
   expect(request).toMatchObject({ tool: "execute", options: [{ id: "allow", kind: "allow" }, { id: "always", kind: "allowAlways" }, { id: "deny", kind: "deny" }] });
   expect(events.filter(e => e.type === "activity")).toEqual([
-    { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
+    { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1" },
     { type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events).toContainEqual({ type: "permission.resolved", requestId: (request as { requestId: string }).requestId, optionId: "allow" });
   expect(events.at(-1)).toEqual({ type: "turn.done" });
   const done = events.filter(e => e.type === "message.done").map(e => (e as { text: string }).text).join("");
   expect(done).toContain("DONE");
+  await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+});
+
+// Only a Copilot run records lines from a completed edit's diff: Antigravity's diff is the proposal it asks about, and
+// Cursor's was never shown to be the applied change. The odd texts give +2 -1.
+it.each([["copilot", true], ["cursor", false], ["antigravity", false]] as const)("records edit lines from a completed diff for a %s run: %s", async (runtime, counts) => {
+  const { runner, events, exited } = await open("cursor", "allow", { runtime });
+  await runner.send("hi", "turn-1");
+  expect(events.at(-1)).toEqual({ type: "turn.done" });
+  const results = events.filter(e => e.type === "activity.result");
+  if (counts) expect(results).toEqual([{ type: "activity.result", callId: "call-564f938d-938d-4979-89e4-b78f6d606b62-1\nfc_16371e8d-cd73-9ea2-a824-02ba3c8d3b8b_1", path: "/repo/hello.txt", lines: { added: 2, removed: 1 } }]);
+  else expect(results).toEqual([]);
   await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
 });
 
@@ -157,7 +169,7 @@ it("marks canvas edits as inside the design and splits messages around tool call
   const result = acpPromptDone(state, { stopReason: "end_turn" }); events.push(...result.events);
   expect(events).toEqual([
     { type: "message.delta", messageId: "t:0", text: "Drafting" }, { type: "message.done", messageId: "t:0", text: "Drafting" },
-    { type: "activity", kind: "edit", path: ".doan/canvases/hero.html", insideDesign: true, summary: "Write" },
+    { type: "activity", kind: "edit", path: ".doan/canvases/hero.html", insideDesign: true, summary: "Write", callId: "c1" },
     { type: "message.delta", messageId: "t:1", text: "Done" }, { type: "message.done", messageId: "t:1", text: "Done" }, { type: "turn.done" }]);
   expect(acpPromptDone(initialAcp("t"), { stopReason: "cancelled" }).events).toEqual([{ type: "interrupted", reason: "user" }]);
 });
@@ -167,7 +179,7 @@ it("takes a tool call's path from a later update, such as the permission request
   for (const update of [{ sessionUpdate: "tool_call", toolCallId: "p", kind: "edit", title: "apply_patch", status: "pending", rawInput: "*** Begin Patch" },
     { sessionUpdate: "tool_call_update", toolCallId: "p", status: "pending", title: "Create file", rawInput: { fileName: "/repo/.doan/canvases/a.html" } }]) state = normalizeAcp(state, update, "/repo").state;
   expect(normalizeAcp(state, { sessionUpdate: "tool_call_update", toolCallId: "p", status: "completed" }, "/repo").events)
-    .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file" }]);
+    .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file", callId: "p" }]);
 });
 
 it.each([
@@ -179,7 +191,7 @@ it.each([
   let state = initialAcp("t");
   state = normalizeAcp(state, { sessionUpdate: "tool_call", toolCallId: "c", kind: "edit", title: "Write", status: "pending", locations: [{ path }] }, "/repo").state;
   expect(normalizeAcp(state, { sessionUpdate: "tool_call_update", toolCallId: "c", status: "completed" }, "/repo").events)
-    .toEqual([{ type: "activity", kind: "edit", path, insideDesign: inside, summary: "Write" }]);
+    .toEqual([{ type: "activity", kind: "edit", path, insideDesign: inside, summary: "Write", callId: "c" }]);
 });
 
 it("falls back to the path or a short phrase, not the raw ACP kind, when a tool call has no title", () => {
@@ -369,9 +381,8 @@ it("sets the chosen model after session/new and again after session/load, before
   await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
   expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
 });
-// Cursor keeps a session/set_config_option model choice in cli-config.json, which the fence keeps closed (its permission
-// allow list), so the request fails in a fenced run. Its ACP server opens session/new and session/load on
-// acp-config.json's selectedModelVariantId (2026.10.22 and 2026.11.22, probe), which Doan writes before the start.
+// Cursor keeps a set_config_option model in cli-config.json, which the fence keeps closed, so that request fails in a
+// fenced run; its ACP server opens sessions on acp-config.json's selectedModelVariantId, which Doan writes first.
 it("gives Cursor the chosen model through acp-config.json before the start and sends no model request", async () => {
   const home = temp("doan-acp-home-"), config = join(home, ".cursor", "acp-config.json"), log = logFile();
   const env = { PATH: process.env.PATH ?? "", HOME: home, FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_CONFIG: "1" };

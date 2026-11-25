@@ -1,10 +1,7 @@
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 
-// What a Dock (LaunchServices) launch gives the app, measured with a throwaway bundle opened through `/usr/bin/open`
-// from an empty caller environment. `open`, the executable and `npm run dev` pass the launching terminal's whole
-// environment on instead (Orca's per-terminal CLAUDE_CONFIG_DIR/CODEX_HOME, the launching agent's session ID and
-// hook tokens), and that must reach neither the login-shell probe nor an agent: Doan behaves the same wherever it
-// is launched from. An allowlist, not a denylist of known terminal tools, because any terminal can add keys.
+// What a Dock (LaunchServices) launch gives the app. Other launches pass the terminal's whole environment, which must
+// reach neither the login-shell probe nor an agent; an allowlist, since any terminal can add keys.
 const LAUNCHD_KEYS = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "SSH_AUTH_SOCK", "COMMAND_MODE",
   "XPC_FLAGS", "XPC_SERVICE_NAME", "OSLogRateLimit", "__CF_USER_TEXT_ENCODING", "__CFBundleIdentifier"]);
 // `launchctl setenv` reaches Dock launches too, and that is where a corporate proxy or CA, or a locale, is set for GUI
@@ -21,10 +18,8 @@ export function launchEnv(inherited: Record<string, string | undefined>): Record
   return { ...env, PATH: LAUNCHD_PATH };
 }
 
-// The enableNodeOptionsEnvironmentVariable fuse is off, so Electron removes NODE_EXTRA_CA_CERTS before Node reads it:
-// a launching environment cannot add a CA to the app. Agents and main behind a corporate CA still need it, so the value
-// `launchctl setenv` gave GUI apps is read back from launchd and put where launchEnv and trustExtraCaCerts find it. A launching terminal's
-// value is replaced too (an unfused dev Electron keeps it), so every launch passes on the same CA.
+// With the enableNodeOptionsEnvironmentVariable fuse off, Electron drops NODE_EXTRA_CA_CERTS before Node reads it, so
+// launchd's `launchctl setenv` value is read back; a terminal's is replaced too, so every launch passes the same CA.
 export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, getenv: (name: string) => string): void {
   let value = "";
   // Unreadable launchd: pass no CA rather than a terminal's, and say so, since agents' TLS errors would not.
@@ -33,10 +28,8 @@ export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, g
   else delete env.NODE_EXTRA_CA_CERTS;
 }
 
-// The same fuse also stops Node from loading NODE_EXTRA_CA_CERTS for main's own requests (provider sign-in, usage
-// reads, downloads), so main adds launchd's file to its default CAs itself, before any TLS connection is made.
-// tls.setDefaultCACertificates (Node 24.5+) takes a PEM bundle as one entry. A file that cannot be read or parsed
-// leaves the defaults as they are, as Node does for NODE_EXTRA_CA_CERTS.
+// The same fuse stops Node loading NODE_EXTRA_CA_CERTS for main's own requests, so main adds launchd's file to its
+// default CAs before any TLS connection. An unreadable or unparsable file leaves the defaults, as Node does.
 export function trustExtraCaCerts(file: string | undefined, read: (path: string) => string): void {
   if (!file) return;
   try { setDefaultCACertificates([...getCACertificates("default"), read(file)]); }

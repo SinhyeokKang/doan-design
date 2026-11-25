@@ -50,15 +50,15 @@ Throughout, `R` is `gh repo view --json nameWithOwner --jq .nameWithOwner`, and 
 
 ## Hotfix mode
 
-Two invocations; never run `/ship` inside one, because a broken session could not resume.
+Two invocations; never run `/deliver` inside one, because a broken session could not resume.
 
-1. **`/release hotfix <slug>`.** Step 0, then find the last stable tag (as in step 3; rc tags never count, so a released rc does not leak into the hotfix). `git push origin <tag>^{commit}:refs/heads/hotfix/<slug>`, check it out, and stop. The report says: fix it on this branch with `/ship`, then call `/release <next patch>` from it.
-2. **The user fixes it with `/ship` on `hotfix/<slug>`.** `/ship` keeps that branch and opens its PR against `main` (its 'Branch' rule). A regression fix also gets `/postmortem`.
+1. **`/release hotfix <slug>`.** Step 0, then find the last stable tag (as in step 3; rc tags never count, so a released rc does not leak into the hotfix). `git push origin <tag>^{commit}:refs/heads/hotfix/<slug>`, check it out, and stop. The report says: fix it on this branch with `/deliver`, then call `/release <next patch>` from it.
+2. **The user fixes it with `/deliver` on `hotfix/<slug>`.** `/deliver` keeps that branch and opens its PR against `main` (its 'Branch' rule). A regression fix also gets `/postmortem`.
 3. **`/release <version>` from the `hotfix/<slug>` checkout.** `<version>` is the next patch after that tag.
    - Preflight as in step 1, against `origin/hotfix/<slug>` instead of `develop`: clean tree equal to the remote branch, the PR's `gate` passed, the version check passes. The `--no-merges origin/develop..origin/main` check still applies.
    - Bump on the hotfix branch (step 2) and push it.
    - The notes are the titles of the PRs from `hotfix/<slug>` into `main`.
-   - Merge the `/ship` PR from `hotfix/<slug>` into `main` (`gh pr merge --merge` after its gate), then steps 5–7.
+   - Merge the `/deliver` PR from `hotfix/<slug>` into `main` (`gh pr merge --merge` after its gate), then steps 5–7.
    - **Back to develop.** `gh pr create --base develop --head hotfix/<slug> --title "Merge hotfix <version> into develop"`; after its gate, `gh pr merge --merge`. If it conflicts, merge `origin/develop` into a local `hotfix/<slug>`: for `app/package.json` and `app/package-lock.json` keep the higher version; for any other conflicting file, abort the merge, stop and report the files.
    - Report: step 8 plus the back-merge PR.
 
@@ -69,7 +69,7 @@ Calling `/release <version>` again resumes from the state preflight detects. Tag
 | State | Detected by | Action |
 |---|---|---|
 | Only the bump commit is on `develop` | `app/package.json` is `<version>`, no open release PR | Continue from step 3 |
-| Release PR open, gate failed | `gh pr list --base main --head develop` | Stop and report. Fix on `develop` (a normal `/ship` PR); calling again continues from step 4 |
+| Release PR open, gate failed | `gh pr list --base main --head develop` | Stop and report. Fix on `develop` (a normal `/deliver` PR); calling again continues from step 4 |
 | Merged, no tag | `main` has the merge commit, `git ls-remote --tags origin v<version>` is empty | Continue from step 5 |
 | Tag exists, run failed or timed out | `gh run list --workflow release.yml --branch v<version>` | Delete a leftover draft first (`gh release delete v<version> --yes`, keeping the tag; otherwise the version check fails with `draft_exists`), then `gh run rerun <id> --failed` and continue from the approval in step 5 |
 | Draft fails its checks | Draft present, step 6 failed | Do not publish. Delete the draft (`gh release delete v<version> --yes`, keeping the tag) and report why. A code fix goes out as the next rc or patch |
@@ -87,4 +87,4 @@ The human creates and renews the signing credentials (the `release` environment,
 - Approving any deployment other than this release's run after its sha check (tester builds and dry runs are approved by the maintainer).
 - Reading, printing or setting secrets or environment variables.
 - Publishing a draft that failed a check.
-- Changing the workflows, `app/scripts/` or build settings during a release; a fix goes through `/ship` on `develop` and the next version.
+- Changing the workflows, `app/scripts/` or build settings during a release; a fix goes through `/deliver` on `develop` and the next version.

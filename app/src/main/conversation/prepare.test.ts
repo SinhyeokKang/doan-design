@@ -171,9 +171,8 @@ it("pins the manifest and installed Claude Agent SDK to the bundled version", ()
   expect(installed.version).toBe(BUNDLED_CLAUDE_SDK);
 });
 
-// BACKLOG 'A project registered through a symlinked path': prepare compares the canonical root with the request's
-// string and fails closed (ARCHITECTURE §7 'Identity and admission'), so the folder store hands out the real path for a
-// root saved through a symlink. These start from the root the store lists, as a Home start does.
+// prepare compares the canonical root with the request's string and fails closed (ARCHITECTURE §7 'Identity and
+// admission'), so the folder store hands out a symlink-saved root's real path; these start from the listed root.
 async function storedRoot(): Promise<{ real: string; root: string }> {
   const real = temp(), links = temp(), data = temp();
   const linked = join(links, "repo"); symlinkSync(real, linked);
@@ -270,8 +269,7 @@ it("keeps a send on a login state with an account_mismatch error as not_logged_i
 });
 
 // A live registry record Doan cannot read (below CLAUDE_REGISTRY_FLOOR) may hold the linked session: the resume target
-// says so apart from the other unavailable reasons, with the provider, so the panel can say why it offers no continue.
-// A start still gets the bare refusal.
+// says so with the provider, so the panel can say why it offers no continue. A start gets the bare refusal.
 it("tells a linked Claude session a live registry record cannot vouch for apart from other unavailable sessions", async () => {
   const root = temp(); const config = join(root, "profile"); mkdirSync(join(config, "sessions"), { recursive: true }); writeFileSync(join(root, "claude"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, claudeConfigDir: config }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "2.1.312 (Claude Code)" });
@@ -312,5 +310,15 @@ describe("claudeSessionExists", () => {
     const read = await withFifo(join(dir, `${ID}.jsonl`), () => claudeSessionExists(config, ID));
     expect(read.value).toBe(false);
     expect(read.ms).toBeLessThan(PROMPT_MS);
+  });  // Finder and other tools leave plain files beside the project directories, in any listing order.
+  it("skips plain files in projects/ but never follows a linked project directory", () => {
+    const { config, dir } = profile();
+    for (const name of [".DS_Store", "!", "0", "A", "_", "a", "~", "-", "-a"]) writeFileSync(join(config, "projects", name), "");
+    writeFileSync(join(dir, `${ID}.jsonl`), "{}\n");
+    expect(claudeSessionExists(config, ID)).toBe(true);
+    rmSync(join(dir, `${ID}.jsonl`));
+    const elsewhere = temp(); writeFileSync(join(elsewhere, `${ID}.jsonl`), "{}\n");
+    symlinkSync(elsewhere, join(config, "projects", "linked"));
+    expect(claudeSessionExists(config, ID)).toBe(false);
   });
 });

@@ -140,9 +140,8 @@ func TestCustomUsersAmbiguous(t *testing.T) {
 	}
 }
 
-// The browser drops an @property rule without inherits, or, for any syntax
-// but the universal one, without initial-value; the property then stays
-// unregistered and its url() resolves from its users.
+// The browser drops an @property rule without inherits, or without initial-value for any syntax but "*"; the
+// property then stays unregistered and its url() resolves from its users.
 func TestCustomUsesRegistersOnlyValidURLProperties(t *testing.T) {
 	for _, tt := range []struct {
 		name, css string
@@ -166,9 +165,8 @@ func TestCustomUsesRegistersOnlyValidURLProperties(t *testing.T) {
 	}
 }
 
-// A rule counts as a user only when its rightmost compound selector can match
-// an element of a script-free canvas: the app never applies a rule whose
-// element the canvas lacks. Whatever cannot be judged statically counts.
+// A rule counts as a user only when its rightmost compound can match an element of a script-free canvas, since the
+// app never applies a rule whose element the canvas lacks. Whatever cannot be judged statically counts.
 func TestCustomUsersCountOnlyRulesACanvasElementCanMatch(t *testing.T) {
 	const page = `<div class="card" id="Hero"><span class="Icon"></span><svg><rect/></svg></div>`
 	for _, tt := range []struct {

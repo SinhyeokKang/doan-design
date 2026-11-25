@@ -19,7 +19,6 @@ describe("layersForView", () => {
   test("every new gen gets a new iframe, also for the same url (reload, Retry, restore)", () => {
     const layers = after(at(1, "loading"), at(1, "ready"), at(2, "loading"));
     expect(layers.frames.map(frame => frame.gen)).toEqual([1, 2]);
-    // The previous screen stays visible above the loading run.
     expect(layers.visible).toBe(1);
     expect(layersForView(layers, at(2, "ready"))).toEqual({ frames: [rf(2, A)], visible: 2, snapshot: null });
   });
@@ -34,7 +33,6 @@ describe("layersForView", () => {
       // Main captured the ready run as it left for the reload, before the loading view.
       const reloading = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), still(2, "blob:1"), 1);
       const loading = layersForView(reloading, at(2, "loading"));
-      // While loading, the previous run stays on screen and live.
       expect(loading.visible, phase).toBe(1);
       expect(layersForView(loading, at(2, phase)), phase).toEqual({ frames: [], visible: null, snapshot: still(2, "blob:1") });
     }
@@ -47,7 +45,6 @@ describe("layersForView", () => {
     const resent = layersForSnapshot(hung, still(3, "blob:a3"), 2);
     const reloading = layersForView(resent, { ...at(3, "loading"), previousStopped: true });
     expect(reloading).toEqual({ frames: [rf(3, A)], visible: null, snapshot: still(3, "blob:a3") });
-    // The same view again changes nothing; the new run takes the screen once ready.
     expect(layersForView(reloading, { ...at(3, "loading"), previousStopped: true })).toBe(reloading);
     expect(layersForView(reloading, at(3, "ready"))).toEqual({ frames: [rf(3, A)], visible: 3, snapshot: null });
   });
@@ -147,9 +144,9 @@ describe("forwardedMessage", () => {
   const event = (data: unknown, over: Record<string, unknown> = {}) => ({ source: own, origin: "null", data, ...over });
 
   test("forwards a result and a frame list from the current iframe at the opaque origin for the current gen", () => {
-    const ready = { gen: 3, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [], gotos: [] };
     expect(forwardedMessage(event(ready), run)).toEqual({ kind: "result", message: ready });
-    const list = { gen: 3, frames: [{ id: "a", size: "1x1" }] };
+    const list = { gen: 3, frames: [{ id: "a", size: "1x1", number: 1 }], gotos: [{ value: "a", frames: ["a"] }] };
     expect(forwardedMessage(event(list), run)).toEqual({ kind: "frames", message: list });
   });
 
@@ -172,12 +169,52 @@ describe("forwardedMessage", () => {
   });
 
   test("drops another window's, another origin's, an old gen's or a non-object message", () => {
-    const ready = { gen: 3, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [], gotos: [] };
     expect(forwardedMessage(event(ready, { source: other }), run)).toBeNull();
     expect(forwardedMessage(event(ready, { source: null }), run)).toBeNull();
     expect(forwardedMessage(event(ready, { origin: "http://127.0.0.1:4000" }), run)).toBeNull();
     expect(forwardedMessage(event({ ...ready, gen: 2 }), run)).toBeNull();
     for (const data of [null, "ready", [3], 3]) expect(forwardedMessage(event(data), run)).toBeNull();
     expect(forwardedMessage(event(ready), null)).toBeNull();
+  });
+
+  // A canvas can post anything structured clone carries under the current gen; IPC would copy it whole into main.
+  test("drops a result or frame list that is not the prototype script's shape, an oversized one too", () => {
+    const frame = { id: "a", size: "390x844", number: 1 };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [frame], gotos: [] };
+    for (const data of [
+      { ...ready, pad: "x".repeat(1_000_000) },
+      { ...ready, frames: [{ ...frame, title: "x".repeat(201) }] },
+      { ...ready, frames: Array.from({ length: 1001 }, (_, i) => ({ id: `f${i}`, size: "1x1", number: i + 1 })) },
+      { ...ready, gotos: [{ value: "a", frames: ["a"], pad: 1 }] },
+      { gen: 3, state: "ready", size: "390x844", frames: [] },
+      { gen: 3, state: "missing", frames: "a", gotos: [] },
+      { gen: 3, state: "timeout", extra: 1 },
+      { gen: 3, frames: [frame], gotos: [], pad: "x" },
+      { gen: 3, frames: [frame] },
+      { gen: 3 },
+    ]) expect(forwardedMessage(event(data), run), JSON.stringify(data).slice(0, 80)).toBeNull();
+  });
+
+  // An array's named own properties pass the shape check, which reads only indices, so the forwarded copy is rebuilt.
+  test("forwards only the checked fields, not a named property riding on a list", () => {
+    const pad = () => Object.assign([] as unknown[], { pad: "x".repeat(1_000_000) });
+    const frame = { id: "a", size: "390x844", number: 1 };
+    const lists = (frames: unknown[], gotos: unknown[]) => ({ frames, gotos });
+    for (const parts of [
+      lists(Object.assign(pad(), [frame]), []),
+      lists([frame], pad()),
+      lists([frame], [{ value: "a", frames: Object.assign(pad(), ["a"]) }]),
+    ]) {
+      for (const data of [{ gen: 3, state: "ready", size: "390x844", ...parts }, { gen: 3, state: "missing", ...parts }, { gen: 3, ...parts }]) {
+        const forward = forwardedMessage(event(data), run);
+        expect(forward).not.toBeNull();
+        const message = forward!.message as { frames: unknown[]; gotos: { frames: unknown[] }[] };
+        expect(JSON.stringify(Object.keys(message.frames))).not.toContain("pad");
+        expect(JSON.stringify(Object.keys(message.gotos))).not.toContain("pad");
+        for (const goto of message.gotos) expect(Object.keys(goto.frames)).not.toContain("pad");
+        expect(forward!.message).toEqual(structuredClone({ ...data, frames: [...parts.frames], gotos: parts.gotos.map(goto => ({ ...(goto as object), frames: [...(goto as { frames: unknown[] }).frames] })) }));
+      }
+    }
   });
 });

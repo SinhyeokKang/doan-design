@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -190,8 +190,8 @@ test("an onboarding script starts the fake app, and checks read its v2 exchanges
   }
 });
 
-// A correct agent must find the project set up after the app says so (agent-eval
-// 2026-10-29 O1), while repo_untouched still sees only what the agent changed.
+// A correct agent must find the project set up after the app says so, while repo_untouched still sees only
+// what the agent changed.
 test("a successful initialize writes what doan init writes, and only the agent's edits count as changes", async () => {
   const o1 = loadScenario(join(import.meta.dirname, "../scenarios"), "O1");
   const ws = await prepareWorkspace({ scenario: o1, agent: "fixture", cli, stub: "stub\n" });
@@ -259,7 +259,7 @@ test("worktree runs the agent in a second worktree of the seed commit while the 
   assert.equal(existsSync(ws.base), false);
 });
 
-// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted (probe), so the second one
+// Codex 0.169.0 loads a linked worktree's project config when the first worktree is trusted, so the second one
 // is not trusted on its own.
 test("a Codex run in a second worktree trusts only the first", async () => {
   const saved = process.env.CODEX_HOME;
@@ -332,9 +332,8 @@ test("each real agent's environment leaves out the user's own instruction files;
     const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
     const home = codex.env.CODEX_HOME!;
     try {
-      // Codex's workspace-write sandbox opens the agent's folder, /tmp and $TMPDIR to the agent's shell (codex-cli 0.169.0
-      // `codex sandbox -P :workspace`), while Codex itself, outside that sandbox, writes refreshed tokens through the
-      // home's links and keeps the rollout read as evidence there.
+      // workspace-write opens the agent's folder, /tmp and $TMPDIR (codex-cli 0.169.0), while Codex outside the sandbox
+      // writes tokens through the home's links and keeps the rollout there.
       for (const writable of ["/tmp", "/private/tmp", realpathSync(tmpdir()), codex.base])
         assert.ok(!`${home}/`.startsWith(`${writable}/`), `${home} is inside ${writable}`);
       assert.equal(codex.codexHome, home);
@@ -400,9 +399,8 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
   }
 });
 
-// Codex runs with approval_policy="never", where a command that needs to leave the sandbox is refused outright. The eval
-// measures how agents use the guide, not the person's approvals, so its rule is agent setup's rule plus an allow rule
-// for each command agent setup leaves to the person's Codex settings: every `doan` command runs outside the sandbox.
+// approval_policy="never" refuses commands leaving the sandbox and the eval measures guide use, so its rule also
+// allows every command agent setup leaves to the person's Codex settings.
 test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
   assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
   const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
@@ -427,4 +425,81 @@ test("preset checks follow child-process argv through the workspace PATH", async
     assert.deepEqual(score(), [true, false]);
     assert.equal(git(ws.repo, ["status", "--porcelain"]), "");
   } finally { await ws.dispose(); }
+});
+
+// The app gives a conversation's agent DOAN_APP_CONVERSATION, DOAN_CONVERSATION_ID and its provider profile as
+// CLAUDE_CONFIG_DIR or CODEX_HOME (app/src/main/conversation/environment.ts); a runner started in that shell passes none.
+test("a runner started in a Doan conversation gives agents its sign-in, not the conversation's environment or profile", async () => {
+  const keys = ["DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "HOME"];
+  const saved = keys.map(key => process.env[key]);
+  const temp = mkdtempSync("/tmp/doan-eval-conversation-");
+  try {
+    const home = join(temp, "home"), profile = join(temp, "profile");
+    for (const dir of [join(home, ".codex"), profile]) mkdirSync(dir, { recursive: true });
+    writeFileSync(join(home, ".codex/auth.json"), "user\n");
+    writeFileSync(join(profile, "auth.json"), "profile\n");
+    Object.assign(process.env, { DOAN_APP_CONVERSATION: "1", DOAN_CONVERSATION_ID: "conversation-1", CLAUDE_CONFIG_DIR: profile, CODEX_HOME: profile, HOME: home });
+    // W3b's selection starts the fake app, so a work signal has somewhere to arrive.
+    const scenario = loadScenario(join(import.meta.dirname, "../scenarios"), "W3b");
+    for (const agent of ["claude", "codex", "fixture"] as const) {
+      const ws = await prepareWorkspace({ scenario, agent, cli, stub: "stub\n" });
+      try {
+        assert.equal(ws.env.DOAN_APP_CONVERSATION, undefined, agent);
+        assert.equal(ws.env.DOAN_CONVERSATION_ID, undefined, agent);
+        assert.equal(ws.env.CLAUDE_CONFIG_DIR, undefined, agent);
+        if (agent === "codex") assert.equal(readlinkSync(join(ws.env.CODEX_HOME!, "auth.json")), join(home, ".codex/auth.json"));
+        else assert.equal(ws.env.CODEX_HOME, undefined, agent);
+        // Work signals reach the fake app only outside an app conversation (cli/internal/cli/work_rules.go).
+        const started = sh(cli, ["work", "start", ".doan/canvases/next.html", "--repo", ws.repo, "--json"], ws.repo, { ...ws.env, CLAUDE_CODE_SESSION_ID: "eval-session" });
+        assert.equal(started.code, 0, started.stderr + started.stdout);
+        const ctx = createContext({ ...ws, cli, agent: "fixture", transcript: "" });
+        assert.deepEqual(ctx.work().map(entry => entry.request.action), ["start"], agent);
+      } finally { await ws.dispose(); }
+    }
+  } finally {
+    keys.forEach((key, i) => { if (saved[i] === undefined) delete process.env[key]; else process.env[key] = saved[i]; });
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+// Codex's workspace-write sandbox lets the agent write the run's /tmp directory, whose bin/ leads the agent's PATH;
+// the runner's own Git and checker commands must not be looked up there (POSTMORTEM 2026-10-25).
+test("post-agent Git reads, checker commands and judge material ignore tools planted on the agent's PATH", async () => {
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const marker = join(ws.base, "planted-ran");
+    for (const name of ["git", "python3.12", "sh"])
+      writeFileSync(join(ws.base, "bin", name), `#!/bin/sh\necho ${name} >> ${marker}\nexit 1\n`, { mode: 0o755 });
+    writeFileSync(join(ws.repo, "edit.txt"), "edit\n");
+    const ctx = createContext({ ...ws, cli, agent: "fixture", transcript: "" });
+    assert.deepEqual(ctx.changedFiles(), ["edit.txt"]);
+    assert.equal(ctx.run("python3.12", ["-I", "-c", "print(1)"]).code, 0);
+    assert.equal(ctx.run("sh", ["-c", "exit 0"]).code, 0);
+    assert.match(judgeMaterial(ws, ctx).diff, /edit\.txt/);
+    assert.equal(existsSync(marker), false, existsSync(marker) ? readFileSync(marker, "utf8") : "");
+  } finally { await ws.dispose(); }
+});
+
+test("disposing a Codex workspace removes its Codex home even when the run directory cannot be removed", async () => {
+  const saved = process.env.CODEX_HOME;
+  const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
+  let locked: string | undefined;
+  let home: string | undefined;
+  try {
+    process.env.CODEX_HOME = fake;
+    const ws = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    home = ws.codexHome!;
+    // A directory the agent left without write permission: rm -rf cannot empty it.
+    locked = join(ws.repo, "locked");
+    mkdirSync(locked);
+    writeFileSync(join(locked, "file"), "");
+    chmodSync(locked, 0o500);
+    await assert.rejects(ws.dispose());
+    assert.equal(existsSync(home), false);
+  } finally {
+    if (locked && existsSync(locked)) { chmodSync(locked, 0o700); rmSync(join(locked, "../.."), { recursive: true, force: true }); }
+    if (home) rmSync(home, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
+    rmSync(fake, { recursive: true, force: true });
+  }
 });

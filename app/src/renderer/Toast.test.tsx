@@ -220,9 +220,8 @@ test("the clock dispatches no tick while no toast is shown", () => {
   expect(ticks()).toBe(after);
 });
 
-// A toast that replaces another only changes its content: the same element (keyed by the slot) stays, so the enter
-// motion does not play again. Its button is keyed by the toast, so focus on the old toast's action does not pass to
-// the new one's.
+// A replacing toast keeps the element (keyed by the slot), so the enter motion does not replay; its button is keyed by the toast, so
+// focus on the old action does not pass to the new one.
 test("a replacing toast keeps the element and changes only its content", () => {
   setup();
   const first = useToast().element!;
@@ -234,9 +233,8 @@ test("a replacing toast keeps the element and changes only its content", () => {
   expect(second.props["data-closing"]).toBeUndefined();
 });
 
-// The exit motion needs the element for --time-fast (120 ms) after the toast is gone: it stays drawn, closing and
-// inert (no pointer, no focus, out of the accessibility tree), then goes. Its action button is a new element, so
-// focus on the old one leaves with the toast.
+// The exit motion needs the element for --time-fast (120 ms): it stays drawn, closing and inert, then goes. Its action button is a
+// new element, so focus on the old one leaves with the toast.
 test("a toast that goes stays drawn closing and inert for 120 ms, then goes", () => {
   const h = setup(); h.native(true);
   const shown = useToast().element!;

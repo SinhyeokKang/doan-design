@@ -14,9 +14,8 @@ export class CodexDispatcher {
   private permissions = new Map<string, { id: string | number; request: PendingPermission }>();
   private next = 1;
   private closed = false;
-  // consumed: a steered message the server echoed in this turn, called in line with emit. stage: the turn's stage after a
-  // notification, called after its events.
-  // boundary: the turn's compaction completed (normalizeCodex), called in line with emit.
+  // consumed: a steered message the server echoed, called in line with emit. stage: the turn's stage after a notification,
+  // called after its events. boundary: the turn's compaction completed, called in line with emit.
   constructor(private write: (value: unknown) => void, private emit: (value: EventPayload) => void, private cleanup: () => void, private consumed: (messageId: string) => void = () => {}, private stage: (stage: TurnStage) => void = () => {}, private boundary: (kind: BoundaryKind) => void = () => {}) {}
   begin(context: CodexContext): void { this.expire(); this.context = context; this.state = initialTransport(); }
   started(turnId: string): void { this.context = { ...this.context, turnId }; }
@@ -30,10 +29,8 @@ export class CodexDispatcher {
   query(method: string, params: unknown): Promise<unknown> { return this.call(method, params, undefined, false); }
   // A turn that can still take a steered message: begun, not stopped and not ended.
   running(): boolean { return !this.closed && !this.state.terminal && !this.state.stop && !!this.context.turnId; }
-  // turn/steer for messageId. The server may hold its reply while the turn waits on a permission answer, so an unanswered
-  // steer refuses only itself: a timeout must not fail the protocol and with it the running turn. The server does not
-  // order its reply and the echo, so the message can be consumed before this resolves, and after a timeout (the server
-  // may still have taken it); a refused one is never reported.
+  // An unanswered steer refuses only itself (the server may hold its reply behind a permission answer), never the turn.
+  // Reply and echo are unordered, so the message can be consumed before this resolves or after a timeout.
   steer(params: unknown, messageId: string): Promise<unknown> {
     if (!this.running()) return Promise.reject(new Error("not_running"));
     this.state = steerTransport(this.state, messageId);

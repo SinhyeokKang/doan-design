@@ -8,9 +8,8 @@ import (
 	"golang.org/x/net/html"
 )
 
-// rewriteCSS replaces each reference CSSRefs finds with url("<replacement>")
-// when replace returns true, and copies every other byte as it is. An
-// @import target is reported as kindStylesheet, a url() as kindAsset.
+// rewriteCSS replaces each reference CSSRefs finds with url("<replacement>") when replace returns true and copies
+// every other byte. An @import target is reported as kindStylesheet, a url() as kindAsset.
 func rewriteCSS(text string, mode canvas.Mode, replace func(ref string, kind refKind) (string, bool)) string {
 	return rewriteCSSRefs(text, mode, func(kind refKind, ref, _ string) (string, bool) { return replace(ref, kind) })
 }
@@ -18,9 +17,8 @@ func rewriteCSS(text string, mode canvas.Mode, replace func(ref string, kind ref
 // rewriteCSSRefs is rewriteCSS whose callback also gets the custom property
 // holding each url() (canvas.CSSRef.Custom).
 func rewriteCSSRefs(text string, mode canvas.Mode, replace func(kind refKind, ref, custom string) (string, bool)) string {
-	// The replacements are gathered first so the output is allocated once at
-	// its final size: a builder grown piece by piece copies a large
-	// stylesheet several times over.
+	// The replacements are gathered first so the output is allocated once at its final size: a builder grown piece
+	// by piece copies a large stylesheet several times over.
 	type edit struct {
 		start, end int
 		space      bool
@@ -77,9 +75,8 @@ func cssEscape(s string) string {
 	return cssEscaper.Replace(s)
 }
 
-// srcsetSpans returns the URL spans of a srcset value, following the HTML
-// "parse a srcset attribute" steps: trailing commas are not part of a URL,
-// and a comma inside descriptor parentheses does not end a candidate.
+// srcsetSpans follows the HTML "parse a srcset attribute" steps: trailing commas are not part of a URL, and a
+// comma inside descriptor parentheses does not end a candidate.
 func srcsetSpans(s string) [][2]int {
 	var spans [][2]int
 	space := func(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' }
@@ -223,10 +220,8 @@ func attrRef(tag, key string, get func(string) string) (refKind, attrForm) {
 	return kindAsset, formNone
 }
 
-// rewriteHTML rewrites the references in start tags and <style> text and
-// copies every other token's raw bytes. html.Parse plus html.Render is not
-// used because it can rebuild misnested markup into a different tree.
-// <template> content is inert, as in `doan check`, and stays as written.
+// rewriteHTML rewrites start tags and <style> text and copies every other token's raw bytes: html.Parse plus
+// html.Render can rebuild misnested markup into a different tree. <template> content is inert, as in `doan check`.
 func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) []byte {
 	z := html.NewTokenizer(bytes.NewReader(src))
 	var out bytes.Buffer
@@ -327,10 +322,8 @@ func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css fu
 	return attrs, changed
 }
 
-// writeTag writes tok's start tag with attrs in place of its own. When the
-// tag does not fit, the buffer grows by the tag and the rest source bytes
-// still to be copied, so a tag holding a large data URI is not copied again
-// when the rest of the document follows it.
+// writeTag writes tok's start tag with attrs. When it does not fit, the buffer grows by the tag plus the rest still
+// to copy, so a tag holding a large data URI is not copied again.
 func writeTag(out *bytes.Buffer, tok html.Token, attrs []html.Attribute, rest int) {
 	size := len("<>") + len(tok.Data)
 	for _, a := range attrs {

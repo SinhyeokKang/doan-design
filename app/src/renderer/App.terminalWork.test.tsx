@@ -8,9 +8,8 @@ import { initialCanvasState } from "./CanvasController";
 import { projectExpanded } from "./shellNavigation";
 import type { ShellProject } from "../restore/uiState";
 
-// App reads main's terminal work list (subscribing
-// first), gives it to the sidebar and the canvas page, and opens doan:// links once the launch restore and the first
-// folders are in. Hooks run as plain state so App's own wiring runs (App.canvasNotice.test.tsx).
+// App reads main's terminal work list (subscribing first), gives it to the sidebar and the canvas page, and opens
+// doan:// links once the launch restore and the first folders are in. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -68,7 +67,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -189,8 +188,8 @@ test("an expanded project that is not loaded keeps opening its Overview under a 
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
-// W is another worktree of the loaded project, not selected, so its canvas rows are not on
-// screen and its session's spinner stands on the project row (PRODUCT §5 item 2 'Terminal work').
+// W is another worktree of the loaded project, not selected, so its session's spinner stands on the project row
+// (PRODUCT §5 item 2 'Terminal work').
 const COMMON = "/repo/.git";
 const tree2 = (wCanvases: CanvasRow[]): FolderEntry[] => [
   { path: "/w/a", kind: "list", servedRev: 0, canvases: rows(), git: { common: COMMON, main: "/w/a", branch: "main", worktrees: ["/w/a", "/w/w"] } },
@@ -210,8 +209,8 @@ test("another worktree's spinner waits until it lists the path; the project row 
   expect(sidebar().slots?.get(`/w/w\n${B}`)?.source).toBe("terminal");
 });
 
-// docs/design/canvas.md 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P), selects W,
-// cancels a pick, and leaves one canvas visit, so Back returns to R's canvas.
+// docs/design/canvas.md 'Terminal work in another worktree': the notice's Open on (R, P) opens (W, P), selects W,
+// cancels a pick, and leaves one canvas visit.
 test("the other worktree notice's Open cancels a pick, opens W's same canvas and selects W; Back returns to R's canvas", async () => {
   render();
   listeners.folders!(tree2(rows()) as never); render();
@@ -276,9 +275,8 @@ test("a refused link shows one toast with its reason and no action, and moves no
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 
-// a link only ever comes from a person's click, so an open dialog is dismissed as Escape or Cancel
-// would (its own cancel event), and the link then moves as usual. A dialog that refuses to close keeps the link from
-// moving under it.
+// A link only comes from a person's click, so an open dialog is dismissed as Escape or Cancel would, and the link
+// then moves; a dialog that refuses to close keeps the link from moving under it.
 function openDialog(closes: boolean) {
   const dialog = { open: true, events: [] as { type: string; cancelable: boolean }[], dispatchEvent(event: Event) {
     dialog.events.push({ type: event.type, cancelable: event.cancelable });
@@ -318,8 +316,8 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// a `doan open` request moves as a link does and answers main by its id once the move is decided.
-// A refusal answers with its reason and shows nothing: no toast, no move. The frame result comes from the listed frames.
+// A `doan open` request moves as a link does and answers main by its id once the move is decided; a refusal
+// answers with its reason and shows nothing.
 const opens = () => harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
 const framed = () => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [{ ...rows()[0]!, frames: [{ id: "hero" }] }, rows()[1]!] }] as never); render(); };
 const request = (id: string, canvas: string, frame?: string, expires = Date.now() + 1000) => { listeners.openRequest!({ id, root: "/w/a", canvas, ...(frame === undefined ? {} : { frame }), expires } as never); render(); };
@@ -363,8 +361,8 @@ test("an open request dismisses a dialog that agrees to close and opens; one tha
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// once main told the CLI busy, the request is dead. The renderer touches nothing for it: no dialog closes
-// and nothing moves, and it does not answer (main dropped the id). Expiry is checked again before the move commits.
+// Once main told the CLI busy the request is dead: no dialog closes, nothing moves, and it is not answered
+// (main dropped the id). Expiry is checked again before the move commits.
 test("an expired open request closes no dialog, moves nowhere and is not answered", async () => {
   await start(); opens();
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -403,7 +401,7 @@ test("during first run an open request answers busy and leaves every dialog alon
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// A project row opens its Overview, never the last canvas, from Home and from a workspace alike (project-row-disclosure draft): only its chevron folds or unfolds it.
+// A project row opens its Overview, never the last canvas, from Home and from a workspace alike; only its chevron folds it.
 test("from Home, a project row opens its Overview, the loaded project's and another's", async () => {
   await start();
   folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
@@ -428,8 +426,8 @@ test("from Home, a project row opens its Overview, the loaded project's and anot
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
 });
 
-// project-row-disclosure draft: from a canvas, an unfolded project that is not loaded opens its Overview instead of
-// folding (the row's old second meaning), and stays unfolded.
+// From a canvas, an unfolded project that is not loaded opens its Overview instead of folding, and stays
+// unfolded.
 test("from a canvas, another project's unfolded row opens its Overview and does not fold it", async () => {
   await start();
   folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
@@ -476,8 +474,8 @@ test("leaving a project folded by its chevron drops the fold, so it unfolds when
   expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
 });
 
-// app conversations' `doan work update` content, read like terminal work (subscribed first), and the
-// open document's frames go to the canvas page; the indicator's work for the canvas goes to the controller.
+// App conversations' `doan work update` content is read like terminal work (subscribed first); the open
+// document's frames go to the canvas page and the indicator's work goes to the controller.
 const conv = (path: string, root = "/w/a"): ConversationWork => ({ conversationId: "p1", root, path, frame: "hero", touched: 3, turnId: "u1" });
 
 test("App subscribes to conversation work before it reads it, and a change wins over an older read", async () => {

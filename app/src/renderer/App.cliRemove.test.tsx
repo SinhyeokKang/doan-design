@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
 // `doan remove` took a project's roots out of the list (folders:removed): the window ends in the state the menu's
-// Remove from Doan leaves. Driven with hooks as plain state, on the problem overlay's harness (App.problemOverlay.test.tsx).
+// Remove from Doan leaves. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -62,7 +62,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -161,8 +161,8 @@ function windowState() {
   const saved = doan.saveUiState!.mock.lastCall?.[0] as { conversationByRoot?: Record<string, string> } | undefined;
   return { projects: sidebar().projects, home: find(Home).length, remembered: [...new Set(remembered())].sort(), history, conversations: saved?.conversationByRoot ?? {}, drafts: [...overviewRun().drafts.keys()].sort() };
 }
-// The group and another project listed, ui-state read with conversation memory for /w/b and /w/c, /w/c then /w/b
-// visited, and an Overview draft on /w/a (no conversation memory), /w/b and /w/c.
+// The group and another project listed, with conversation memory for /w/b and /w/c, /w/c then /w/b visited,
+// and an Overview draft on /w/a, /w/b and /w/c.
 async function seeded(memory: Record<string, string> = { "/w/b": "conv-b", "/w/c": "conv-c" }) {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(1_000_000);
   render(); folders([...GROUP, listed("/w/c")]);

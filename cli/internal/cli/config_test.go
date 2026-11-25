@@ -310,3 +310,36 @@ func TestConfigRejectsWithheldServeWithoutWriting(t *testing.T) {
 	}
 	result(t, root, 0, "config", "--add-serve", "web")
 }
+
+// POSTMORTEM 2026-11-18/19: an entry is withheld as written too, so a link named like .env is refused even when it
+// resolves to an allowed directory.
+func TestConfigRejectsWithheldServeNameThroughLink(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, "docs/page.css", "")
+	if err := os.Symlink("docs", filepath.Join(root, ".env-docs")); err != nil {
+		t.Fatal(err)
+	}
+	// A link inside the repository back to its root is itself a typed name below the root.
+	if err := os.Symlink(".", filepath.Join(root, ".env-root")); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(root, alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{".env-docs", ".env-docs/page.css", filepath.Join(realPath(t, root), ".env-docs"),
+		".env-root/docs", filepath.Join(alias, ".env-docs"), filepath.Join(alias, ".env-docs/page.css"),
+		filepath.Join(alias, ".env-root/docs")} {
+		t.Run(path, func(t *testing.T) {
+			before := readFile(t, root, ".doan/config.json")
+			failure := runJSON(t, root, 2, "config", "--add-serve", path)["error"].(map[string]any)
+			if failure["code"] != "usage_error" || !strings.Contains(failure["message"].(string), ".env") {
+				t.Fatal(failure)
+			}
+			if readFile(t, root, ".doan/config.json") != before {
+				t.Fatal("rejected addition changed config")
+			}
+		})
+	}
+	result(t, root, 0, "config", "--add-serve", filepath.Join(alias, "docs"))
+}

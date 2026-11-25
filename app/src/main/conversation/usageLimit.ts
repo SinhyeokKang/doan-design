@@ -25,7 +25,7 @@ export function limitState(prev: ReadonlyMap<string, LimitEntry>, connectionId: 
   return next;
 }
 
-// What a Send does. queue: the conversation works, so the renderer queues as before; schedule: the message waits in main
+// What a Send does. queue: the conversation works, so the renderer queues; schedule: the message waits in main
 // until the reset (only an existing Doan Claude Code or Codex conversation); refuse: the limit holds and nothing can
 // wait for it (a new conversation, a legacy external conversation, an ACP provider). limit: the reset time of the
 // conversation's connection, if main holds one; scheduled: its messages already wait for a reset that may have passed.

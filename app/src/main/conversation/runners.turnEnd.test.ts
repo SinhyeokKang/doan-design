@@ -5,21 +5,8 @@ import { join } from "node:path";
 import { openRunner } from "./runners";
 import type { EventPayload } from "./types";
 
-// A fake Claude CLI for the turn-end rules (PoC, Claude Code 2.1.322 and 2.1.284):
-//  meta     a turn the CLI opened itself (a background task's notice) closes with a success result before the prompt is
-//           read; the prompt's own turn follows and echoes its uuid.
-//  slow     the meta result, then the prompt read, then the prompt's own result only once the test writes "go".
-//  unread   only the meta result; the prompt is never read and the input's end is ignored.
-//  failed   a failed result before the prompt was read; the input's end is ignored.
-//  bg       the done turn leaves a background task: the set is announced, and once the task ends (FAKE_TASK_MS) the set
-//           empties and the CLI calls the model on its own 100 ms later unless it was killed.
-//  failread a failed result after the prompt was read; the input's end is ignored.
-//  hold     nothing after the prompt: the turn keeps running.
-//  bg env   FAKE_RESULT=failed ends the turn failed instead; FAKE_AMBIENT=1 marks the task ambient. FAKE_STUBBORN names a
-//           file: the task also starts \`bash -c "trap '' TERM; sleep 31"\` in a process group of its own, as Claude Code
-//           runs a background command, writes its group there, and SIGTERM signals that group before the CLI exits.
-//  done     a plain done turn; the CLI ends a while after its input closes (FAKE_EXIT_MS), or at once on SIGTERM.
-// SIGTERM is logged and ends the task with the CLI, as the real CLI's own handling does.
+// A fake Claude CLI for the turn-end rules, by mode: meta, slow, unread, failed, bg (FAKE_TASK_MS, FAKE_RESULT,
+// FAKE_AMBIENT, FAKE_STUBBORN), failread, hold, done (FAKE_EXIT_MS). SIGTERM is logged and ends the task with the CLI.
 function fakeClaude(root: string): string {
   const command = join(root, "claude"), log = join(root, "seen");
   writeFileSync(command, `#!/usr/bin/env node

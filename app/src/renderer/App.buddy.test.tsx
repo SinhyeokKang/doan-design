@@ -3,8 +3,8 @@ import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { BuddyId } from "./buddies";
 
-// App applies the saved buddy (data-buddy) on every preferences snapshot, through the paint the renderer entry hands
-// it. Driven with hooks as plain state, as App.replyChips.test.tsx is.
+// App applies the saved buddy (data-buddy) on every preferences snapshot, through the paint the renderer entry
+// hands it. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -62,7 +62,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { DEFAULT_PREFERENCES } = await import("../main/preferences");

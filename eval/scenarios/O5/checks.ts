@@ -1,8 +1,7 @@
 import type { Checks } from "../../lib/types.ts";
 
-// Git discovery from the folder, with every GIT_* variable unset so only the
-// disk decides. This also catches a repository created above the folder and a
-// `.git` file from --separate-git-dir, which a `.git` existence check misses.
+// Git discovery with every GIT_* unset so only the disk decides; it also catches a repository above the folder and
+// a --separate-git-dir `.git` file, which a `.git` existence check misses.
 const DISCOVER = 'for v in $(env | sed -n "s/^\\(GIT_[A-Za-z0-9_]*\\)=.*/\\1/p"); do unset "$v"; done; exec git -C "$1" rev-parse --git-dir';
 
 const checks: Checks = ctx => {

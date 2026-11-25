@@ -6,34 +6,32 @@ import { mcpChanges, mcpChangeText, OPEN_FAILED_TEXT, runningNoticeText } from "
 
 export interface McpConnectorsWatchDeps {
   api: { onMcpConnectors(listener: (snapshot: McpSnapshot) => void): () => void };
-  // Whether the agent has a Doan conversation turn running now (the renderer's conversation lists).
+  // From the renderer's conversation lists.
   running(provider: McpProvider): boolean;
-  // Whether Settings > MCP Connectors is the screen shown.
   pageShown(): boolean;
   toast(text: string, label: string, run: () => void): void;
   openPage(): void;
 }
 
-// App's one reader of main's MCP connector snapshots. Attempts outlive the page, so what
-// follows them lives here: the latest snapshot, the page's announcements, a failure told by a toast while the page
-// isn't shown (spec 4) and the notice under the item changed while that agent runs a turn (spec 10).
+// Attempts outlive the page, so what follows them lives here: the latest snapshot, announcements, a failure toast while
+// the page isn't shown, and the notice under an item changed while that agent runs a turn.
 export class McpConnectorsWatch {
   snapshot: McpSnapshot | null = null;
-  // The server each agent's notice sits under; one per section, gone when that agent's running turn ends.
+  // Gone when that agent's running turn ends.
   notices: Partial<Record<McpProvider, string>> = {};
   announcement: { seq: number; text: string } | null = null;
   private seq = 0;
   private listeners = new Set<() => void>();
-  // The action each row offered when last settled, kept by a row while it is Removing (draft frame 7).
+  // Kept by a row while it is Removing.
   private settled = new Map<string, ConnectorAction>();
-  // Rows whose last Open again answered open_failed, until a later open works or the row leaves Connecting.
+  // Rows whose last Open again failed, until a later open works or the row leaves Connecting.
   private openFailures = new Set<string>();
   constructor(private readonly deps: McpConnectorsWatchDeps) {}
 
   start(): () => void { return this.deps.api.onMcpConnectors(snapshot => this.receive(snapshot)); }
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
 
-  // Snapshots carry one revision; the newest wins whichever way it came (the change event or a list reply).
+  // The newest wins whichever way it came (the change event or a list reply).
   receive(next: McpSnapshot): void {
     const prev = this.snapshot;
     if (prev && next.revision <= prev.revision) return;
@@ -54,7 +52,7 @@ export class McpConnectorsWatch {
     this.changed();
   }
 
-  // Called when conversation lists change: a notice goes once its agent's running turn has ended.
+  // A notice goes once its agent's running turn has ended.
   runningChanged(): void {
     const kept = Object.fromEntries(Object.entries(this.notices).filter(([provider]) => this.deps.running(provider as McpProvider)));
     if (Object.keys(kept).length === Object.keys(this.notices).length) return;
@@ -66,8 +64,7 @@ export class McpConnectorsWatch {
   remembered(provider: McpProvider, name: string): ConnectorAction | null { return this.settled.get(`${provider}\0${name}`) ?? null; }
   announcementSeq(): number { return this.seq; }
   openFailed(provider: McpProvider, name: string): boolean { return this.openFailures.has(`${provider}\0${name}`); }
-  // An Open again's answer: a browser that did not open shows the sign-in row's alert, and the page's one live region
-  // reads its sentence (its notices carry no live role).
+  // The page's one live region reads the sentence: its notices carry no live role.
   openAnswered(provider: McpProvider, name: string, failed: boolean): void {
     const key = `${provider}\0${name}`;
     // Every failure is read, a repeated one too; a working open only clears a shown alert.

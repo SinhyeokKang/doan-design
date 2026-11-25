@@ -21,7 +21,7 @@ const mainOnly = [
   // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
   // The session the CLI shares; the prototype window has no first run.
-  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
+  "onboarding:start", "onboarding:status", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // Preset reads for the home (the prototype window's composer has its own entry).
   "design-skills:list", "design-skills:get",
   // Home attachments.
@@ -92,17 +92,20 @@ test("rejects unknown channels and every unregistered window", () => {
   for (const channel of [...mainOnly, ...setupAndAuth, ...settingsPage, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
     for (const kind of [undefined, null, "thumbnail", "unknown", "", 1, {}]) expect(senderAllowed(channel, kind)).toBe(false);
   }
-  // Settings > Connections and its setup channels were removed.
   // Built from the operation names so a search for the channel literals finds only live code.
   const removed = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
-  // The app's comment screens were removed with their channels.
   removed.push(...["list", "begin", "mutate", "status", "author", "copy", "guard", "transition-answer"].map(op => `comments:${op}`), "review-state:get", "review-state:raise");
   for (const kind of ["main", "settings"]) for (const channel of [...removed, "", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
 test("restricts every onboarding session request channel to main", () => {
-  const requests = Object.values(ONBOARDING_CHANNELS).filter(channel => channel !== ONBOARDING_CHANNELS.changed);
+  const unsent: string[] = [ONBOARDING_CHANNELS.changed, ONBOARDING_CHANNELS.check];
+  const requests = Object.values(ONBOARDING_CHANNELS).filter(channel => !unsent.includes(channel));
   expect(requests.filter(channel => !mainOnly.includes(channel))).toEqual([]);
   for (const channel of requests) expect(senderAllowed(channel, "settings")).toBe(false);
+});
+// An agent check reaches the session from the CLI over the app socket only.
+test("opens the onboarding check to no window", () => {
+  for (const kind of ["main", "prototype", "settings"]) expect(senderAllowed(ONBOARDING_CHANNELS.check, kind), kind).toBe(false);
 });
 // The Add Projects page's session is the main window's.
 test("restricts every Add Projects page request channel to main", async () => {
@@ -174,6 +177,16 @@ describe("prototype window", () => {
     expect(senderAllowed(channel, "main")).toBe(true);
     expect(senderAllowed(channel, "prototype")).toBe(true);
   });
+  // Thread cards in either window show thumbnails; main answers the prototype window for its playing root only
+  // (prototype/thumbnailScope.ts).
+  test.each(["thumbnails:get", "thumbnails:visible"])("%s is open to both windows", channel => {
+    expect(senderAllowed(channel, "main")).toBe(true);
+    expect(senderAllowed(channel, "prototype")).toBe(true);
+    for (const kind of ["settings", "capture", "thumbnail", "", null, undefined]) expect(senderAllowed(channel, kind)).toBe(false);
+  });
+  test("thumbnails:changed is an event main sends, never a request", () => {
+    for (const kind of ["main", "prototype"]) expect(senderAllowed("thumbnails:changed", kind)).toBe(false);
+  });
   test("account, settings, terminal work, capture and the main window's own requests stay closed to it", () => {
     for (const channel of [
       "agent-auth:read", "agent-auth:sign-in", "agent-auth:sign-out", "preferences:read", "preferences:write", "work:get", "conversation-work:get",
@@ -183,8 +196,8 @@ describe("prototype window", () => {
   });
 });
 
-// The drawing and promotion relays and the playing-target push that fed them are gone, so no window may call their
-// channels. Whether a handoff's source conversation is listed is the prototype window's read.
+// The relay channels belong to no window. Whether a handoff's source conversation is listed is the prototype window's
+// read.
 test("the removed relay channels belong to no window, and the listed-conversation read to the prototype window", async () => {
   const { PROTOTYPE_CHANNELS } = await import("./prototype/ipc");
   for (const kind of ["main", "prototype"]) {

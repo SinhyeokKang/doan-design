@@ -27,14 +27,13 @@ func appError(code, message string) *Error {
 		// A sandbox can deny the socket even while the app is running.
 		"app_not_running":       {"Ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions", "If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About"},
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
-		"project_not_open":      {"Ask the user to add this project in Doan (File > Add Projects…), or work in the worktree that is open in Doan"},
+		"project_not_open":      notOpenSteps(", then to ask again"),
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
 
-// decodeVersioned reads exactly one JSON object and normalizes a numeric v,
-// so 1.0 reads as 1 (as config does) and any other number is a version mismatch
-// regardless of the rest of the shape.
+// decodeVersioned reads exactly one JSON object and normalizes a numeric v, so 1.0 reads as 1 (as config does) and any
+// other number is a version mismatch regardless of the rest of the shape.
 func decodeVersioned(data []byte) (map[string]any, bool, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -71,8 +70,9 @@ func readRuntime(data []byte) (runtimeFile, string) {
 	return runtimeFile{Socket: obj["socket"].(string), Token: obj["token"].(string)}, ""
 }
 
-// readResponse returns the selection without its root, which only travels on the wire.
-func readResponse(line []byte) (map[string]any, *Error) {
+// readResponse returns the selection without its root, which only travels on the wire; root names the folder in
+// project_not_open.
+func readResponse(line []byte, root string) (map[string]any, *Error) {
 	obj, mismatch, e := decodeVersioned(line)
 	if mismatch {
 		return nil, appError("app_protocol_mismatch", "Doan answered with another protocol version")
@@ -89,7 +89,7 @@ func readResponse(line []byte) (map[string]any, *Error) {
 			// The runtime file outlived the app that wrote it; a new app has another token.
 			return nil, appError("app_not_running", "Doan rejected the token in its runtime file")
 		case "project_not_open":
-			return nil, appError("project_not_open", "This project is not open in Doan")
+			return nil, appError("project_not_open", notOpenMessage(root))
 		default:
 			return nil, internal(errors.New("Doan rejected the request as malformed"))
 		}
@@ -174,7 +174,7 @@ func Active(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure != nil {
 		return Outcome{}, failure
 	}
-	selection, failure := readResponse(line)
+	selection, failure := readResponse(line, r.Root)
 	if failure != nil {
 		return Outcome{}, failure
 	}

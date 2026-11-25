@@ -6,8 +6,8 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthAttempt, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { Preferences, PreferencesSnapshot } from "../main/preferences";
 
-// Settings > Agents, driven with hooks as plain state so the component's own handlers and effects run
-// (App.addProjects.test.tsx style). The sign-in controller is the real one over a fake agent-auth API.
+// Settings > Agents with hooks as plain state so its own handlers and effects run; the sign-in controller is the real one over
+// a fake agent-auth API.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0,
@@ -175,8 +175,7 @@ test("with Model Default, Effort lists the default model's efforts and saves wit
   await settle();
   expect(labelled("Effort for new conversations")).toHaveLength(0);
 });
-// The Model menu always opens with a
-// Default row that unfixes it, and only this menu leaves Claude Code's own default row out.
+// The Model menu always opens with a Default row that unfixes it, and only this menu leaves Claude Code's own default row out.
 test("the Model menu opens with a Default row naming today's default; picking it unfixes the model", async () => {
   resetHooksAndList([{ id: "default", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku 5.5", default: false }]);
   await settle({ preferences: prefs({ provider: "claude", model: "haiku", permissionMode: "plan" }) });
@@ -213,8 +212,7 @@ test("Codex with nothing fixed names its default model and level", async () => {
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default · Medium");
   expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Ask first");
 });
-// POSTMORTEM 2026-11-06 'A menu's "nothing chosen" value shared its string with a real model id': a
-// level a provider names "default" is a level of its own, apart from the Effort menu's Default row.
+// POSTMORTEM 2026-11-06: a level a provider names "default" is a level of its own, apart from the Effort menu's Default row.
 test("an effort level named default stays apart from the Effort menu's Default row", async () => {
   auth = { revision: 1, providers: [dto("claude"), dto("codex")] };
   resetHooksAndList([{ id: "gpt-x", label: "GPT-X", default: true, efforts: ["default", "high"] }]);
@@ -311,8 +309,8 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low" } });
 });
 
-// Draft frame settings-row: Permission follows Effort, uses the composer's menu, and is saved
-// with the model and effort; a model or effort change keeps the saved mode.
+// Permission follows Effort, uses the composer's menu, and is saved with the model and effort; a model or effort change keeps the
+// saved mode.
 test("Permission is a menu after Effort and saves the mode with the saved model and effort", async () => {
   await settle({ preferences: prefs({ provider: "claude", model: "opus", effort: "high", permissionMode: "bypass" }) });
   await settle();
@@ -346,7 +344,7 @@ test("Last used hides Permission; a file from a newer Doan disables it with the 
   expect(labelled("Permission for new conversations")[0]?.props.disabled).toBe(true);
 });
 
-// A saved provider that cannot run keeps the row and its value; the Agent row carries the warning (draft settings-row).
+// A saved provider that cannot run keeps the row and its value; the Agent row carries the warning.
 test("a saved provider that cannot run keeps its Permission value under the Agent warning", async () => {
   await settle({ preferences: prefs({ provider: "codex", permissionMode: "acceptEdits" }) });
   expect(words(all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"))?.props.children)).toContain("Codex isn’t signed in");
@@ -399,6 +397,50 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
   // The same arrival is not applied again on the next render.
   render();
   expect(focus).toHaveBeenCalledTimes(1);
+});
+
+// Sign in pressed in the prototype window brings the main window forward and arrives here before it is active;
+// activation then restores the focus it had before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide
+// sidebar'), so the row group's focus is made again on activation, to the group drawn then.
+test("a provider arrival with the window in the background focuses its row group again on activation", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = Object.assign(new EventTarget(), { doan: api });
+  vi.stubGlobal("window", win);
+  const doc: Record<string, unknown> = { activeElement: null, body: {}, hasFocus: () => false, querySelectorAll: () => [], querySelector: (selector: string) => selector.includes('data-provider="codex"') ? shown : null };
+  const group = () => { const node = { focus: vi.fn(() => { doc.activeElement = node; }), isConnected: true, matches: () => false, querySelector: () => null }; return node; };
+  let shown = group();
+  const first = shown;
+  vi.stubGlobal("document", doc);
+  await settle({ arrival: { provider: "codex", seq: 1 } });
+  expect(first.focus).toHaveBeenCalledOnce();
+  shown = group();
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first.focus).toHaveBeenCalledOnce();
+  expect(shown.focus).toHaveBeenCalledTimes(2);
+});
+
+// A pasted address is answered by main after the person may have gone back to the browser; activation then restores the
+// focus the window had before, on the gone modal (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'),
+// so the return to the paste line is made again on activation, to the line as drawn then.
+test("a paste modal that main's answer closes with the window in the background returns focus again on activation", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = Object.assign(new EventTarget(), { doan: api });
+  vi.stubGlobal("window", win);
+  const line = () => ({ focus: vi.fn(), matches: () => false });
+  let shown = line();
+  const first = shown;
+  vi.stubGlobal("document", { activeElement: null, body: {}, hasFocus: () => false, querySelectorAll: () => [], querySelector: (selector: string) => selector === '[data-paste="antigravity"]' ? shown : null });
+  await settle();
+  const session = hooks.states.find(value => typeof (value as { submitPaste?: unknown } | null)?.submitPaste === "function") as { focusOn(target: string, provider: string): void };
+  session.focusOn("paste", "antigravity");
+  render();
+  expect(first.focus).toHaveBeenCalledOnce();
+  shown = line();
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first.focus).toHaveBeenCalledOnce();
+  expect(shown.focus).toHaveBeenCalledTimes(2);
 });
 
 // Click handlers return void; settle the session updates before checking install results, including stale failures.
@@ -474,8 +516,8 @@ test.each(["newer first", "older first"])("Settings: an older Install result nev
   await settle();
   try {
     click("codex", "install"); click("cursor", "install");
-    // UX K (POSTMORTEM 2026-10-25): a fixed pause can pass before a stale failure is consumed.
-    // Observe the real command promises even though React's click handlers deliberately return void.
+    // POSTMORTEM 2026-10-25: a fixed pause can pass before a stale failure is consumed, so the real command promises are observed even
+    // though React's click handlers return void.
     const consumed = command.mock.results.map(result => {
       if (result.type !== "return" || !(result.value instanceof Promise)) throw new Error("Install did not return its completion promise");
       return result.value;

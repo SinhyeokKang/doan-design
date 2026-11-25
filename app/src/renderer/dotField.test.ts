@@ -286,7 +286,6 @@ describe("autoCursor", () => {
   });
 });
 
-// A recorder for the 2D calls the field makes.
 function recorder() {
   const calls: string[] = [];
   let alpha = 1;
@@ -300,7 +299,7 @@ function recorder() {
 }
 
 describe("drawDotField", () => {
-  // Dogfooding #4: at 0.08→0.3 the white dots barely showed on the light board.
+  // Fainter alphas barely show the white dots on the light board.
   test("uses the doan values: 12px grid, radius 1.5→2, alpha 0.16→0.5, a 320px cursor sweeping 5 rows at 320px/s", () => {
     expect(DOT_FIELD).toEqual({ gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 });
   });
@@ -322,7 +321,7 @@ describe("drawDotField", () => {
     expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.16"]);
     expect(calls.filter(call => call === "arc")).toHaveLength(2);
   });
-  // Records the radius and alpha of each arc (the alpha at the time of the call) to see how near dots are drawn.
+  // Records each arc's radius and alpha at the time of the call, to see how near dots draw.
   function arcs() {
     const drawn: { x: number; y: number; r: number; alpha: number }[] = [];
     let alpha = 1;

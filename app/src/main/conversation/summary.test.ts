@@ -64,6 +64,13 @@ describe("conversationSummary", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live)).not.toHaveProperty("waitingSince");
     expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted)).not.toHaveProperty("waitingSince");
   });
+  // A new Codex app-server numbers its requests from 0 again, so a history can hold one id in two turns.
+  it("waits since the current turn's request when an earlier turn's answered request had the same id", () => {
+    const zero: EventPayload = { ...permission, requestId: "number:0", summary: "Run ls" };
+    const events = history(...started, zero, { type: "permission.resolved", requestId: "number:0", optionId: "allow" }, { type: "turn.done" },
+      [{ type: "user.message", text: "Again", anchors: [] }, "t2"], [{ type: "turn.started" }, "t2"], [{ ...zero, summary: "Run npm test" }, "t2"]);
+    expect(conversationSummary(doan, { ok: true, events }, live)).toMatchObject({ phase: "waiting", waitingSince: at(8), preview: "Needs your answer: Run npm test" });
+  });
   it("folds an unfinished turn after a restart into an unseen end", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted);
     expect(s).toMatchObject({ phase: "ended", unseen: true });
@@ -83,8 +90,8 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: bound }, restarted).unseen).toBe(false);
     expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events: bound }, restarted).unseen).toBe(true);
   });
-  // Nothing is archived any more: an end counts by the seen marker alone. A conversation an earlier build archived lost
-  // its marker when the index was migrated (store.ts), so the interruption recorded at the archive is seen.
+  // An end counts by the seen marker alone. A conversation an earlier build archived lost its marker in the index
+  // migration (store.ts), so the interruption recorded at the archive is seen.
   it("counts an end by the seen marker alone", () => {
     const replaced = history(...started, { type: "interrupted", reason: "user" }, { type: "conversation.archived" });
     const { seenSeq: _seen, ...migrated } = doan;
@@ -226,4 +233,20 @@ it("carries stored Fast in summaries, including unreadable history, without addi
   expect(conversationSummary(fast, { ok: true, events: [] }, live)).toMatchObject({ fast: true });
   expect(conversationSummary(fast, { ok: false }, live)).toMatchObject({ fast: true, readError: true });
   expect(conversationSummary(doan, { ok: true, events: [] }, live)).not.toHaveProperty("fast");
+});
+
+describe("activity.result in the summary", () => {
+  const edit: EventPayload = { type: "activity", kind: "edit", path: "a.ts", summary: "Editing a.ts", callId: "c1" };
+  const result: EventPayload = { type: "activity.result", callId: "c1", path: "a.ts", lines: { added: 2, removed: 1 } };
+  it("a running turn's preview stays its last activity", () => {
+    expect(conversationSummary(doan, { ok: true, events: history(...started, edit, result) }, live)).toMatchObject({ phase: "running", preview: "Editing a.ts" });
+  });
+  it("a waiting turn stays waiting with its request as the preview", () => {
+    expect(conversationSummary(doan, { ok: true, events: history(...started, edit, permission, result) }, live)).toMatchObject({ phase: "waiting", preview: "Needs your answer: Run npm test" });
+  });
+  it("a finished turn is unseen up to its end, and seen once its end is", () => {
+    const events = history(...started, edit, result, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" });
+    expect(conversationSummary({ ...doan, seenSeq: 5 }, { ok: true, events }, live)).toMatchObject({ phase: "ended", unseen: true, preview: "Done." });
+    expect(conversationSummary({ ...doan, seenSeq: 6 }, { ok: true, events }, live)).toMatchObject({ unseen: false });
+  });
 });

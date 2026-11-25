@@ -292,7 +292,7 @@ describe("UsageService connection changes", () => {
     gate.resolve(ok(h.now(), 88)); await usage.settled();
     expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false, reading: ok(h.now(), 42) }]);
   });
-  // review-B 🟢1: the earlier account's read is stopped when the new account's read takes its place.
+  // The earlier account's read is stopped when the new account's read takes its place.
   it("stops the earlier account's read when a replacement's read starts", async () => {
     const signals: AbortSignal[] = [];
     const h = setup({ read: (_provider, _lease, signal) => { signals.push(signal); return new Promise(resolve => signal.addEventListener("abort", () => resolve(failed(0)))); } });
@@ -346,6 +346,17 @@ describe("UsageService visibility", () => {
     visible = false; usage.visibilityChanged(); h.advance(READ_INTERVAL_MS);
     visible = true; usage.visibilityChanged(); await usage.settled();
     expect(h.read).toHaveBeenCalledTimes(2);
+  });
+  it("shown during a background start before the tool facts are read, reads nothing and shows no readiness cause until main's start", async () => {
+    let visible = false;
+    const h = setup({ visible: () => visible, readiness: () => ({ ready: false, cause: "version_unknown", action: "retry" }) });
+    h.auth.states.set("claude", connected("claude", "c1"));
+    const usage = h.make();
+    visible = true; usage.visibilityChanged(); await usage.settled();
+    expect(h.read).not.toHaveBeenCalled();
+    expect(usage.entries()).toEqual([{ provider: "claude", inFlight: false }]);
+    usage.trigger({ kind: "start" });
+    expect(usage.entries()[0]?.blocked).toMatchObject({ readiness: { cause: "version_unknown" } });
   });
 });
 

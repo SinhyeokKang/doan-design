@@ -5,8 +5,6 @@ import { UpdateHeaderButtonView, type UpdateHeaderButtonViewProps } from "./Upda
 import { TooltipProvider } from "./components/ui/tooltip";
 import { UPDATE_BLOCKED } from "../main/update/view";
 
-// The confirmed draft .doan/canvases/app-update.html (frames header-ready, header-blocked, header-restarting,
-// header-stopped, header-locked): the header's update button as drawn, without state.
 // view.ts hands the button this very object while the gate is blocked.
 const BLOCKED = UPDATE_BLOCKED;
 function props(over: Partial<UpdateHeaderButtonViewProps> = {}): UpdateHeaderButtonViewProps {
@@ -70,8 +68,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 
 describe("UpdateHeaderButtonView popover words", () => {
-  // Draft frames popover-unblocked and popover-stopped-blocked: the words are one polite live region, so a change
-  // while open is read once without moving focus.
+  // The words are one polite live region, so a change while open is read once without moving focus.
   it("the title and text sit in one polite live region inside the dialog", () => {
     const tree = all(UpdateHeaderButtonView(props({ open: true, shown: BLOCKED })));
     const region = tree.find(element => element.props.className === "update-pop-live")!;

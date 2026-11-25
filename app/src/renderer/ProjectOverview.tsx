@@ -9,15 +9,17 @@ import { liveReset, localClock, waitsForReset } from "./limitReset";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { ThumbnailHub } from "./thumbnails";
 import type { HomeMemory } from "../restore/uiState";
 import { requestTitleText } from "../main/conversation/requestLines";
 import { messageLine } from "../main/conversation/messageText";
 import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
-import { queuedText, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
+import { queuedMessage, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { focusFieldEnd } from "./chipField";
+import { useActivationFocus } from "./activationFocus";
 import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
@@ -55,9 +57,8 @@ import { defaultPermission, permissionChoices, permissionPickerView } from "./pe
 import { dropAttachment } from "./conversationStore";
 import { NameTip } from "./NameTip";
 
-// The project Overview as the project conversation screen: the header with the
-// project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
-// which conversation shows; this component draws it and makes the calls to main the thread and composer ask for.
+// The project conversation screen. OverviewRun decides which conversation shows; this component draws it and makes the calls to
+// main the thread and composer ask for.
 
 export interface ProjectOverviewProps {
   run: OverviewRun;
@@ -77,7 +78,7 @@ export interface ProjectOverviewProps {
   seen: ReadonlySet<string>;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
-  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
   now: number;
   onWorktree(root: string): void;
@@ -88,6 +89,8 @@ export interface ProjectOverviewProps {
   composerLink?: MutableRefObject<DockedFieldLink | null>;
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // The window's thumbnails, for the thread's canvas cards; the Overview's list shares them.
+  thumbnailHub?: ThumbnailHub;
   onRetryList(): void;
   // The failed list's Retry while it reads again (HomeRun listRetry).
   listRetry?: ListRetry;
@@ -197,7 +200,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const prompts = mode.kind === "new" && !waiting && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
   const started = draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0;
 
-  // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
   const commands = conversationId && provider && thread ? threadCommands(provider, thread.events, run.store.boundaries(conversationId)) : null;
   const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live, commands ?? undefined), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
@@ -214,6 +216,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
+  // An entry lands before main raises the window and a reply can come after the person left, so these focus moves are made
+  // again on activation (POSTMORTEM 2026-11-17), and only while the same conversation shows.
+  const handFocus = useActivationFocus();
+  const shownNow = () => { const now = run.view(root); return now.kind === "conversation" ? { conversationId: now.conversationId, revision: run.revision(root) } : null; };
+  const stillShowing = (shown: { conversationId: string; revision: number }) => { const now = shownNow(); return now?.conversationId === shown.conversationId && now.revision === shown.revision; };
   useEffect(() => {
     if (!conversationId || !scroll || !Array.isArray(items)) return;
     const target = scrollTarget(items, asking);
@@ -223,10 +230,14 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     handle.current?.scrollToItem(target.key);
     // The entry also focuses the request's first choice: a permission request's first choice, a question's first
     // option or answer input.
-    handle.current?.focusItem(target.key);
+    const shown = { conversationId, revision: run.revision(root) };
+    handFocus(() => { if (stillShowing(shown)) handle.current?.focusItem(target.key); });
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
-  const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+  const resend = (id: string) => {
+    const revision = run.revision(root);
+    void run.editAndResend(root, id).then(focus => { if (focus) handFocus(() => { if (stillShowing({ conversationId: id, revision })) focusField(); }); });
+  };
   const editAndResend = (id: string) => {
     const confirm = run.store.editAndResendConfirm(id);
     if (confirm) setReplacing({ conversationId: id, confirm }); else resend(id);
@@ -289,7 +300,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     });
   };
 
-  // Send, queue and the rest of the composer's calls.
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
   const changedFast = fastToSend(pick.fast, summary?.owner === "legacy-external" ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -299,10 +309,13 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         root, mode: "newDesign", runtime: chosen, text: request.text,
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
-      const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      // A command remembers only its text, as Home's does: its preset and attachments stay in this draft.
+      const last: LastRequest = request.command ? { root, text: request.text, preset: null, attachments: [], provider: chosen, model, effort }
+        : { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) {
+        run.store.markSent(outcome.conversationId, request.text, 0);
         support.clearPick(key);
         if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
         run.started(root, outcome.conversationId, chosen, revision);
@@ -319,13 +332,15 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const waits = waitsForReset(summary);
     // A message that waits for the reset becomes a queued row instead.
     const settle = waits ? null : run.store.sendPending(mode.conversationId, { id: crypto.randomUUID(), text: request.text, anchors: request.anchors, attachments: request.files ?? [] });
+    const unmark = waits ? null : run.store.markSent(mode.conversationId, request.text);
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" })).finally(() => settle?.());
+    if (reply && ("error" in reply || "scheduled" in reply)) unmark?.();
     if (reply && "error" in reply) return reply;
     if (reply && "scheduled" in reply) {
-      run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+      run.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
       return { ok: true, itemId: reply.scheduled.itemId };
     }
     run.sent(root, mode.conversationId, revision);
@@ -336,11 +351,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
-    run.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+    run.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true, itemId: reply.itemId };
   };
 
-  // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
   // A command does not name the conversation (main leaves one a command started untitled until a message).
   const firstMessage = thread && provider ? firstTitleMessage(provider, thread.events) : undefined;
@@ -430,7 +444,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
+        localSends={run.store.localSends(conversationId)} onSpendSends={marks => run.store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}

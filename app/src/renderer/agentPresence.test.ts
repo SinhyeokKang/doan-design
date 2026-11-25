@@ -8,7 +8,6 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   canvas: { path: ".doan/canvases/billing.html", id: "billing" }, ...patch,
 });
 
-// A project conversation has no canvas key at all (exactOptionalPropertyTypes).
 const project = (patch: Partial<ConversationSummary>): ConversationSummary => {
   const { canvas: _canvas, ...rest } = summary(patch);
   return rest;

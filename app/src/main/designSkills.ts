@@ -1,9 +1,8 @@
 import { validateEnvelope } from "../formats/validate";
 import type { CliRun } from "./folderState";
 
-// `doan design-skill [id] --json` as the app reads it (ARCHITECTURE §7 'Design preset reads').
-// Successes and the CLI's own failures pass through as the CLI's v1 envelope;
-// a run that produced neither becomes an app failure in the same envelope.
+// `doan design-skill [id] --json` as the app reads it (ARCHITECTURE §7 'Design preset reads'). A run that produced no
+// envelope becomes an app failure in the same envelope.
 
 export interface DesignPresetSummary { id: string; title: string; description: string; scope: string; group?: string }
 export interface DesignPresetSource { repository: string; commit: string; path: string }

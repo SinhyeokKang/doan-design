@@ -16,9 +16,8 @@ export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
   });
 }
 
-// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request. A command
-// the reader could not follow may have run one that the CLI refused before sending, so the absence is not
-// established beside it.
+// Nobody asked to open: no `doan open` command and no v4/v6 request. An unfollowable command may have run one the
+// CLI refused, so absence is unproven beside it.
 export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
   const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
   const incomplete = doanInvocations(ctx.calls).incomplete;

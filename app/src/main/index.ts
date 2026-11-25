@@ -80,7 +80,7 @@ import { revealTarget, type FolderEntry } from "./view";
 import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { createInspector, parseInspectRequest, type InspectRefused, type InspectReply, type Inspector } from "./inspector";
 import { CONVERSATION_RUNTIME, startRuntime, type Runtime } from "./runtime";
-import { menuState, updateMenu, type Screen } from "./menuState";
+import { menuState, SCREENS, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
 import { installGate } from "./update/gate";
@@ -110,6 +110,7 @@ import {
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
+import { prototypeThumbnailRoot } from "./prototype/thumbnailScope";
 import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
 import { createPrototypeShowing } from "./prototype/showing";
 import { createTargetRelay } from "./prototype/targetRelay";
@@ -124,26 +125,20 @@ if (refusesRemoteDebugging(app.commandLine, app.isPackaged)) {
   process.exit(1);
 }
 
-// Must run before `ready`: userData is derived from the name, which makes it
-// ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
-// A `--user-data-dir` switch still wins, which is how e2e keeps off the real one.
+// Before `ready`: userData (~/Library/Application Support/doan/, ARCHITECTURE §4) is derived from the name. A
+// `--user-data-dir` switch still wins, which keeps e2e off the real one.
 app.setName("doan");
 
-// storage "local" keeps the Doan files out of Git; null runs plain init, which follows the root's current mode (the
-// Set Up form sends null for a project that already keeps them out of Git).
-// gitInit: the Set Up form showed the .git/ its Keep out of Git setup creates; omitted otherwise.
+// storage "local" keeps the Doan files out of Git; null follows the root's current mode. gitInit: the Set Up form
+// showed the .git/ its Keep out of Git setup creates.
 export interface ProjectInitRequest { root: string; choiceId: string | null; storage: "local" | null; gitInit?: true }
 export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
 export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
-// What the renderer reports so main can enable menu items.
-// `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
-// `overview`: a project Overview shows (File > New Conversation).
-// `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
-// projectSettings: the "settings" screen is the Project Settings page, which enables the menu as Settings does; only
-// `doan remove`'s busy sentence tells the two apart.
+// What the renderer reports so main can enable menu items. `projectSettings`: the "settings" screen is Project
+// Settings, which enables the menu as Settings does; only `doan remove`'s busy sentence tells them apart.
 export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" } | { kind: "busy" } | { kind: "loading" } | { kind: "groupChanged"; paths: string[] };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -153,17 +148,15 @@ export type FolderPurpose = "project" | "destination";
 // New folder's answer: newFolderTarget's judgment of the panel's path, or cancelled when the panel was, or the step or
 // window that asked went first.
 export type NewFolderResult = NewFolderTarget;
-// New folder requests in flight, by the token the Project step gave, with the id of the webContents that sent it (only
-// its top frame may, `fromWindow`). The step cancels its own when it goes (the page left, first run closed) while the
-// window stays, so a Create that returns later makes nothing.
+// New folder requests in flight, by the Project step's token, with the sending webContents id (only its top frame
+// may). The step cancels its own when it goes while the window stays, so a Create that returns later makes nothing.
 const folderRequests = new Map<string, number>();
 function dropFolderRequests(contentsId: number): void {
   for (const [token, owner] of folderRequests) if (owner === contentsId) folderRequests.delete(token);
 }
 
-// The window only ever shows the bundled UI; canvases live in a sandboxed
-// iframe whose navigation stays on the local server. Anything else a page tries
-// to open or navigate to is refused.
+// The window only ever shows the bundled UI; canvases live in a sandboxed iframe whose navigation stays on the local
+// server. Anything else a page tries to open or navigate to is refused.
 app.on("web-contents-created", (_event, contents) => {
   contents.on("will-navigate", (event) => event.preventDefault());
   // Before the shell is up there is no token base, and every checked frame is refused.
@@ -272,8 +265,8 @@ let inspector: Inspector | undefined;
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
-// First run is open from a launch without a completion record (P's v1 marker; the legacy `{}` is not one) until the
-// session reports completion. Settings and the menu wait for it, as they waited for the old wizard.
+// First run is open from a launch without a v1 completion record (the legacy `{}` is not one) until the session
+// reports completion. Settings and the menu wait for it.
 let onboardingOpen = false;
 // The existing-user buddy screen, decided once at launch (buddyIntro.ts). It holds first run's lock until the renderer
 // reports it closed; a reloaded renderer reads it again and shows it again while it is still open.
@@ -305,11 +298,8 @@ let conversationDraftStore: DraftStore | undefined;
 let prototypeAttachmentsClosed: (owner: AttachmentOwner) => void = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
-// Thumbnails are for the window's overview, so nothing is captured while it
-// is hidden: closed with the app still running, or with the whole app hidden
-// (⌘H, doan › Hide). Tracked here rather than with the window's `hide`/`show`
-// events, which macOS did not emit for these calls in the e2e run.
-// createWindow makes the window shown, without showWindow, except a hidden background launch.
+// Nothing is captured while the window is hidden (closed, or the app hidden with ⌘H). Tracked here because macOS
+// emits no window `hide`/`show` for these; createWindow starts shown, except a hidden background launch.
 let windowShown = true;
 let appHidden = false;
 // onboarding start while another app is in front: the window waits for Doan to become active (backgroundReveal.ts).
@@ -319,8 +309,8 @@ function syncThumbnailPause(): void {
   if (windowShown && !appHidden) thumbnails?.resume();
   else thumbnails?.pause();
 }
-// The first prompt's arrival shows a toast rather than opening a canvas while
-// the window is hidden; document.hidden stayed false after hide() in a real run.
+// The first prompt's arrival shows a toast rather than opening a canvas while the window is hidden;
+// document.hidden stays false after hide().
 function visibilityChanged(): void {
   syncThumbnailPause();
   usage?.visibilityChanged();
@@ -374,6 +364,7 @@ const prototype = createPrototypeWindow({
   mainWindow: () => win,
   closed: (contents, replaced) => {
     prototypeAttachmentsClosed(`prototype:${contents}`);
+    thumbnails?.viewerClosed("prototype");
     if (replaced) return;
     prototypeShowing.closed();
     prototypeResume = null;
@@ -480,11 +471,8 @@ function injectCanvasScript(window: BrowserWindow): void {
   });
 }
 
-// The composer's chip field keeps its own undo history and refuses Chromium's, so Chromium's redo stack stays empty and
-// the Redo role never reached the field (nor Undo after only a chip or a paste). Edit > Undo and Redo hand a focused,
-// editable chip field (ChipField marks it data-chip-field) the history beforeinput it handles; anything else focused
-// gets the WebContents undo or redo the role items ran. The keys never double up: the field takes ⌘Z/⇧⌘Z in keydown,
-// and a key the page handles is not a menu key equivalent.
+// The chip field keeps its own undo history and refuses Chromium's, so the Redo role never reached it. A focused chip
+// field gets the history beforeinput, anything else WebContents undo/redo; a key the page handles is no menu key.
 function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOptions["click"]> {
   const script = `(() => { const field = document.activeElement; if (!(field instanceof HTMLElement) || !field.hasAttribute("data-chip-field") || !field.isContentEditable) return false;
     field.dispatchEvent(new InputEvent("beforeinput", { inputType: "${kind === "undo" ? "historyUndo" : "historyRedo"}", bubbles: true, cancelable: true })); return true; })()`;
@@ -495,9 +483,8 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
   };
 }
 
-// Page zoom and reload roles would act on the whole window; the view commands
-// go to the renderer, which zooms the board and reloads only the canvas.
-// The menu is rebuilt whenever its enablement changes.
+// Page zoom and reload roles would act on the whole window; the view commands go to the renderer, which zooms the
+// board and reloads only the canvas. The menu is rebuilt whenever its enablement changes.
 function menuEnabledNow() {
   return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true, prototypeFocused });
 }
@@ -562,8 +549,7 @@ function setMenu(): void {
           { role: "togglefullscreen" },
         ],
       },
-      // Finder's place for Home. Quick Open is a menu item so ⌘K is never only
-      // a hidden key (after Sorcerer's "Go to…").
+      // Finder's place for Home. Quick Open is a menu item so ⌘K is never only a hidden key.
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
@@ -606,15 +592,15 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
   const flags = MENU_FLAGS.filter(flag => flag in value);
   if (Object.keys(value).length !== 2 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean") return null;
-  const inputs: MenuInputs = { screen, modal };
+  const known = SCREENS.find(item => item === screen);
+  if (known === undefined || typeof modal !== "boolean") return null;
+  const inputs: MenuInputs = { screen: known, modal };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
 }
 
-// Without handlers Electron grants permissions to the app's own main frame.
-// Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-// The prototype window's own session gets the same, and both keep canvases off other local listeners.
+// Without handlers Electron grants permissions to the app's own main frame; canvas iframes are already stopped by
+// Permissions Policy. The prototype window's session gets the same.
 function denyPermissions(target: Session = session.defaultSession): void {
   guardLoopback(target, loopbackHosts);
   target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
@@ -689,10 +675,8 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   const debuggerOf = createWindowDebugger(window.webContents.debugger, documents);
   windowDebugger = debuggerOf;
   inspector = createInspector({ debugger: window.webContents.debugger, window: debuggerOf, documents, canvasUrl: listedCanvasUrl });
-  // A reloaded or crashed renderer has lost the selection it reported; an
-  // in-page navigation is not a new document, so it does not count.
-  // A new renderer starts on Home again with no toast up.
-  // The new renderer says again which canvas its page shows.
+  // A reloaded or crashed renderer has lost the selection it reported, and starts on Home with no toast up; an in-page
+  // navigation is not a new document.
   window.webContents.on("render-process-gone", () => { selection = null; readState?.showing(null); documents.clear(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; readState?.showing(null); documents.clear(); setMenuInputs(HOME); });
   // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to the CLI, so
@@ -710,8 +694,8 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
   // A reloaded renderer has no Project Settings page left to answer.
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
-  // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
-  // human comes back to the window.
+  // The watcher's git signal does not re-run `doan ls`, so a branch switched
+  // elsewhere shows when the human comes back to the window.
   const reread = createThrottle(60_000);
   window.on("focus", () => {
     if (reread()) shell?.rereadAll();
@@ -791,7 +775,7 @@ function revealForStart(window: BrowserWindow): void {
   }
 }
 
-// Resolves to the stored root so the setup wizard can show the project it opened.
+// Resolves to the stored root, or null when the dialog was cancelled or the folder refused.
 async function openProject(): Promise<string | null> {
   const window = win;
   const ready = shell;
@@ -891,9 +875,8 @@ async function start(): Promise<void> {
   // After the store, which made and checked the conversations directory.
   const conversationDrafts = new DraftStore(join(userData, "conversations"));
   conversationDraftStore = conversationDrafts;
-  // What main keeps for roots that left the list, by Remove (removeRoots) or because a vanished auto-registered worktree
-  // left on its own (shell.ts autoRemoved): one list, so a store keyed by root is wired into both at once (POSTMORTEM
-  // 2026-11-17 'Removing a project or trashing a canvas left state keyed by it behind'). `before`: the list before.
+  // What main keeps for roots that left the list, by Remove, Locate, a vanished auto-registered worktree or an upward
+  // re-root (shell.ts `left`): one place, so a store keyed by root is wired into all of them at once. `before`: the list before.
   function rootsLeft(paths: string[], before: FolderEntry[]): void {
     if (selection && paths.includes(selection.root)) selection = null;
     // Background work a done turn left in a removed project stops without asking, as on sign-out.
@@ -936,9 +919,9 @@ async function start(): Promise<void> {
     response: record => documents.response(record),
     git: root => seen.gitChanged(root),
     saveFailed: () => send("folders:save-failed"),
-    // A vanished auto-registered worktree is cleaned up as Remove's roots are (rootsLeft); its work items go with the
-    // list's retainWorkRoots above.
-    autoRemoved: rootsLeft,
+    // A vanished auto-registered worktree or a re-rooted stored root is cleaned up as Remove's roots are; work items go
+    // with the list's retainWorkRoots above.
+    left: rootsLeft,
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
@@ -977,7 +960,10 @@ async function start(): Promise<void> {
   const thumbs = createThumbnails({
     dir: join(userData, "thumbnails"), appVersion: app.getVersion(),
     entries: () => ready.entries(), scope: (root) => ready.scope(root),
-    capturer: createWindowCapturer(), changed: (target) => send("thumbnails:changed", target),
+    capturer: createWindowCapturer(), changed: (target) => {
+      send("thumbnails:changed", target);
+      if (prototypeThumbnailRoot(target.root, prototype.controller.playing())) prototype.send("thumbnails:changed", target);
+    },
   });
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
@@ -1091,9 +1077,8 @@ async function start(): Promise<void> {
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
-  // Agent setup (ARCHITECTURE §7 'Agent setup'): once per launch, beside the window rather than
-  // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
-  // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
+  // Agent setup (ARCHITECTURE §7 'Agent setup') runs once per launch, beside the window. About waits for its result; a
+  // run that throws becomes a crashed item, so About never shows it as "every agent was set up".
   const agentSetup = shellForFacts().then(probe => runAgentSetup({
     home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged, loginPath: probe.ok ? probe.path : null,
     shell: process.env.SHELL ?? "", userData, runAdmin: osascriptAdmin,
@@ -1155,7 +1140,7 @@ async function start(): Promise<void> {
     handle(channel, refused, (event, value) => authIpc ? authIpc.handle(channel, value, event.sender.id) : refused);
   }
   // A write of the shared exclude file changes the mode of every worktree of the project, so all of them are read
-  // again, as after a Project Settings write (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…').
+  // again, as after a Project Settings write.
   const rereadGroup = (root: string) => ready.reread(groupRoots(ready.entries(), root));
   const initializeProject = async (root: string, tokenCss: string | null, storage: "local" | null, gitInit = false): Promise<ProjectInitResult> => {
     const outcome = await ready.initialize(root, tokenCss, storage, gitInit);
@@ -1210,10 +1195,8 @@ async function start(): Promise<void> {
       },
     }, commit, storage),
   };
-  // New folder on the Project step. The renderer names only where the save panel opens and a token for the request;
-  // the folder's path comes from the panel and main makes it, so no path the renderer sends is created. It registers
-  // nothing: the new folder is inspected like a chosen one. No createDirectory: a New Folder made in this panel would
-  // move it inside, and Create would nest the project there.
+  // New folder: the path comes from the save panel and main makes it, so no path the renderer sends is created; it
+  // registers nothing. No createDirectory: a New Folder made in this panel would move it inside and nest the project.
   const cancelled: NewFolderResult = { kind: "cancelled" };
   handle("onboarding:new-folder", cancelled, async (event, value: unknown): Promise<NewFolderResult> => {
     const window = win;
@@ -1301,11 +1284,8 @@ async function start(): Promise<void> {
     reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
   });
   let modelCatalog: ModelCatalog | undefined;
-  // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
-  // may start or end a turn or a question, which Restart to Update waits for.
-  // A turn the usage limit stopped holds its failure notification until main knows it was not scheduled again (notice).
-  // The prototype window's scope reads the conversation index. Events stream many times a second, so their filter keeps
-  // the index in memory until a list change or a binding change; a conversation it does not know reads it again.
+  // Every conversation event and end of a turn's work may start or end a turn or question, which Restart to Update waits
+  // for. Events stream many times a second, so the prototype scope keeps the index in memory until a list or binding change.
   const indexed = (): ScopedConversation[] => { try { return conversationStore.list(); } catch { return []; } };
   indexedConversations = indexed;
   let known: ScopedConversation[] | null = null;
@@ -1383,9 +1363,8 @@ async function start(): Promise<void> {
     });
   }
 
-  // Composer attachments, from the main window and the prototype window's panel (senderAllowed): paths the person chose,
-  // checked and kept by main; the page never names a path main did not give it. Each draft attachment belongs to the
-  // window (and window instance) that holds it (attachmentHandlers.ts).
+  // Composer attachments from both windows (senderAllowed): main checks and keeps the paths the person chose; the page
+  // never names a path main did not give it. Each draft attachment belongs to the window that holds it.
   const attachmentHandlers = createAttachmentHandlers(attachments, {
     async pick(owner) {
       // The dialog opens over the window that asked.
@@ -1465,9 +1444,8 @@ async function start(): Promise<void> {
     store: (paths) => ready.store(paths),
   });
   addFlow = flow;
-  // Every path that takes stored roots out by request (the menu's Remove from Doan, `doan remove`) goes through here, so
-  // state keyed by those roots is cleared in one place (POSTMORTEM 2026-10-25 'Locating a project kept the old root's
-  // selection'). The store reads its list before the first await, so the removal starts within the request.
+  // Every path that takes stored roots out by request (Remove from Doan, `doan remove`) comes here, so state keyed by
+  // those roots is cleared in one place. The store reads its list before the first await.
   async function removeRoots(roots: readonly string[]): Promise<{ kind: "removed"; paths: string[] } | { kind: "unavailable" }> {
     const before = ready.entries();
     if (selection && roots.includes(selection.root)) selection = null;
@@ -1505,12 +1483,14 @@ async function start(): Promise<void> {
     // The row may have been removed while the picker was open.
     if (!fromWindow(event) || storedPath(value) === null) return { kind: "unavailable" };
     // The old row leaves the list, as on Remove.
+    const before = ready.entries();
     if (selection?.root === from) selection = null;
     await ready.replace(from, judged.root);
+    if (judged.root !== from) rootsLeft([from], before);
     return { kind: "located", root: judged.root };
   });
-  // The renderer names the root only; the file a Config error selects is the one the CLI named (revealTarget), never
-  // a path TS builds (POSTMORTEM "Guessing the repo root in TS").
+  // The renderer names the root only; the file a Config error selects is the one the CLI named (revealTarget), never a
+  // path TS builds.
   handle("folders:reveal", undefined, (event, value: unknown) => {
     const path = storedPath(value);
     if (!fromWindow(event) || path === null) return;
@@ -1614,18 +1594,23 @@ async function start(): Promise<void> {
     if (value !== undefined) return false;
     try { await electronShell.openExternal(NOTIFICATION_SETTINGS_URL); return true; } catch { return false; }
   });
-  // A saved root and a listed canvas only; main reads the bytes from its cache.
-  handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+  // A saved root and a listed canvas only; main reads the bytes from its cache. The prototype window asks for its
+  // playing root only.
+  handle("thumbnails:get", { kind: "unavailable" }, (_event, value: unknown, kind): Promise<ThumbnailReply> | ThumbnailReply => {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return { kind: "unavailable" };
-    return thumbs.get(value.root, value.path, value.visible);
+    if (kind === "prototype" && !prototypeThumbnailRoot(value.root, prototype.controller.playing())) return { kind: "unavailable" };
+    return thumbs.get(value.root, value.path, value.visible, kind);
   });
-  handle("thumbnails:visible", undefined, (event, value: unknown) => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+  // A prototype window that left a root still withdraws its own marks there: that changes only its share of the
+  // visibility and answers nothing.
+  handle("thumbnails:visible", undefined, (_event, value: unknown, kind) => {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return;
-    thumbs.visible(value.root, value.path, value.visible);
+    if (kind === "prototype" && value.visible && !prototypeThumbnailRoot(value.root, prototype.controller.playing())) return;
+    thumbs.visible(value.root, value.path, value.visible, kind);
   });
   handle("menu:state", undefined, (event, value: unknown) => {
     const next = parseMenuInputs(value);
@@ -1801,9 +1786,8 @@ app.on("before-quit", (event) => {
   if (quitting) return;
   event.preventDefault();
   if (quitScheduled) return;
-  // An inspector quit can interrupt a BrowserWindow constructor before its
-  // JS wrapper exists. Electron then crashes trying to emit its close event.
-  // Let the native stack unwind before either disposal or app.quit().
+  // An inspector quit can interrupt a BrowserWindow constructor before its JS wrapper exists, and Electron then crashes
+  // emitting its close event, so the native stack unwinds before disposal or app.quit().
   quitScheduled = true;
   // conversation:delete answers busy while quitting as while working; this lets the renderer tell the two apart. Never
   // taken back: after an aborted quit the conversations stay stopped (the service stays quitting) until a restart.
@@ -1855,9 +1839,8 @@ app.on("before-quit", (event) => {
   }
   setImmediate(() => { void quitInOrder(); });
 });
-// `open -g` to a running app (as `onboarding start` sends while it is still starting) arrives as a reopen, which
-// Electron emits as `activate` without activating Doan; showing then would activate it over the app in use. A Dock
-// click has already made Doan active when this event arrives, though `did-become-active` can come before or after it.
+// `open -g` to a running app arrives as a reopen, which Electron emits as `activate` without activating Doan; showing
+// then would activate it over the app in use. A Dock click has already made Doan active by now.
 app.on("activate", () => {
   if (app.isActive() && win && !win.isDestroyed()) showWindow(win);
 });

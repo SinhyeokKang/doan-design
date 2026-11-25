@@ -4,24 +4,19 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { HomeMemory } from "../restore/uiState";
 import type { NewConversationDefault } from "./homeComposer";
 
-// What a composer shows after a pick. model is null while the provider's list is not read; effort is null for the
-// model's default level, which is sent as no effort. permissionMode is absent when the composer shows no permission
-// picker (an ACP provider without modes), so nothing about the mode is remembered.
-// fast is present only when the person switched Fast: a send alone never records it.
-// modelPicked, effortPicked: the person picked this model, this level (the Default row included) in the composer;
-// without them they are only what the composer resolved, which a fixed Settings default must not take on.
+// fast is present only when the person switched Fast. Without modelPicked or effortPicked the value is only what the
+// composer resolved, which a fixed Settings default must not take on.
 export interface ComposerChoice { provider: Provider; model: string | null; effort: string | null; permissionMode?: PermissionModeId; fast?: boolean; modelPicked?: true; effortPicked?: true }
 
-// The provider's last Fast, apart from its model: `models[provider]` is replaced on every model pick. Off is no entry.
+// Apart from its model: `models[provider]` is replaced on every model pick. Off is no entry.
 export function rememberFast(memory: HomeMemory | null, provider: Provider, on: boolean): HomeMemory {
   if (memory && (memory.fast?.[provider] === true) === on) return memory;
   const { [provider]: _old, ...rest } = memory?.fast ?? {};
   return { ...memory, fast: on ? { ...rest, [provider]: true } : rest };
 }
 
-// Fast changed before the startup ui-state read landed, by provider (the last change counts), laid over the read map
-// one provider at a time. A whole-map merge would drop the read Fast of every other provider, and an off is a removal
-// a merge cannot carry (POSTMORTEM 2026-11-01).
+// Laid over the read map one provider at a time: a whole-map merge would drop every other provider's read Fast, and
+// an off is a removal a merge cannot carry.
 export function withFastChanges(fast: HomeMemory["fast"], changes: ReadonlyMap<Provider, boolean>): HomeMemory["fast"] {
   if (changes.size === 0) return fast;
   const next = { ...fast };
@@ -29,15 +24,12 @@ export function withFastChanges(fast: HomeMemory["fast"], changes: ReadonlyMap<P
   return next;
 }
 
-// Fast turned itself off for a reason that lasts: Last used follows only an event received as it happened. The same
-// event read back from history (a reopen, a restart) must not undo a Fast the person turned on again since.
+// Only an event received as it happened: one read back from history must not undo a Fast the person turned on again.
 export function shouldTurnOffFast(event: ConversationEvent, live: boolean): boolean {
   return live && event.type === "fast.unused" && event.turnedOff === true;
 }
 
-// The provider's last mode, judged apart from its model. Default is no entry.
-// The same memory comes back when nothing changes. Used alone for a mode the composer followed rather than picked
-// (a Claude plan approval), which is not a provider choice.
+// Default is no entry. Used alone for a mode the composer followed rather than picked (a Claude plan approval).
 export function rememberPermission(memory: HomeMemory | null, provider: Provider, mode: PermissionModeId): HomeMemory {
   const current = memory?.permissions?.[provider];
   if (memory && (current ?? "default") === mode) return memory;
@@ -45,8 +37,8 @@ export function rememberPermission(memory: HomeMemory | null, provider: Provider
   return { ...memory, permissions: mode === "default" ? rest : { ...rest, [provider]: mode } };
 }
 
-// A pick alone is Last used (dogfooding #6), not only a send. Without a known model the provider's remembered model
-// stays. The same memory comes back for an unchanged pick, so App re-renders nothing.
+// A pick alone is Last used, not only a send. The same memory comes back for an unchanged pick, so App re-renders
+// nothing.
 export function rememberChoice(memory: HomeMemory | null, choice: ComposerChoice): HomeMemory {
   const saved = memory?.models?.[choice.provider];
   const model = choice.model ? { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) } : saved;
@@ -57,12 +49,8 @@ export function rememberChoice(memory: HomeMemory | null, choice: ComposerChoice
   return { ...withMode, lastProvider: choice.provider, ...(models ? { models } : {}) };
 }
 
-// A fixed agent in Settings > Agents 'New conversations' would otherwise override the pick at the next new
-// conversation, so it follows the pick; Last used (null) already does. undefined: nothing to write. Only a picked model
-// is fixed: a pick of something else keeps Model Default (no model) unfixed, so it goes on following the provider's
-// default, and keeps a fixed model. The mode is judged apart from the model: a mode
-// picked before the model list is read still replaces the saved one, and a model pick without a picker keeps the saved
-// mode of the same provider.
+// A fixed agent would otherwise override the pick at the next new conversation. Only a picked model is fixed, so Model
+// Default keeps following the provider's default; the mode is judged apart from the model.
 export function preferenceAfterPick(current: NewConversationDefault | null, choice: ComposerChoice): NewConversationDefault | undefined {
   if (!current) return undefined;
   const same = current.provider === choice.provider;

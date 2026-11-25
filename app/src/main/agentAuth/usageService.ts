@@ -1,5 +1,5 @@
 import type { Prepared } from "../conversation/service";
-import type { CheckStarted, Lease } from "./manager";
+import { QUIT_WAIT_MS, type CheckStarted, type Lease } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
 import { PROVIDERS, type AuthState, type Provider, type Readiness } from "./types";
 import { usageNotSupported } from "./usageParse";
@@ -8,7 +8,7 @@ import { shouldRead } from "./usageSchedule";
 import { UsageStore } from "./usageStore";
 import type { UsageBlock, UsageEntry, UsageReading, UsageTrigger, UsageWindow } from "./usageTypes";
 
-// Antigravity has no usage read Doan can use (PoC) and is never shown.
+// Antigravity has no usage read Doan can use and is never shown.
 export const USAGE_PROVIDERS = PROVIDERS.filter((provider): provider is UsageProvider => provider !== "antigravity");
 const shown = (provider: Provider): provider is UsageProvider => provider !== "antigravity";
 // What the service needs of AuthManager. A usage lease is not a conversation: a sign-out stops it (stopRuns) without
@@ -32,8 +32,6 @@ export interface UsageServiceOptions {
   now?(): number;
 }
 interface Read { connectionId: string; controller: AbortController; done?: Promise<void> }
-// Quit waits this long for stopped reads (as AuthManager.quit waits for its own work); it drops leftover holds itself.
-const QUIT_WAIT_MS = 5000;
 
 // Account usage in main memory: what the window shows (entries), when a provider is read (shouldRead's triggers, no
 // polling), and which reads a sign-out stops. Nothing here is written to disk.
@@ -86,12 +84,14 @@ export class UsageService {
   visibilityChanged(): void {
     const visible = this.options.visible(), again = visible && !this.shown;
     this.shown = visible;
-    if (again) { this.trigger({ kind: "start" }); for (const provider of this.signedIn) this.start(provider, { kind: "signIn" }); }
+    if (!again) return;
+    // Before main's first start (the tool facts probe still running), that start does the reads.
+    if (this.factsRead) this.trigger({ kind: "start" });
+    for (const provider of this.signedIn) this.start(provider, { kind: "signIn" });
   }
 
-  // A Doan-account turn's end: read on the run's own connection (runners.ts usageAtTurnEnd), no lease and no process.
-  // limit: the usage limit stopped the turn (not only a done one), so the read is not held back by the 5-minute rule.
-  // A Cursor send whose session/load answered "not found" reads here with limit too (withTurnUsage limitReached).
+  // A Doan-account turn's end, read on the run's own connection (no lease, no process). limit: the usage limit stopped the
+  // turn (or a Cursor session/load answered "not found"), so the 5-minute rule does not hold it back.
   async turnEnd(provider: Provider, connectionId: string, read: () => Promise<unknown>, limit?: true): Promise<void> {
     if (this.closed || !shown(provider) || this.connections.get(provider) !== connectionId) return;
     if (!shouldRead(this.scheduled(provider), this.now(), { kind: "turnEnd", owner: "doan", ...(limit ? { limit } : {}) }, this.options.visible())) return;
@@ -107,9 +107,8 @@ export class UsageService {
     try { await done; } finally { if (this.turnReads.get(provider) === done) this.turnReads.delete(provider); }
   }
 
-  // The windows the connection's latest read reported, once this provider's read running now ended (a turn the usage
-  // limit stopped starts one at its end); another provider's read is not waited for. None for another connection or a
-  // read that failed (conversation/service.ts limitEnded).
+  // The windows the connection's latest read reported, once this provider's running read ended. None for another
+  // connection or a failed read (service.ts limitEnded).
   async limitWindows(provider: Provider, connectionId: string): Promise<UsageWindow[]> {
     if (!shown(provider)) return [];
     await Promise.allSettled([this.reads.get(provider)?.done, this.turnReads.get(provider)]);
@@ -124,6 +123,7 @@ export class UsageService {
     read?.controller.abort();
     await read?.done;
   }
+  // Waits as long as AuthManager.quit, which drops leftover holds itself.
   async quit(): Promise<void> {
     this.closed = true;
     for (const read of this.reads.values()) read.controller.abort();
@@ -151,9 +151,8 @@ export class UsageService {
     return { inFlight: slot?.inFlight ?? false, ...(slot?.reading ? { reading: slot.reading } : {}), ...(blocked ? { blocked } : {}) };
   }
 
-  // What a connection that cannot be read shows: the readiness, phase, error code and attempt kind its Settings >
-  // Agents row is worded from (ARCHITECTURE §7 'Agent usage'). An unchecked connection is read anyway: the read checks it first, as
-  // a run does, and Copilot's check costs a request.
+  // What a connection that cannot be read shows, worded like its Settings > Agents row (ARCHITECTURE §7 'Agent usage').
+  // An unchecked connection is read anyway: the read checks it first, as a run does.
   private blocked(provider: UsageProvider): UsageBlock | undefined {
     const readiness = this.options.readiness(provider);
     if (readiness.ready) return undefined;
@@ -227,10 +226,8 @@ export class UsageService {
   }
 }
 
-// A Doan-account Claude or Codex run reads usage at its turn's end on its own connection. A legacy external run uses
-// the person's own profile, whose usage Doan does not show, and ACP runs have no turn-end read. A Doan-account Cursor
-// run reads only when its session/load answers "not found", from its own profile (cursorSummary), to tell Cursor's plan
-// limit from a session that is gone; "used up" is a window at 100 %, since Cursor's answer marks no reached limit.
+// Doan-account Claude and Codex runs read at turn end; a legacy external run (the person's own profile) and ACP runs do not.
+// A Cursor run reads only when session/load answers "not found", to tell its plan limit from a gone session; "used up" is a window at 100 %.
 export function withTurnUsage(prepared: Prepared, usage: Pick<UsageService, "turnEnd" | "limitWindows">, cursorSummary: (profileDir: string) => Promise<unknown>): Prepared {
   const owner = prepared.owner;
   if (owner && prepared.runtime === "cursor") return { ...prepared, limitReached: async () => {

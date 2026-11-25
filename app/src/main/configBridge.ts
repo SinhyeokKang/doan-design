@@ -5,8 +5,7 @@ import type { CliEnv } from "./cli";
 import type { CliRun } from "./folderState";
 import { storageFacts, type StorageFacts } from "./storage";
 
-// Keep config parsing and writes in Go by delegating to `doan config`
-// (ARCHITECTURE §7, Config bridge; POSTMORTEM 2026-10-22).
+// Config parsing and writes stay in Go (ARCHITECTURE §7 'Config bridge').
 
 export type ConfigKind = "tokenCss" | "serve";
 // storage/storageReason: where the worktree's Doan files are kept, absent from an older doan. repositoryCreated: this
@@ -47,16 +46,14 @@ function isConfigResult(value: unknown): value is { serve: string[]; changed: bo
 }
 
 const UNEXPECTED = "doan config returned an unexpected result.";
-// Project Settings' sentences for a failed repository creation (`--git-init` only): the CLI's are written for agents,
-// and the page says what changed and names a .git it left behind (draft keep-out-git-init, frame project-settings).
+// The CLI's sentences are written for agents; the page says what changed and names a .git a failed creation left.
 const REPOSITORY_FAILURES: Record<string, (root: string) => string> = {
   git_missing: () => "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then choose Keep out of Git again.",
   git_init_failed: () => "Couldn’t create a Git repository here, so nothing changed.",
   cleanup_failed: root => `Couldn’t switch to Keep out of Git, and Doan couldn’t remove the Git repository it created at ${root}/.git. Remove it or keep it, then try again.`,
 };
 
-// The CLI's own message is what the human reads (nextSteps are for agents,
-// as with init, 2026-10-24).
+// The CLI's own message is what the human reads; nextSteps are for agents.
 export function configReply(root: string, run: CliRun): ConfigReply {
   const error = (message: string): ConfigReply => ({ kind: "error", message });
   if (run.spawnError !== undefined) return error(`Couldn’t run doan: ${run.spawnError}`);
@@ -91,15 +88,15 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
   const lastServe = new Map<string, string[]>();
   // `doan config` takes no lock, so calls for one root run one at a time.
   const queues = new Map<string, Promise<unknown>>();
-  // Bumped by clear(): reads, picker sheets and queued calls of an older
-  // session (a closed dialog or a replaced renderer) must not touch
-  // the next one's choices or serve lists, nor answer it.
+  // Bumped by clear(): reads, picker sheets and queued calls of an older session (a closed dialog or a replaced renderer)
+  // must not touch the next one's choices or serve lists, nor answer it.
   let session = 0;
 
   const root = (value: Record<string, unknown>): string | null =>
     typeof value.root === "string" && deps.epoch(value.root) !== null ? value.root : null;
 
-  const call = (target: string, args: string[]): Promise<ConfigReply> => {
+  // `ran` sees the reply of a run that happened, before an ended session discards it.
+  const call = (target: string, args: string[], ran?: (reply: ConfigReply) => void): Promise<ConfigReply> => {
     const epoch = deps.epoch(target);
     const generation = session;
     const current = () => generation === session && deps.epoch(target) === epoch;
@@ -111,6 +108,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
       const reply = configReply(target, await (env === undefined ? deps.run(target, args) : deps.run(target, args, env)));
+      ran?.(reply);
       if (generation !== session) return { kind: "unavailable" };
       if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;
@@ -166,9 +164,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
         const storage = (value as Record<string, unknown>).storage;
         if (target === null || (storage !== "repo" && storage !== "local")) return unavailable;
         if (gitInit && (storage !== "local" || (value as Record<string, unknown>).gitInit !== true)) return unavailable;
-        return call(target, ["--storage", storage, ...(gitInit ? ["--git-init"] : [])]).then(reply => {
+        return call(target, ["--storage", storage, ...(gitInit ? ["--git-init"] : [])], reply => {
           if (reply.kind === "config" || (gitInit && reply.kind === "error")) deps.storageWritten?.(target);
-          return reply;
         });
       }
       if (op === "clearTokenCss") {

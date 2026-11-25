@@ -1,9 +1,8 @@
 import type { DocumentBindings } from "./document/bindings";
 import { object } from "./document/identity";
 
-// The main window's debugger feeds the document bindings that prove which canvas the page shows (seenProof.ts) and
-// reads the main frame's id they are checked against. CDP sees the iframe's loader and frame evidence across
-// out-of-process sessions, which the page itself cannot report.
+// Feeds the document bindings that prove which canvas the page shows (seenProof.ts): CDP sees the iframe's loader and
+// frame across out-of-process sessions, which the page itself cannot report.
 
 // The part of Electron's `Debugger` used here, so tests can drive a fake.
 export interface DebuggerLike {
@@ -17,9 +16,8 @@ export interface DebuggerLike {
 export interface WindowDebugger {
   // The CDP id of the window's main frame, the parent a shown canvas iframe must have; null while it cannot be read.
   mainFrame(): Promise<string | null>;
-  // The child session that committed this frame's current document and is still attached; null once that session
-  // detached, or while no session owns it. Commands for a canvas go only to this session: a former OOPIF session can
-  // outlive its replacement.
+  // The child session that committed this frame's current document and is still attached; null otherwise. Commands for
+  // a canvas go only here: a former OOPIF session can outlive its replacement.
   sessionOf(frameId: string): string | null;
 }
 
@@ -76,9 +74,8 @@ export function createWindowDebugger(dbg: DebuggerLike, documents: DocumentBindi
     if (method === "Target.attachedToTarget" && params.sessionId) {
       sessions.add(params.sessionId);
       const child = params.sessionId;
-      // Only a frame target can hold a canvas document. Auto-attach also reports the window's workers (the canvas agent
-      // notice's dot field runs one), which have no Page domain: clearing the bindings on their failed setup dropped
-      // the shown canvas's proof until that canvas loaded again.
+      // Only a frame target can hold a canvas document. Workers have no Page domain, and clearing the bindings on their
+      // failed setup would drop the shown canvas's proof.
       const frame = params.targetInfo?.type === "iframe";
       // Auto-attached targets start paused; a path that skips this resume hangs the canvas.
       void (async () => {

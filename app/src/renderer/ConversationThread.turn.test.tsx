@@ -6,9 +6,8 @@ import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 import type { ThreadTurn, TurnStatus } from "./turnStatus";
 
-// The thread's turn indicator. There is no DOM in these tests (the App tests' no-DOM style): hooks
-// run as plain state with their effects and cleanups, so the settle wait and the indicator's own timer run on fake
-// timers; static markup checks what is drawn.
+// No DOM here: hooks run as plain state with their effects and cleanups, so the settle wait and the indicator's own timer
+// run on fake timers; static markup checks what is drawn.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], memos: [] as { value: unknown; deps: unknown[] }[],
   effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
@@ -89,7 +88,7 @@ let nativeListeners: Set<(visible: boolean) => void>;
 const visibility = { onWindowVisible: (listener: (visible: boolean) => void) => { nativeListeners.add(listener); return () => { nativeListeners.delete(listener); }; } };
 const nativeVisible = (visible: boolean) => { for (const listener of [...nativeListeners]) listener(visible); };
 const props = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn, visibility,
+  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn, visibility, now: 0,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const at = (status: TurnStatus, turnId = "t1"): ThreadTurn => ({ turnId, status, at: AT });

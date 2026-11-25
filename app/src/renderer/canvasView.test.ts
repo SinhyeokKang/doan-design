@@ -89,8 +89,7 @@ describe("canvasViewUpdate", () => {
       .toEqual({ kind: "errorLine", message: "doan command error" });
   });
 
-  // Served files may have changed while the folder failed, and the shell
-  // stops serving a failed folder, so recovery reloads.
+  // The shell stops serving a failed folder and its files may have changed, so recovery reloads.
   test("reloads when the folder recovers from an error", () => {
     const prev: FolderEntry[] = [{ path: "/repo", kind: "error", message: "Cannot read config", config: "/repo/.doan/config.json" }];
     expect(canvasViewUpdate(prev, before, open)).toEqual({ kind: "reload", canvas: row(".doan/canvases/a.html") });
@@ -176,7 +175,6 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
   });
 });
 
-// A canvas the person moved to the Trash is not followed to another canvas sharing its id.
 describe("canvasViewUpdate: Move to Trash", () => {
   const home = { folder: "/repo", canvas: ".doan/canvases/a.html", row: { id: "home" } };
   const a = row(".doan/canvases/a.html", { id: "home" });
@@ -371,8 +369,8 @@ describe("layoutHeight", () => {
     expect(layoutHeight(a, 2400, layout(b, 2400, 2400))).toBe(INITIAL_HEIGHT);
   });
 
-  // Seen in the app: the linked document posts again at the inherited
-  // viewport after the reset; only its layout at the initial height counts.
+  // The linked document posts again at the inherited viewport after the reset;
+  // only its layout at the initial height counts.
   test("after a reset, waits for a layout measured at the initial height", () => {
     expect(layoutHeight(b, INITIAL_HEIGHT, layout(b, 2400, 2400))).toBe(INITIAL_HEIGHT);
     expect(layoutHeight(b, INITIAL_HEIGHT, layout(b, 300, INITIAL_HEIGHT))).toBe(300);
@@ -397,6 +395,8 @@ describe("frameLabel", () => {
   test("keeps the id without a title", () => {
     expect(frameLabel({ id: "hero" })).toEqual({ id: "hero" });
     expect(frameLabel({ id: "hero", title: "" })).toEqual({ id: "hero" });
+    expect(frameLabel({ id: "hero", title: "   " })).toEqual({ id: "hero" });
+    expect(frameLabel({ id: "hero", title: " Hero " })).toEqual({ id: "hero", title: "Hero" });
   });
 
   test("names a frame without id", () => {

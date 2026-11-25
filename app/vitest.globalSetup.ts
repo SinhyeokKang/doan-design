@@ -12,9 +12,8 @@ declare module "vitest" {
   }
 }
 
-// Tests run the real CLI so the app is checked against the envelope Go
-// actually prints, without depending on a `doan` the developer may not have
-// on PATH (or an older one without `root`/`scope`).
+// Tests run the real CLI so the app is checked against what Go prints, not against a `doan` on PATH that may
+// be missing or older.
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   const dir = await mkdtemp(join(tmpdir(), "doan-cli-"));
   const cli = join(dir, "doan");

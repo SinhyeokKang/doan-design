@@ -1,11 +1,10 @@
-import type { LayoutMessage } from "./canvasMessage";
+import { MAX_FRAMES, type LayoutMessage } from "./canvasMessage";
 import type { CanvasState } from "./CanvasController";
 import { frameLabel } from "./canvasView";
 import { playableFrames } from "../main/prototype/playability";
 
 export const TRUNCATED_NOTE = "Showing the first 1,000 frames. Search all with Quick Open (⌘K).";
 
-// The part of CanvasState the canvas header reads.
 export interface BoardState {
   layout: Pick<LayoutMessage, "frames" | "truncated"> | null;
   currentFrame: CanvasState["currentFrame"];
@@ -13,23 +12,21 @@ export interface BoardState {
   unlisted: CanvasState["unlisted"];
 }
 
-// A reload keeps the previous layout with `status` null, so it still counts as rendered; every other state that
-// has no board to show (loading, failed, no width, missing, empty, unlisted) has a status, no layout or `unlisted`
-// (POSTMORTEM 2026-10-26: do not read `status === "loading"` alone).
+// A reload keeps the previous layout with `status` null, so it still counts as rendered; do not read
+// `status === "loading"` alone.
 export function renderedBoard(state: BoardState): boolean {
   return state.status === null && !state.unlisted && state.layout !== null;
 }
 
 export interface FrameDrawerRow {
-  // Unique among rows, and equal to the frame id unless the id repeats, so a focused row can follow its frame id
-  // across a reload.
+  // Equal to the frame id unless the id repeats, so a focused row can follow its frame id across a reload.
   key: string;
   index: number;
   id: string;
   number: number;
   name: string;
   current: boolean;
-  // The Prototype mark: metadata only, the row still moves to and selects the frame.
+  // Metadata only: the row still moves to and selects the frame.
   prototype: boolean;
 }
 
@@ -43,9 +40,8 @@ export interface FrameDrawerView {
 
 const off = (label: string): FrameDrawerView => ({ enabled: false, buttonLabel: label, ariaLabel: label, rows: [], truncatedNote: null });
 
-// A unique frame's key is its own id. Later occurrences of a repeated id get a generated key that avoids every raw
-// id in the layout (not just the ones seen so far), so removing or reordering other frames never hands a unique
-// frame's key to a duplicate or the reverse.
+// Generated keys avoid every raw id in the layout, so removing or reordering other frames never hands a unique frame's
+// key to a duplicate or the reverse.
 function rowKeys(ids: readonly string[]): string[] {
   const raw = new Set(ids);
   const seen = new Map<string, number>();
@@ -82,6 +78,7 @@ export function frameDrawerView(state: BoardState): FrameDrawerView {
     buttonLabel: viewing ? `${viewing.number}. ${viewing.name}` : "Frames",
     ariaLabel: viewing ? `Frame ${viewing.number}: ${viewing.name}` : "Frames",
     rows,
-    truncatedNote: layout.truncated ? TRUNCATED_NOTE : null,
+    // `truncated` also marks a clipped id or title; only a full list means frames went unlisted.
+    truncatedNote: layout.truncated && layout.frames.length >= MAX_FRAMES ? TRUNCATED_NOTE : null,
   };
 }

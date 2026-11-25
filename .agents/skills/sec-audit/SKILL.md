@@ -74,4 +74,4 @@ The lead writes the Korean report to the local path under 'Disclosure': executio
 
 ## Limits
 
-Report only: no fixes, commits, pushes, package installs or tests. Fixes go through [/sec-audit-loop](../sec-audit-loop/SKILL.md) or `/ship`, under 'Disclosure'.
+Report only: no fixes, commits, pushes, package installs or tests. Fixes go through [/sec-audit-loop](../sec-audit-loop/SKILL.md) or `/deliver`, under 'Disclosure'.

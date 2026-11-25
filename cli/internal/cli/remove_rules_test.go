@@ -146,12 +146,27 @@ func TestRemoveFailureSteps(t *testing.T) {
 	for code, want := range map[string]string{
 		"conversation_running":  "Tell the user a conversation is still running in this project in Doan; nothing was removed. Run `doan remove` again only when they ask again",
 		"busy":                  "Tell the user what Doan is waiting for (see the message) and ask them to finish it; run `doan remove` again only when they ask again",
-		"project_not_open":      "Tell the user Doan does not list this folder's project; nothing was removed",
 		"app_protocol_mismatch": "Ask the user to update Doan and the doan CLI to matching versions",
 	} {
 		if steps := removeFailure(code, "m").NextSteps; !reflect.DeepEqual(steps, []string{want}) {
 			t.Errorf("%s: %q", code, steps)
 		}
+	}
+}
+
+// POSTMORTEM 2026-11-19: another checkout of a saved project has the same base name, so the message names the root
+// and the steps do not assert the folder was never added.
+func TestRemoveNotOpenNamesTheRoot(t *testing.T) {
+	_, failure := removeReply([]byte(`{"v":7,"ok":false,"error":{"code":"project_not_open","message":"app text"}}`), "/Users/me/repo", nil)
+	if failure == nil || failure.Message != `Doan does not have the folder "/Users/me/repo" open` {
+		t.Fatal(failure)
+	}
+	requireRecoveryOrder(t, failure.NextSteps, [][]string{
+		{"path in the message", "nothing was removed"},
+		{"If they say Doan already has a project with this name", "compare its path", "another checkout or worktree"},
+	})
+	if steps := strings.Join(failure.NextSteps, "\n"); strings.Contains(steps, "does not list this folder") || strings.Contains(steps, "Add Projects") {
+		t.Fatal(failure.NextSteps)
 	}
 }
 

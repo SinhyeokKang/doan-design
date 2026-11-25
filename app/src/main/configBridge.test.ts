@@ -100,8 +100,8 @@ test("adds a serve entry and clears token CSS", async () => {
   expect(await bridge.write({ root: ROOT, op: "clearTokenCss", more: 1 })).toEqual({ kind: "unavailable" });
 });
 
-// ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode is read with the settings, written at once, and a written
-// mode makes main read the whole project group again.
+// ARCHITECTURE §7 'Settings IPC': the mode is read with the settings, written at once, and a written mode makes main
+// read the whole project group again.
 test("reads the storage mode with the settings, and leaves it out when an older doan sent none", async () => {
   run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: false, storage: "local" }));
   expect(await bridge.read({ root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false, storage: "local" });
@@ -121,8 +121,28 @@ test("writes the storage mode through doan config and has the group read again o
   expect(storageWritten).toHaveBeenCalledTimes(1);
 });
 
-// Project Settings' confirmation to create a repository (draft keep-out-git-init, frame project-settings): only Keep
-// out of Git carries it, as `doan config --storage local --git-init`. A created repository is told by `written`.
+// ARCHITECTURE §7 'Storage writes': the CLI wrote the mode even when the page closed meanwhile, so the group still
+// reads again; only the closed page gets no answer.
+test("a storage write that finishes after the session ended still has the group read again", async () => {
+  for (const [request, result] of [
+    [{ root: ROOT, op: "setStorage", storage: "local" }, ok({ repo: ROOT, serve: [], changed: true, storage: "local" })],
+    [{ root: ROOT, op: "setStorage", storage: "local", gitInit: true }, failed("cleanup_failed", "cli words")],
+  ] as const) {
+    storageWritten.mockClear();
+    const later = deferred<CliRun>();
+    run.mockReturnValueOnce(later.promise);
+    const reply = bridge.write(request);
+    await vi.waitFor(() => expect(run).toHaveBeenCalled());
+    bridge.clear();
+    later.resolve(result);
+    expect(await reply, JSON.stringify(request)).toEqual({ kind: "unavailable" });
+    expect(storageWritten, JSON.stringify(request)).toHaveBeenCalledExactlyOnceWith(ROOT);
+    run.mockClear();
+  }
+});
+
+// Only Keep out of Git carries the confirmation to create a repository, as `doan config --storage local --git-init`.
+// A created repository is told by `written`.
 test("a confirmed switch creates the repository through doan config and says so", async () => {
   run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/", ".git/info/exclude", ".doan/config.json"] }));
   expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: true, storage: "local", repositoryCreated: true });

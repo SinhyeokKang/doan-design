@@ -50,6 +50,12 @@ type Canvas struct {
 	Gotos []Goto
 }
 
+// IDPattern is the form of a <meta name="doan:canvas"> id (ARCHITECTURE §1 convention 2).
+var IDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidID reports whether the canvas declares exactly one well-formed id.
+func (c Canvas) ValidID() bool { return c.HasID && !c.IDDup && IDPattern.MatchString(c.ID) }
+
 var prototypePattern = regexp.MustCompile(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`)
 
 // PrototypeSizeValid reports whether a data-doan-prototype value is
@@ -59,29 +65,23 @@ func PrototypeSizeValid(v string) bool { return prototypePattern.MatchString(v) 
 var widthPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
 var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 
-func trimURL(s string) string {
-	a, b := 0, len(s)
-	for a < b && s[a] <= 32 {
-		a++
-	}
-	for b > a && s[b-1] <= 32 {
-		b--
-	}
-	return s[a:b]
+// TrimURL strips what the URL parser strips: leading and trailing C0 controls and spaces.
+func TrimURL(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool { return r <= 32 })
 }
 func IsExternal(href string) bool {
-	s := lower(trimURL(href))
+	s := lower(TrimURL(href))
 	return strings.HasPrefix(s, "http:") || strings.HasPrefix(s, "https:") || strings.HasPrefix(s, "//")
 }
 
 // UseNotInline reports whether a <use> reference names something other than
 // a fragment of the same document.
 func UseNotInline(ref string) bool {
-	s := trimURL(ref)
+	s := TrimURL(ref)
 	return s != "" && s[0] != '#'
 }
 func LocalPath(href string) (string, bool) {
-	s := trimURL(href)
+	s := TrimURL(href)
 	if schemePattern.MatchString(s) || strings.HasPrefix(s, "//") {
 		return "", false
 	}
@@ -125,7 +125,7 @@ func Parse(path string, data []byte) (Canvas, error) {
 	external := map[string]bool{}
 	addURL := func(s string) {
 		if IsExternal(s) {
-			external[trimURL(s)] = true
+			external[TrimURL(s)] = true
 		}
 	}
 	titleSeen := false
@@ -238,9 +238,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 				addURL(attrs["href"])
 				addURL(attrs["xlink:href"])
 			}
-			// A <use> that leaves the canvas is svg_use_not_inline, not an
-			// external resource: the app never loads it. href wins over
-			// xlink:href whenever it is present, as in the browser.
+			// A <use> that leaves the canvas is svg_use_not_inline, not an external resource: the app never loads it.
+			// href wins over xlink:href whenever it is present, as in the browser.
 			if n.Namespace == "svg" && n.Data == "use" {
 				ref, ok := attrs["href"]
 				if !ok {
@@ -275,12 +274,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 	return c, nil
 }
 
-// Elements holds the tag names, classes (".x") and ids ("#x") of a
-// canvas's elements, lowercased, so a comparison can only find more matches
-// than the browser (quirks mode compares classes and ids without case).
-// Elements inside <template> count too: they are only inert until a script
-// clones them, and a canvas with scripts has no Elements at all. A
-// user-modify declaration in its styles is handled by CustomUsers.
+// Elements holds lowercased tag names, classes (".x") and ids ("#x"): quirks mode compares classes and ids
+// without case, so lowering only finds more matches. Elements inside <template> count too.
 type Elements struct{ keys map[string]bool }
 
 // Match reports whether some compound in needs (selectorNeeds) has every
@@ -314,10 +309,8 @@ func ElementsOf(data []byte) *Elements {
 	return elementsOf(root)
 }
 
-// elementsOf returns nil when the canvas can add elements or change their
-// classes or ids at run time: a script element, an event handler attribute,
-// a javascript: URL, an SVG animation of class or id, or a contenteditable
-// attribute (typing Enter in an editable element inserts a <div>).
+// elementsOf returns nil when the canvas can change its elements at run time: scripts, event handlers,
+// javascript: URLs, SVG animation of class or id, or contenteditable (Enter inserts a <div>).
 func elementsOf(root *html.Node) *Elements {
 	e := &Elements{keys: map[string]bool{}}
 	dynamic := false

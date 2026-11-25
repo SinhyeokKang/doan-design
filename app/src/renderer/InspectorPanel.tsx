@@ -39,10 +39,8 @@ export function selectionName(view: SelectionView): string {
   return view.element.doanId || view.tag;
 }
 
-// The canvas page's inspector column: the resize handle on its start edge and the panel. While folded, or yielding to
-// a narrow window, it stays in the DOM out of the Tab order, so the Show button's aria-controls resolves.
-// `onEscape`: every tooltip in the panel hands its Escape to the canvas page, which then takes Esc's step as it would
-// with no tooltip open (CanvasController.toolbarEscape): an open tooltip's Radix layer prevents the key first.
+// The inspector column: while folded or yielding it stays in the DOM out of the Tab order, so the Show button's aria-controls resolves. `onEscape`:
+// every panel tooltip hands its Escape to the canvas page (CanvasController.toolbarEscape), since Radix prevents the key first.
 export function InspectorColumn({ shown, width, bounds, onHide, onResize, preview, selection, document, inspect, tree, onNotice, onEscape }: {
   shown: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
   selection: InspectorSelection | null; document: string | null; inspect: InspectCall; tree: ElementTreeSource; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void;
@@ -62,9 +60,8 @@ export function InspectorPanel({ shown, onHide, selection, document: shownDocume
   const panel = useRef<HTMLElement | null>(null);
   // The control in the panel that last took focus, until focus moves on to another control.
   const lastFocus = useRef<Element | null>(null);
-  // After every commit: a focused control that left the page (Retry once it succeeded, a row an Esc step or a new read
-  // replaced, the trigger of a selection that cleared) hands focus on instead of letting it fall to the page. In the
-  // background (`doan open` of another canvas from a terminal) it is handed again on activation.
+  // After every commit a focused control that left the page hands focus on instead of letting it fall to the page; in the
+  // background it is handed again on activation.
   const handFocus = useActivationFocus();
   useLayoutEffect(() => {
     const lost = lastFocus.current, aside = panel.current;
@@ -95,9 +92,8 @@ function focusAfterLoss(lost: Element, aside: Element): HTMLElement | null {
   return row ?? aside.querySelector<HTMLElement>(".doan-insp-pick .ov-title") ?? document.querySelector<HTMLElement>(".doan-canvas-panel .area");
 }
 
-// The panel under its head, for each state of the read: no selection, a new selection's read (nothing until the
-// delay, so a quick read never flashes the line), the same selection read again (its rows stay), a failure with Retry,
-// and the rows.
+// Each state of the read: no selection, a new selection's read (nothing until the delay, so a quick read never flashes the
+// line), the same selection read again (its rows stay), a failure with Retry, and the rows.
 export function InspectorBody({ read, onRetry, onNotice, onEscape }: { read: InspectorReadState; onRetry(): void; onNotice(text: string): void; onEscape(event: globalThis.KeyboardEvent): void }) {
   const failedId = useId();
   const { panel } = read;
@@ -117,9 +113,8 @@ function ReadingLine() {
   return <div className="doan-insp-loading" role="status">{slow && <><span className="doan-spinner" aria-hidden="true" />Reading styles</>}</div>;
 }
 
-// The innermost frame's tree for the head's name and the element menu, asked while the panel shows for each applied
-// selection (a reload's new document is asked once the selection is found in it, so the name holds meanwhile). Only an
-// answer asked for the selection still applied counts.
+// Asked while the panel shows for each applied selection (a reload's document is asked once the selection is found in it, so
+// the name holds meanwhile); only an answer for the selection still applied counts.
 function useElementTree(shown: boolean, view: SelectionView | null, tree: ElementTreeSource): ElementTreeNode[] | null {
   const [answer, setAnswer] = useState<{ view: SelectionView; nodes: ElementTreeNode[] } | null>(null);
   const asked = useRef<SelectionView | null>(null);
@@ -135,9 +130,8 @@ const KIND_ICONS: Record<ElementKind, LucideIcon> = {
   frame: Frame, "flex-row": Columns3, "flex-column": Rows3, grid: Grid2x2, input: TextCursorInput, button: RectangleHorizontal, text: Type, box: Square,
 };
 
-// The head's title: the selection's name as the conversation head's title menu draws one, opening the innermost
-// frame's tree. A row picked selects that node as a ⌘-click would; the row under the pointer or focus is marked on the
-// board. Radix closes it on Esc (preventing the default, so the selection stays) and gives focus back to the trigger.
+// A row picked selects that node as a ⌘-click would; the row under the pointer or focus is marked on the board. Radix closes it
+// on Esc (preventing the default, so the selection stays) and gives focus back to the trigger.
 export function ElementMenu({ view, nodes, tree, shown, onEscape }: { view: SelectionView; nodes: ElementTreeNode[] | null; tree: ElementTreeSource; shown: boolean; onEscape(event: globalThis.KeyboardEvent): void }) {
   const [open, setOpen] = useState(false);
   // The menu spans the panel, less an inset a side, whatever its rows' width and however wide the column is (styles.css);

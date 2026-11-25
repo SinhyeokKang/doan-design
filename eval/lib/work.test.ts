@@ -25,17 +25,28 @@ test("work checks reject a late first start even if a later start looks correct"
   assert.deepEqual(failed([exchange("start", { [path]: hash("final") }), exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") })]), ["start_before_edit"]);
 });
 test("work checks require done and compare the last done with final content", () => {
-  assert.ok(failed([exchange("start", { [path]: hash("seed") })]).includes("done_at_end"));
-  assert.ok(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") }), exchange("done", { [path]: hash("seed") })]).includes("done_at_end"));
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") })]), ["done_at_end"]);
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") }), exchange("done", { [path]: hash("seed") })]), ["done_at_end"]);
 });
+// The fake app hashes on done only the paths an accepted start or update named (socket.ts), so the exchanges below
+// carry what it records: a canvas without a start is a missing start, not a done sent too early (POSTMORTEM 2026-11-13).
 test("work checks require a start for every changed canvas including ds", () => {
-  assert.ok(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") })], [path, ".doan/ds/button.html"]).includes("start_path"));
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") })], [path, ".doan/ds/button.html"]), ["start_before_edit", "start_path"]);
 });
 test("work checks accept missing files before creation and reject failed delivery", () => {
   assert.deepEqual(failed([exchange("start", { [path]: null }), exchange("done", { [path]: hash("final") })], [path], null), []);
   const rejected = exchange("start", { [path]: hash("seed") });
   rejected.response = { v: 3, ok: false, error: { code: "bad_token", message: "wrong" } };
-  assert.ok(failed([rejected, exchange("done", { [path]: hash("final") })]).includes("start_path"));
+  assert.deepEqual(failed([rejected, exchange("done", {})]), ["start_before_edit", "start_path"]);
+});
+test("a canvas started after the last done still needs a done after its edit", () => {
+  const second = ".doan/ds/button.html";
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") }), exchange("start", { [path]: hash("final"), [second]: hash("seed") }, second)], [path, second]), ["done_at_end"]);
+});
+test("a done after the final edit passes even when a changed canvas was never started", () => {
+  assert.deepEqual(failed([exchange("done", {})]), ["start_before_edit", "start_path"]);
+  // A canvas the done did hash still has to match its final content.
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("seed") })], [path, ".doan/ds/button.html"]), ["start_before_edit", "done_at_end", "start_path"]);
 });
 test("v3 validators decide all shared schema fixtures", () => {
   for (const [kind, valid] of [["request", validWorkRequest], ["response", validWorkResponse]] as const)

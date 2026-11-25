@@ -31,9 +31,8 @@ export interface CanvasRow {
   url: string;
 }
 
-// What the read-state toast tells, with Retry: a canvas whose read state could not be saved to this device's
-// canvas-seen.json (`save`) or has a missing or duplicated ID (`id`); or that file itself, told once: `records`, a
-// damaged file moved aside so this run started fresh, `unsupported`, a later Doan's file this run never writes.
+// What the read-state toast tells, with Retry: a canvas whose state could not be saved (`save`) or with a missing or
+// duplicated ID (`id`); or canvas-seen.json itself, once: `records` (moved aside) or `unsupported` (a later Doan's).
 export type ReadStateProblem =
   | { kind: "save"; path: string }
   | { kind: "id"; path: string }
@@ -52,16 +51,12 @@ export interface GitInfo {
   worktrees: string[];
 }
 
-// `lastCommon` is the last `git.common` main saw for the path, kept while the
-// row is not a list so it stays on its card until the app quits.
-// `autoRegistered` marks a worktree the app registered for a terminal agent's `doan work start`
-// (ARCHITECTURE §7 `auto-folders.json`); absent on hand-added roots. The renderer hides such a row while it is not a list.
+// `lastCommon`: the last `git.common` seen, kept while the row is not a list. `autoRegistered`: a worktree the app
+// registered for a terminal agent (ARCHITECTURE §7 `auto-folders.json`); the renderer hides it while not a list.
 export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: true } & (
   | { kind: "loading" }
-  // Bumped by the shell whenever a served file of the folder changed; the
-  // renderer reloads an open canvas on a new value. Only a list is served.
-  // `changedAt` is the newest canvas mtime; absent with no canvases.
-  // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
+  // `servedRev` is bumped whenever a served file changed; the renderer reloads an open canvas on a new value. `changedAt`
+  // is the newest canvas mtime; `storage`/`storageReason` are absent from an older doan.
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
   // `notGit`: no Git repository holds the folder, so the Set Up form shows the .git/ Keep out of Git creates; never
   // for the home folder or above it (shell.ts).
@@ -72,8 +67,7 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   | { kind: "notFound" }
 );
 
-// The order is the CLI's (path byte order); re-sorting here would drift from
-// `doan ls` (POSTMORTEM "Sorting file names does not sort the ids").
+// The order is the CLI's (path byte order); re-sorting here would drift from `doan ls`'s ids.
 export function canvasRows(canvases: readonly unknown[], baseUrl: string): CanvasRow[] {
   const rows: CanvasRow[] = [];
   for (const canvas of canvases) {
@@ -151,23 +145,16 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
   }
 }
 
-// What Show in Finder selects for a stored root (PRODUCT §5 item 3 'Problem states'): for a Config error, the config
-// file the CLI named (macOS hides it inside `.doan/`), which may be a parent folder's; when nothing is there any more,
-// or for any other state, the root. Any kind of entry at that path counts: the CLI named it as the thing to fix.
-// `exists` only checks the path; the app never reads it.
+// For a Config error, the config file the CLI named (macOS hides it inside `.doan/`, and it may be a parent's) while
+// anything is at that path; otherwise the root (PRODUCT §5 item 3 'Problem states'). The app never reads it.
 export function revealTarget(entry: FolderEntry, exists: (path: string) => boolean): string {
   return entry.kind === "error" && exists(entry.config) ? entry.config : entry.path;
 }
 
 export type OpenDecision = { store: string } | { refuse: string };
 
-// A picked subfolder of a repo is stored as the repo root the CLI found, so the
-// same repo opens once. A failing run (broken config, no CLI) has no root, so
-// `asRepo` is a second run, `doan ls --repo <picked>`: the pick is stored only
-// when Go reads it as a repo root (listed, or answered with an envelope). A
-// subfolder stored instead would later read as "not initialized" and invite a
-// nested `doan init`. Root detection stays in Go (POSTMORTEM "TS and Go ...
-// diverged"); `null` means no second run was made.
+// Stores the CLI's repo root; root detection stays in Go. When `ls` failed, `asRepo` (`ls --repo <picked>`) admits the
+// pick only as a root Go reads: a stored subfolder would invite a nested `doan init`. null: no second run.
 export function openDecision(state: FolderState, realPicked: string, asRepo: FolderState | null): OpenDecision {
   switch (state.kind) {
     case "list":

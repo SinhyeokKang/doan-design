@@ -1,7 +1,5 @@
-// The conversation the prototype window's open panel shows (`prototype:showing`), which main leaves out of its
-// notifications while that window is in front. Only a conversation of the canvas playing when the report arrives is
-// taken, and it counts only until the playing canvas changes, even back to that canvas, so no conversation's
-// notification is hidden on a report the window has not made again. Electron-free.
+// Main leaves this conversation out of its notifications while the prototype window is in front. It counts only until the
+// playing canvas changes, even back, so no notification is hidden on a report the window has not made again.
 import type { FolderEntry } from "../view";
 import { prototypeConversationScope, type PlayingCanvas, type ScopedConversation } from "./conversationScope";
 import { parseShowingRequest } from "./requests";

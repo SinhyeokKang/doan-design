@@ -1,10 +1,8 @@
 import { CONNECTOR_NAME, parseConnectorUrl, storedConnectorUrl } from "./names";
 import { MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
 
-// `<userData>/mcp-connectors.json` and `<userData>/mcp-connectors-pending.json` (ARCHITECTURE §7 'MCP connectors').
-// Only TS reads and writes them, so, like preferences.json, their tests are their schema. Unlike preferences, an
-// unreadable connectors file is not read as defaults: the providers keep Doan's registrations, so an empty list
-// would drift from them (ARCHITECTURE §7 'MCP connectors'). Exact keys keep anything else from riding along.
+// Only TS reads and writes these files, so their tests are their schema. An unreadable connectors file is not read as
+// defaults: the providers keep Doan's registrations (ARCHITECTURE §7 'MCP connectors'). Exact keys keep extras out.
 
 // everConnected: per server, presets included, provider connection history since the last sign-out or confirmed account change.
 export interface ConnectorsFile { v: 1; servers: ConnectorServer[]; everConnected: Record<string, McpProvider[]> }
@@ -96,7 +94,7 @@ export function patchConnectors(file: ConnectorsFile, patch: ConnectorsPatch): C
   return { ...file, everConnected: providers.length ? { ...rest, [target]: providers } : rest };
 }
 
-function validLogout(value: unknown): value is PendingLogout {
+export function validLogout(value: unknown): value is PendingLogout {
   return record(value) && exactKeys(value, ["provider", "name", "url"]) && provider(value.provider) && name(value.name) &&
     typeof value.url === "string" && parseConnectorUrl(value.url).ok && value.url === value.url.trim();
 }

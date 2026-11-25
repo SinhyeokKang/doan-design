@@ -1,7 +1,7 @@
 import type { ExportReply } from "../main/canvasExport";
 import type { TrashReply } from "../main/canvasTrash";
 
-// The toasts of a canvas row's Move to Trash and Export. `stem` is the row's name as the sidebar shows it.
+// `stem` is the row's name as the sidebar shows it.
 export { canvasStem } from "./canvasTree";
 
 const REFUSED: Record<Extract<TrashReply, { kind: "refused" }>["reason"], string> = {
@@ -18,10 +18,8 @@ export function trashToast(stem: string, reply: TrashReply): string {
 
 export const exportProgress = (stem: string) => `Exporting “${stem}”`;
 
-// The result toast, with main's Show in Finder id once the file is written; null for a cancelled save panel. A
-// refusal from main (`exporting`, `notListed`) has no sentence of its own and reads as any other failure.
-// `prototype`: the prototype window's Export, where `stem` is the frame's title or ID. Its file plays that frame and
-// the frames linked with it, and holds the whole canvas, other frames and notes included, so the success toast says so.
+// null for a cancelled save panel. A refusal from main has no sentence of its own. A prototype export holds the whole
+// canvas, other frames and notes included, so the success toast says so.
 export function exportToast(stem: string, reply: ExportReply, prototype = false): { text: string; reveal?: string } | null {
   const failed = `Couldn’t export “${stem}”.`;
   if (reply.kind === "cancelled") return null;
@@ -38,7 +36,7 @@ export function exportToast(stem: string, reply: ExportReply, prototype = false)
       ? `${failed} It uses a file Doan can’t include: ${reply.first}. Ask your agent to fix it.`
       : `${failed} It uses ${reply.count} files Doan can’t include, starting with ${reply.first}. Ask your agent to fix them.` };
     case "unreadable": return { text: `${failed} Doan can’t read this canvas. Ask your agent to run doan check.` };
-    // The CLI may name no asset; the sentence then ends at the limit (C2 brief).
+    // The CLI may name no asset; the sentence then ends at the limit.
     case "tooLarge": return { text: `${failed} The file would be over 50 MB.${reply.largest !== null ? ` The largest file it uses is ${reply.largest}.` : ""}` };
     case "notFound": return { text: `${failed} Doan can export only a frame written in the canvas file, not one a script adds. Ask your agent to write it into the canvas file.` };
     case "notMarked": return { text: `${failed} It isn’t marked for prototyping in the canvas file. Ask your agent to mark it.` };

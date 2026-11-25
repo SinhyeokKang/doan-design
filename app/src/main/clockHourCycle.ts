@@ -1,6 +1,5 @@
-// The renderer cannot see macOS's 12/24-hour setting: with "24-hour time" on (AppleICUForce24HourTime), Electron's
-// renderer Intl still resolves h12 for an en locale. Main reads it and hands it to the window at creation as a
-// command-line argument, so a change of the setting applies after a restart.
+// With "24-hour time" on, Electron's renderer Intl still resolves h12 for an en locale, so main reads the setting and
+// passes it as a command-line argument at window creation; a change applies after a restart.
 export const CLOCK_ARGUMENT = "--doan-clock-hour12=";
 // force24 / force12: the macOS defaults (systemPreferences.getUserDefault); locale: the system locale, whose own hour
 // cycle decides when neither is set.

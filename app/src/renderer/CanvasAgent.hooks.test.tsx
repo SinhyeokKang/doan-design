@@ -4,8 +4,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { DotCanvas, DotFieldMessage, DotFieldSize } from "./dotField";
 
-// The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): which conversation the notice
-// follows, its button, and the dot field's pauses and cleanup.
+// The indicator's wiring, run with hooks as plain state: which conversation the notice follows, its button, and the
+// dot field's pauses and cleanup.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -57,7 +57,6 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
-// The button's words.
 const label = (tree: ReactNode) => String(button(tree)?.props.children ?? "");
 // The indicator itself (its glow and notice); the top column stays for the canvas notices.
 const shown = (tree: ReactNode) => all(tree).some(element => typeof element.props.className === "string" && /^doan-agent( |$)/.test(element.props.className));
@@ -70,8 +69,8 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
-// The notice follows one conversation of the canvas and has no Stop (user decision): stopping is the composer's, tied to
-// one conversation. While the followed conversation works the notice shows no button; while it waits, Open goes to it.
+// The notice has no Stop: stopping is the composer's, tied to one conversation. While the followed conversation works
+// the notice shows no button; while it waits, Open goes to it.
 describe("CanvasAgent follows one conversation", () => {
   const onOpen = vi.fn();
   const agent = (list: readonly ConversationSummary[], shown: string | null, work: readonly { touched: number; turn: string; session: string; provider: "claude"; root: string; path: string }[] = []) => () => CanvasAgent({ list, shown, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries: [], onOpen, onOpenSibling: vi.fn() });
@@ -118,8 +117,8 @@ describe("CanvasAgent follows one conversation", () => {
   });
 });
 
-// docs/design/canvas.md 'Terminal work in another worktree': the other worktree's notice. Open hands its root to App; the text's tooltip says
-// the whole sentence, so a long label cut by the ellipsis stays readable.
+// docs/design/canvas.md 'Terminal work in another worktree'. Open hands its root to App; the text's tooltip says the
+// whole sentence, so a label cut by the ellipsis stays readable.
 describe("CanvasAgent another worktree", () => {
   const LONG = "feat/checkout-redesign-with-saved-payment-methods-and-guest-flow";
   const git = { common: "/repo/.git", main: "/w/a", worktrees: ["/w/a", "/w/b"] };
@@ -141,8 +140,8 @@ describe("CanvasAgent another worktree", () => {
     const tip = all(tree).find(element => element.type === TooltipContent);
     expect(tip?.props.children).toBe(`Agent is working on this canvas in ${LONG}`);
   });
-  // design-sync (draft frame sibling-notice, tile 'sibling-long'): the tooltip opened above the notice (Radix's default
-  // side), and a two-line sentence crossed the board's top edge; the draft puts it 4px under the capsule.
+  // Radix's default side (above) put a two-line sentence across the board's top edge, so the tooltip opens 4px under the
+  // capsule.
   test("the tooltip opens under the notice, clear of the capsule", () => {
     const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries, onOpen: vi.fn(), onOpenSibling: vi.fn() }));
     const tip = all(tree).find(element => element.type === TooltipContent);
@@ -272,8 +271,8 @@ describe("DotField lifecycle", () => {
     expect(posted).toEqual([{ kind: "size", size: { width: 300, height: 100, ratio: 2 } }]);
   });
 
-  // The real start: the canvas is transferred before the Worker's script has loaded, so a load failure would leave the
-  // field empty with nothing in the log.
+  // The canvas is transferred before the Worker's script has loaded, so a load failure would leave the field empty with
+  // nothing in the log.
   test("the real Worker gets the transferred canvas, and a load failure is logged", () => {
     const made: { url: string; options: unknown; listeners: Map<string, (event: unknown) => void>; messages: unknown[][] }[] = [];
     vi.stubGlobal("Worker", class {

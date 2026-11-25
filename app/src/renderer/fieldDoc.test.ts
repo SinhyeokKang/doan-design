@@ -14,7 +14,6 @@ const CASES: FieldSegment[][] = [
 test.each(CASES.map(segments => [JSON.stringify(segments), segments] as const))("segments ↔ document round trip %s", (_name, segments) => {
   const doc = docFromSegments(segments);
   expect(segmentsFromDoc(doc)).toEqual(segments);
-  // One paragraph per line.
   const lines = segments.map(s => (s.kind === "text" ? s.text : "x")).join("").split("\n").length;
   expect(doc.childCount).toBe(lines);
 });

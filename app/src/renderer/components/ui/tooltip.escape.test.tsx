@@ -10,9 +10,8 @@ vi.mock("radix-ui", async original => {
 });
 const { Tooltip, TooltipContent, TooltipEscape, TooltipProvider, TooltipTrigger } = await import("./tooltip");
 
-// A tooltip over a row of a menu, a popover list or a modal dialog is the top dismissable layer while it is open, so
-// Radix gives it the first Esc and the host stays open (POSTMORTEM 2026-11-07). Inside a host that provides
-// TooltipEscape, an Esc on the tooltip closes the host too; a tooltip's own onEscapeKeyDown still wins.
+// An open tooltip over a menu, popover list or modal dialog row is the top dismissable layer, so Radix gives it the first Esc
+// (POSTMORTEM 2026-11-07). Inside a TooltipEscape host that Esc closes the host too; the tooltip's own handler still wins.
 test("inside a TooltipEscape host, a tooltip's Esc closes the host; its own handler wins; outside one nothing is added", () => {
   const host = { closed: 0 }, own = { called: 0 };
   const draw = (content: ReturnType<typeof createElement>, wrap: boolean) => renderToStaticMarkup(createElement(TooltipProvider, null,

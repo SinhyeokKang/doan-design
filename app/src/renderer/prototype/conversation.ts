@@ -3,12 +3,10 @@ import type { Anchor, Canvas } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import { sameTarget, toMessage, type FieldSegment } from "../anchorField";
 import type { CanvasView } from "../canvasRun";
+import { frameTitle } from "../canvasTree";
 import { openButtonBadge } from "../rightPanelOpen";
 
-// The prototype window's conversation panel: the states of what it shows, the playing frame chip every message
-// carries, the header's conversation button and the panel head's title.
-
-// lost: main cannot name the target's canvas row (gone, or its ID shared); the panel then takes no message.
+// lost: main cannot name the target's canvas row; the panel then takes no message.
 export interface PrototypeConversationTarget { root: string; canvas: Canvas; lost?: "gone" | "duplicate" }
 export type PrototypeShown =
   | { kind: "conversation"; conversationId: string }
@@ -17,9 +15,7 @@ export type PrototypeShown =
   | { kind: "list_error" }
   | { kind: "blocked"; reason: "gone" | "duplicate" };
 
-// What the window's own canvas run shows (the main window's rule, its own instance, so the two windows may show
-// different conversations), named by the states the head and the composer tell apart: nothing picked yet is the list
-// still read, and a failed first read the list error. `rowLoading`: main still reads the canvas row.
+// The window's own canvas run, so the two windows may show different conversations.
 export function prototypeShown(view: CanvasView | null, target: PrototypeConversationTarget, rowLoading = false): PrototypeShown {
   if (target.lost) return { kind: "blocked", reason: target.lost };
   if (rowLoading || view === null || view.kind === "wait") return { kind: "list_loading" };
@@ -31,39 +27,34 @@ export type PlayingFrame = NonNullable<Anchor["frame"]>;
 
 const chipOf = (frame: PlayingFrame): FieldSegment => ({ kind: "chip", anchor: { frame } });
 
-// The field as sent: the playing frame's chip first, unless the field already starts with it (a returned draft, Edit
-// and resend, a pasted chip). toMessage reuses a place's number, so the same frame elsewhere in the field is still one
-// anchor. Null past the place limit, as toMessage.
+// toMessage reuses a place's number, so the same frame elsewhere in the field is still one anchor.
 export function withPlayingFrame(segments: readonly FieldSegment[], frame: PlayingFrame): { text: string; anchors: Anchor[] } | null {
   const first = segments[0];
   if (first?.kind === "chip" && sameTarget(first.anchor, { frame })) return toMessage(segments);
   const chip = chipOf(frame);
-  // A space after the chip, so the message and its title read as words; text that starts with one takes none more.
+  // A space after the chip, so the message and its title read as words.
   const gap: FieldSegment[] = first && !(first.kind === "text" && /^\s/.test(first.text)) ? [{ kind: "text", text: " " }] : [];
   return toMessage([chip, ...gap, ...segments]);
 }
 
 export interface PlayingFrameChip { frame: PlayingFrame; name: string; description: string }
 
-// The pinned chip above the composer. The title comes from the run's `frames` only: `view.title` falls back to the id.
-// While the next frame loads, the chip is already that frame. A listed row decides even without a title (one removed
-// since must not linger); only a frame the run no longer lists keeps the title `last` had for the same id.
+// `view.title` falls back to the id, so the title comes from `frames` only. Only a frame the run no longer lists keeps
+// the title `last` had for the same id.
 export function playingFrameChip(view: PrototypeView | null, last: PlayingFrameChip | null): PlayingFrameChip | null {
   if (!view) return null;
   const id = view.frame;
   const row = view.frames.find(frame => frame.id === id);
   const title = row ? row.title : last?.frame.id === id ? last.frame.title : undefined;
-  const name = title ?? id;
+  const name = frameTitle(title) ?? id;
   return { frame: { id, ...(title !== undefined ? { title } : {}) }, name, description: `Frame ${name} is sent with each message.` };
 }
 
 export type ConversationBadge = "permission" | "working" | "unseen";
 export interface ConversationButton { label: "Show conversation"; badge: ConversationBadge | null; name: string }
 
-// The header's button for the panel, shown only while the panel is closed: Hide conversation is in the panel's head.
-// The main window's Show conversation marks (an answer waited for, an unread ending) plus working: the window has no
-// agent indicator, and the frame reloads with no visible reason while an agent edits. One badge at a time: waiting,
-// then working, then unread. `current` is the conversation the panel shows.
+// The main window's badge marks plus working: this window has no agent indicator and the frame reloads while an
+// agent edits. One badge: waiting, then working, then unread.
 export function conversationButton(current: ConversationSummary | undefined, seen: ReadonlySet<string> = new Set()): ConversationButton {
   const show = "Show conversation" as const;
   const mark = openButtonBadge(current, false, seen);
@@ -72,10 +63,7 @@ export function conversationButton(current: ConversationSummary | undefined, see
   return mark ? { label: show, badge: "unseen", name: mark.label } : { label: show, badge: null, name: show };
 }
 
-// The panel head's title. The states that are not a conversation or the new conversation state (the list still read,
-// the canvas gone or its ID shared) keep the panel shell's own title, as does an empty title. A list never read is the
-// new conversation state (its head New is unavailable and New conversation is the pressed menu row), so it is named so,
-// as in the main window. `title` is the main window's canvasConversationTitle for the conversation shown.
+// A list never read is the new conversation state, so it is named so, as in the main window.
 export function prototypeHeadTitle(shown: PrototypeShown, title: string): string {
   if (shown.kind === "list_loading" || shown.kind === "blocked" || title === "") return "Conversation";
   return title;

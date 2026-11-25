@@ -1,8 +1,7 @@
 import type { KeyboardEvent } from "react";
 import { KEPT_LOCAL_FACT, STORAGE_LABELS, type StorageChoice } from "./storageRules";
 
-// The "Doan files" choice of every setup screen (draft canvas local-doan-files frames setup-dialog, setup-panel, clone).
-// The same names and descriptions everywhere; Project Settings draws them in its own settings rows.
+// The same names and descriptions on every setup screen; Project Settings draws them in its own settings rows.
 
 export function StorageDescription({ choice }: { choice: StorageChoice }) {
   return choice === "repo" ? <>Git tracks these files. Commit them so your team gets your canvases and settings.</>

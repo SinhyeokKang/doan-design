@@ -43,9 +43,9 @@ const { ShellSidebar } = await import("./ShellSidebar");
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -106,7 +106,26 @@ test("an arrival focuses the category title once; a provider arrival goes to Age
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-// .doan/canvases/buddy-choice.html 'settings-general', 'settings-general-failed'.
+// Main shows a hidden window and then sends the arrival, and an MCP sign-out can turn the page into Agents from a push;
+// both can focus before the window is active, and activation then restores the focus it had before (POSTMORTEM
+// 2026-11-17 'Window activation put focus on Hide sidebar'), so the title focus is made again on activation.
+test("an arrival with the window in the background focuses the title again on activation, as it is drawn then", () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const win = new EventTarget();
+  vi.stubGlobal("window", win);
+  Object.assign(document, { hasFocus: () => false });
+  const first = vi.fn(), redrawn = vi.fn();
+  render({ arrival: { focus: { kind: "heading" }, seq: 1 } });
+  (heading().props.ref as (node: unknown) => void)({ focus: first });
+  effects();
+  expect(first).toHaveBeenCalledOnce();
+  (heading().props.ref as (node: unknown) => void)({ focus: redrawn });
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(first).toHaveBeenCalledOnce();
+  expect(redrawn).toHaveBeenCalledTimes(2);
+});
+
 describe("Settings > General", () => {
   const snapshot = (notice: "broken" | "newer" | null) => ({ preferences: { v: 1 as const, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null, updates: { autoCheck: true } }, notice });
   const general = (patch: Partial<PageProps["buddy"]> = {}, notice: "broken" | "newer" | null = null) => {
@@ -168,8 +187,8 @@ describe("Settings > General", () => {
     const dismiss = vi.fn();
     general({ dismiss });
     effects();
-    const cleanup = hooks.effects.find(effect => effect?.cleanup)?.cleanup;
-    cleanup?.();
+    // Leaving unmounts the category: every effect cleans up.
+    for (const effect of hooks.effects) effect?.cleanup?.();
     expect(dismiss).toHaveBeenCalled();
   });
 });
@@ -238,7 +257,7 @@ test("while the page is locked the other categories and Search show as unavailab
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 
-// design-sync against .doan/canvases/doan-settings.html: values a jsdom render cannot show.
+// Values a jsdom render cannot show.
 test("the current category takes the pressed fill with standard ink, and a locked category's icon dims with its label", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }');

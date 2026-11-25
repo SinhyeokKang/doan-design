@@ -34,9 +34,8 @@ const rowGroup = (provider: McpProvider, name: string) => document.querySelector
 const unusable = (node: HTMLElement) => !node.isConnected || node.matches(":disabled") || node.getAttribute("aria-disabled") === "true";
 const snapshotReply = (value: unknown): value is McpSnapshot => typeof value === "object" && value !== null && "revision" in value;
 
-// Settings > MCP Connectors (PRODUCT §5 item 0 'MCP Connectors'; draft frames 1–9): one section per signed-in agent,
-// listing the presets and the URL servers as the first-run Agent step's provider rows. Focus follows Settings > Agents'
-// rule (a control that goes away or is disabled hands focus to its row group) and the page has one live region.
+// Settings > MCP Connectors (PRODUCT §5 item 0 'MCP Connectors'). A control that goes away or is disabled hands focus to its row
+// group, as in Settings > Agents, and the page has one live region.
 export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actions }: SettingsMcpConnectorsProps) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [dialog, setDialogState] = useState<Dialog | null>(null);
@@ -45,6 +44,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   const live = useRef({ onLock });
   live.current = { onLock };
   const locked = useRef(false);
+  const removeFrame = useRef(0);
   // Reported as the dialog changes, not after a render: a move between the two must already see the lock.
   const setDialog = (next: Dialog | null) => {
     current.current = next;
@@ -67,6 +67,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     void readEntry();
     return () => {
       offWatch(); offAuth();
+      // A Remove alert opening after unmount would take a lock nothing releases.
+      cancelAnimationFrame(removeFrame.current);
       current.current = null;
       if (locked.current) { locked.current = false; live.current.onLock(false); }
     };
@@ -171,7 +173,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     setDialog({ kind: "add", value: open.value, error: addError(reply), busy: false });
   };
   // Remove asks first; the alert opens a frame later so the closing menu's focus return does not land after it.
-  const askRemove = (row: McpRowView) => requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label, busy: false, failed: false }));
+  const askRemove = (row: McpRowView) => { removeFrame.current = requestAnimationFrame(() => setDialog({ kind: "remove", provider: row.provider, name: row.name, label: row.label, busy: false, failed: false })); };
   // Refused while the request is out: cancelling would stop nothing (as conversation Delete's alert).
   const closeRemove = () => {
     const open = current.current;
@@ -190,8 +192,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     startRemove(row, true);
   };
 
-  // The page live region is the only announcement channel (spec 2): notices keep their look without live roles. Every
-  // other announcement ends in a zero-width space, so a message repeated word for word still changes the region.
+  // The page live region is the only announcement channel: notices keep their look without live roles. Every other announcement
+  // ends in a zero-width space, so a message repeated word for word still changes the region.
   const announcement = watch.announcement && watch.announcement.seq > since.current ? watch.announcement : null;
   const announced = announcement ? `${announcement.text}${announcement.seq % 2 === 0 ? "\u200b" : ""}` : "";
   return <>
@@ -243,8 +245,8 @@ export function RowButton({ button, run, describedBy }: { button: McpButton; run
 
 export function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; focused(node: HTMLElement): void; runningNotice: string | null }) {
   const key = rowKey(row.provider, row.name);
-  // Settings' shared preference row, as Settings > Agents builds its provider rows (user decision over the first-run
-  // provider row): icon, content (name, status and URL lines), trailing actions, and the lines under the row.
+  // Settings' shared preference row, as Settings > Agents builds its provider rows: icon, content (name, status and URL lines),
+  // trailing actions, and the lines under the row.
   return <div className="doan-preference-row" data-has-icon="" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key} onFocus={event => focused(event.target)}>
     <span className="doan-preference-row-icon" aria-hidden="true">{row.logo ? <img className="logo" src={row.logo} alt="" /> : <Server />}</span>
     <div className="doan-preference-row-content"><span className="doan-preference-row-label">{row.label}</span><span className="doan-preference-row-description selectable">{row.status}</span>
@@ -293,8 +295,8 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
   </dialog>;
 }
 
-// Remove can't be undone, so it asks first (spec 8); Cancel is focused, Escape cancels. While the request is out Remove
-// is busy and Cancel takes the disabled look; a failure reads the row's sentence above the actions.
+// Remove can't be undone, so it asks first; Cancel is focused, Escape cancels. While the request is out Remove is busy and Cancel
+// takes the disabled look; a failure reads the row's sentence above the actions.
 function RemoveAlert({ label, busy, failed, confirm, close }: { label: string; busy: boolean; failed: boolean; confirm(): void; close(): void }) {
   return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="mcp-remove-title" aria-describedby="mcp-remove-body" ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>

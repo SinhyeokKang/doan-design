@@ -1,8 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { keptLocal, storageSectionView, storedNote, switchNote } from "./storageRules";
 
-// PRODUCT §5 item 0 'Doan files' and draft canvas local-doan-files frames settings-modes, settings-changes,
-// settings-disabled.
+// PRODUCT §5 item 0 'Doan files'.
 describe("the Doan files section", () => {
   test("is not drawn when doan reported no mode", () => {
     expect(storageSectionView({}, null)).toBeNull();
@@ -32,8 +31,7 @@ describe("the Doan files section", () => {
   });
 });
 
-// Draft keep-out-git-init, frame project-settings: Doan creates no repository in the home folder or above it, so there
-// Keep out of Git stays closed with its own reason, in the shipped disabled-reason style.
+// Doan creates no repository in the home folder or above, so Keep out of Git stays closed there with its reason.
 describe("the Doan files section outside Git", () => {
   test("in the home folder or above it, Keep out of Git stays closed and says Doan makes no repository there", () => {
     expect(storageSectionView({ storage: "repo", storageReason: "not_git" }, null, true)).toEqual({ checked: "repo", disabled: { repo: false, local: true }, reason: { text: "home", tone: "subtle" }, guidance: false });

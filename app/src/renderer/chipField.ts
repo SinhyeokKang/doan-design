@@ -13,15 +13,8 @@ import { fieldDecorations, type Measure } from "./fieldDecorations";
 import { docFromSegments, FILLER, fieldSchema, fixFillers, posFromUnit, segmentsFromDoc, sliceFromSegments, unitFromPos } from "./fieldDoc";
 import { fieldRuns, fieldSkillRuns, insertSkillText, replaceSlashSkill, sameSkillNames, skillAnnouncements } from "./skillWords";
 
-// The composer field's editing over a contenteditable element, on ProseMirror (ARCHITECTURE §7 'Chip field').
-// ComposerField (ComposerParts.tsx) owns one per element.
-//
-// The document holds one paragraph per line and chips as inline atoms (fieldDoc.ts); the field's value stays segments.
-// ProseMirror reads typing, IME composition and the deletions the browser makes; everything the field decides itself —
-// list edits, a chip, paste, cut, a deletion through a chip or across lines — is a transaction built from the segments
-// (`edit`). A list is drawn as decorations over the typed text (fieldDecorations.ts). The caret never rests inside an
-// item's depth spaces or marker: ← and → step over the whole prefix, a caret left there moves to the body start, and
-// Shift+Enter, Tab and Backspace at the body start are list edits of their own.
+// The composer field on ProseMirror (ARCHITECTURE §7 'Chip field'). The caret never rests inside a list item's depth
+// spaces or marker; edits the field decides itself are transactions built from the segments (`edit`).
 
 // Chromium keeps custom DataTransfer types in its own pasteboard entry, so they travel between Doan fields (also across
 // windows) while every other app sees only text/plain.
@@ -30,28 +23,25 @@ const TYPING_MERGE_MS = 1000;
 
 export type ChipInsert = "inserted" | "pending" | "limit" | "refused";
 export interface ChipFieldHooks {
-  // Every change: committed edits, and the live text during a composition so the host's shape follows it.
+  // Every change, the live text during a composition included, so the host's shape follows it.
   onChange(segments: FieldSegment[]): void;
   onInput(): void;
   onAnnounce(text: string): void;
-  // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
+  // null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
   skillNames?(): ReadonlySet<string>;
-  // Provider commands (and the built-ins Doan answers with a card), highlighted only as the field's first word.
+  // Highlighted only as the field's first word.
   commandNames?(): ReadonlySet<string>;
-  // Chips every message carries from outside the field (the prototype window's playing frame): the place limit counts
-  // them with the field's own.
+  // The place limit counts them with the field's own.
   reserved?(): readonly FieldSegment[];
-  // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas and may place a
-  // note by the chip's node (its attributes are not read back, so a describing id on it changes no segment).
+  // The chip's attributes are not read back, so a describing id the host puts on it changes no segment.
   onChipClick?(anchor: Anchor, chip: HTMLElement): void;
 }
 
 interface Selection { anchor: number; focus: number }
-// A Shift+Enter or Tab pressed while a composition was open.
 type Press = { kind: "break" } | { kind: "indent"; dir: 1 | -1 };
 
-// Icons of the chips: lucide Frame, SquareMousePointer and MapPin.
+// lucide Frame, SquareMousePointer and MapPin.
 const SVG = "http://www.w3.org/2000/svg";
 const ICONS: Record<"frame" | "element" | "point", [string, Record<string, string>][]> = {
   frame: [["line", { x1: "22", x2: "2", y1: "6", y2: "6" }], ["line", { x1: "22", x2: "2", y1: "18", y2: "18" }], ["line", { x1: "6", x2: "6", y1: "2", y2: "22" }], ["line", { x1: "18", x2: "18", y1: "2", y2: "22" }]],
@@ -60,7 +50,7 @@ const ICONS: Record<"frame" | "element" | "point", [string, Record<string, strin
 };
 const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point" } as const;
 
-// The field on each element, so focusFieldEnd (a host that holds only the element) goes through it.
+// The field on each element, so focusFieldEnd, whose host holds only the element, goes through it.
 const fields = new WeakMap<HTMLElement, ChipField>();
 
 export class ChipField {
@@ -68,16 +58,14 @@ export class ChipField {
   private names: ReadonlySet<string> = new Set();
   private announced: string[] = [];
   private pending: Anchor[] = [];
-  // The Shift+Enter or Tab press that ended the open composition, until the same key comes again as an ordinary key.
+  // The Shift+Enter or Tab that ended a composition, until that key comes again as an ordinary key.
   private press: Press | null = null;
   private compositionTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private pointer = false;
   private draft: string | undefined;
-  // The next document change starts its own undo step: the caret moved since the last one, or the last one was an
-  // edit of the field's own (a list edit, a chip, paste, cut, undo) that typing must not join.
+  // The caret moved since the last change, or the last one was the field's own edit, which typing must not join.
   private moved = false;
-  // A filler stands at an item's line start for the open composition (openItemLineStart).
   private composingAtItem = false;
   private closeNext = false;
   private readonly widths = new Map<string, number>();
@@ -93,7 +81,7 @@ export class ChipField {
     const segments = normalize(initial);
     this.view = new EditorView({ mount: el }, {
       state: this.createState(segments),
-      // The host owns contenteditable (ComposerField's readOnly); the observer below keeps the view in step with it.
+      // The host owns contenteditable; the observer below keeps the view in step with it.
       editable: () => el.getAttribute("contenteditable") !== "false",
       nodeViews: { chip: node => ({ dom: chipNode(node.attrs.anchor as Anchor), ignoreMutation: () => true }) },
       decorations: state => this.decorations(state.doc),
@@ -112,14 +100,13 @@ export class ChipField {
         dragstart: (_view, event) => { event.preventDefault(); return true; },
         drop: (_view, event) => { event.preventDefault(); return true; },
         pointerdown: () => { this.pointer = true; return false; },
-        // A focus from the keyboard or from code (App and Overview call focus() on the element) puts the caret back
-        // where it was; a click places its own caret.
+        // A keyboard or code focus puts the caret back where it was; a click places its own caret.
         focus: view => { if (!this.pointer) view.focus(); this.pointer = false; return false; },
         blur: () => { this.pointer = false; return false; },
       },
       handleClickOn: (view, _pos, node, nodePos) => this.onChipClick(view, node, nodePos),
       handleTripleClick: (_view, pos) => this.selectLine(pos),
-      // Only the field scrolls, as for typing: the composers cap its height and let it scroll inside its card.
+      // Only the field scrolls: the composers cap its height and let it scroll inside its card.
       handleScrollToSelection: () => { this.revealCaret(); return true; },
     });
     fields.set(el, this);
@@ -148,8 +135,8 @@ export class ChipField {
     clearTimeout(this.compositionTimer);
     this.ruler?.remove();
     fields.delete(this.el);
-    // destroy() removes the contenteditable ProseMirror wrote, which is the host's read-only state: a field created
-    // again on the same element (StrictMode runs the layout effect twice) would read a locked field as editable.
+    // destroy() removes the contenteditable ProseMirror wrote: a field created again on the same element (StrictMode)
+    // would read a locked field as editable.
     const editable = this.el.getAttribute("contenteditable");
     this.view.destroy();
     if (editable !== null) this.el.setAttribute("contenteditable", editable);
@@ -164,7 +151,7 @@ export class ChipField {
     return this.cache.segments;
   }
 
-  // After every change outside a composition, a filler only before a line-start chip, and a caret never before one.
+  // A filler only before a line-start chip, and a caret never before one.
   private readonly fillers = new Plugin({
     appendTransaction: (_trs, _old, state) => {
       if (this.view.composing || this.composingAtItem) return null;
@@ -182,10 +169,8 @@ export class ChipField {
     return EditorState.create({ doc, selection: end, plugins: [history({ newGroupDelay: TYPING_MERGE_MS }), this.fillers] });
   }
 
-  // The host's value and the draft it belongs to. Another draft ends this one's history, caret and waiting chips even
-  // when the two hold the same content, so ⌘Z never brings back the previous draft's text or chips. Within one draft,
-  // equal content is the field's own last change coming back; anything else is the host replacing the value (a send,
-  // a returned draft), which also starts a new history with the caret at the end, but never inside a composition.
+  // Another draft ends this one's history, caret and waiting chips even with equal content, so ⌘Z never brings back the
+  // previous draft. Within one draft, equal content is the field's own change coming back.
   setValue(value: readonly FieldSegment[], draft?: string): void {
     if (draft !== this.draft) {
       this.draft = draft;
@@ -201,8 +186,8 @@ export class ChipField {
     this.reset(normalize(value));
   }
 
-  // A blur makes Chromium finish the composition in the old DOM and tells the input method to drop it, so no late commit
-  // lands in the next draft: its DOM records name nodes the reset below replaces, and ProseMirror drops them.
+  // A blur makes Chromium finish the composition in the old DOM and drop it from the input method, so no late commit
+  // lands in the next draft.
   private endComposition(): void {
     if (document.activeElement !== this.el) return;
     this.el.blur();
@@ -221,12 +206,11 @@ export class ChipField {
     this.announceSkills(false);
   }
 
-  // "pending" waits for the composition to end; "limit" would point at more than LIMITS.anchors places; "refused": this
-  // field takes no chips.
+  // "limit": more than LIMITS.anchors places; "refused": this field takes no chips.
   insertChip(anchor: Anchor): ChipInsert {
     if (this.hooks.scope() === null) return "refused";
-    // Counted on the result of replacing the selection, so a chip may replace chips in a full field. A waiting chip is
-    // counted again where it lands once the composition ends (flushPending calls back here).
+    // Counted on the result of replacing the selection, so a chip may replace chips in a full field; a waiting chip is
+    // counted again where it lands (flushPending calls back here).
     const [start, end] = ordered(this.readSelection());
     const waiting = this.pending.map(a => ({ kind: "chip" as const, anchor: a }));
     const { segments: after } = spliceUnits(this.segments, start, end, [...waiting, { kind: "chip", anchor }]);
@@ -237,14 +221,14 @@ export class ChipField {
     return "inserted";
   }
 
-  // Both lists in one set, to notice a change of either; a command is marked apart, since a skill of its name differs.
+  // A command is marked apart, since a skill of its name differs.
   private highlightNames(): Set<string> {
     return new Set([...this.hooks.skillNames?.() ?? [], ...[...this.hooks.commandNames?.() ?? []].map(name => `\0${name}`)]);
   }
 
   private reservedChips(): readonly FieldSegment[] { return this.hooks.reserved?.() ?? []; }
 
-  // Text put in at the selection as one undo step of its own, the caret after it (a docked suggestion taken with →).
+  // One undo step of its own, the caret after it.
   insertText(text: string): void {
     if (this.composing() || this.readOnly()) return;
     const [start, end] = ordered(this.readSelection());
@@ -264,9 +248,8 @@ export class ChipField {
     if (announce && messages.length) this.hooks.onAnnounce(messages.join(". "));
   }
 
-  // Tab (1) or Shift+Tab (-1) on a list item, as one undo step; false when the caret is not on an item that can move,
-  // so the key moves focus as usual. A Tab that ends a composition only keeps focus in the field: the move comes with
-  // the same key sent again once the composition has ended (see onCompositionEnd).
+  // false when the caret is not on an item that can move, so the key moves focus. A Tab that ends a composition only
+  // keeps focus: the move comes with the same key sent again (onCompositionEnd).
   indent(dir: 1 | -1): boolean {
     if (this.readOnly()) return false;
     if (this.composing()) { this.press = { kind: "indent", dir }; return true; }
@@ -288,20 +271,15 @@ export class ChipField {
     return anchor === 0 && focus === 0;
   }
 
-  // A caret put at the end by code scrolls into view like the field's own edits do. In a focused field placeCaret
-  // scrolls (a draft switched back); an unfocused one (a preset picked from the card's list) shows, as it takes focus,
-  // the caret it had before, and only then gets the new one, so the reveal comes last.
+  // An unfocused field shows its old caret as it takes focus and only then gets the new one, so the reveal comes last.
   focus(caretAtEnd: boolean): void {
     if (caretAtEnd) { const end = unitLength(this.segments); this.placeCaret({ anchor: end, focus: end }); }
     this.pointer = false;
-    // The element takes focus itself: ProseMirror's focus() does nothing while the field is read-only (a composer
-    // sending its message), and the host focuses it right after the send.
+    // ProseMirror's focus() does nothing while the field is read-only, and the host focuses it right after a send.
     if (document.activeElement !== this.el) this.el.focus();
     this.view.focus();
     if (caretAtEnd) this.revealCaret();
   }
-
-  // ── transactions ─────────────────────────────────────────────────────────────────────────────────────────────
 
   private dispatch(tr: Transaction): void {
     const before = this.view.state;
@@ -309,8 +287,8 @@ export class ChipField {
     if (tr.getMeta(FILLER_ONLY)) { this.view.updateState(before.apply(tr)); return; }
     const ours = tr.getMeta(OWN) as string | undefined;
     if (tr.docChanged) {
-      // Typing within a second merges into one step, as in a textarea; ProseMirror's history groups by time, and the
-      // field ends a group where the caret moved or after an edit of its own.
+      // Typing within a second merges into one step, as in a textarea; the field ends a group where the caret moved or
+      // after an edit of its own.
       if (ours !== "undo" && (this.moved || this.closeNext || ours === "own")) closeHistory(tr);
       this.moved = false;
       this.closeNext = ours === "own" || ours === "undo";
@@ -327,8 +305,7 @@ export class ChipField {
     this.hooks.onChange(this.segments);
   }
 
-  // A click or ↑/↓ can leave the caret inside an item's depth spaces or marker, where the next typed character would
-  // join the marker: it moves to the body start.
+  // A caret inside an item's depth spaces or marker would join the next typed character to the marker.
   private leavePrefix(tr: Transaction): void {
     if (!tr.selection.empty || this.composing()) return;
     const unit = unitFromPos(tr.doc, tr.selection.head);
@@ -336,8 +313,7 @@ export class ChipField {
     if (item) tr.setSelection(TextSelection.create(tr.doc, posFromUnit(tr.doc, item.start + item.body)));
   }
 
-  // The segments with `edit` applied as one transaction, the caret at `edit.caret`. "own" is an undo step of its own;
-  // "typing" joins the typing around it, as a browser edit would.
+  // "own" is an undo step of its own; "typing" joins the typing around it, as a browser edit would.
   private edit(edit: FieldEdit, kind: "own" | "typing"): void {
     const state = this.view.state, next = docFromSegments(edit.segments);
     const tr = state.tr;
@@ -356,7 +332,7 @@ export class ChipField {
     this.view.dispatch(tr);
   }
 
-  // Units [start, end) replaced in place, so the change stays where typing was and its undo step can join it.
+  // In place, so the change stays where typing was and its undo step can join it.
   private replace(start: number, end: number, inserted: readonly FieldSegment[], kind: "own" | "typing"): void {
     const doc = this.view.state.doc;
     const tr = this.view.state.tr.replace(posFromUnit(doc, start), posFromUnit(doc, end), sliceFromSegments(inserted));
@@ -370,32 +346,26 @@ export class ChipField {
     (back ? undo : redo)(this.view.state, tr => this.view.dispatch(tr.setMeta(OWN, "undo")));
   }
 
-  // ── events ───────────────────────────────────────────────────────────────────────────────────────────────────
-
   private readOnly(): boolean { return !this.el.isContentEditable; }
 
-  // Before ProseMirror's own keydown. Keys acting on the text wait for onKey, which runs once ProseMirror has read the
-  // DOM (a composition the key ended is in the document by then).
+  // Keys acting on the text wait for onKey, which runs once ProseMirror has read the DOM.
   private onKeyDownFirst(event: KeyboardEvent): boolean {
     const composing = event.isComposing || event.keyCode === 229 || this.composing();
     if (composing) {
       if (event.key === "Enter" && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) this.press = { kind: "break" };
       return false;
     }
-    // The remembered press's key came again: whoever takes it (the field, or the host's `/` list or suggestion, which
-    // prevent it), the press is answered and the deferred run must not act on it too.
+    // Whoever takes the key, the press is answered and the deferred run must not act on it too.
     if (this.press && event.key === (this.press.kind === "break" ? "Enter" : "Tab")) this.press = null;
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z" && this.readOnly()) { event.preventDefault(); return true; }
-    // Enter and Shift+Enter go past ProseMirror, which would prevent them, to the host's onKey (send, or the \`/\` list's
-    // pick on either), and Esc too. A key the host leaves alone arrives as an insertParagraph or insertLineBreak and
-    // breaks the line (onBeforeInput). Only then: a Shift+Enter that ended a composition finds the syllable read.
+    // Past ProseMirror, which would prevent them, to the host's onKey; a key the host leaves alone breaks the line in
+    // onBeforeInput. readDom first, so a Shift+Enter that ended a composition finds the syllable read.
     if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey) { this.readDom(); return true; }
     return event.key === "Escape";
   }
 
-  // ProseMirror reads DOM changes from a MutationObserver; a composition that ended in this same task (macOS sends the
-  // ending key right after compositionend) is read only in a later microtask. Its own keydown reads it first, but the
-  // keys above skip that handler. The observer is not public API; the field pins prosemirror-view's exact version.
+  // macOS sends the ending key right after compositionend, before ProseMirror's MutationObserver read. The observer is
+  // not public API; the field pins prosemirror-view's exact version.
   private readDom(): void {
     (this.view as unknown as { domObserver: { forceFlush(always: boolean): void } }).domObserver.forceFlush(true);
   }
@@ -411,8 +381,7 @@ export class ChipField {
     return false;
   }
 
-  // ← from a line-start chip's place reaches the line above in one step; Chromium's own step would stop before the
-  // filler, which is the same place.
+  // Chromium's own step would stop before the filler, which is the same place.
   private lineStartChip(backward: boolean, extend: boolean): boolean {
     const { anchor, focus } = this.readSelection();
     if (!backward || (anchor !== focus && !extend) || focus === 0 || !chipAt(this.segments, focus) || !isLineStart(this.segments, focus)) return false;
@@ -420,8 +389,7 @@ export class ChipField {
     return true;
   }
 
-  // ← and → never stop inside a list item's depth spaces or marker: from anywhere in that prefix, or from the body
-  // start, one press reaches the line start or the body start. Chromium would step through the unpainted characters.
+  // Chromium would step through the unpainted prefix characters.
   private prefixArrow(backward: boolean, extend: boolean): boolean {
     const { anchor, focus } = this.readSelection();
     if (anchor !== focus && !extend) return false;
@@ -434,8 +402,7 @@ export class ChipField {
     return true;
   }
 
-  // ⌥→ at a line's end stops at the next line's first stop (an item's body start, or the line start), as on a line of
-  // the text before it; Chromium would run on to the end of the next line's first word.
+  // Chromium would run on to the end of the next line's first word.
   private nextLineStop(): boolean {
     const { anchor, focus } = this.readSelection();
     if (anchor !== focus) return false;
@@ -447,9 +414,8 @@ export class ChipField {
     return true;
   }
 
-  // Backspace, Delete and their ⌥, ⌘ and ⌃ forms where the browser cannot do them in place (ProseMirror would prevent
-  // them or delete a chip on its own): a selection across lines or through a chip, a line break, a chip, and a list
-  // item's body start. Elsewhere the browser deletes, so a surrogate pair or a grapheme is never split.
+  // Only where the browser cannot delete in place (ProseMirror would prevent it or delete a chip on its own); elsewhere
+  // the browser deletes, so a surrogate pair or a grapheme is never split.
   private deleteKey(backward: boolean, reach: "char" | "word" | "line"): boolean {
     if (this.readOnly()) return false;
     const [start, end] = ordered(this.readSelection());
@@ -483,7 +449,7 @@ export class ChipField {
 
   private onBeforeInput(event: InputEvent): boolean {
     const type = event.inputType;
-    // Edit > Undo and Redo from the menu arrive here rather than as keys (main sends them while the field is focused).
+    // Menu Undo and Redo arrive here rather than as keys (main sends them while the field is focused).
     if (type === "historyUndo" || type === "historyRedo") { event.preventDefault(); this.undoRedo(type === "historyUndo"); return true; }
     const composing = this.composing();
     // No model edit during a composition (macOS sends none here; an input method that did would get it after the end).
@@ -494,8 +460,7 @@ export class ChipField {
     // Paste and cut go through their clipboard events; a drag would move text past the segments.
     if (type.startsWith("insertFrom") || type === "deleteByDrag" || type === "deleteByCut") { event.preventDefault(); return true; }
     const [start, end] = ordered(this.readSelection());
-    // Text over a selection that crosses lines or holds a chip, and a spelling replacement anywhere: the browser would
-    // rebuild the lines' blocks itself.
+    // The browser would rebuild the lines' blocks itself.
     if (type === "insertText" || type === "insertReplacementText") {
       const range = type === "insertReplacementText" ? this.targetRange(event) ?? [start, end] : [start, end] as const;
       const text = event.data ?? event.dataTransfer?.getData("text/plain") ?? "";
@@ -505,8 +470,7 @@ export class ChipField {
       return true;
     }
     if (!type.startsWith("delete")) return false;
-    // Backspace and ⌃H at a body start are taken at their keydown (deleteKey); a deletion that comes with no key
-    // (dictation, assistive technology) arrives only here.
+    // A deletion with no key (dictation, assistive technology) arrives only here.
     if (type === "deleteContentBackward" && start === end) {
       const edit = removeMarker(this.segments, start);
       if (edit) { event.preventDefault(); this.edit(edit, "own"); return true; }
@@ -525,10 +489,8 @@ export class ChipField {
     return ordered({ anchor: unitFromPos(doc, this.view.posAtDOM(target.startContainer, target.startOffset)), focus: unitFromPos(doc, this.view.posAtDOM(target.endContainer, target.endOffset)) });
   }
 
-  // The range a deletion takes when the field decides it, or null to leave it to the browser. A chip in the browser's
-  // range is deleted whole and a word deletion stops at one.
+  // null leaves it to the browser. A chip in the browser's range is deleted whole and a word deletion stops at one.
   private deletion(type: string, event: InputEvent, start: number, end: number): [number, number] | null {
-    // ⌘⌫, ⌘⌦, ⌃K (and the paragraph forms): the field measures the line itself, chips and text alike.
     const line = /^delete(Soft|Hard)Line(Backward|Forward)$/.exec(type);
     if (line) return start !== end ? [start, end] : this.lineRange(start, line[1] === "Soft", line[2] === "Backward");
     const native = this.targetRange(event);
@@ -539,8 +501,7 @@ export class ChipField {
     return this.hasChip(from, to) || crosses || from !== native[0] || to !== native[1] ? [from, to] : null;
   }
 
-  // From the caret to the start (or end) of its line. A soft line is the line as drawn, so a wrapped paragraph loses
-  // only the part on the caret's row. At the very start (or end) of a line it takes the line break, as macOS does.
+  // A soft line is the line as drawn. At the very start (or end) of a line it takes the line break, as macOS does.
   private lineRange(caret: number, soft: boolean, backward: boolean): [number, number] {
     const [from, to] = hardLine(this.segments, caret, caret);
     if (backward) {
@@ -551,7 +512,6 @@ export class ChipField {
     return [caret, soft ? this.rowEdge(caret, to, 1) : to];
   }
 
-  // Walks from the unit next to the caret toward `limit` while units stay on the caret's drawn row.
   private rowEdge(caret: number, limit: number, step: -1 | 1): number {
     const first = step < 0 ? caret - 1 : caret;
     const row = this.unitRect(first);
@@ -564,7 +524,6 @@ export class ChipField {
     return edge;
   }
 
-  // The drawn box of the unit at `unit`: a character's or a chip's.
   private unitRect(unit: number): { top: number; bottom: number; height: number } {
     const doc = this.view.state.doc, pos = posFromUnit(doc, unit);
     const node = doc.nodeAt(pos);
@@ -576,8 +535,7 @@ export class ChipField {
     return { top: rect.top, bottom: rect.bottom, height: rect.bottom - rect.top };
   }
 
-  // Chromium's word range runs through a chip glued to a word ("[chip]world" ⌥⌫ takes both). A chip is a word of its
-  // own: ⌥⌫/⌥⌦ next to a chip deletes only the chip, and a word deletion never reaches past one.
+  // Chromium's word range runs through a chip glued to a word ("[chip]world" ⌥⌫ takes both).
   private stopAtChips(type: string, [start, end]: [number, number], caret: number): [number, number] {
     const backward = type === "deleteWordBackward";
     if (backward ? chipAt(this.segments, caret - 1) : chipAt(this.segments, caret)) return backward ? [caret - 1, caret] : [caret, caret + 1];
@@ -587,13 +545,8 @@ export class ChipField {
     return [start, end];
   }
 
-  // Korean input ends one syllable's composition and starts the next in the same key event, so a waiting chip goes in
-  // only after the event has run and only if no new composition started meanwhile. ProseMirror reads the composed text
-  // into the document before this timer.
-  // An item's line start has no text of its own before the marker, so a composition there would go into the marker's
-  // span: unpainted for a bullet, spaced for a number. While it lasts the line gets a filler, so the composed text
-  // stands in plain text before the marker (the filler's mark is not inclusive); onCompositionEnd removes it, and no
-  // filler stays on an item line, where the accessible value must be the typed text.
+  // Korean input ends one composition and starts the next in the same key event, so a waiting chip goes in after it. A
+  // filler keeps text composed at an item's line start out of the marker's span; onCompositionEnd removes it.
   private openItemLineStart(): void {
     if (this.view.composing || this.readOnly()) return;
     const { anchor, focus } = this.readSelection();
@@ -610,19 +563,15 @@ export class ChipField {
     clearTimeout(this.compositionTimer);
     this.compositionTimer = setTimeout(() => {
       if (this.disposed) return;
-      // The fillers wait while a composition is open; a composition at a line-start chip's or item's place leaves one
-      // to remove.
+      // A composition at a line-start chip's or item's place leaves a filler to remove.
       this.composingAtItem = false;
       if (!this.composing()) this.view.dispatch(this.view.state.tr);
       this.flushPending(); this.flushPress();
     }, 0);
   }
 
-  // A Shift+Enter or Tab that ends a Korean composition on macOS (Electron 45): keydown (keyCode 229, composing), the
-  // syllable's commit and compositionend, an immediate keyup, then the same key again as an ordinary keydown in the same
-  // task, before the timer above. That second key clears `press` and does what the key does, after ProseMirror read the
-  // syllable. An input method that does not send the key again leaves `press` for the timer, which does it once: a Tab
-  // that cannot move the item then moves focus, as the Tab would have, unless focus already left the field.
+  // macOS (Electron 45) sends a Shift+Enter or Tab that ends a Korean composition again as an ordinary keydown, which
+  // clears `press`; an input method that does not leaves it for this timer to do once.
   private flushPress(): void {
     const press = this.press;
     this.press = null;
@@ -638,8 +587,7 @@ export class ChipField {
     for (const anchor of waiting) this.insertChip(anchor);
   }
 
-  // A chip is one unit the caret cannot enter, so a click on it puts the caret right after it, focus included, and tells
-  // the host which chip it was. The document never changes here.
+  // The caret cannot enter a chip, so a click puts it right after it. The document never changes here.
   private onChipClick(view: EditorView, node: PMNode, nodePos: number): boolean {
     if (node.type !== fieldSchema.nodes.chip || this.composing()) return false;
     const chip = view.nodeDOM(nodePos) as HTMLElement;
@@ -649,8 +597,7 @@ export class ChipField {
     return true;
   }
 
-  // Three clicks select the line with its line break, as on the text before the field drew lines as blocks: typing
-  // then replaces the whole line.
+  // With its line break, so typing replaces the whole line.
   private selectLine(pos: number): boolean {
     const doc = this.view.state.doc, unit = unitFromPos(doc, pos);
     const [from, to] = hardLine(this.segments, unit, unit);
@@ -672,8 +619,8 @@ export class ChipField {
     return true;
   }
 
-  // Called by ComposerField after the host's paste handler left the event alone (files are the host's). Text comes in
-  // plain; a chip clipboard keeps its chips only in a field of the same canvas and within LIMITS.anchors.
+  // After the host's paste handler left the event alone. A chip clipboard keeps its chips only in a field of the same
+  // canvas and within LIMITS.anchors.
   paste(event: ClipboardEvent): void {
     event.preventDefault();
     if (this.composing() || this.readOnly() || !event.clipboardData) return;
@@ -687,15 +634,12 @@ export class ChipField {
     this.replace(start, end, inserted, "own");
   }
 
-  // Shift+Enter: the next list item, or a plain line break.
   private lineBreak(): void {
     if (this.readOnly()) return;
     const [start, end] = ordered(this.readSelection());
     const edit = start === end ? continueList(this.segments, start) : null;
     if (edit) this.edit(edit, "own"); else this.replace(start, end, [{ kind: "text", text: "\n" }], "typing");
   }
-
-  // ── drawing ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   private decorations(doc: PMNode): DecorationSet {
     const drawn = this.drawn;
@@ -707,7 +651,7 @@ export class ChipField {
     return set;
   }
 
-  // A string's width in the field's font, with plain figures as markers draw them, measured once in a hidden span.
+  // Plain figures, as markers draw them.
   private readonly measure: Measure = text => {
     const known = this.widths.get(text);
     if (known !== undefined) return known;
@@ -732,8 +676,8 @@ export class ChipField {
   // The placeholder is drawn from aria-placeholder while the field has no units (styles.css).
   private markEmpty(): void { this.el.toggleAttribute("data-empty", unitLength(this.segments) === 0); }
 
-  // Chromium scrolls the field to the caret only after its own edits; a caret placed by code (Shift+Enter, paste, a
-  // chip, undo, focus at the end) stays where the field was scrolled. Only the field scrolls.
+  // Chromium scrolls the field to the caret only after its own edits; a caret placed by code stays where the field was
+  // scrolled.
   private revealCaret(): void {
     if (document.activeElement !== this.el) return;
     const rect = this.view.coordsAtPos(this.view.state.selection.head);
@@ -747,8 +691,7 @@ export class ChipField {
     return { anchor: unitFromPos(doc, selection.anchor), focus: unitFromPos(doc, selection.head) };
   }
 
-  // An unfocused field only remembers the caret: ProseMirror writes the DOM selection only while the field has focus,
-  // so focus stays wherever the person put it (POSTMORTEM 2026-10-23 R-L).
+  // ProseMirror writes the DOM selection only while the field has focus, so focus stays wherever the person put it.
   private placeCaret(selection: Selection): void {
     const doc = this.view.state.doc;
     this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(doc, posFromUnit(doc, selection.anchor), posFromUnit(doc, selection.focus))).scrollIntoView());
@@ -759,7 +702,7 @@ export class ChipField {
 const OWN = "doanFieldEdit";
 const FILLER_ONLY = "doanFieldFiller";
 
-// The next (or previous) Tab stop in document order from a composer field, for the Ctrl+Tab that Chromium leaves alone.
+// For the Ctrl+Tab that Chromium leaves alone.
 const TABBABLE = 'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex], [contenteditable="true"]';
 export function moveFocus(from: HTMLElement, backward: boolean): void {
   const document = from.ownerDocument;
@@ -767,15 +710,14 @@ export function moveFocus(from: HTMLElement, backward: boolean): void {
     .filter(node => node === from || (node.tabIndex >= 0 && !node.closest("[inert]") && node.checkVisibility({ visibilityProperty: true })));
   const at = stops.indexOf(from);
   if (at < 0) return;
-  // A candidate that cannot take focus (a disabled button with a tabindex) is passed over, as native Tab passes it.
+  // A disabled button with a tabindex is passed over, as native Tab passes it.
   for (let step = 1; step < stops.length; step++) {
     stops[(at + (backward ? -step : step) + stops.length * step) % stops.length]!.focus();
     if (document.activeElement !== from) return;
   }
 }
 
-// Puts the caret at the end of a composer field found in the DOM (Overview and the canvas panel focus their field by
-// selector), scrolled into view.
+// Overview and the canvas panel focus their field by selector.
 export function focusFieldEnd(node: HTMLElement | null): void {
   if (!node) return;
   const field = fields.get(node);
@@ -783,8 +725,8 @@ export function focusFieldEnd(node: HTMLElement | null): void {
   node.focus();
 }
 
-// The chip's DOM: a screen reader reads its kind prefix in the sentence's flow ("Frame Payment"); the prefix is never
-// selected (styles.css), so Look Up and the selected text name only the chip's label.
+// A screen reader reads the kind prefix in the sentence's flow; the prefix is never selected (styles.css), so Look
+// Up and the selected text name only the label.
 function chipNode(anchor: Anchor): HTMLElement {
   const { kind, label, title } = chipLabel(anchor);
   const node = document.createElement("span");

@@ -3,8 +3,8 @@ import { inspectRows, type InspectInput, type InspectRow } from "../main/inspect
 import fixture from "../main/inspect.fixture.json";
 import { acceptInspect, inspectRequestFor, NO_STYLES, rowCopyText, rowDisplay, rowKey, rowTooltip, SPLIT_ROWS, type InspectFlight, type InspectPanel, type InspectReply, type InspectTarget, type RowView } from "./inspectorRows";
 
-// Hand-made resolver rows: on Padding, Margin and Radius the resolver lists each side in `sides` and sets `token` only
-// when every side shares that one token.
+// Hand-made rows: on Padding, Margin and Radius the resolver lists `sides`
+// and sets `token` only when all share it.
 const row = (over: Partial<InspectRow> & Pick<InspectRow, "group" | "label" | "value">): InspectRow => ({ state: "hardcoded", ...over });
 const sides = (values: string[], tokens: (string | undefined)[] = []) => ["top", "right", "bottom", "left"].map((side, i) => ({ side, value: values[i] ?? "0", ...(tokens[i] ? { token: tokens[i] } : {}) }));
 const corners = (values: string[]) => ["top-left", "top-right", "bottom-right", "bottom-left"].map((side, i) => ({ side, value: values[i] ?? "0" }));
@@ -24,8 +24,7 @@ test("each row has a stable group:property key", () => {
 });
 
 test("the split rows are the rows main's resolver splits by side or corner", () => {
-  // Real resolver output: a label renamed, or `sides` added to another row in main, fails here rather than dropping
-  // the side wording in the panel.
+  // Real resolver output: a renamed label or `sides` on another row in main fails here instead of dropping wording.
   for (const [name, input] of Object.entries(fixture as unknown as Record<string, InspectInput>)) {
     const split = inspectRows(input).filter(r => r.sides !== undefined).map(rowKey);
     expect(new Set(split), name).toEqual(SPLIT_ROWS);
@@ -51,7 +50,6 @@ test("a row without a token shows and copies its value, with no caption and no t
   expect(view.copy).toBe("15px");
   expect(rowCopyText(size)).toBe("15px");
   expect(view.spoken).toBe("Size, 15px");
-  // An unknown source is a value too; no source caption.
   expect(only([row({ group: "typography", label: "Size", value: "15px", state: "unknown" })]).text).toBe("15px");
 });
 
@@ -112,7 +110,6 @@ test("a split value set on one side only is named by that side", () => {
   expect(only([row({ group: "radius", label: "Radius", value: "8px 0 0", sides: corners(["8px", "0", "0", "0"]) })]).text).toBe("Top left 8px");
   // Other shorthands stay as the resolver wrote them.
   expect(only([row({ group: "box", label: "Padding", value: "20px 24px", sides: sides(["20px", "24px", "20px", "24px"]) })]).text).toBe("20px 24px");
-  // All sides equal: one value, no per-side line.
   const even = only([row({ group: "box", label: "Padding", value: "24px", sides: sides(["24px", "24px", "24px", "24px"]) })]);
   expect(even.text).toBe("24px");
   expect(even.tip).toEqual([]);
@@ -163,7 +160,6 @@ test("an inherited row without a token still says where it comes from", () => {
 });
 
 test("groups and rows follow the panel's order, and empty groups are left out", () => {
-  // The resolver's order, shuffled further.
   const rows: InspectRow[] = [
     row({ group: "layout", label: "Align", value: "center" }),
     row({ group: "shadow", label: "Shadow", value: "0 1px 2px #0000001a" }),
@@ -198,7 +194,6 @@ test("groups and rows follow the panel's order, and empty groups are left out", 
   expect(some.groups.map(group => group.group)).toEqual(["radius"]);
 });
 
-// Requests.
 const canvas = { root: "/repo/a", path: ".doan/canvases/pay.html" };
 const card: InspectTarget = { canvas, selector: "[data-doan-id=\"card\"]" };
 const button: InspectTarget = { canvas, selector: "[data-doan-id=\"pay\"]" };
@@ -253,7 +248,7 @@ test("the same selection asked again (reload, Retry) is a same-selection read; a
   expect(inspectRequestFor({ visible: true, accepted: other, flight: asked, again: false }).send).toEqual({ seq: 4, target: other, same: false });
 });
 
-// Replies. Main's reply echoes the request it answers (`{selector, canvas, seq}`) beside `ok` and `rows` or `reason`.
+// Main's reply echoes the request it answers (`{selector, canvas, seq}`) beside `ok` and `rows` or `reason`.
 const padding = row({ group: "box", label: "Padding", value: "8px" });
 const gap = row({ group: "box", label: "Gap", value: "12px" });
 const reading: InspectPanel = { kind: "reading", rows: null };
@@ -299,7 +294,6 @@ test("a second not-shown in a row for the same selection and canvas is a failure
   expect(again.send).toEqual({ seq: 6, target: card, same: true, notShown: true });
   const second = acceptInspect(reading, again.flight, failure("not-shown", { seq: 6 }));
   expect(second).toEqual({ panel: { kind: "failed" }, again: false, flight: { seq: 6, target: card, same: true } });
-  // Retry starts a fresh count.
   const retry = inspectRequestFor({ visible: true, accepted: card, flight: second!.flight, again: true });
   expect(retry.send).toEqual({ seq: 7, target: card, same: true });
   expect(acceptInspect({ kind: "failed" }, retry.flight, failure("not-shown", { seq: 7 }))?.again).toBe(true);

@@ -53,8 +53,8 @@ async function claudeAllow(path: string): Promise<string> {
   try { allow = JSON.parse(bytes)?.permissions?.allow; } catch { return "unparsable"; }
   return hash(JSON.stringify(Array.isArray(allow) ? allow.filter(rule => typeof rule === "string" && rule.startsWith("Bash(doan ")).sort() : null));
 }
-// Names only: another copy of the app (a PoC build, an unisolated dev run) shows up as a new `doan*` folder, and
-// hashing their contents could outlast the snapshot bound.
+// Names only: another copy of the app (an unisolated dev run, say) shows up as a new `doan*` folder, and
+// hashing the folders' contents could outlast the snapshot bound.
 async function siblings(support: string): Promise<string> {
   try { return hash(JSON.stringify((await readdir(support)).filter(name => /^doan/i.test(name)).sort())); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent"; throw error; }

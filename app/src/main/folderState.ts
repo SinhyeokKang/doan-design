@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs";
 import { validateEnvelope } from "../formats/validate";
+import { setupRefusal } from "./onboarding/operations";
 import { homeOrAbove, storageFacts, type StorageFacts } from "./storage";
 import type { GitInfo } from "./view";
 
@@ -23,13 +24,11 @@ export type FolderState =
   // `notGit`: ls's repo_not_found carried storageReason "not_git", so no Git repository holds the folder and Keep out of
   // Git there needs a new one (`--git-init`).
   | { kind: "uninitialized"; notGit?: true }
-  // A Config error: the CLI named the config file it failed on (`error.config`, an absolute path that may be a parent
-  // folder's). Only this is a Config error; the code alone does not decide it. `newer`: the file is in a format newer
-  // than this Doan reads (`unsupported_version`), so it is not at fault.
+  // Only a named config file (`error.config`, absolute, maybe a parent folder's) makes a Config error; the code alone
+  // does not. `newer`: the file's format is newer than this Doan reads (`unsupported_version`), so it is not at fault.
   | { kind: "error"; message: string; config: string; newer?: true }
-  // `code`: the CLI answered with a failure envelope and a non-zero exit, for a reason other than a config file (an
-  // unreadable canvas folder, say). Absent when the command did not answer that way. With `--repo` (never searching
-  // upward) it means Go read the folder as a repository root. Main reads it to decide; screens never show it.
+  // `code`: a failure envelope with a non-zero exit for a reason other than a config file. With `--repo` it means Go read
+  // the folder as a repository root. Main reads it to decide; screens never show it.
   | { kind: "cliError"; reason: string; code?: string };
 
 type Envelope =
@@ -42,9 +41,8 @@ interface ListResult {
   canvases: unknown[];
 }
 
-// Details shows this reason (PRODUCT §5 item 3 'Problem states'), so it is never empty: the command's own message
-// when it gave one (`message`: an error envelope's), else a short account of how the run ended. A killed or
-// crashed process usually leaves no stderr.
+// Details shows this reason (PRODUCT §5 item 3 'Problem states'), so it is never empty: the command's own message, else
+// a short account of how the run ended (a killed or crashed process usually leaves no stderr).
 function cliReason(run: CliRun, message = ""): string {
   if (run.spawnError !== undefined) return run.spawnError ? `Couldn’t start the doan command: ${run.spawnError}` : "Couldn’t start the doan command.";
   if (run.timedOut) return `The doan command didn’t answer within ${CLI_TIMEOUT_MS / 1000} seconds.`;
@@ -106,19 +104,14 @@ export type InitOutcome =
   | { kind: "error"; code: string; message: string; guidance: string }
   | { kind: "cliError"; reason: string };
 
-// The Set Up dialog's sentences for a refused local setup (draft frames setup-dialog and keep-out-git-init setup-form).
-// The CLI's messages for these codes are short and do not say that nothing was set up, so the dialog says it; an
-// exclude failure may be a link, a permission or an unreadable Git directory, so its recovery covers all of them. The
-// repository codes come only from `--git-init`; a failed git init gets one sentence, with no recovery to offer.
-const STORAGE_REFUSALS: Record<string, (folder: string) => { message: string; guidance: string }> = {
-  local_not_git: () => ({ message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." }),
-  local_exclude_failed: () => ({ message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." }),
-  git_missing: () => ({ message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." }),
-  git_init_failed: () => ({ message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" }),
-  cleanup_failed: (folder) => ({ message: `Setup failed, and Doan couldn’t remove the Git repository it created at ${folder}/.git.`, guidance: "Remove it or keep it, then try again." }),
+// The CLI's messages for these codes do not say that nothing was set up, so the dialog does. An exclude failure may be
+// a link, a permission or an unreadable Git directory, so its recovery covers all of them.
+const STORAGE_REFUSALS: Record<string, { message: string; guidance: string }> = {
+  local_not_git: { message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." },
+  local_exclude_failed: { message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." },
+  git_missing: { message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." },
+  git_init_failed: { message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" },
 };
-// Doan never creates a repository there, so the app plans none and the CLI refuses Keep out of Git with local_not_git.
-const HOME_REFUSAL = { message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." };
 
 // tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
 // folder: the folder set up, which a .git left behind is named under. home: the person's home folder.
@@ -136,9 +129,10 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?:
   if (!value.ok) {
     if (run.exitCode === 0) return cliError;
     const code = value.error.code;
-    if (code === "local_not_git" && request.folder !== undefined && homeOrAbove(request.folder, request.home ?? "")) return { kind: "error", code, ...HOME_REFUSAL };
+    const own = setupRefusal(code, request.folder, request.home ?? "");
+    if (own) return { kind: "error", ...own };
     const refusal = STORAGE_REFUSALS[code];
-    if (refusal) return { kind: "error", code, ...refusal(request.folder ?? "") };
+    if (refusal) return { kind: "error", code, ...refusal };
     const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
       : code === "usage_error" && request.tokenCss ? "Check the project and choose a CSS file inside it, then try again."
         : "Check the project, then try again.";

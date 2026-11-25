@@ -2,18 +2,13 @@ import { constants } from "node:fs";
 import { lstat, open, realpath, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 
-// A project's former shared canvas read state, `<root>/.doan/seen/`: one `<canvas-id>.json` per canvas holding the HTML
-// last shown on the canvas page, and `_project.json`, which said the project had read-state records at all. The read
-// state now lives on this device only (canvasSeen.ts); this folder is read once per root, when its records become the
-// root's local record, and is never written or deleted. Only TS reads them, so these tests are their schema.
-//
-// `{"v":1,"html":"sha256:<hex>"}` is the last content shown; `{"v":1,"unseen":"migrated"}` is a canvas that was unseen
-// when an older Doan's device-local record was converted, whose content was never recorded. The marker is `{"v":1}`.
+// A project's former shared read state, read once per root into its local record and never written or deleted. Only
+// TS reads it: `{"v":1,"html":"sha256:<hex>"}`, `{"v":1,"unseen":"migrated"}`, and the `_project.json` marker `{"v":1}`.
 
 export const SEEN_DIR = ".doan/seen";
 export const MARKER = "_project.json";
 // `_` can never start a canvas ID, so the marker never collides with a record and IDs need no escaping.
-const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const CAP = 4096;
 // macOS refuses a symlink at any component of the path with this flag, not only the last one (Node has no constant).
@@ -33,7 +28,7 @@ export interface SeenSnapshot {
   records: Map<string, RecordRead>;
 }
 
-export const validCanvasId = (id: unknown): id is string => typeof id === "string" && ID.test(id);
+export const validCanvasId = (id: unknown): id is string => typeof id === "string" && CANVAS_ID.test(id);
 export const recordName = (id: string): string => `${id}.json`;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);

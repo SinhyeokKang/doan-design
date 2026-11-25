@@ -6,9 +6,8 @@ import type { PrototypeSize } from "./mark";
 import { playTarget, validateCliPlay, type CliPlay } from "./requests";
 import type { PrototypeTarget } from "./targets";
 
-// `doan open <canvas> --frame <id> --prototype` (app-socket v6) once its schema, token and registered root passed.
-// Unlike `doan open`, nothing here asks the main window: the prototype window plays apart from it, so its locked pages
-// and dialogs do not block a play; only first run and the buddy screen do.
+// `doan open --prototype` (app-socket v6) once its schema, token and root passed. Nothing here asks the main window:
+// the prototype window plays apart from it, so only first run and the buddy screen block a play.
 
 export type CliPlayDecision = { kind: "refuse"; response: PrototypeResponse } | { kind: "play"; target: PrototypeTarget; size: PrototypeSize };
 
@@ -42,9 +41,8 @@ export interface CliPlayHost {
   play(request: { target: PrototypeTarget; size: PrototypeSize }): CliPlayResult;
 }
 
-// The whole answer to a schema-valid v6 request whose token and root passed (runtime.ts). The schema counts a frame
-// ID's 200 code points; validateCliPlay also holds it to 200 UTF-16 units, so an ID the board could not select is a bad
-// request rather than a frame that never plays.
+// The whole answer to a v6 request whose token and root passed. validateCliPlay also holds a frame ID to 200 UTF-16
+// units, so an ID the board could not select is a bad request rather than a frame that never plays.
 export function answerCliPlay(value: PrototypeRequest, host: CliPlayHost): PrototypeResponse {
   const request = validateCliPlay(value);
   if (request === null) return cliPlayError("bad_request", "The request is not an app-socket v6 request.");

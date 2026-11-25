@@ -7,26 +7,22 @@ import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
   conversationId: string; canvas?: Canvas; title: string;
-  // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
-  // claudeRunMode: doan-owned Claude only, the mode Claude Code's own settings ran the last Ask first turn in, whatever
-  // mode is stored now; the trigger names it only while Ask first is (renderer permissionPicker.ts).
+  // permissionMode: absent for Default; a Claude plan approval changes it too. claudeRunMode: doan-owned Claude only, the
+  // last Ask first turn's settings mode; the trigger names it only while Ask first is (renderer permissionPicker.ts).
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; claudeRunMode?: ClaudeRunMode; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // ISO: while waiting, when the earliest request still unanswered was made. Output during the wait and an answer to
   // another request move lastActivityAt, not this, so the conversation that waited longest stays first.
   waitingSince?: string;
-  // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a turn whose
-  // handoffs wait for their judgement or start, a queue about to go out, or a send waiting for the previous process.
-  // Delete reads the same signal.
+  // main is still working on it, whatever the history says (service.ts working); Delete reads the same signal.
   working: boolean;
   // A project conversation's turn that works or that a project removal is stopping: the live generation to which that
   // removal's Stop must be addressed.
   projectTurnId?: string;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
-  // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
-  // conversation) or a promotion (an earlier build moved a project conversation to the canvas; none is made now). A
+  // What started this canvas conversation when the person did not: a handoff, or an earlier build's promotion. A
   // handoff's start is in the history alone, so an unreadable one reads as the person's.
   startedBy?: "handoff" | "promotion";
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
@@ -42,18 +38,15 @@ export interface ConversationSummary {
   // ISO: the reset time of the usage limit main holds, in memory only, for the Doan connection of this current Claude
   // Code or Codex conversation; a send now is scheduled for after it (conversation `send` answers { scheduled }).
   limitResetsAt?: string;
-  // ISO: the conversation is scheduled: its queued messages (queued counts them) wait for the usage limit's reset at this
-  // time and go out shortly after it. It is then not working and holds no root; the items themselves come from the
-  // conversation `scheduled` method.
+  // ISO: the queued messages wait for the usage limit's reset at this time and go out shortly after; the conversation is
+  // then not working. The items come from the conversation `scheduled` method.
   scheduledAt?: string;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
 const COMMAND = "Running a command";
-// live: this run holds the conversation, so an unfinished turn is still running rather than folded as crashed.
-// returned: a returned draft waits (drafts.ts). suggestion: the suggestion main holds for this conversation.
-// background and stopping: memory-only facts of the run (service.ts list).
-// limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
+// live: this run holds the conversation, so an unfinished turn is still running rather than crashed. returned: a draft in
+// drafts.ts waits. suggestion, background, stopping, limitResetsAt, scheduledAt: memory-only (service.ts list).
 export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; projectTurnId?: string; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
@@ -80,10 +73,13 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
   return { ...base, ...startedBy, phase, unseen, ...(since ? { waitingSince: since.at } : {}), lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
 }
-function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "permissions" | "questions">): boolean {
+// Only the folded turn can hold a pending request, and an earlier turn's request may share its id (a new Codex
+// app-server numbers its requests from 0 again).
+function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "turnId" | "permissions" | "questions">): boolean {
+  if (e.turnId !== open.turnId) return false;
   return (e.type === "permission.request" && open.permissions[e.requestId] === "pending") || (e.type === "question.request" && open.questions[e.requestId] === "pending");
 }
-function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
+function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "turnId" | "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
     // The newest unanswered request, whatever its kind; a question reads as its first question.
     const pending = [...events].reverse().find(e => pendingRequest(e, open));

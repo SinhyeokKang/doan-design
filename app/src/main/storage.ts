@@ -1,8 +1,7 @@
 import type { FolderEntry } from "./view";
 
-// Where a project's .doan/ is kept, as `doan ls` and `doan config` report it (ARCHITECTURE §12 'Storage'): "repo"
-// commits it, "local" keeps it out of Git through the repository's shared exclude file, "unknown" means the Git
-// metadata could not be read. The reason says why "local" cannot be chosen; absent when it can.
+// Where a project's .doan/ is kept (ARCHITECTURE §12 'Storage'); "unknown": the Git metadata could not be read. The
+// reason says why "local" cannot be chosen; absent when it can.
 export type StorageMode = "repo" | "local" | "unknown";
 export type StorageReason = "not_git" | "git_unreadable" | "exclude_unwritable";
 export interface StorageFacts { storage?: StorageMode; storageReason?: StorageReason }
@@ -23,10 +22,8 @@ export function storageFacts(result: object): StorageFacts {
   return { storage: storage as StorageMode, ...(REASONS.includes(reason) ? { storageReason: reason as StorageReason } : {}) };
 }
 
-// A folder not set up yet has no mode of its own (`doan ls` answers repo_not_found), but the mode belongs to the
-// Doan root across every worktree (PRODUCT §5 item 0 'Doan files'). A listed root of the same repository and the same
-// root path names this folder in its `git.worktrees` (the same rule as auto-registration, ARCHITECTURE §4), so its
-// mode is this folder's too. Nothing in TS reads Git for it (§13).
+// A folder not set up has no mode of its own, but the mode belongs to the Doan root across every worktree: a listed
+// root naming this folder in its `git.worktrees` gives its mode (as auto-registration, ARCHITECTURE §4). TS reads no Git.
 export function projectKeepsLocal(entries: readonly FolderEntry[], path: string): boolean {
   return entries.some(entry => entry.path !== path && entry.kind === "list" && entry.storage === "local" && !!entry.git?.worktrees.includes(path));
 }

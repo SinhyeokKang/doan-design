@@ -1,4 +1,5 @@
 import type { OnboardingInspection, OnboardingOperation, OnboardingOperationErrorCode, OnboardingProject, OnboardingRequest, OnboardingResponse, OnboardingSocketErrorCode } from "../../formats/types";
+import { homeOrAbove } from "../storage";
 
 // The operation records, request replay and fixed messages of an app-socket v2 session. The first-run session and
 // the Add Projects page's session share them, so both answer with the same DTOs.
@@ -49,11 +50,15 @@ export const OPERATION_MESSAGES: Record<OnboardingOperationErrorCode, string> = 
   completion_unsupported_version: "Setup was saved by a newer version of Doan. Open this project with that version, or update Doan.",
 };
 
-// A setup's own account in place of the code's fixed message (ProjectOutcome `message`): the .git a failed repository
-// creation left behind, which the person removes or keeps, and why no repository is made in the home folder. The
-// setup screens show these words as they are (draft keep-out-git-init, frame setup-panel).
-export const repositoryLeftoverMessage = (root: string) => `Setup failed, and Doan couldn’t remove the Git repository it created at ${root}/.git. Remove it or keep it, then try again.`;
-export const HOME_REFUSAL = "Doan doesn’t create a Git repository in your home folder. Choose Include in Git, or choose a folder inside it.";
+// A refused setup's own account in place of the code's fixed message: the .git a failed repository creation left behind,
+// and why none is made at or above home. The Set Up dialog shows the two parts apart, the setup screens joined.
+export function setupRefusal(code: string, folder: string | undefined, home: string): { code: "cleanup_failed" | "local_not_git"; message: string; guidance: string } | undefined {
+  if (code === "cleanup_failed") return { code, message: `Setup failed, and Doan couldn’t remove the Git repository it created at ${folder ?? ""}/.git.`, guidance: "Remove it or keep it, then try again." };
+  if (code === "local_not_git" && folder !== undefined && homeOrAbove(folder, home)) {
+    return { code, message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." };
+  }
+  return undefined;
+}
 
 export const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 // status lists every kept operation inside the CLI's 64 KiB reply limit; older finished ones still answer their
@@ -69,7 +74,7 @@ function argumentsKey(request: OnboardingRequest): string {
 export type WriteRequest = Exclude<OnboardingRequest, { op: "start" | "status" }>;
 export interface Tracked {
   operation: OnboardingOperation; attemptId: string | null; cancelling: boolean; prompted: boolean;
-  // Folder work: a clone's cancel, the moment it no longer takes one, and the end of its work for quit.
+  // Folder work: a clone's cancel, the moment it stops taking one, and the end of its work for quit.
   abort?: AbortController; committed?: boolean; done?: Promise<void>;
 }
 // detail: the failure's own account for the window only (the CLI's message for project_unreadable); see forWindow.

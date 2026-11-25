@@ -119,7 +119,7 @@ describe("update", () => {
     expect(workItems(state)).toMatchObject([{ path, frame: "hero", touched: 25 }, { path: ".doan/canvases/other.html", touched: 30 }]);
     expect(workItems(state)[1]).not.toHaveProperty("frame");
   });
-  // POSTMORTEM 2026-11-01: content is kept per (session, root, path), never per path alone.
+  // Content is kept per (session, root, path), never per path alone.
   test("two roots sharing a path keep their own content, for one identified session and for anonymous ones", () => {
     let state = applyWork(empty(), update({ ...identity, frame: "a" }), 1);
     state = applyWork(state, update({ ...identity, root: "/other", frame: "b", note: "other" }), 2);

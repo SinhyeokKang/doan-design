@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { agentCommand, isolateUserInstructions, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
+import { agentCommand, agentEnvironment, isolateUserInstructions, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
 import { buildJudgePrompt } from "./judge.ts";
 import { createContext } from "./context.ts";
 
@@ -21,10 +21,8 @@ test("Codex skips its Git repository check only in a scenario folder outside Git
   assert.deepEqual(agentCommand("claude", "P", [], false), agentCommand("claude", "P"));
 });
 
-// Claude has --strict-mcp-config; Codex has no equivalent and merges `-c mcp_servers={}` into the
-// machine's servers, so a doan server left registered there is switched off by name. Codex 0.166
-// refuses to start when that override names a server the config does not define (the override
-// alone makes a table without a transport), so it is added only for a registered server.
+// Codex merges `-c mcp_servers={}` into the machine's servers, so a registered doan server is switched off by name.
+// Codex 0.166 refuses to start on an override for an undefined server, so only a registered one gets it.
 test("neither agent loads a doan MCP server from the machine's config", () => {
   assert.ok(agentCommand("claude", "P").args.includes("--strict-mcp-config"));
   assert.ok(agentCommand("codex", "P", ["doan"]).args.includes("mcp_servers.doan.enabled=false"));
@@ -53,8 +51,7 @@ test("registered Codex MCP servers are read from `codex mcp list --json` in the 
   }
 });
 
-// A login shell re-reads the user's profile, which puts the installed ~/.local/bin ahead of the
-// run's bin directory (the snapshot pin alone no longer keeps the run's PATH with Codex 0.166).
+// A login shell re-reads the user's profile, which puts ~/.local/bin ahead of the run's bin directory.
 test("Codex runs commands in a non-login shell so the run's PATH survives", () => {
   assert.ok(agentCommand("codex", "P").args.includes("allow_login_shell=false"));
 });
@@ -67,11 +64,18 @@ test("a run past its time limit is killed with its children and settles once", a
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
     const started = Date.now();
-    // The background sleep holds the output file open; only a group kill ends it.
-    const result = await runProcess({ cmd: "sh", args: ["-c", "echo hi; sleep 30 & sleep 30"], cwd: dir, env: process.env, timeoutSec: 1, stdoutPath: join(dir, "o"), stderrPath: join(dir, "e") });
+    // The background sleep holds the output file open; only a group kill ends it. The bound starts at spawn, so the
+    // test asserts nothing the child does before it (POSTMORTEM 2026-10-30).
+    const result = await runProcess({ cmd: "sh", args: ["-c", `sleep 30 & echo $! > ${dir}/pid; sleep 30`], cwd: dir, env: process.env, timeoutSec: 1, stdoutPath: join(dir, "o"), stderrPath: join(dir, "e") });
     assert.equal(result.timedOut, true);
     assert.ok(Date.now() - started < 10_000);
-    assert.equal(readFileSync(join(dir, "o"), "utf8"), "hi\n");
+    if (existsSync(join(dir, "pid"))) {
+      // The killed sleep is reaped asynchronously, so its pid can answer for a moment after the settle.
+      const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+      const gone = () => { try { process.kill(pid, 0); return false; } catch { return true; } };
+      for (let i = 0; i < 50 && !gone(); i++) await sleep(100);
+      assert.ok(gone(), `background child ${pid} survived the group kill`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -236,8 +240,7 @@ function snapshot(dir: string): Record<string, string> {
   return out;
 }
 
-// pac-full D7b-codex stopped on "Say “구현 시작해”" from the user's $CODEX_HOME/AGENTS.md: a run must not inherit the
-// user's own instructions, while it still signs in as the user and keeps the user's model settings.
+// A run must not inherit the user's own instructions, yet signs in as the user with the user's model settings.
 test("a Codex run gets its own CODEX_HOME that links only sign-in from the user's and copies the user's config", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
@@ -269,9 +272,8 @@ test("a Codex run gets its own CODEX_HOME that links only sign-in from the user'
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// Codex 0.169.0 loads a project's .codex/ layer (the eval's doan rule) only for a project trusted in
-// $CODEX_HOME/config.toml; `-c projects."<path>".trust_level=...` does not count, and without trust `codex exec` warns
-// "Untrusted project-local configuration is disabled" and runs without the rule.
+// Codex 0.169.0 loads a project's .codex/ rule only for a project trusted in config.toml (a `-c` trust override
+// does not count), so the run's config.toml must carry that trust.
 test("a Codex run's config trusts exactly the given folders on top of the user's settings", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
@@ -295,9 +297,8 @@ test("a Codex run's config trusts exactly the given folders on top of the user's
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// Codex creates its lock files on the first sign-in or token refresh, not with its home (a ~/.codex from July held both
-// only from a November sign-in on, and `codex login status` in a fresh home creates neither; codex-cli 0.169.0), so a
-// run prepared before then must still take the user's locks.
+// Codex (0.169.0) creates its lock files only at a sign-in or token refresh, so a run prepared before then must
+// still take the user's locks.
 test("the user's lock files are linked whenever auth.json is, even before Codex has created them; that home defaults to ~/.codex", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
@@ -346,4 +347,16 @@ test("no scenario seed carries a project memory file the Claude isolation would 
     }
   }
   assert.deepEqual(found, []);
+});
+
+// A Doan conversation's shell carries its identity and the provider profile Doan signs the agent in with
+// (app/src/main/conversation/environment.ts, agentAuth/environment.ts); none of it is the runner's to pass on.
+test("agents get no Doan conversation identity, and a conversation's profile homes are not the user's", () => {
+  const ids = { CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CODEX_SESSION_ID: "c", DOAN_HANDOFF: "h", DOAN_CONVERSATION_ID: "conv" };
+  const homes = { CLAUDE_CONFIG_DIR: "/profiles/claude", CODEX_HOME: "/profiles/codex" };
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", HOME: "/Users/u", DOAN_APP_CONVERSATION: "1", ...ids, ...homes }), { PATH: "/bin", HOME: "/Users/u" });
+  // Outside a Doan conversation the homes are the user's own configuration (an Orca or shell profile, say).
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", ...ids, ...homes }), { PATH: "/bin", ...homes });
+  // The CLI counts only "1" as an app conversation (cli/internal/cli/run.go).
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", DOAN_APP_CONVERSATION: "0", ...homes }), { PATH: "/bin", ...homes });
 });

@@ -46,9 +46,8 @@ func TestSVGUseNotInline(t *testing.T) {
 	}
 }
 
-// customInput builds a check of canvasA whose body is body and which reaches
-// each stylesheet in sheets (real path → text) in that order; a path whose
-// text starts with "<" is reached through an @import of the sheet before it.
+// customInput reaches each customSheet (real path → text) in order; a text starting with "<" is reached through an
+// @import of the sheet before it.
 type customSheet struct{ path, text string }
 
 const everyElement = `<i class="b c d o w x y z"></i>`

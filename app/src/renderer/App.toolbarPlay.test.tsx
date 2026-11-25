@@ -4,9 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { PlayTool } from "./CanvasTools";
 
-// The toolbar's Play prototype on the canvas page: its state from the selection, the frame drawer it opens,
-// what a pick sends, and the prototype window's playing frame in that drawer. Driven with hooks as plain state, with the
-// harness of App.bubbleAdd.test.tsx.
+// The toolbar's Play prototype: its state from the selection, the frame drawer it opens, what a pick sends, and the
+// prototype window's playing frame in that drawer. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -65,7 +64,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

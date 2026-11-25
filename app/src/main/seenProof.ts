@@ -1,13 +1,7 @@
 import type { LoadedDocument } from "./document/bindings";
 
-// Whether the canvas page shows this listed canvas, and which bytes: the proof a read-state record needs. The renderer
-// only says which canvas the page is meant to show; what it shows comes from the main window's own document bindings
-// (the bytes the server sent, a finished loader of the current generation), so a thumbnail (another window) or a
-// prototype never counts, and a screen showing A while the disk holds B records A and leaves B unseen.
-//
-// The canvas iframe is a direct child of the main window's main frame whose URL is the row's URL. While a reload swaps
-// the iframe two frames can match until the old one detaches: then nothing is proven yet, and the next bindings change
-// decides again.
+// The proof comes from the main window's own document bindings, never the renderer's say, so a thumbnail or prototype
+// never counts. While a reload swaps the iframe two frames can match: nothing is proven until the next bindings change.
 export function shownDocument(
   frames: readonly { id: string; parentId: string; url: string }[],
   current: (frame: string, url: string) => LoadedDocument | null,

@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Regenerates app/src/renderer/doany.golden.json from the canonical buddy draft .doan/assets/buddies/motion-preview.js.
-//
-//   node app/scripts/doanyGolden.mjs           # rewrites the golden
-//   node app/scripts/doanyGolden.mjs --check   # exits 1 if the golden differs from a fresh run
-//
-// The draft runs in a node vm with a stubbed DOM, fixed Math.random values, fixed requestAnimationFrame timestamps and
-// a recording WebGL context (the same constants and encoding as Doany.test.tsx), as Doany: one scenario per behaviour
-// the app's rig must reproduce. Each step logs what the draft did: the uniforms of every draw, data-state writes,
-// random values drawn, canvas size, which of canvas and still image shows, and the motion state afterwards
-// (doanyMotion.test.ts and doanyRig.test.ts replay the steps). The "idle" scenario also records every WebGL call up
-// to the first frame's two draws (Doany.test.tsx compares Doany.tsx with it call for call).
-//
-// The logs pin the motion model, not Doany's drawn bounds: the draft applies its per-buddy hop multiplier and
-// accessory tilt range while it writes the uniforms, and the app keeps those in drawnPose (checked against the
-// registry and the canvas edge in doanyRender.test.ts). So the draft runs with Doany's bounds set to a multiplier
-// of 1 and an unbounded tilt, which leaves every other number and the shader source untouched.
+// Regenerates app/src/renderer/doany.golden.json from .doan/assets/buddies/motion-preview.js (--check: exit 1 on drift).
+// The draft runs with Doany's hop and tilt bounds neutralized, since the app applies them in drawnPose, not the rig.
 import { readFileSync, writeFileSync } from "node:fs";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
@@ -31,6 +17,7 @@ const unbounded = draft.replace(BOUNDS, "tilt:[-Infinity,Infinity], liftScale:1}
 
 const FIELDS = ["time", "ready", "visible", "lookX", "lookY", "targetX", "targetY", "hat", "hatV", "jumpAt", "blinkAt", "nextBlink", "typingUntil", "last", "eye", "mode", "pointerUntil"];
 const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "energy", "eyeOpen", "lookX", "lookY"];
+// Same constants and encoding as Doany.test.tsx's recording context, which compares the idle trace call for call.
 const CONSTANTS = {
   VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, ELEMENT_ARRAY_BUFFER: 6, STATIC_DRAW: 7, FLOAT: 8,
   BLEND: 9, SRC_ALPHA: 10, ONE_MINUS_SRC_ALPHA: 11, TEXTURE_2D: 12, TEXTURE_WRAP_S: 13, TEXTURE_WRAP_T: 14, CLAMP_TO_EDGE: 15, TEXTURE_MIN_FILTER: 16,

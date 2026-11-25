@@ -2,10 +2,8 @@ import { doanInvocations } from "../../lib/call-log.ts";
 import { doanArgs, type DoanArgs } from "../../lib/transcript.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 
-// Checks over the fake app's app-socket v2 request log, shared by the
-// onboarding scenarios (O1, O2). The CLI validates arguments before it sends
-// anything, so the log holds only well-formed requests in the order sent;
-// attempts the CLI refused are read from the parsed tool calls instead.
+// Shared by O1 and O2. The log holds only well-formed requests in order (the CLI validates before sending);
+// refused attempts are read from the parsed tool calls.
 
 export type Exchange = { request: any; response: any };
 
@@ -44,9 +42,8 @@ export function oneSession(log: Exchange[]): Check {
   return { id: "session_from_start", pass: ids.size > 0 && stray.length === 0, detail: stray.length ? `requests outside the started session: ${list(stray)}` : `sessions: ${[...ids].join(", ") || "(none)"}` };
 }
 
-// Each doan onboarding invocation the agent ran, read as the CLI reads it: the positionals after `onboarding` and every
-// flag, wherever it stood. Commands the CLI refuses (an unknown flag such as --stop) are attempts too, so they are kept.
-// Tool calls only: guide text, prose and tool output quoting a command are not runs.
+// Each `doan onboarding` call as the CLI reads it. Refused commands are attempts too, so they are kept;
+// only tool calls count, not guide text, prose or output quoting one.
 type OnboardingCall = { args: string[]; flags: DoanArgs["flags"] };
 export function onboardingCalls(ctx: CheckContext): OnboardingCall[] {
   return doanInvocations(ctx.calls).words.flatMap(words => {
@@ -97,9 +94,8 @@ export function noRequestConflict(log: Exchange[]): Check {
   return { id: "no_request_conflict", pass: found.length === 0, detail: found.length ? `a requestId was reused with other arguments: ${list(found)}` : "every reused requestId kept its arguments" };
 }
 
-// A blind retry repeats an accepted request under a new requestId before the
-// agent has seen the first operation end. Resending the same requestId,
-// retrying a refused request, or repeating after a seen outcome is not one.
+// A blind retry repeats an accepted request under a new requestId before its operation ends. The same requestId,
+// a refused request or a repeat after a seen outcome is not one.
 export function noBlindRetry(log: Exchange[]): Check {
   const key = (e: Exchange) => { const { v: _v, requestId: _r, ...args } = e.request; return JSON.stringify(Object.entries(args).sort()); };
   const retries: string[] = [];

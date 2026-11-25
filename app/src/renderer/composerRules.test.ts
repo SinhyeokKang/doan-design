@@ -84,8 +84,7 @@ describe("steerAllPlan", () => {
   });
 });
 
-// While the conversation's Doan connection is at its usage limit, or its rows wait for the reset, the Send slot is
-// Queue though no turn runs; an empty field is a disabled Queue, as Send is (usage-limit-resume.html queue-button).
+// At the usage limit, or with rows waiting for its reset, the Send slot is Queue though no turn runs.
 describe("composerAction at the usage limit", () => {
   test("idle: Queue with or without text", () => {
     expect(composerAction("idle", "Also the caption", 0, true)).toBe("queue");

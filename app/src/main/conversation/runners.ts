@@ -25,23 +25,19 @@ import type { EventPayload, FailureCode, SkillSummary } from "./types";
 // steerConsumed: the agent read a steered message, called in line with the run's events so the message
 // takes its place in the thread there.
 export interface SteerHooks { steerConsumed?: (messageId: string) => void }
-// steer adds a message to the running turn turnId (the id send was given). It resolves once the provider accepted it
-// and rejects otherwise: Error "not_running" when there is no such running turn here, RpcError with the server's
-// message when Codex refuses it, and Error "RPC timeout" or "process_exited" when no answer came.
+// steer adds a message to the running turn turnId and resolves once the provider accepted it. Rejects: not_running
+// (no such running turn), RpcError (Codex refused it), "RPC timeout" or "process_exited" (no answer).
 export interface SteeringRunner extends Runner { steer(prompt: string, turnId: string, messageId: string): Promise<void> }
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
-// Opens the provider only to read its model list for this folder: no prompt, no model request.
-// The caller owns the lease and the stop (ConversationService.readListing).
-// A Claude read opens with Fast asked for, so initialize names an account-wide reason Fast cannot serve; without the flag
-// the reason is always sdk_opt_in_required. It reads the existing list, with no new lease or prompt.
+// Opens the provider only to read its model list for this folder: no prompt; the caller owns the lease and the stop.
+// A Claude read asks for Fast, so initialize names an account-wide Fast reason, not always sdk_opt_in_required.
 export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input.runtime === "claude" ? { ...input, fast: true } : input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }
 };
-// The same prompt-free read for the folder's project skills, followed by the built-in commands Doan runs at the installed
-// version (skills.ts allowedCommands). Only Claude and Codex list skills apart from built-in commands; the ACP servers'
-// command lists name no source (Cursor, Copilot) or no skills (Antigravity), and come only with a session.
+// The same prompt-free read for the folder's project skills, then the built-in commands Doan runs at the installed
+// version (skills.ts allowedCommands). ACP command lists name no source or no skills, and come only with a session.
 export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, registerStop) => {
   if (input.runtime !== "claude" && input.runtime !== "codex") throw new Error("runtime_unsupported");
   const runner = await (input.runtime === "claude" ? openClaude : openCodexList)(input, () => {}, exited, registerStop);
@@ -52,18 +48,14 @@ export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, reg
 export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
   return fast ? { settings: { fastMode: true } } : {};
 }
-// The run's flag-tier settings: Fast, and for a fenced run Claude's own sandbox off, whatever a user, project or local
-// source says: it cannot start inside the outer fence (exit 71). A fenced run also has auto memory off: its files sit
-// under projects/, which the fence leaves writable for the CLI's transcripts, and a turn's tools write with the CLI's
-// rights, so a memory one turn wrote would be read by every later turn in the profile (Claude Code 2.1.327: off, a
-// planted MEMORY.md was not loaded).
+// The run's flag-tier settings: Fast, and for a fenced run Claude's own sandbox off (it cannot start inside the fence)
+// and auto memory off, since a memory one turn wrote under projects/ would be read by every later turn in the profile.
 function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false }; autoMemoryEnabled?: false } } {
   const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const }, autoMemoryEnabled: false as const } : {} };
   return Object.keys(settings).length ? { settings } : {};
 }
-// Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
-// still runs standard when Fast is off; serviceTierForTurn holds for that turn only. A terminal
-// session's turn names none and keeps the person's own setting, as with permission modes.
+// Fast for a Codex turn: a doan turn always names its tier, standard included, so a catalog default of Fast still runs
+// standard when off; it holds for that turn only. A terminal session's turn names none, as with permission modes.
 export function codexServiceTierForTurn(owner: "doan" | "legacy-external", fast: boolean): { serviceTierForTurn?: "priority" | "default" } {
   return owner === "doan" ? { serviceTierForTurn: fast ? "priority" : "default" } : {};
 }
@@ -87,11 +79,7 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
   };
 }
 // A Claude turn's usage read keeps the CLI's input open, and the next send waits for that process (service.ts
-// EXIT_WAIT_MS, 10 s). After closing, the CLI may still generate its prompt suggestion (up to 30 s in Claude Code
-// 2.1.318), so it is not its own exit that keeps the wait inside the budget: the next send ends a finished turn's
-// process once this read is over (endAfterTurn), killed at once when only its suggestion is left and through SIGTERM
-// (SIGKILL after 0.5 s) otherwise. This cap plus that stop stays inside the wait, so a CLI that never answers delays the
-// next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
+// EXIT_WAIT_MS); this cap plus the finished turn's stop (endAfterTurn) stays inside that wait, so it never refuses as busy.
 const TURN_USAGE_MS = 3000;
 function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -99,14 +87,13 @@ function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
-// The doan- servers Doan registered in this Codex profile, read from its config.toml for every turn: a Connect may have
-// added one since the server started. An unreadable or oversized file names none, so the turn does not wait; so does a
-// FIFO or a link the agent running in this profile put there, which a blocking read would hold main on.
+// The doan- servers in this Codex profile's config.toml, read every turn (a Connect may have added one). An unreadable,
+// oversized, FIFO or linked file names none, so the turn does not wait and main never blocks on it.
 function profileServers(configDir: string): string[] {
   try { return codexProfileServers(readRegularFileNoFollowSync(join(configDir, "config.toml"), 1024 * 1024).toString("utf8")); }
   catch { return []; }
 }
-// How long a compaction's send waits for the turn its {} reply opened; the server started it at once (PoC, 0.167.1).
+// How long a compaction's send waits for the turn its {} reply opened; the server starts it at once.
 const COMPACTION_START_MS = 10_000;
 // One Codex send's start (runners.ts openCodex): stopped by a Stop that came before its turn existed, wake ends its wait.
 interface Start { stopped: boolean; wake(): void }
@@ -124,10 +111,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     : { command: input.command, args: [...input.args ?? [], ...input.fence ? codexProfileArgs(input.fence.paths, input.fence.denied ?? [], dirname(input.fence.socket ?? "")) : [], "app-server"] };
   const child = spawn(launch.command, launch.args, { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
-  // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
-  // that send, never the runner: a later send must not take it over. latest: the most recent send. settled: resolves
-  // when the latest send's start is over, so the next send takes the shared turn state only after it.
-  // reloadOwed: a reload the server refused, sent again before the next turn. closing: close() ran.
+  // starting: the current send until turn/start answered; a Stop then marks that send, never the runner. latest: the
+  // latest send; settled: resolves when its start is over. reloadOwed: a refused reload to resend. closing: close() ran.
   const startup = new CodexStartupWatch();
   let starting: Start | undefined, latest: Start | undefined, settled = Promise.resolve(), reloadOwed = false, closing = false;
   // Set while a compaction waits for the turn it opened (compactionTurn).
@@ -194,18 +179,12 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
     if (input.sessionId && sessionId !== input.sessionId) throw new Error("session_unavailable");
-    // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0). Its values
-    // depend on config and project trust and config/read leaves them null when unset, so an ephemeral thread/start
-    // (no rollout, no model request) reads them. A failed or incomplete probe refuses the open: sending nothing would
-    // keep an earlier override. A run on an external profile (a terminal session) takes no mode
-    // and states nothing, so an override its thread carries from the terminal stays.
+    // Default is stated on every turn, since an override holds across turns and thread/resume; an ephemeral thread/start
+    // reads its values, and a failed probe refuses the open. An external profile's run states nothing, keeping its override.
     if (input.owner) {
       const config = await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; });
-      // The probe turns off every configured MCP server and every plugin, whose MCP servers config/read does not
-      // list, so it starts none; the approval and sandbox it reports are unchanged (PoC, 0.171.0). Without
-      // config/read it names none and the probe starts them as before. The apps feature (the signed-in account's
-      // codex_apps connection) is turned off always: config/read reports it only when set, and thread/start accepts
-      // it whether or not config sets it, as it does a feature name it does not know (PoC, 0.158.0 and 0.171.0).
+      // The probe turns off every configured MCP server and plugin, and always the apps feature (config/read reports it only
+      // when set), so it starts none; the approval and sandbox it reports are unchanged.
       const off = (names: string[]) => names.length ? Object.fromEntries(names.map(name => [name, { enabled: false }])) : undefined;
       const servers = off(codexServerNames(config)), plugins = off(codexPluginNames(config));
       const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true, config: { ...(servers ? { mcp_servers: servers } : {}), ...(plugins ? { plugins } : {}), features: { apps: false } } }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
@@ -217,10 +196,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     if (ending()) throw new Error("process_exited");
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead || (error instanceof Error && error.message === "process_exited") ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
-  // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server"),
-  // so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
-  // forgotten before it is sent, since the new ones can follow its reply at once. The reload is awaited to its answer
-  // even after a Stop, so its outcome is known. False: a Stop ended the phase.
+  // A turn before its servers are ready runs without their tools, so a doan run waits. A reload forgets statuses before it
+  // is sent (new ones can follow its reply at once) and is awaited past a Stop to set reloadOwed. False: Stop ended it.
   const serversReady = async (phase: Start, reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
     if (!input.owner) return true;
     const names = profileServers(input.configDir);
@@ -333,16 +310,15 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     async close() { closing = true; if (starting) { starting.stopped = true; starting.wake(); } dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
-// After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
-// about 10 ms later (Claude Code 2.1.312, 2.1.317). An echo that never came would keep the turn running and the row on
-// Sending until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
+// After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn. The
+// wait is bounded so a missing echo cannot hold the turn: past it the turn ends done and the message is queued again.
 export const STEER_READ_WAIT_MS = 30_000;
-// Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
-// (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.
+// Claude Code refuses to start under the organization pin when the repo's settings supply their own credential. The SDK
+// keeps no stderr for a custom spawn, so the runner reads it.
 const PIN_REFUSED = /managed settings require a first-party login/i;
 async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<SteeringRunner> {
-  // A doan Claude run is only ever pinned to its login's organization (user decision 2026-10-28): without one, a repo's
-  // API key could replace the login, so the connection must be signed in again instead of running unpinned.
+  // A doan Claude run is only ever pinned to its login's organization: without one, a repo's API key could replace the
+  // login, so the connection must be signed in again instead of running unpinned.
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
@@ -361,14 +337,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   let pulled = false, inputClosed = false, turn = "", wake: (() => void) | undefined;
   // Armed by a success result that leaves a steered uuid unread, disarmed by any read and on every terminal path.
   let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
-  // After a done turn's terminal (no steered message unread) the CLI may send one prompt_suggestion before it exits.
-  // suggestionSeen: one came, whatever it said. suggestionEnded: the next send asked to end the process
-  // (endAfterTurn), so a later suggestion belongs to no one. cleanupLater: it asked during the usage read, so the
-  // decision waits for the input to close.
+  // After a done turn's terminal the CLI may send one prompt_suggestion before it exits. suggestionEnded: the next send
+  // asked to end the process, so later ones belong to no one. cleanupLater: asked during the usage read; decide on close.
   let doneTurn = false, suggestionSeen = false, suggestionEnded = false, cleanupLater = false;
-  // The live background tasks (background_tasks_changed): all of them, which decide how the process ends, and those the
-  // host shows (not ambient), which the done turn's line reports. backgroundShown: the done turn's end reported them.
-  // termAsked: Doan asked the group to stop through SIGTERM, whose handling the CLI must be let finish.
+  // Live background tasks: all of them decide how the process ends; the shown (not ambient) ones go on the done turn's
+  // line (backgroundShown). termAsked: Doan sent SIGTERM, whose handling the CLI must be let finish.
   let background: string[] = [], shown: string[] = [], backgroundShown = false, termAsked = false;
   const term = () => { termAsked = true; return group?.stop(); };
   // A finished turn's process ended for the next send: killed at once when nothing but its suggestion is left, otherwise
@@ -399,17 +372,16 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // Every Claude run asks for the next-message suggestion; whether one comes is the CLI's and the environment's call
     // (environment.ts promptSuggestionEnv). It arrives after the turn's result, so the loop below keeps reading.
     promptSuggestions: true,
-    // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
-    // login's organization as a per-run parent policy (SDK managedSettings, honoured for forceLoginOrgUUID per
-    // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (live check, 2.1.312).
+    // A repo's settings env API key or apiKeyHelper would otherwise replace the doan login; pinning the login's organization
+    // (SDK managedSettings forceLoginOrgUUID, code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run.
     ...(organization ? { managedSettings: { forceLoginOrgUUID: organization } } : {}),
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     // A resume without them starts on the default model, so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing.
     ...claudeRunSettings(input.fast, input.fence),
-    // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
-    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
+    // Default passes nothing, so the Doan profile's and the project's settings decide. A terminal session's run (no doan
+    // owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
     spawnClaudeCodeProcess(options) {
       const launch = fencedCommand(options.command, options.args, input.fence ? fenceArgs("claude", input.fence.paths) : undefined, input.fence?.exec);
@@ -449,9 +421,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       emit({ type: "question.request", requestId, questions: read.questions });
     });
   }
-  // The CLI cancels a request it no longer waits for (control_cancel_request aborts canUseTool's signal; the SDK also
-  // aborts every open one as it cleans up). It expires then with Stop's record, rather than staying answerable until the
-  // turn ends. A request already answered or expired is out of its map, so nothing is recorded twice.
+  // The CLI cancels a request it no longer waits for (control_cancel_request, or the SDK's cleanup aborts canUseTool's
+  // signal); it then expires with Stop's record. One already answered or expired is out of its map.
   function expireOnAbort(signal: AbortSignal, expireOne: () => void) { signal.addEventListener("abort", expireOne, { once: true }); }
   function resolveExpired(resolve: (result: PermissionResult) => void, record: EventPayload) {
     resolve({ behavior: "deny", message: "Request expired." }); emit(record);
@@ -464,9 +435,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   try { initialized = await timeout(q.initializationResult()); } catch (error) {
     controller.abort(); closeInput(); void term();
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
-    // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
-    // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
-    // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
+    // A fenced start that could not run (sandbox-exec missing, or refusing with 65 or 71) is a process failure, never the
+    // SDK's missing-CLI message. The CLI's own early exit keeps the SDK's error.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the SDK starts
     const refused = childExited && sandboxRefused({ exitCode, stderr });
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn error and exit callbacks set these while the SDK starts
@@ -485,12 +455,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     },
     async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
-      // Only a send that is the person's /clear (an alias goes out as /clear) may move the run to another session, once
-      // the clear's conversation_reset came; its new id is system/init's, never new_conversation_id (PoC, 2.1.326).
+      // Only a send that is the person's /clear (an alias goes out as /clear) may move the run to another session, once the
+      // clear's conversation_reset came; its new id is system/init's, never new_conversation_id.
       const clearing = commandName("claude", prompt) === "clear";
-      // turnInit: the mode the turn's first top-level init reported. A later init comes from a message steered after the
-      // reply began, which the CLI runs as its next turn in this process; it can report a setMode allowed there (PoC,
-      // Claude Code 2.1.312). latest: the mode the process reported last, init or status.
+      // turnInit: the mode the turn's first top-level init reported; a later init is a steered message the CLI runs as its next
+      // turn, and can report a setMode allowed there. latest: the mode the process reported last, init or status.
       let reset = false, turnInit: string | undefined, latest: string | undefined;
       // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
       const expireRead = () => {
@@ -512,9 +481,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             if (tasks) {
               const had = background.length; background = tasks; shown = backgroundTasks(shown, raw) ?? [];
               if (after && doneTurn && shown.length && !backgroundShown) { backgroundShown = true; input.backgroundChanged?.(true); }
-              // The work a finished turn left is over: the CLI calls the model for its notice right after this frame (PoC,
-              // 16-119 ms), which no person asked for. The set is empty, so a kill orphans nothing. A stop Doan asked for
-              // already runs through SIGTERM, whose handling is not cut short.
+              // The finished turn's work is over, and the CLI calls the model for its notice right after this frame, which no one
+              // asked for; the set is empty, so a kill orphans nothing. A stop Doan asked for already runs through SIGTERM.
               if (after && had && !tasks.length && !termAsked && !state.stop) { void group?.kill(); if (backgroundShown) input.backgroundChanged?.(false); }
             }
             if (after && doneTurn && !suggestionSeen && object(raw) && raw.type === "prompt_suggestion") {
@@ -570,9 +538,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             closeInput();
             // The next send asked during the usage read: the input is closed now, so the decision is made.
             if (cleanupLater) { cleanupLater = false; cleanup(); }
-            // A failed or aborted result can end the turn with a steered message or its own prompt written and unread; the
-            // item goes back to the draft or the turn shows its failure, so the CLI must not run it in a turn nobody
-            // sees. The terminal event is out already.
+            // A failed or aborted result can leave a steered message or the prompt unread; it goes back to the draft or the turn
+            // shows its failure, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
             if (state.steered?.length || state.prompt !== undefined) { void term(); break; }
           }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
@@ -593,8 +560,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       await consume;
     },
     // Registered with the transport before it is written, so a result the CLI sends before reading it does not end the
-    // turn. No priority: "next" behaves as none, "later" runs a separate turn and "now" drops the answer
-    // (PoC, Claude Code 2.1.317).
+    // turn. No priority: "next" behaves as none, "later" runs a separate turn and "now" drops the answer.
     async steer(prompt, turnId, messageId) {
       if (finished || inputClosed || state.terminal || !turn || turnId !== turn) throw new Error("not_running");
       state = steerTransport(state, messageId);
@@ -613,9 +579,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       emit({ type: "question.resolved", requestId: id, outcome: answer.outcome, ...(answer.outcome === "answered" ? { answers: storedAnswers(request.read.questions, answer) } : {}) });
       return "ok";
     },
-    // The conversation's next send (or a queue at the turn's end) asks to end this finished turn's process; asked during
-    // the usage read, the decision waits for the input to close. A suggestion that comes after this belongs to no one.
-    // A turn still running is left alone: only its end can say what is left.
+    // The next send (or a queue at the turn's end) asks to end this finished turn's process; during the usage read the
+    // decision waits for the input to close. A turn still running is left alone: only its end can say what is left.
     endAfterTurn() {
       if (!state.terminal) return "none" as const;
       const decision = afterTurnCleanup({ finished, inputClosed, background: background.length, doneTurn, promptRead: state.prompt === undefined });

@@ -10,7 +10,6 @@ const ev = (turnId: string, payload: Record<string, unknown>, at = "2026-11-06T1
 const turn = (id: string, at = "2026-11-06T10:00:00.000Z") => [ev(id, { type: "user.message", text: "Draw it", anchors: [] }, at), ev(id, { type: "turn.started" }, at)];
 const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];
 const signal = (turnId: string, stage: TurnStage, at: number, rev = at): StageSignal => ({ conversationId: "c1", turnId, seq: at, rev, stage });
-// The status of the history's last turn, as the hosts compute it.
 const statusOf = (events: ConversationEvent[], stage: StageSignal | null = null, live = true) =>
   turnStatus(threadItems(events, ROOT, live), turnOf(events, live), stage, ROOT);
 
@@ -102,8 +101,8 @@ describe("turnStatus", () => {
     expect(turnStatus(sending, turnOf(events, true), null, ROOT)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
   });
 
-  // R1 defect 2: main appends and pushes a turn's opening user.message and its turn.started one after the other, so a
-  // render can see the message alone; the indicator is there from that render (spec condition 1).
+  // main appends and pushes a turn's opening user.message and turn.started separately, so a render can see
+  // the message alone; the indicator is there from that render.
   test("the next turn's message alone opens its turn, until its turn.started arrives", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" }),
@@ -119,8 +118,7 @@ describe("turnStatus", () => {
     expect(turnOf([ev("t1", { type: "user.message", text: "Draw it", anchors: [] })], true)).toMatchObject({ turnId: "t1", ended: false });
   });
 
-  // PRODUCT 'Turn indicator': it goes at once on Stop. Main marks the summary `stopping` the moment it takes the Stop,
-  // while the turn's own end may still be held for the transcript lookup.
+  // PRODUCT 'Turn indicator': main marks the summary `stopping` on Stop, though the turn's end may be held.
   test("a Stop main has taken hides the indicator at once, whatever the turn is doing", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
@@ -167,7 +165,7 @@ describe("turnStatus", () => {
   });
 });
 
-// The activity row the thread ends with follows the indicator's shown status (design: rows and indicator read alike).
+// The thread's last activity row follows the indicator's shown status, so the two read alike.
 describe("activityRun", () => {
   const row = (items: readonly ThreadItem[]) => items.filter(item => item.kind === "activity").at(-1);
   const command = () => { seq = 0; return [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })]; };
@@ -322,8 +320,7 @@ describe("activityRun", () => {
   });
 });
 
-// A card's spinner stops with the indicator: a Stop main has taken hides both in the same render, before the turn's end
-// arrives (spec: Stop stops the spinner at once).
+// A Stop main has taken hides the card's spinner and the indicator in the same render, before the turn's end.
 describe("drawingCards", () => {
   const events = () => { seq = 0; return [...turn("t1"), ev("t1", { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html" } }), ev("t1", { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "Go on." })]; };
   test("a status that hides the indicator stops every card's spinner; any other leaves the list as it is", () => {
@@ -417,8 +414,8 @@ test("the words and the screen reader's status: the provider only without a tool
   expect(turnAnnouncement({ kind: "waiting" }, p)).toBe("");
 });
 
-// The background work line under a done turn (draft frame background-line). One sentence for any number of tasks; Stop
-// turns into Stopping while this window waits for main or main says another window pressed it.
+// One sentence for any number of tasks; Stop reads Stopping while this window waits for main
+// or another window pressed it.
 describe("backgroundLine", () => {
   test("none without background work, and none once the person's message entered the thread", () => {
     expect(backgroundLine({ background: undefined, sending: false, stopping: false })).toBeNull();
@@ -444,4 +441,37 @@ test("stopBackground asks main to stop that turn's work and answers the toast's 
   expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBe("Couldn’t stop the background work. Try again.");
   interrupt.mockRejectedValueOnce(new Error("gone"));
   expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBe(BACKGROUND_STOP_FAILED);
+});
+
+describe("edit line counts and the turn indicator", () => {
+  const result = (callId: string, path: string, added: number, removed: number) => ev("t1", { type: "activity.result", callId, path, lines: { added, removed } });
+
+  test("an activity.result leaves another tool's stage current: it is not the agent acting", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "fc_1" })];
+    const reading = signal("t1", { kind: "tool", activity: "read", path: `${ROOT}/src/b.ts`, summary: "src/b.ts" }, seq);
+    events.push(result("fc_1", "a.ts", 1, 1));
+    expect(turnOf(events, true)?.lastSeq).toBe(3);
+    expect(statusOf(events, reading)).toEqual({ kind: "tool", activity: "read", text: "Reading src/b.ts" });
+  });
+
+  test("the last row that does not run keeps its total; a running row shows the indicator's words and no total", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" }), result("c1", "a.ts", 12, 3)];
+    const items = threadItems(events, ROOT, true);
+    const general = activityRun(items, { kind: "general" }, null).at(-1);
+    expect(general).toMatchObject({ running: false, head: "1 step", total: { added: 12, removed: 3 } });
+    const running = activityRun(items, { kind: "tool", activity: "read", text: "Reading b.ts" }, null).at(-1);
+    expect(running).toMatchObject({ running: true, head: "Reading b.ts" });
+    expect(running).not.toHaveProperty("total");
+    // Back from running, the total returns.
+    expect(activityRun([running!], { kind: "general" }, null).at(-1)).toMatchObject({ running: false, head: "1 step", total: { added: 12, removed: 3 } });
+  });
+
+  test("a row already as the status says, total included, is the same list", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: "a.ts", summary: "a.ts", callId: "c1" }), result("c1", "a.ts", 1, 0), ev("t1", { type: "turn.done" })];
+    const items = threadItems(events, ROOT, true);
+    expect(activityRun(items, { kind: "none" }, null)).toBe(items);
+  });
 });

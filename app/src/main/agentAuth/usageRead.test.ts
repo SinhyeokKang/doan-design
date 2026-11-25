@@ -122,6 +122,37 @@ describe("Codex usage read", () => {
   }, 20_000);
 });
 
+// The leader exits right after the read request; the answer it wrote reaches Doan only later through the pipe, and the
+// group goes after that (POSTMORTEM 2026-11-16 'Process runners settled on the exit event').
+describe("an RPC usage read whose answer arrives after the leader exits", () => {
+  const answerAfterExit = (delayMs: number): UsageReadOptions["spawn"] => () => {
+    const listeners: ((text: string, stream?: "stderr") => void)[] = [];
+    let exitWith!: (code: number | null) => void, goneWith!: () => void;
+    const exit = new Promise<number | null>(resolve => { exitWith = resolve; }), gone = new Promise<void>(resolve => { goneWith = resolve; });
+    const send = (value: object) => { for (const listener of listeners) listener(JSON.stringify(value) + "\n"); };
+    // As spawnAuthProcess: stopping the group still lets output already in the pipe drain before gone.
+    let draining = false;
+    return {
+      exit, gone, onOutput: listener => { listeners.push(listener); },
+      stop: () => { exitWith(null); if (!draining) goneWith(); },
+      write: text => {
+        const r = JSON.parse(text) as { id?: number; method: string };
+        if (r.method === "initialize") setTimeout(() => send({ id: r.id, result: { userAgent: "fake" } }), 0);
+        if (r.method === "account/rateLimits/read") {
+          draining = true; exitWith(0);
+          setTimeout(() => { send({ id: r.id, result: JSON.parse(fixture("codex")) }); setTimeout(goneWith, 10); }, delayMs);
+        }
+      },
+    };
+  };
+  it.each([
+    ["within the read's limit", 20, 1000],
+    ["after the read's limit has passed during the drain", 100, 30],
+  ])("keeps an answer that arrives %s", async (_label, delayMs, readMs) => {
+    expect(await readUsage("codex", lease("/bin/fake-codex"), options({ spawn: answerAfterExit(delayMs), readMs }))).toMatchObject({ status: "ok", windows: [{ id: "primary", usedPercent: 38 }] });
+  });
+});
+
 describe("Copilot usage read", () => {
   it("runs copilot --headless --no-auto-update --stdio in Doan's empty folder with the lease environment", async () => {
     const reading = await readUsage("copilot", lease(copilot()), options());
@@ -172,7 +203,7 @@ describe("Claude usage read", () => {
     expect(entries.some(m => m.type === "user")).toBe(false);
     await vi.waitFor(() => expect(gone(Number(start.pid))).toBe(true));
   }, 20_000);
-  // review-B 🟢2: pinned as a Doan Claude run is (runners.ts), so a device's managed apiKeyHelper cannot answer for the login.
+  // Pinned as a Doan Claude run is (runners.ts), so a device's managed apiKeyHelper cannot answer for the login.
   it("pins the read to the login's organization when the connection has one", async () => {
     for (const organization of ["org-uuid-1", undefined]) {
       await readUsage("claude", { ...lease(claude()), ...(organization ? { organization } : {}) }, options({ readMs: 5000 }));

@@ -70,6 +70,12 @@ test("a fixture whose checks could not run fails the self-test, whichever fixtur
   assert.match(fixtureProblem("fail", passing, finalResult(passing, "skipped")) ?? "", /all 1 passed/);
 });
 
+// The fake app's own failure is the harness's, so it never stands in for the failure a fail fixture is meant to show.
+test("a fixture run where the fake app failed fails the self-test, whichever fixture it is", () => {
+  const harness = [...failing, { id: "fake_app_error", pass: false, detail: "the eval fake app failed while answering: …" }];
+  for (const kind of ["pass", "fail"] as const) assert.match(fixtureProblem(kind, harness, finalResult(harness, "skipped")) ?? "", /fake_app_error/);
+});
+
 test("active invocation evidence survives even an oversized command summary", () => {
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "log tail", calls: {
     commands: ["echo " + "x".repeat(30000), "doan active --json"], mcpTools: ["mcp__doan__active"],
@@ -90,7 +96,6 @@ test("batched rollout errors reach the judge without copying the rollout transcr
 });
 
 test("long repeated heredocs cannot displace MCP tools or batch excerpts", () => {
-  // loop1 W1-codex repeated a 10,412-character Python heredoc in commands and outputs.
   const command = "python3 - <<'PY'\n" + "x".repeat(25000) + "\nPY\ndoan check";
   const calls = { commands: [command, command, "doan active --json"], mcpTools: ["mcp__doan__active"], outputs: [
     { name: "exec_command", command, callId: "batch-1", scope: "batch" as const, excerpt: "FIRST_BATCH" },
@@ -215,7 +220,6 @@ test("MCP calls named like doan tools are listed but are not doan lookups", () =
 });
 
 test("40 KB synthetic preset bodies cannot evict lookup evidence from the judge budgets", () => {
-  // Real preset bodies are not available in batch R; integration rechecks the longest one.
   const body = "SYNTHETIC_PRESET_BODY\n".repeat(2500);
   assert.ok(Buffer.byteLength(body) >= 40 * 1024);
   const transcript = [

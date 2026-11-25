@@ -74,7 +74,6 @@ describe("fromMessage", () => {
   });
 });
 
-// the unit model ChipField edits through (a chip is one unit).
 describe("field units", () => {
   const field = [text("ab"), chip(frame), text("c\nde"), chip(point)];
   test("normalize joins neighbouring text and drops empty text", () => {

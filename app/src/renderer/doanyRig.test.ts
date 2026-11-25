@@ -3,8 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { hopLift, type Pose } from "./doanyMotion";
 import { createDoanyRig, type DoanyRig } from "./doanyRig";
 
-// The same fixture as doanyMotion.test.ts, from the buddy draft motion-preview.js: here the whole shell flow
-// (frames, textures, resize, events) is replayed through the rig and every draw must match.
+// The golden doanyMotion.test.ts uses (from motion-preview.js), replayed through the whole rig: every draw must match.
 type Snapshot = (number | boolean | string)[];
 interface Step {
   op: string; now?: number; fail?: boolean; isIntersecting?: boolean; hidden?: boolean;
@@ -179,7 +178,7 @@ test("a lost context shows the still image as static and stops drawing", async (
   expect(h.take()).toEqual({ draws: [], states: [], random: [] });
 });
 
-// Doany.tsx mounts a buddy again from these: only one that had drawn is retried on its own.
+// A remount retries on its own only a buddy that had drawn.
 test("a lost context or failed textures report the failure, with whether the rig had drawn", async () => {
   const early = harness();
   early.loseContext();

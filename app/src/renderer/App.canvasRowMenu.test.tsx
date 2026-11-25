@@ -7,9 +7,8 @@ import { initialCanvasState } from "./CanvasController";
 import type { CanvasMenu } from "./ShellSidebar";
 import type { TrashDialogView } from "./CanvasTrashDialog";
 
-// App owns the Move to Trash dialog and the
-// Export flow the sidebar's canvas row menu starts. Hooks run as plain state so App's own wiring runs
-// (App.terminalWork.test.tsx).
+// App owns the Move to Trash dialog and the Export flow the sidebar's canvas row menu starts. Hooks run as
+// plain state so App's own wiring runs.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -69,7 +68,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -380,8 +379,7 @@ test("Export: a fast run shows no progress toast, a cancelled save panel no toas
   } finally { vi.useRealTimers(); }
 });
 
-// the canvas toolbar's Export runs the row menu's export on the open canvas, with the
-// row menu's reasons.
+// The canvas toolbar's Export runs the row menu's export on the open canvas, with the row menu's reasons.
 type Exporter = { reason: string | null; onExport(button: HTMLElement): void };
 const exporter = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")!.props as { exporter: Exporter }).exporter;
 

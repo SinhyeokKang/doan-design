@@ -36,10 +36,8 @@ func handoffKey(value string) string {
 	return value
 }
 
-// handoffText trims the message and refuses rather than cuts it, so the agent can resend a shorter one.
-// The control-character rule is the schema's: only \n and \t are allowed. The trim adds U+FEFF to Go's
-// unicode.IsSpace because the app's String.trim and /\S/u count it as whitespace: a message the app would read
-// as blank must be refused here, since the CLI can only report the app's bad_request as internal_error.
+// handoffText trims and refuses rather than cuts, so the agent can resend; as in the schema, \n and \t are the only control
+// characters allowed. The trim adds U+FEFF, as the app's trim and /\S/u do: a message the app reads as blank is refused here.
 func handoffText(raw string) (string, *Error) {
 	if !utf8.ValidString(raw) {
 		return "", usageError("--message must be UTF-8 text")

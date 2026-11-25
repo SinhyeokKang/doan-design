@@ -4,9 +4,8 @@ import type { AddPageRequest } from "./addPageRequest";
 import { OperationBook, refuse, type WriteRequest } from "./onboarding/operations";
 import { ProjectAdder, type AdderProjects, type ProjectLocks } from "./onboarding/projectAdder";
 
-// The Add Projects page's project session: a second project adder beside first run's, answering with the onboarding
-// session's DTOs so the renderer's Project step reads both alike.
-// Electron-free; index.ts carries the IPC, the window events and quit.
+// The Add Projects page's project session, answering with the onboarding session's DTOs so the renderer's Project step
+// reads it and first run's alike. Electron-free; index.ts carries the IPC, the window events and quit.
 
 export const ADD_PAGE_CHANNELS = {
   read: "add-projects:read", inspect: "add-projects:inspect", select: "add-projects:select", clone: "add-projects:clone", cancel: "add-projects:cancel",

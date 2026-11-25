@@ -47,9 +47,8 @@ const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const ENTRY: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: CANVAS.path, id: "checkout", url: "u" }] };
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
-// The prototype window has no `window.doan`: its page hands the panel body, the store, the run and the docked support
-// a call object instead (window.doanPrototype's subset). These run the body with every effect and its send without
-// the global, and check each call went to the object given.
+// The prototype window has no `window.doan`: its page hands the panel body a call object instead. These run the body
+// without the global and check each call went to the object given.
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.stubGlobal("window", {});
@@ -211,9 +210,8 @@ test("a file main checks after its chip was removed, and a held chip's removal, 
   expect(calls.releaseAttachments).toHaveBeenCalledWith(["held"]);
 });
 
-// The prototype window's composer takes the same lists and rules as the canvas panel's (POSTMORTEM 2026-10 prototype
-// composer push order): an ACP conversation's commands come by its id through the window's call object, and a card the
-// composer shows lands in the shared store for the thread.
+// The prototype window's composer takes the same lists and rules as the canvas panel's: an ACP conversation's commands
+// come by its id through the window's call object, and a card lands in the shared store for the thread.
 test("an ACP conversation's commands, unconfirmed names and card reach the composer through the call object", async () => {
   const calls = fakeCalls();
   calls.listConversationSkills.mockImplementation(async () => ({ skills: [{ kind: "command", name: "compact", description: "" }], passthrough: ["share"] }) as never);
@@ -241,10 +239,8 @@ test("an ACP conversation's commands, unconfirmed names and card reach the compo
   expect(store.card("conversation:c1")).toBe(card);
 });
 
-// A command sent from the new conversation state starts a conversation and leaves the preset and attachments it did not
-// take. The start's reply and the list's push of the new conversation come in either order: while the start is out the
-// draft never moves (followNewConversation's guard), and once the reply names the conversation the composer settles the
-// leftover under it (settleSent).
+// The start's reply and the list's push of the new conversation come in either order: while the start is out the draft
+// never moves (followNewConversation's guard); once the reply names it the composer settles the leftover (settleSent).
 test.each(["reply first", "push first"] as const)("a command's leftover follows the conversation it started (%s)", async order => {
   const { settleSent } = await import("./dockedRules");
   const calls = fakeCalls();
@@ -385,7 +381,7 @@ test("a recorded pasted text reaches the mounted sent bubble with its lines, too
   const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
   const items = threadItems([{ v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-11-24T00:00:00Z", type: "user.message", text: "Go", anchors: [], attachments: [record] }], ROOT, false);
   const props: import("./ConversationThread").ConversationThreadProps = {
-    conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1,
+    conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1, now: 0,
     canvasListed: () => true, onAnswer: vi.fn(), onStop: vi.fn(), onEditAndResend: vi.fn(), onSignIn: vi.fn(), onRetry: vi.fn(), onOpenCanvas: vi.fn(), onOpenLink: vi.fn(), onCopy: vi.fn(async () => true),
   };
   type Element = { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };

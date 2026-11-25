@@ -45,10 +45,8 @@ export const OPEN_GUIDANCE = "This conversation is inside Doan: do not offer to 
 // Teaches the in-app reply link form (the thread draws it as a chip). It sits right after OPEN_GUIDANCE and says what it
 // is not, so the model does not read it as the open offer or the `doan://` link that rule E and OPEN_GUIDANCE rule out.
 export const LINK_GUIDANCE = "When your reply names a frame or element, write it as `[name](doan:<canvas-id>/frame/<frame-id>)` or `[name](doan:<canvas-id>/element/<doan-id>)`, using the canvas's real ids, percent-encoded. Such a link only marks that place: it is not an offer to open the canvas and not a `doan://` link, and the no-offer rule above still applies to everything else.";
-// Only a turn that may hand off carries it (handoff.ts handoffGuidanceFor), and only the app's prompt teaches the
-// command: terminal agents cannot use it. One plain command with the message as an argument: Codex allows `doan` by a
-// command-prefix rule, which a heredoc, pipe or redirection does not match, so such a call runs sandboxed and cannot
-// reach the app's socket.
+// Only a turn that may hand off carries it (handoff.ts handoffGuidanceFor); terminal agents cannot use the command. One
+// plain command with the message as an argument: Codex's `doan` prefix rule misses heredocs and pipes, which run sandboxed.
 export const HANDOFF_GUIDANCE = "For every new canvas this turn created in `.doan/canvases/`, run `doan handoff <path> --message '<message>'` once, consecutively as your last step. Run each as its own plain command (not joined with `&&` or `;`), with the message as a single quoted argument (no heredoc, pipe or redirection; write a single quote inside it as `'\\''`): the user's request, what was decided, what you made and what is left, written so the next agent can continue from it alone. Do not hand off if the user asked not to hand off or to stay on this canvas or in this conversation. After handing off, reply with the result in one line, even if a design preset asks for a fuller report.";
 // handoff: the turn may hand off (handoff.ts handoffGuidanceFor).
 export interface PromptExtras { home?: boolean; attachments?: readonly AttachmentRecord[]; handoff?: boolean }
@@ -81,10 +79,8 @@ export function turnPrompt(anchors: readonly Anchor[], text: string, scope: { ro
     ...(extras.handoff ? [HANDOFF_GUIDANCE] : []),
   ].join("\n\n");
 }
-// The first turn a handoff starts. The handoff is the earlier agent's text, so it goes in its own data field and is
-// never read for {{n}} markers: a marker-like text neither refuses the start nor names an anchor. from: the canvas the
-// earlier conversation works on, absent for a project conversation, which worked from the project's Overview. It
-// carries no HANDOFF_GUIDANCE, since this turn cannot hand off again.
+// The first turn a handoff starts. The handoff is the earlier agent's text, so it goes in its own data field and is never
+// read for {{n}} markers. from: the earlier canvas, absent for a project conversation. No HANDOFF_GUIDANCE: no second hop.
 export function handoffPrompt(text: string, scope: { root: string; canvas?: Canvas }, from?: Canvas): string | null {
   const place = (canvas: Canvas) => canvas.id === undefined ? { path: canvas.path } : { path: canvas.path, id: canvas.id };
   const context = { root: scope.root, ...(scope.canvas ? { canvas: place(scope.canvas) } : {}), ...(from ? { from: place(from) } : {}) };

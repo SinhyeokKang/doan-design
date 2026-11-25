@@ -110,8 +110,6 @@ describe("canvas-seen.json", () => {
   });
 });
 
-// ---- verdicts ------------------------------------------------------------------------------------------------------
-
 const reads = (marker: SeenReads["marker"]["kind"], records: Record<string, RecordRead> = {}, dir: SeenReads["dir"] = "ok"): SeenReads =>
   ({ dir, marker: { kind: marker }, records: new Map(Object.entries(records)) });
 const row = (path: string, id: string | undefined, fingerprint: string | null, mtimeMs?: number): SeenRow => ({ path, id, fingerprint, ...(mtimeMs === undefined ? {} : { mtimeMs }) });
@@ -125,8 +123,6 @@ const ROWS = [
   row("d.html", undefined, H("d"), 13), row("e.html", "dup", H("e"), 14), row("f.html", "dup", H("f"), 15),
 ];
 const LEGACY: RootMemory = { legacy: { "a.html": 10, "b.html": 10 }, known: {} };
-
-// ---- device-local records (canvas-seen.json v3) ---------------------------------------------------------------------
 
 const roots = (text: string) => {
   const read = parseLocalSeen(text);

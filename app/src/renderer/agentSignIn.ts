@@ -9,12 +9,11 @@ type Api = Pick<DoanApi, "readAgentAuth" | "onAgentAuth" | "checkAgentAuth" | "s
 export interface AgentSignInDeps {
   api: Api;
   hasFocus(): boolean;
-  // Attempt ids this renderer started, kept across a renderer reload; agent-auth still names the window their owner.
+  // Kept across a renderer reload; agent-auth still names the window their owner.
   remember?(ids: readonly string[]): void;
   recall?(): string[];
 }
-// The screen that shows the provider rows (Settings > Agents, the first-run Agent step). Ready changes are announced
-// there, and a refusal that needs the stop dialog asks it to open one.
+// A refusal that needs the stop dialog asks the screen to open one.
 export interface RowsConsumer {
   // returning: announced as the window came back to the front, not while it had focus.
   announce(text: string, returning: boolean): void;
@@ -22,46 +21,41 @@ export interface RowsConsumer {
 }
 export type SignInToast = ReturnType<typeof signInToast>;
 export interface AgentSignInState {
-  // undefined: not read yet. null: the account store is unreadable.
+  // null: the account store is unreadable.
   auth: AuthSnapshot | null | undefined;
   contexts: Partial<Record<Provider, ProviderContext>>;
 }
 
-// Providers whose links open on the first prompt. Cursor and Copilot (2026-10-28 user) and codex login (its webbrowser
-// crate) open the default browser themselves; opening again showed a second sign-in page.
+// The others open the default browser themselves; opening again showed a second sign-in page.
 const AUTO_OPEN: readonly Provider[] = ["claude", "antigravity"];
 // Codex prints its local callback server before the auth page; opening the server's address shows nothing useful.
 function loopback(url: string): boolean {
   try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname); } catch { return false; }
 }
 
-// Sign-in state for the whole renderer. main sends a sign-in prompt
-// to its owner window once, and a sign-in outlives the screen it started on, so the prompt, the attempts this renderer
-// owns and the ready announcements live here rather than in a component (POSTMORTEM 2026-10-25 'A forwarded Settings
-// target discarded a pending setup confirmation': component and main operation lifetimes diverge). Readiness is never
-// judged here; agentAuthView reads the snapshot.
+// main sends a sign-in prompt to its owner window once, and a sign-in outlives the screen it started on, so this state
+// lives here rather than in a component. Readiness is never judged here; agentAuthView reads the snapshot.
 export class AgentSignIn {
   state: AgentSignInState = { auth: undefined, contexts: {} };
   private live = false;
   private stops: (() => void)[] = [];
   private listeners = new Set<() => void>();
   private toastListeners = new Set<(toast: SignInToast) => void>();
-  // The screens showing the rows, latest last; only the latest one is told.
+  // Only the latest one is told.
   private shown: RowsConsumer[] = [];
   private ownedIds: string[];
   private opened = new Set<string>();
-  // Sign-in calls still waiting for their attempt id, and prompts that came before that id: a main event and an
-  // invoke reply have no guaranteed order, so a prompt cannot be judged until the reply lands.
+  // A main event and an invoke reply have no guaranteed order, so a prompt cannot be judged until the reply lands.
   private starting = 0;
   private held: AuthPromptEvent[] = [];
-  // The provider of each sign-in this renderer started, until it settles: its ready change is announced at once.
+  // Sign-ins this renderer started, until they settle: their ready change is announced at once.
   private ownedBy = new Map<Provider, string>();
   private cancelled = new Set<Provider>();
-  // Ready changes seen while the window was in the background, told when it returns. ended: a sign-in ended there,
-  // so the change is news even if the screen showing the rows has gone by then; a settled check is not.
+  // ended: a sign-in ended there, so the change is news even if the rows' screen has gone by then; a settled check is
+  // not.
   private pending: { provider: Provider; text: string; ended: boolean }[] = [];
   private replyAttempt = new Map<Provider, string>();
-  // A check already on its way is not sent again (a second entry before its snapshot shows the attempt).
+  // A second entry can come before its snapshot shows the attempt.
   private checking = new Set<Provider>();
   constructor(private readonly deps: AgentSignInDeps) { this.ownedIds = deps.recall?.() ?? []; }
 
@@ -107,7 +101,7 @@ export class AgentSignIn {
       if (!result.ok) this.refuse(provider, result.reason, "signIn");
     });
   }
-  // A person's Check or Retry: an earlier refusal shown on the row no longer applies.
+  // An earlier refusal shown on the row no longer applies.
   checkAgain(provider: Provider): void {
     this.context(provider, { reply: null });
     this.check(provider);
@@ -149,12 +143,12 @@ export class AgentSignIn {
   submitCode(provider: Provider, attemptId: string, code: string): Promise<AuthReply | { ok: false; reason: "invalid" }> {
     return this.settle(this.deps.api.submitAgentSignInCode(provider, attemptId, code));
   }
-  // Only this renderer's sign-ins still running are cancelled; saved connections and others' attempts stay.
+  // Saved connections and others' attempts stay.
   async cancelOwned(): Promise<void> {
     const auth = this.state.auth ?? null;
     await Promise.all(ownedSignIns(auth, this.ownedIds).map(({ provider, attemptId }) => this.settle(this.deps.api.cancelAgentSignIn(provider, attemptId))));
   }
-  // The window came back to the front: ready changes seen meanwhile are told once, on the rows or in a toast.
+  // Ready changes seen while the window was in the background are told once, on the rows or in a toast.
   windowFocused(): void {
     if (!this.live || this.pending.length === 0) return;
     const pending = this.pending.splice(0), rows = this.rows();
@@ -198,11 +192,8 @@ export class AgentSignIn {
       }
     }
     this.set({ auth: next, contexts });
-    // With the rows shown, a sign-in finishing in the browser is announced once with role=status when the window
-    // regains focus, which never raises the window (2026-10-28 user). One seen while the window has focus (a check, a
-    // Retry) is on screen already and must not pull focus away; a sign-in this renderer started is still announced
-    // once, without moving focus (2026-10-29). With no rows shown, only a sign-in that ended is told, in a
-    // toast: a check that settles in the background is not news.
+    // Announced with role=status when the window regains focus, which never raises the window. With no rows shown, only a
+    // sign-in that ended is told, in a toast: a check that settles in the background is not news.
     const focused = this.deps.hasFocus();
     for (const status of next.providers) {
       const { provider } = status, old = previous?.providers.find(p => p.provider === provider);
@@ -224,7 +215,7 @@ export class AgentSignIn {
     this.context(event.provider, { prompt: event.attemptId });
     if (this.ownedIds.includes(event.attemptId)) this.autoOpen(event);
     else if (this.starting > 0) this.held.push(event);
-    // Otherwise the attempt was started elsewhere (the CLI, owned by this window too): main opens its link.
+    // An attempt started elsewhere (the CLI, owned by this window too) gets its link opened by main.
   }
   private autoOpen(event: AuthPromptEvent): void {
     if (!AUTO_OPEN.includes(event.provider) || this.opened.has(event.attemptId) || loopback(event.url)) return;
@@ -251,8 +242,8 @@ export class AgentSignIn {
   }
 }
 
-// Kept in the window's sessionStorage, which a renderer reload keeps; failures only cost the reload case. The key
-// predates the controller, so a reload during first run still finds the ids saved before it.
+// sessionStorage survives a renderer reload. The key predates the controller, so a reload during first run still finds
+// the ids saved before it.
 const OWNED_KEY = "doan.onboarding.ownedSignIns";
 function rememberOwned(ids: readonly string[]): void { try { sessionStorage.setItem(OWNED_KEY, JSON.stringify(ids)); } catch { /* reload case only */ } }
 function recallOwned(): string[] {
@@ -260,7 +251,6 @@ function recallOwned(): string[] {
 }
 
 let shared: AgentSignIn | null = null;
-// The renderer's one controller, started on first use and kept for the renderer's life.
 export function agentSignIn(): AgentSignIn {
   if (!shared) {
     shared = new AgentSignIn({ api: window.doan, hasFocus: () => document.hasFocus(), remember: rememberOwned, recall: recallOwned });

@@ -89,9 +89,8 @@ describe("Claude", () => {
   }, 15000);
 });
 
-// A Codex app-server replaying the recorded listFiles-and-read turn. Its second turn first replays one notification of
-// the first turn, then the same frames under the new turn id. FAKE_STAGE "hold" sends nothing after the reply until
-// turn/interrupt, then a read command's start before the reply and the interrupted completion.
+// A Codex app-server replaying the recorded listFiles-and-read turn; its second turn replays one first-turn notification
+// first. FAKE_STAGE "hold" waits for turn/interrupt, then sends a read's start and the interrupted completion.
 function codexServer(root: string): string {
   const command = join(root, "codex");
   writeFileSync(command, `#!/usr/bin/env node

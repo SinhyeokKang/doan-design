@@ -265,7 +265,6 @@ describe("removeMarker", () => {
 });
 
 describe("bubbleBlocks", () => {
-  // The text the blocks stand for: what the bubble must copy back.
   function textOf(blocks: readonly BubbleBlock[]): string {
     const partsText = (parts: readonly MessagePart[]) => parts.map(part => ("text" in part ? part.text : `{{${part.anchor}}}`)).join("");
     return blocks.map(block => (block.kind === "text" ? partsText(block.parts)

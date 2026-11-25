@@ -1,16 +1,17 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { join, resolve } from "node:path";
 import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
-import { ATTRIBUTES_BYTES, CANVAS_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
+import { ATTRIBUTES_BYTES, CANVAS_BYTES, LOG_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
+import { settlesWithin } from "./canvas-watch.ts";
 import { contentHash } from "./work.ts";
+import type { Check } from "./types.ts";
 
-// A stand-in for the app's side of `doan active`: runtime.v1 on disk and
-// app-socket.v1 on a unix socket, mirroring app/src/main/runtime.ts. The
-// validators follow schema/*.schema.json and are tested against its fixtures.
+// Stand-in for the app side of `doan active` (runtime.v1 file, app-socket.v1 socket, as app/src/main/runtime.ts).
+// The validators follow schema/*.schema.json and are tested against its fixtures.
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -67,9 +68,8 @@ export function answer(line: string, token: string, root: string, selection: Obj
   return { v: 1, ok: true, result: selection !== null && selection.root === root ? { selection } : {} };
 }
 
-// app-socket v2 (onboarding). app/src/formats/validate.ts cannot be imported by
-// plain node (extensionless ajv path, JSON imports without attributes), so the
-// same ajv build compiles the same schema $defs those shared validators load.
+// app-socket v2: plain node cannot import app/src/formats/validate.ts (extensionless ajv path, bare JSON imports),
+// so the same ajv build compiles the same schema $defs.
 const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.json"))("ajv/dist/2020");
 // Default options as in validate.ts; only ajv's strict-mode warnings are muted,
 // which do not change what validates.
@@ -106,9 +106,8 @@ const prototypeResponseSchema = ajv.getSchema(`${V6}#/$defs/response`);
 export const validPrototypeRequest = (v: unknown): boolean => prototypeRequestSchema(v);
 export const validPrototypeResponse = (v: unknown): boolean => prototypeResponseSchema(v);
 
-// A scenario's scripted app state. The fake is deterministic (session `s_eval`,
-// `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
-// agents still have to read them from replies.
+// The fake is deterministic (session `s_eval`, `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead;
+// real agents still have to read them from replies.
 export interface OnboardingScript {
   // The auth state of each provider at start; only these can be signed in or
   // checked. The status DTO is derived from it (fakeAuthStatus).
@@ -159,10 +158,10 @@ interface Operation {
 const v2error = (code: string, message: string) => ({ v: 2, ok: false, error: { code, message } });
 const ACTIVE = ["pending", "running", "awaiting_user"];
 
-// Operations move one step per status read, so an agent that never polls never sees a result.
-// `initialize` runs once when a select asked to set up a folder that needs it
-// succeeds, with the planned changes; without it the fake only reports success.
-export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => void) {
+// Operations move one step per status read, so an agent that never polls sees no result. `initialize` runs once
+// when a select that asked for setup settles, and false fails it as the app's refused init does; without it the fake
+// only reports success.
+export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => boolean) {
   const keys = ["providers", "changes", "readyAfterCheck", "completed"];
   if (!isObj(script) || !only(script, keys, keys.slice(0, 3)) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
     throw new Error("onboarding script must be { providers, changes, readyAfterCheck, completed? }");
@@ -224,8 +223,9 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
       o.inspection = { inspectionId: latestInspection, candidates: [{ path: root, changes: [...script.changes] }] };
     }
     if (o.kind === "project_select") {
-      project = o.project = { root };
-      if (o.initialize && script.changes.length > 0) initialize?.([...script.changes]);
+      if (o.initialize && script.changes.length > 0 && initialize?.([...script.changes]) === false)
+        Object.assign(o, { state: "failed", error: { code: "init_failed", message: "Doan could not set up the project." } });
+      else project = o.project = { root };
     }
     if (o.kind === "complete") { o.project = { root }; completed = true; }
   };
@@ -337,11 +337,16 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
 const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
-// Sets `root` up as the real app would for the planned changes, so an agent
-// that trusts the app finds a project afterwards. Every file written is
-// recorded with its content in `manifest`, which changedFiles() reads to keep
-// the app's writes apart from the agent's.
-export function initializeRepo(root: string, changes: string[], manifest: string): void {
+// Sets `root` up as the real app would, or returns false where its `doan init` refuses: a setup path that leaves the
+// folder or is a dangling link (cli/internal/cli/init.go). Files written are recorded in `manifest`, which changedFiles()
+// reads to keep the app's writes apart from the agent's.
+export function initializeRepo(root: string, changes: string[], manifest: string): boolean {
+  for (const path of [".doan/canvases", ".doan", ".doan/config.json", ".gitattributes"]) {
+    try { resolveOnDisk(root, path); } catch { return false; }
+    let link = false;
+    try { link = lstatSync(join(root, path)).isSymbolicLink(); } catch { /* missing */ }
+    if (link && !existsSync(join(root, path))) return false;
+  }
   const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readArtifact(manifest, MANIFEST_BYTES).toString("utf8")) : {};
   if (changes.includes(".doan/canvases/")) mkdirSync(join(root, ".doan/canvases"), { recursive: true });
   if (changes.includes(".doan/config.json")) {
@@ -363,21 +368,27 @@ export function initializeRepo(root: string, changes: string[], manifest: string
     }
   }
   writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
+  return true;
 }
 
-// Whether the canvas draws a frame with this id. The app also lists frames a canvas script draws at runtime; the fake's
-// canvases declare theirs in markup.
-function hasFrame(canvas: Buffer, frame: string): boolean {
-  return [...canvas.toString("utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame);
+// The canvas's static frame ids as the CLI parses them for the app's canvas list, or null when the list does not have
+// the canvas. The app also lists frames a canvas script draws at runtime; the fake's canvases declare theirs in markup.
+// An unreadable list throws: answering canvas_not_found would charge the fake's failure to the agent.
+function listedFrames(cli: string, root: string, runtime: string, path: string): unknown[] | null {
+  const listed = spawnSync(cli, ["ls", "--json", "--repo", root], { env: { ...process.env, DOAN_RUNTIME: runtime }, encoding: "utf8", timeout: 30_000 });
+  let reply: unknown = null;
+  try { reply = JSON.parse(listed.stdout); } catch { /* reported below */ }
+  const canvases = isObj(reply) && isObj(reply.result) ? reply.result.canvases : null;
+  if (listed.status !== 0 || !Array.isArray(canvases)) throw new Error(`the eval fake app cannot read the canvas list: exit ${listed.status} ${listed.stderr}`);
+  const item: unknown = canvases.find(entry => isObj(entry) && entry.path === path);
+  return isObj(item) && Array.isArray(item.frames) ? item.frames.map(frame => isObj(frame) ? frame.id : null) : null;
 }
 
-export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
-// workOthers: the other sessions the fake reports on v3 start and update answers; without it the fake is an older app
-// whose answers carry no `others`.
-// handoff: the conversation the fake stands for. `key` is the DOAN_HANDOFF value its environment carries and `canvas` the
-// canvas it works on, null for a project conversation, which has none and so never meets same_canvas; without `handoff`
-// the fake is an older app that does not know v5.
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
+export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; errorLog: string; close(): Promise<void> }
+// Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5.
+// handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas.
+// cli: the doan whose canvas list the fake reads frames from, as the app does; a v4 request with a frame needs it.
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; cli?: string; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
 export const APP_WRITES = "app-writes.json";
@@ -394,6 +405,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const openLog = join(o.dir, "open.jsonl");
   const handoffLog = join(o.dir, "handoff.jsonl");
   const prototypeLog = join(o.dir, "prototype.jsonl");
+  const errorLog = join(o.dir, "app-errors.jsonl");
   const paths = new Set<string>();
   const handoffTaken = new Set<string>();
   const contents = (path: string): Buffer | null => {
@@ -439,8 +451,14 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
         const path = parsed.path as string;
         const canvas = contents(path);
         if (!canvas) return fail("canvas_not_found", "The canvas is not in this project's list.");
+        let frame = "none";
+        if (parsed.frame !== undefined) {
+          if (o.cli === undefined) throw new Error("the eval fake app needs cli to answer a frame");
+          const frames = listedFrames(o.cli, o.root, runtimePath, path);
+          if (frames === null) return fail("canvas_not_found", "The canvas is not in this project's list.");
+          frame = frames.includes(parsed.frame) ? "found" : "missing";
+        }
         hashes[path] = contentHash(canvas);
-        const frame = parsed.frame === undefined ? "none" : hasFrame(canvas, parsed.frame as string) ? "found" : "missing";
         return { v: 4, ok: true, opened: true, frame };
       };
       const response = open();
@@ -502,7 +520,21 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     connection.on("data", chunk => {
       buffer += chunk;
       const newline = buffer.indexOf("\n");
-      if (newline !== -1) connection.end(JSON.stringify(reply(buffer.slice(0, newline))) + "\n");
+      if (newline === -1) return;
+      const line = buffer.slice(0, newline);
+      let answer: string;
+      try {
+        answer = JSON.stringify(reply(line)) + "\n";
+      } catch (error) {
+        // The fake's own failure gets no answer, which the agent would read as its outcome, and must not end the fake.
+        let request: unknown = null;
+        try { request = JSON.parse(line); } catch { /* recorded as null */ }
+        if (isObj(request)) { const { token: _token, ...rest } = request; request = rest; }
+        appendFileSync(errorLog, JSON.stringify({ request, error: (error as Error).stack ?? String(error), at: new Date().toISOString() }) + "\n", { mode: 0o600 });
+        connection.end();
+        return;
+      }
+      connection.end(answer);
     });
   });
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
@@ -514,6 +546,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     openLog,
     handoffLog,
     prototypeLog,
+    errorLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -542,6 +575,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     openLog: join(o.dir, "open.jsonl"),
     handoffLog: join(o.dir, "handoff.jsonl"),
     prototypeLog: join(o.dir, "prototype.jsonl"),
+    errorLog: join(o.dir, "app-errors.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();
@@ -554,10 +588,10 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
 
 const CLOSE_GRACE_MS = 2000;
 
-async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), ms); });
-  try { return await Promise.race([promise.then(() => true), timeout]); } finally { clearTimeout(timer); }
+// Failures the fake app recorded fail the run as the harness's: the agent's app calls after one may have failed for it.
+export function fakeAppErrors(log: string): Check[] {
+  const text = existsSync(log) ? readArtifact(log, LOG_BYTES).toString("utf8").trim() : "";
+  return text ? [{ id: "fake_app_error", pass: false, detail: `the eval fake app failed while answering: ${text}` }] : [];
 }
 
 // Child side. It exits when the runner closes stdin, including when the runner dies.

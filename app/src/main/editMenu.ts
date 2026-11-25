@@ -1,5 +1,4 @@
-// Which items the right-click text edit menu holds. Kept free of Electron so the rules are tested without a window;
-// index.ts turns the result into a native menu.
+// Kept free of Electron so the rules are tested without a window; index.ts turns the result into a native menu.
 
 import { isTopFrame } from "./canvasFrame";
 
@@ -23,7 +22,7 @@ export type EditMenuItem =
   | { kind: "lookUp"; label: string }
   | { kind: "separator" };
 
-// Doan's own cut-off, not a measured macOS rule.
+// Doan's own cut-off, not a macOS rule.
 const LOOK_UP_MAX = 30;
 
 // A composer line that starts with a chip holds an invisible U+200B filler before it, and Chromium's selection text
@@ -38,10 +37,8 @@ export function lookUpLabel(selection: string): string {
   return `Look Up “${text}”`;
 }
 
-// Sections in macOS order (NSTextView.menu(for:) on macOS 26.6.2): spelling, Look Up, Cut/Copy/Paste, then Select All,
-// which NSTextView lacks but the Edit menu has. Empty sections are dropped, so separators only ever sit between two.
-// `frameFields`: the prototype window's frame content is a subframe whose fields people type into while playing, so
-// an editable field there gets the menu; the rest of the frame, like the canvas iframe, gets none.
+// macOS order (NSTextView.menu(for:)), then Select All as the Edit menu has it; empty sections are dropped. `frameFields`:
+// the prototype window's frame fields are typed into while playing, so they get the menu; the rest of the frame none.
 export function editMenuItems(input: EditMenuInput, { frameFields = false }: { frameFields?: boolean } = {}): EditMenuItem[] {
   // The canvas iframe is never edited by hand (PRODUCT §3), so no edit commands are offered into it.
   if (!input.mainFrame && !(frameFields && input.editable)) return [];
@@ -103,22 +100,16 @@ const EDIT_LABELS: Record<EditRole, string> = { cut: "Cut", copy: "Copy", paste:
 // Only for the hint macOS draws beside the label: a click item loses the one a role item showed.
 const EDIT_ACCELERATORS: Record<EditRole, string> = { cut: "CmdOrCtrl+X", copy: "CmdOrCtrl+C", paste: "CmdOrCtrl+V", selectAll: "CmdOrCtrl+A" };
 
-// True only while the focused element is the one under the menu's point, or holds it (a chip inside the composer;
-// the prototype window's frame content, whose element is the focused one while a field inside it has focus).
-// A fixed script with two numbers in it: main never runs a string the renderer chose. Non-finite input gets no script,
-// so the item does nothing.
+// True only while the focused element is the one under the point, or holds it (a composer chip, the prototype frame).
+// A fixed script with two numbers: main never runs a string the renderer chose; non-finite input gets no script.
 export function fieldCheckScript(point: { x: number; y: number }): string | null {
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
   return `(() => { const at = document.elementFromPoint(${point.x}, ${point.y}); const active = document.activeElement;
     return at !== null && active !== null && active !== document.body && active !== document.documentElement && (active === at || active.contains(at)); })()`;
 }
 
-// Cut/Copy/Paste/Select All and spelling act on whatever is focused when chosen, not on the field the menu opened on.
-// If that field went away while the menu was open (a question card answered, say), focus can sit in another field,
-// which would then take the paste or the replacement. So an editable menu's writing items first ask the page whether
-// focus is still on the opened field, the way Edit > Undo checks for a focused chip field. Look Up and a non-editable
-// menu's Copy write nothing, so they are not checked. The webContents methods run the same Chromium editing commands as
-// the Edit menu's roles, so the chip field gets its usual DOM copy/cut/paste events.
+// Edit commands act on whatever is focused when chosen; a field that went away while the menu was open could leave
+// focus in another one. So an editable menu's writing items first ask the page whether focus is still on that field.
 export function editMenuTemplate(input: EditMenuInput, contents: EditMenuContents, options: { frameFields?: boolean } = {}): EditMenuTemplateItem[] {
   const script = fieldCheckScript(input.point);
   const checked = (run: () => void) => () => {

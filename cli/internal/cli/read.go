@@ -85,7 +85,7 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		if file.ReadError != nil {
 			item["error"] = readFailure("unreadable_canvas", c.Path, file.ReadError)
 		} else if file.ParseError == nil {
-			if c.HasID && !c.IDDup && kebabID.MatchString(c.ID) {
+			if c.ValidID() {
 				item["id"] = c.ID
 			}
 			if c.HasWidth && !c.WidthDup && c.Width > 0 {

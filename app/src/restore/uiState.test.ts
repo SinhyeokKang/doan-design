@@ -175,8 +175,7 @@ test("a file without home memory has none", () => {
 });
 
 test("an older file's fields read the same beside home memory", () => {
-  // The same file without `home` must parse to the same rest, so an app that
-  // predates home memory reads a newer file and only loses that key.
+  // An app without home memory must read a newer file and lose only that key.
   const rest = { screen: "workspace", root: "/repo/a", canvas: "a.html", view, expanded: { "/repo/a": ["a"] }, lastByRoot: {} };
   const { home: _home, ...read } = parse({ ...rest, home }) ?? {};
   expect(read).toEqual(rest);
@@ -210,7 +209,7 @@ test("drops home fields one by one and keeps the rest", () => {
   expect(parse({ screen: "home", home: { lastRoot: 1, lastProvider: null, models: [] } })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });
 
-// each provider's last mode; an id this build does not know reads as Default
+// Each provider's last mode; an id this build does not know reads as Default
 // for that entry only, and Default is the same as no entry.
 test("keeps each provider's last permission mode and reads an unknown one as Default", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, permissions: { claude: "bypass", codex: "plan", cursor: "acceptEdits" } } };
@@ -220,7 +219,7 @@ test("keeps each provider's last permission mode and reads an unknown one as Def
   for (const bad of [null, [], "plan", 1]) expect(parse({ screen: "home", home: { ...home, permissions: bad } })?.home).toEqual(home);
 });
 
-// each provider's Last used Fast. Read back like permissions, so a save does not drop it
+// Each provider's Last used Fast. Read back like permissions, so a save does not drop it
 // (POSTMORTEM 2026-11-01); a damaged entry is dropped alone.
 test("keeps each provider's Fast and drops a damaged entry alone", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, fast: { claude: true, codex: true } } };
@@ -240,13 +239,12 @@ test("a prototype-polluting provider key is not a provider", () => {
   expect(Object.getPrototypeOf(state?.home?.models)).toBe(Object.prototype);
 });
 
-// the Settings category is a plain renderer field; the old main-composed tab is read once.
+// The Settings category is a plain renderer field; the older `settingsTab` is read once.
 test("keeps a saved Settings section", () => {
   for (const settingsSection of ["agents", "notifications", "about"])
     expect(parse({ screen: "home", settingsSection })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection });
 });
 
-// Settings > Connections was removed; a stored one opens About.
 test("a saved Connections section restores as About", () => {
   expect(parse({ screen: "home", settingsSection: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "about" });
   expect(parse({ screen: "home", settingsSection: "connections", settingsTab: "projects" })?.settingsSection).toBe("about");
@@ -455,7 +453,7 @@ test("a parsed rightPanel survives a second parse unchanged", () => {
   expect(parse(first)).toEqual(first);
 });
 
-// the Overview's Conversations panel keeps its own width, checked like the
+// The Overview's Conversations panel keeps its own width, checked like the
 // canvas panel's.
 test("reads the Overview panel's width apart from the canvas panel's; a malformed one is dropped", () => {
   expect(parse({ screen: "home", overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } })).toMatchObject({ overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } });
@@ -471,7 +469,7 @@ test("reads the Overview panel's width apart from the canvas panel's; a malforme
   expect(parse(first)).toEqual(first);
 });
 
-// the sidebar field carries its width and a hidden flag, each on its own.
+// The sidebar field carries its width and a hidden flag, each on its own.
 test("reads the sidebar's hidden flag beside its width; only true is kept", () => {
   expect(parse({ screen: "home", sidebar: { width: 260, hidden: true } })?.sidebar).toEqual({ width: 260, hidden: true });
   expect(parse({ screen: "home", sidebar: { hidden: true } })?.sidebar).toEqual({ hidden: true });
@@ -527,7 +525,7 @@ test("memory kept under an alias root moves to its real path; the real path's ow
     conversationByRoot: { [real]: "0aa9df81-cc51-48df-97ff-24e4debb82ec" },
     home: { lastRoot: real },
   });
-  // Without the mapping the alias is a removed project's memory, as before.
+  // Without the mapping the alias counts as a removed project's memory.
   expect(parseUiState(text, [real])).toMatchObject({ screen: "home", expanded: {}, lastByRoot: { [real]: { canvas: ".doan/canvases/b.html" } }, shellProjects: {} });
 });
 

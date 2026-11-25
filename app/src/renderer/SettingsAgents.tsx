@@ -44,9 +44,8 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 const groupSelector = (provider: Provider) => `.doan-preference-row[role="group"][data-provider="${provider}"]`;
 const LAST_USED = "last";
 
-// Settings > Agents (PRODUCT §5 item 0 'Agents'): the provider rows over the renderer's sign-in controller, and the
-// new-conversation defaults. The rows reuse the first-run Agent step's session and copy; agentAuthView's Settings
-// context is the only difference. It never starts or sends a conversation; models are read with conversation:models.
+// Settings > Agents (PRODUCT §5 item 0 'Agents'). The rows reuse the first-run Agent step's session and copy (agentAuthView's
+// Settings context); it never starts or sends a conversation, and reads models with conversation:models.
 export function SettingsAgents({ signIn, arrival, onLock, preferences, save, project }: SettingsAgentsProps) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const live = useRef({ onLock });
@@ -121,7 +120,8 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     if (!group) { if (state.auth === null) arrived.current = arrival.seq; return; }
     arrived.current = arrival.seq;
     const { provider } = arrival;
-    requestAnimationFrame(() => { group.focus(); watch.current = { provider, node: group }; });
+    // Sign in pressed in the prototype window arrives before this window is active.
+    requestAnimationFrame(() => { handFocus(() => document.querySelector<HTMLElement>(groupSelector(provider))?.focus()); watch.current = { provider, node: group }; });
     setFlash(provider);
   });
   useEffect(() => {
@@ -142,16 +142,17 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
     {view.notice && <div className="doan-preference-row-extra"><NoticeView notice={view.notice} run={run(view.provider)} /></div>}
     {view.paste && <p className="doan-preference-row-extra ob-page-help">{view.paste.prompt} {action(view.provider, view.paste.button, { "data-paste": view.provider })}</p>}
   </div>;
-  // A paste modal that closed hands focus back to its line, else the row group.
+  // A paste modal that closed hands focus back to its line, else the row group. Main's answer to a pasted address can
+  // close it after the person went back to the browser, so the return is made again on activation.
   useEffect(() => {
     const focus = state.focus;
     if (focus?.target !== "paste" || !focus.provider) return;
     const provider = focus.provider;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(() => handFocus(() => {
       const paste = document.querySelector<HTMLElement>(`[data-paste="${provider}"]`);
       (paste && !paste.matches(":disabled") ? paste : document.querySelector<HTMLElement>(groupSelector(provider)))?.focus();
-    });
-  }, [state.focus?.seq]);
+    }));
+  }, [state.focus?.seq, handFocus]);
 
   const stop = session.stopView(), paste = session.pasteView();
   return <>
@@ -246,7 +247,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   </DropdownMenu.Root>;
   const radio = (value: string, label: ReactNode, selected: boolean, onKeyDown?: ReturnType<typeof fold.olderKeyDown>) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item" {...(onKeyDown ? { onKeyDown } : {})}>
     {label}<span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;
-  // The Model menu's Default row: its name over the model it stands for, the check on the name line (draft frame settings).
+  // The Model menu's Default row: its name over the model it stands for, the check on the name line.
   const unset = (value: string, label: string, description: string | null, selected: boolean) => <DropdownMenu.RadioItem key={value} value={value} className="doan-menu-item unset-item">
     <span className="unset-copy"><span className="model-name">{label}</span>{description && <span className="sub">{description}</span>}</span>
     <span className="check-slot">{selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>;

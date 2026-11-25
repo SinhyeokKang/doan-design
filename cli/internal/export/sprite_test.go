@@ -8,9 +8,8 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
 )
 
-// The app draws a <use> only when it names a fragment of the canvas, so every
-// other <use> is refused before its path is resolved: a missing, unserved or
-// CDN target gets the same reason, and nothing is copied into the canvas.
+// The app draws a <use> only when it names a fragment of the canvas, so every other <use> is refused before its path is
+// resolved: a missing, unserved or CDN target gets the same reason, and nothing is copied into the canvas.
 func TestInlineRefusesUseOfAnotherFile(t *testing.T) {
 	root := exporttest.Seed(t)
 	const from = ".doan/canvases/use.html"
@@ -61,9 +60,8 @@ func TestInlineRefusesUseOfAnotherFile(t *testing.T) {
 	}
 }
 
-// The tokenizer reads <title>…</title> as text where the parser closes the
-// title at the foreign </svg>, so a <use> only the parser sees is refused too:
-// export refuses what canvas.Parse lists, not what the tokenizer meets.
+// The tokenizer reads <title>…</title> as text where the parser closes the title at the foreign </svg>, so a <use> only
+// the parser sees is refused too: export refuses what canvas.Parse lists.
 func TestInlineRefusesAUseTheTokenizerTakesForText(t *testing.T) {
 	root := exporttest.Seed(t)
 	const from = ".doan/canvases/rcdata.html"

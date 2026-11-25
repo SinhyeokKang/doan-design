@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ElementTreeNode } from "./canvasMessage";
 import type { SelectionView } from "./selection";
 
-// The element menu and the row list with their hooks as plain state (AddProjectsPage.interaction.test.tsx style): no
-// DOM, so rows are found in the returned element tree, their handlers called, and the component run again.
+// The element menu and the row list with hooks as plain state: no DOM, so rows are found in the returned element tree, their
+// handlers called, and the component run again.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps?: unknown[] | undefined; cleanup?: () => void } | undefined)[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -331,9 +331,8 @@ function expanded(tree: El[], name: string): El[] {
     .flatMap(element => all((element.type as (props: unknown) => ReactNode)(element.props)));
 }
 
-// POSTMORTEM 2026-11-07: an open tooltip's Radix layer takes the Escape first and prevents it, so every tooltip in the
-// inspector hands the event to the canvas page (CanvasController.toolbarEscape), whose keydown then steps the
-// selection back as it would with no tooltip.
+// POSTMORTEM 2026-11-07: an open tooltip's Radix layer takes the Escape first and prevents it, so every tooltip in the inspector
+// hands it to the canvas page (CanvasController.toolbarEscape).
 describe("Esc over an open tooltip in the inspector", () => {
   const VIEW: SelectionView = { tag: "button", frame: { id: "pay", title: "Payment" }, element: { selector: "#pay", doanId: "pay-button", html: "<button>" }, path: [] };
   const tree = () => ({ request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() });
@@ -357,8 +356,8 @@ describe("Esc over an open tooltip in the inspector", () => {
   });
 });
 
-// Completion condition: with the element menu open, Esc closes only the menu. A cut name's tooltip opened over the
-// trigger meanwhile is the top layer, so it must not hand the Escape to the canvas page then.
+// With the element menu open, Esc closes only the menu; a cut name's tooltip opened over the trigger is the top layer, so it
+// must not hand the Escape to the canvas page then.
 test("the cut name's tooltip keeps its Escape to itself while the menu is open", () => {
   const onEscape = vi.fn();
   const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
@@ -376,8 +375,7 @@ test("the cut name's tooltip keeps its Escape to itself while the menu is open",
   expect(rendered.find(element => element.type === Popover.Root)!.props.open).toBe(false);
 });
 
-// canvas-inspector-panel 'Element menu': the menu spans the panel less 8px on each side (263 in a 280 column with its
-// 1px start edge), not its content's width.
+// The menu spans the panel less 8px on each side (263 in a 280 column with its 1px start edge), not its content's width.
 test("the element menu is as wide as the panel's inside less 8px a side", async () => {
   const VIEW: SelectionView = { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] };
   const tree = { request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() };
@@ -399,8 +397,8 @@ describe("the element menu leaves no trace", () => {
     { depth: 1, name: "pay", kind: "button", anchor: { selector: "#pay" }, rect: { x: 0, y: 20, width: 10, height: 10 }, selected: true },
   ];
 
-  // The menu goes with its trigger when the selection clears under it (a press on the board's margin, which the
-  // app's document never sees, so Radix does not close it first).
+  // The menu goes with its trigger when the selection clears under it (a press on the board's margin, which the app's document
+  // never sees, so Radix does not close it first).
   test("unmounting while a row is marked takes the mark off the board", () => {
     const tree = { request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() };
     const props = { view: VIEW, nodes: NODES, tree, shown: true, onEscape: noop };
@@ -424,10 +422,8 @@ describe("the element menu leaves no trace", () => {
   });
 });
 
-// POSTMORTEM 2026-11-17 (Retry's success focus) and 2026-11-13 (a focused control that goes): focus that was in the
-// inspector never falls to the page. A Retry that succeeds hands it to the rows' Tab stop; a focused row or Retry that
-// goes while a selection stays (an Esc step, a new read) hands it to the head's trigger; with no selection left, to the
-// board area.
+// POSTMORTEM 2026-11-17 and 2026-11-13: focus in the inspector never falls to the page. A succeeded Retry hands it to the rows'
+// Tab stop; a row or Retry that goes hands it to the head's trigger, else the board area.
 describe("focus that was in the inspector", () => {
   const SELECTION = { canvas: { root: "/repo", path: "a.html" }, view: { tag: "button", element: { selector: "#pay", html: "<button>" }, path: [] } as SelectionView };
   const tree = () => ({ request: vi.fn(() => true), subscribe: vi.fn(() => () => {}), preview: vi.fn(), select: vi.fn() });

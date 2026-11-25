@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "../main/conversation/attachmentRecords.fixture";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
@@ -49,7 +49,7 @@ describe("threadItems", () => {
     expect(crashed.slice(1)).toEqual([
       { kind: "agent", key: "mt1:m1", messageId: "m1", text: "Half", streaming: false },
       { kind: "activity", key: "a4", running: false, head: "1 step", steps: [{ key: "s4", kind: "command", verb: "Ran a command", path: null }] },
-      { kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
+      { kind: "permission", key: "pt1:r1", seq: 5, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
       { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } },
     ]);
   });
@@ -142,8 +142,8 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT, true).slice(1).map(i => i.kind === "permission" && i.status)).toEqual(["pending", "pending"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }), ev("t1", { type: "turn.failed", code: "process_exited" }));
     const items = threadItems(events, ROOT, true);
-    expect(items[1]).toMatchObject({ key: "pr1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
-    expect(items[2]).toMatchObject({ key: "pr2", status: "expired", answer: null });
+    expect(items[1]).toMatchObject({ key: "pt1:r1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
+    expect(items[2]).toMatchObject({ key: "pt1:r2", status: "expired", answer: null });
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
 
@@ -173,7 +173,7 @@ describe("threadItems", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];
     const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "mcp", summary: "Run search on Linear", options }),
       ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "expired" }), ev("t1", { type: "interrupted", reason: "user" })];
-    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "pr1", status: "expired", answer: null });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "pt1:r1", status: "expired", answer: null });
   });
 
   test("a finished turn without any reply says so; nothing after a turn's end counts", () => {
@@ -183,8 +183,7 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "activity", "noReply"]);
   });
 
-  // Conversations are no longer archived; an earlier build's archive and restore lines draw nothing, the rest of the
-  // history around them draws as before.
+  // Conversations are not archived; an earlier build's archive and restore lines draw nothing.
   test("a promotion marker, and nothing for an earlier build's archive and restore lines", () => {
     seq = 0;
     const events: ConversationEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
@@ -223,18 +222,6 @@ describe("scrollFollow", () => {
   });
 });
 
-// An entry scrolled a tall question card to its top, and the thread's re-renders (about every
-// 100 ms in the real app) pulled it back to the bottom before the scroll could report a distance.
-describe("threadScroll", () => {
-  test("a re-render that drew nothing new leaves the scroll where it is", () => {
-    expect(threadScroll(true, false, 0)).toBe("bottom");
-    expect(threadScroll(false, true, 10)).toBe("bottom");
-    expect(threadScroll(false, true, 25)).toBe("behind");
-    expect(threadScroll(false, false, 0)).toBe("stay");
-    expect(threadScroll(false, false, 500)).toBe("stay");
-  });
-});
-
 describe("threadItems with a message pushed into a running turn", () => {
   test("shows both user messages in order inside the one turn, without a crash fold", () => {
     seq = 0;
@@ -252,8 +239,8 @@ describe("threadItems with a message pushed into a running turn", () => {
   });
 });
 
-// Draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
-// activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
+// Main writes "Waiting for <X>" then "<X> wasn't ready…" as two activities (append-only history,
+// mcpStartup.ts); the thread shows one step.
 describe("threadItems with a Codex MCP server that was not ready", () => {
   const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
 
@@ -349,7 +336,6 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
   });
 });
 
-// Messages Send now has in flight, as the person's messages at the thread's end.
 describe("withSending", () => {
   const CTA = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
   const sending = [
@@ -371,9 +357,9 @@ describe("withSending", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }];
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", summary: "Read", path: "a.html" }),
       ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options })];
-    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "qq1", "qq2", "pr1"]);
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "qq1", "qq2", "pt1:r1"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }));
-    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "pr1", "qq1", "qq2"]);
+    expect(withSending(threadItems(events, ROOT, true), sending).map(item => item.key)).toEqual(["u1", "a3", "pt1:r1", "qq1", "qq2"]);
   });
 
   test("nothing sending leaves the items as they are", () => {
@@ -450,15 +436,28 @@ describe("questions", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }];
     const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "p1", tool: "Bash", summary: "Run", options }),
       ev("t1", { type: "question.request", requestId: "q1", questions: [layout] }), ev("t1", { type: "permission.request", requestId: "p2", tool: "Bash", summary: "Run", options })];
-    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "p1", key: "pp1" }, { requestId: "q1", key: "Qq1" }, { requestId: "p2", key: "pp2" }]);
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "p1", key: "pt1:p1" }, { requestId: "q1", key: "Qq1" }, { requestId: "p2", key: "pt1:p2" }]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "p1", optionId: "a" }));
     expect(pendingAsks(threadItems(events, ROOT, true)).map(ask => ask.requestId)).toEqual(["q1", "p2"]);
   });
+
+  // A new Codex app-server numbers its requests from 0 again, so a history can hold one id in two turns.
+  test("two turns' permission requests that share an id draw as two cards, each settled by its own turn", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const request = (turnId: string, summary: string) => ev(turnId, { type: "permission.request", requestId: "number:0", tool: "commandExecution", summary, options });
+    const events = [...turn("t1"), request("t1", "ls"), ev("t1", { type: "permission.resolved", requestId: "number:0", optionId: "a" }), ev("t1", { type: "turn.done" }),
+      ...turn("t2", "Again"), request("t2", "npm test")];
+    const items = threadItems(events, ROOT, true).filter(item => item.kind === "permission");
+    expect(items).toMatchObject([{ key: "pt1:number:0", summary: "ls", status: "answered" }, { key: "pt2:number:0", summary: "npm test", status: "pending" }]);
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "number:0", key: "pt2:number:0" }]);
+    events.push(ev("t2", { type: "permission.resolved", requestId: "number:0", optionId: "expired" }));
+    expect(threadItems(events, ROOT, true).filter(item => item.kind === "permission")).toMatchObject([{ status: "answered" }, { status: "expired" }]);
+  });
 });
 
-// A turn's canvases are cards at its end, one per path in the order each first appeared: a canvas it drew
-// (canvas.drawn), a handoff it asked for, a missed handoff. A handoff's result settles its card. The receiving
-// conversation's first message is the handoff card, its text never read for {{n}} markers.
+// One card per path at the turn's end, in first-appearance order. The receiving conversation's first
+// message is the handoff card, never read for {{n}} markers.
 describe("threadItems canvas cards", () => {
   const CHECKOUT = ".doan/canvases/checkout-flow.html", PAYMENT = ".doan/canvases/payment.html", RECEIPT = ".doan/canvases/receipt.html";
   const drew = (turnId: string, path: string, id?: string) => ev(turnId, { type: "canvas.drawn", canvas: id ? { path, id } : { path } });
@@ -621,13 +620,12 @@ describe("threadItems canvas cards", () => {
     expect(cards(items).map(card => card.handoff?.outcome)).toEqual(["cancelled", "missed"]);
   });
 
-  test("the receiving conversation's first message is the handoff card with its text as written", () => {
+  test("the receiving conversation's first message is the handoff card with its text as written and its time", () => {
     seq = 0;
     const origin = { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } };
     const text = "/Polish\nThe person wrote “{{1}}” as a placeholder.";
     const items = threadItems([...turn("t1", text, { origin }), ev("t1", { type: "turn.done" }), ...turn("t2", "Use {{1}}")], ROOT, true);
-    expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text });
-    // A later message of the person's is a bubble as before.
+    expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text, at: "2026-11-01T00:00:00Z" });
     expect(items.at(-1)).toMatchObject({ kind: "user" });
   });
 });
@@ -675,5 +673,119 @@ describe("sameItem", () => {
     expect(sameItem({ a: 1 }, { a: 1, b: undefined })).toBe(false);
     expect(sameItem([1], { 0: 1 })).toBe(false);
     expect(sameItem(null, {})).toBe(false);
+  });
+});
+
+describe("threadItems edit line counts", () => {
+  const edit = (turnId: string, path: string | undefined, callId?: string) => ev(turnId, { type: "activity", kind: "edit", ...(path ? { path } : {}), summary: path ?? "Edited a file", ...(callId ? { callId } : {}) });
+  // Main writes a result's path as exactly the path its activity stored, and none when the activity has none.
+  const result = (turnId: string, callId: string, path: string | undefined, added: number, removed: number) => ev(turnId, { type: "activity.result", callId, ...(path ? { path } : {}), lines: { added, removed } });
+  const rowOf = (events: ConversationEvent[], live = true) => threadItems(events, ROOT, live).find(item => item.kind === "activity") as Extract<ThreadItem, { kind: "activity" }>;
+
+  test("a result joins the edit step with its callId and stored path; the folded head adds the total", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "toolu_1"), result("t1", "toolu_1", `${ROOT}/src/a.ts`, 12, 3), ev("t1", { type: "turn.done" })];
+    expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", total: { added: 12, removed: 3 },
+      steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "src/a.ts", lines: { added: 12, removed: 3 } }] });
+  });
+
+  test("a result does not split the activity row: the next activity joins the same row", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts", "c1"), result("t1", "c1", "a.ts", 1, 1), ev("t1", { type: "activity", kind: "read", path: "b.ts", summary: "b.ts" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.kind)).toEqual(["user", "activity"]);
+    expect(items[1]).toMatchObject({ head: "2 steps", total: { added: 1, removed: 1 } });
+  });
+
+  test("an edit step without a path takes a result without one; Copilot's path-less results on one call add up", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", undefined, "c1"), result("t1", "c1", undefined, 1, 1), result("t1", "c1", undefined, 1, 1)];
+    expect(rowOf(events)).toMatchObject({ total: { added: 2, removed: 2 }, steps: [{ verb: "Edited a file", path: null, lines: { added: 2, removed: 2 } }] });
+  });
+
+  test("Codex: one call edits several files, and each result goes to the step of its own stored path", () => {
+    seq = 0;
+    // The results name the path the activity stored, not the root-relative one the step shows.
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "fc_1"), edit("t1", `${ROOT}/src/b.ts`, "fc_1"),
+      result("t1", "fc_1", `${ROOT}/src/b.ts`, 2, 0), result("t1", "fc_1", `${ROOT}/src/a.ts`, 1, 5)];
+    expect(rowOf(events)).toMatchObject({ total: { added: 3, removed: 5 }, steps: [
+      { path: "src/a.ts", lines: { added: 1, removed: 5 } }, { path: "src/b.ts", lines: { added: 2, removed: 0 } }] });
+  });
+
+  test("the key is the callId and the exact path: the display path, another path, or a path-less side never matches", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", `${ROOT}/src/a.ts`, "c1"), edit("t1", undefined, "c2"),
+      result("t1", "c1", "src/a.ts", 1, 1), result("t1", "c1", `${ROOT}/src/b.ts`, 1, 1), result("t1", "c1", undefined, 1, 1), result("t1", "c2", "a.ts", 1, 1)];
+    const row = rowOf(events);
+    expect(row).not.toHaveProperty("total");
+    expect(row.steps.every(step => step.lines === undefined)).toBe(true);
+  });
+
+  test("results with the same key add up: a Copilot overwrite is a delete and an add of one path", () => {
+    seq = 0;
+    const overwrite = [...turn("t1"), edit("t1", "a.ts", "call_1"), result("t1", "call_1", "a.ts", 0, 4), result("t1", "call_1", "a.ts", 2, 0)];
+    expect(rowOf(overwrite)).toMatchObject({ total: { added: 2, removed: 4 }, steps: [{ lines: { added: 2, removed: 4 } }] });
+  });
+
+  test("a result with no matching edit, one before its edit, or one of another turn is ignored", () => {
+    seq = 0;
+    const events = [...turn("t1"), result("t1", "c1", "a.ts", 9, 9), edit("t1", "a.ts", "c1"), ev("t1", { type: "activity", kind: "read", path: "c1", summary: "c1" }),
+      result("t1", "other", "a.ts", 5, 5), ev("t1", { type: "turn.done" }),
+      ...turn("t2"), edit("t2", "b.ts", "c2"), result("t2", "c1", "a.ts", 7, 7)];
+    const rows = threadItems(events, ROOT, true).filter(item => item.kind === "activity");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("total");
+      expect(row.steps.every(step => step.lines === undefined)).toBe(true);
+    }
+  });
+
+  test("a result after its turn's end is ignored, as in main's fold", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts", "c1"), ev("t1", { type: "interrupted", reason: "user" }), result("t1", "c1", "a.ts", 3, 1)];
+    expect(rowOf(events)).not.toHaveProperty("total");
+  });
+
+  test("an edit step without counts keeps its head; the total adds only the known counts; a zero is a known count", () => {
+    seq = 0;
+    const none = [...turn("t1"), edit("t1", "a.ts", "c1"), edit("t1", "b.ts"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
+    expect(rowOf(none)).toEqual({ kind: "activity", key: "a3", running: false, head: "3 steps", steps: [
+      { key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }, { key: "s4", kind: "edit", verb: "Edited", path: "b.ts" }, { key: "s5", kind: "command", verb: "Ran a command", path: null }] });
+    seq = 0;
+    const partial = [...turn("t1"), edit("t1", "a.ts", "c1"), result("t1", "c1", "a.ts", 4, 4), edit("t1", "b.ts", "c2"), edit("t1", "c.ts", "c3"), result("t1", "c3", "c.ts", 0, 0)];
+    const row = rowOf(partial);
+    expect(row.total).toEqual({ added: 4, removed: 4 });
+    expect(row.steps.map(step => step.lines ?? null)).toEqual([{ added: 4, removed: 4 }, null, { added: 0, removed: 0 }]);
+  });
+
+  test("a result never joins a read step that shares its id", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", path: "a.ts", summary: "a.ts", callId: "c1" }), result("t1", "c1", "a.ts", 1, 1)];
+    expect(rowOf(events)).not.toHaveProperty("total");
+  });
+
+  test("a row an earlier history wrote, without callIds, reads as before", () => {
+    seq = 0;
+    const events = [...turn("t1"), edit("t1", "a.ts"), ev("t1", { type: "turn.done" })];
+    expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }] });
+  });
+});
+
+// The reveal relies on these: a finished reply never grows again, and a turn's end finishes every reply of it.
+describe("threadItems behavior the reveal relies on", () => {
+  test("a delta after message.done is dropped", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "message.delta", messageId: "m1", text: " More" })];
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ kind: "agent", text: "Done.", streaming: false });
+  });
+
+  test("a turn's end finishes both replies of the turn", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "First" }), ev("t1", { type: "activity", kind: "read", path: "a.md", summary: "a.md" }), ev("t1", { type: "message.delta", messageId: "m2", text: "Second" })];
+    expect(threadItems(events, ROOT, true).filter(i => i.kind === "agent").map(i => i.kind === "agent" && i.streaming)).toEqual([true, true]);
+    for (const end of [{ type: "turn.done" }, { type: "interrupted", reason: "user" }, { type: "turn.failed", code: "unknown" }]) {
+      const ended = threadItems([...events, ev("t1", end)], ROOT, true).filter(i => i.kind === "agent");
+      expect(ended.map(i => i.kind === "agent" && i.streaming)).toEqual([false, false]);
+    }
   });
 });

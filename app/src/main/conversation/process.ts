@@ -1,11 +1,8 @@
 import { execFile, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Readable } from "node:stream";
 import { object } from "./sessions";
-// How a finished turn's process is ended for the next send. A done turn with its prompt read and no background work has
-// only its suggestion left: it is killed at once (a SIGTERM takes the CLI 0.5-1 s, and SIGKILL left every session
-// transcript whole and resumable, PoC). Background work runs in process groups of its own that the CLI ends through its
-// SIGTERM handling, so a group with any is never killed first. later: the usage read keeps the input open; decide once
-// it closes. none: the process is over.
+// How a finished turn's process is ended for the next send. kill: a done turn with only its suggestion left; a group with
+// background work is never killed first (the CLI ends it on SIGTERM). later: decide once the usage read closes input.
 export type AfterTurnCleanup = "kill" | "term" | "none" | "later";
 export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup {
   if (input.finished) return "none";
@@ -13,10 +10,8 @@ export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolea
   return input.background === 0 && input.doneTurn && input.promptRead ? "kill" : "term";
 }
 export type ProcessRow = { pid: number; ppid: number; pgid: number };
-// The process groups, other than the owned one, that the owned group's members' descendants lead or joined, in the
-// order they were found. Read while the owned group is alive: once a parent exits its children belong to launchd, and
-// nothing ties them to the group any more. Group 1 and below are never returned, since signalling -1 reaches every
-// process the user owns.
+// The process groups other than the owned one that its members' descendants lead or joined, read while it is alive
+// (orphans belong to launchd). Group 1 and below are never returned: signalling -1 reaches every user process.
 export function descendantGroups(table: readonly ProcessRow[], pgid: number): number[] {
   const children = new Map<number, ProcessRow[]>();
   for (const row of table) { const siblings = children.get(row.ppid); if (siblings) siblings.push(row); else children.set(row.ppid, [row]); }
@@ -68,10 +63,8 @@ export class OwnedGroup {
     });
     return this.stopping;
   }
-  // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. It
-  // reads no process table: a Claude kill must land before the model call the CLI makes 16 ms after its background set
-  // empties, and a read takes about as long; with the set empty there is no descendant group to find. Groups a stop
-  // already found get the SIGKILL too. The group is released only once it is observed gone, as after a stop.
+  // At once, also mid-stop: a finished turn's process with nothing left to save. It reads no process table, since a Claude
+  // kill must land before the CLI's next model call; groups a stop already found get the SIGKILL too.
   kill(): Promise<void> {
     if (this.done) return Promise.resolve();
     this.killing ??= this.bounded();

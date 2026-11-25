@@ -1,6 +1,6 @@
-// The single prototype window's lifecycle as pure transitions. Main owns one state, feeds it requests, list refreshes
-// and run results, runs the returned effects in order and sends `prototypeView` to the window whenever the state
-// object changes. Main-window navigation and hiding are not events here, so they cannot change the run.
+// Main owns one state, feeds it requests, list refreshes and run results, runs the returned effects in order and sends
+// the view whenever the state object changes. Main-window navigation and hiding are not events here.
+import { frameTitle } from "../../renderer/canvasTree";
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
 import type { GotoMessage, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
@@ -12,11 +12,8 @@ export interface HistoryEntry {
   size: PrototypeSize;
 }
 
-// `create` opens, shows and focuses the window at the fitted size; `fit` refits it once when the opening run's ready
-// size differs from the mark it opened at (fitPrototypeWindow);
-// `load` starts run `gen` (inject for it, then the host makes a new iframe); `kill` ends the canvas renderer process
-// of a run that may be hung, since the next iframe would reuse it; `destroy` closes the window; `reread` asks for the
-// root's canvas list again (Retry of a row `doan ls` could not read).
+// `fit` refits once when the opening run's ready size differs from its mark. `kill` ends the canvas renderer process of a
+// run that may be hung, since the next iframe would reuse it. `reread` is Retry of a row `doan ls` could not read.
 export type Effect =
   | { kind: "create"; size: PrototypeSize }
   | { kind: "fit"; size: PrototypeSize }
@@ -82,7 +79,7 @@ export interface Step {
   effects: Effect[];
 }
 
-// `lastPath`: the target's row path as last listed, for a canvas whose ID can no longer be read (resolveTarget).
+// `lastPath`: the target's row path as last listed, for a canvas whose ID cannot be read any more (resolveTarget).
 export type Resolve = (ref: CanvasRef, lastPath?: string) => Resolution;
 
 export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY, mode: "fit", panel: { open: false, width: null } };
@@ -103,7 +100,7 @@ type Present = Extract<Resolution, { kind: "present" }>;
 // one case where an earlier title still stands.
 function titleIn(frames: readonly { id: string; title?: string }[], frame: string): string | null | undefined {
   const listed = frames.find(candidate => candidate.id === frame);
-  return listed === undefined ? undefined : listed.title ?? null;
+  return listed === undefined ? undefined : frameTitle(listed.title) ?? null;
 }
 
 // A run's list names the target if it lists it; otherwise the last title stands.
@@ -112,10 +109,8 @@ function latestTitle(frames: readonly { id: string; title?: string }[], state: O
   return listed === undefined ? state.title : listed;
 }
 
-// A new run of `target`. `fit` is set for a play that changes the target (or opens the window), and gives the run its
-// mark. Only opening the window fits it: once open, another frame keeps the window's size and position, and Fit or
-// Responsive fits the frame to the content panel (PRODUCT §5 item 2 'Prototype window'). A play of another frame
-// activates; a link move (`quiet`), a reload, Retry or restore does not.
+// Only opening the window fits it; once open, another frame keeps the window, and Fit or Responsive fits the content
+// panel (PRODUCT §5 item 2 'Prototype window'). A play of another frame activates; a link move or reload does not.
 function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean; quiet?: true } | null, history: History<HistoryEntry>): Step {
   const effects: Effect[] = [];
   if (fit?.create === true) effects.push({ kind: "create", size: fit.size });
@@ -175,10 +170,8 @@ export function choose(state: PrototypeState, frame: string, resolve: Resolve): 
   return playTarget(state, { ...state.target, frame }, size, resolve);
 }
 
-// A link the playing frame followed. Main judges it again by its own run: the canvas can post a current-gen message
-// itself, and the window's view can trail main's state. Only a frame the ready run listed moves; the playing frame
-// starts over as Reload does. A move does not activate: a canvas whose timer clicks a link would otherwise show a
-// hidden app and take focus from another app.
+// Main judges a link again by its own run: the canvas can post a current-gen message itself. A move does not activate,
+// or a canvas whose timer clicks a link would show a hidden app and take focus.
 export function goto(state: PrototypeState, message: GotoMessage, resolve: Resolve): Step | null {
   if (!state.open || state.phase !== "ready" || message.gen !== state.gen || message.goto === null) return null;
   const frame = message.goto;

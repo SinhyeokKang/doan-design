@@ -11,9 +11,8 @@ import type { ProjectStepState } from "./projectStep";
 const noop = () => {};
 const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
 
-// .doan/canvases/buddy-welcome.html 'bleed-bottom-780', 'bleed-bottom-600': the wordmark, the two-line heading and
-// Get started on the white panel, then the five buddies' group photo running off the bottom edge. No Doany, no WebGL,
-// no atmosphere and no accent, whatever buddy is saved.
+// The wordmark, the two-line heading and Get started on the white panel, then the buddies' group photo running off the bottom
+// edge. No Doany, no WebGL, no atmosphere and no accent, whatever buddy is saved.
 test("Welcome: wordmark, two-line heading, the lg Get started button with an arrow, then the group photo", () => {
   // React's server render adds a preload link for the image ahead of the markup.
   const html = renderToStaticMarkup(<Welcome start={noop} />).replace(/^<link rel="preload" as="image" href="buddies\/group\/group.png"\/>/, "");
@@ -22,10 +21,8 @@ test("Welcome: wordmark, two-line heading, the lg Get started button with an arr
   expect(html).not.toMatch(/…|\.\.\./);
 });
 
-// The words sit 24 under the chrome at 780 and above, 16 at the 600 minimum, linear between; wordmark to heading 16,
-// heading to Get started 24. The photo's box starts 43 under Get started, centred, as wide as the draft's frames give
-// for the height left (960 at 780, 540 at 600, larger in a taller window), cut at the bottom and, past the window's
-// width, at the sides.
+// The words sit 24 under the chrome at 780 and above, 16 at the 600 minimum, linear between. The photo's box starts 43 under
+// Get started, centred, 960 wide at 780 and 540 at 600, cut at the bottom and past the window's width at the sides.
 test("Welcome lays out the words at the top and bleeds the photo off the bottom", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -41,8 +38,8 @@ test("Welcome lays out the words at the top and bleeds the photo off the bottom"
   expect(css).not.toMatch(/ob-atmosphere|onboarding-grain|ob-welcome-main::after/);
 });
 
-// showModal() first focuses the dialog's first control; a heading focused a frame later leaves a frame in which its
-// focus ring can paint (measured Doany :focus-visible for ~42ms on the earlier Welcome).
+// showModal() first focuses the dialog's first control; a heading focused a frame later leaves a frame in which its focus
+// ring can paint.
 test("the overlay opens with its heading focused in the same task as showModal", () => {
   const calls: string[] = [];
   const dialog = { open: false, showModal() { calls.push("showModal"); this.open = true; } };
@@ -99,8 +96,8 @@ test("a progress notice puts the spinner in the icon slot and is a status; an er
     { command: "cancel", label: "Cancel", variant: "subtle", disabled: false }, { command: "openLink", label: "Open again", variant: "subtle", disabled: false }] };
   const html = renderToStaticMarkup(<NoticeView notice={progress} run={noop} />);
   expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel stacked" role="status"/);
-  // D20: the actions sit inside the notice; two or more stack on their own row (DESIGN 'Notices'), and a subtle action
-  // on the inset fill is panel there.
+  // The actions sit inside the notice; two or more stack on their own row (DESIGN 'Notices'), and a subtle action on the inset
+  // fill is panel there.
   expect(html).toBe('<div class="doan-notice stacked" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="ob-notice-text selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span>'
     + '<div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="openLink">Open again</button></div></div>');
   // On first run's white panel notice a subtle action keeps subtle.
@@ -130,8 +127,8 @@ test("the footer: Back with arrow-left on the left, Continue with arrow-right di
 type DialogProps = { onKeyDown: (event: unknown) => void; onCancel: (event: unknown) => void };
 const keyEvent = (key: string) => ({ key, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), stopPropagation: vi.fn() });
 
-// D1: while the address is submitted the field turns read-only (not disabled, so focus stays where Enter left it),
-// Cancel dims and Submit keeps its fill, busy with the spinner inside.
+// While the address is submitted the field turns read-only (not disabled, so focus stays where Enter left it), Cancel dims and
+// Submit keeps its fill, busy with the spinner inside.
 test("the paste modal while submitting: a read-only field, a dimmed Cancel and a busy Submit, none natively disabled", () => {
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="https://example.com/cb" submittable={false} tooLong={false} busy change={noop} submit={noop} close={noop} />);
   expect(html).toMatch(/<input class="doan-input"[^>]*readOnly=""[^>]*\/>/);
@@ -190,7 +187,7 @@ test("forward and back leave the Agent step only after its own sign-ins are canc
 
 test("an over-long paste shows the limit line and keeps Submit disabled", () => {
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value={"x".repeat(16385)} submittable={false} tooLong busy={false} change={noop} submit={noop} close={noop} />);
-  // U31: the shared inline error with its icon, grouped with the field 8px under it (no negative margin).
+  // The shared inline error with its icon, grouped with the field 8px under it (no negative margin).
   expect(html).toMatch(/<div class="field-group"><input class="doan-input"[^>]*\/><p class="settings-msg error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>This address is too long to submit\.<\/span><\/p><\/div>/);
   expect(html).toMatch(/<button type="submit"[^>]* disabled="">Submit<\/button>/);
 });
@@ -243,7 +240,6 @@ test("focus is recovered only when it was lost, never taken from where the user 
   expect(focusLost(node(true, false), node(false, false))).toBe("release");
 });
 
-// The Project step.
 const on: ProjectScreenProps["on"] = new Proxy({} as ProjectScreenProps["on"], { get: () => noop });
 const base2: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
 const screen = (state: Partial<ProjectStepState>, props: Partial<ProjectScreenProps> = {}) => renderToStaticMarkup(<ProjectScreen state={{ ...base2, ...state }} busy={false} agentReady projects={[]} home="/Users/ada" urlValid={false} heading={noop} on={on} {...props} />);
@@ -282,7 +278,7 @@ test("an invalid URL marks the field and keeps Find repository disabled; an acce
   expect(access).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1" id="ob-project-error"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable"><strong class="ob-notice-title">Couldn’t access this repository<\/strong><span class="ob-notice-body">[^<]*<\/span><\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry<\/button><\/div><\/div>/);
   expect(access).not.toContain("ob-recovery");
   expect(access).not.toContain("ob-state-actions");
-  // The draft's error frame keeps the screen to the URL and its recovery.
+  // An unreachable repository keeps the screen to the URL and its recovery.
   expect(access).not.toContain("Use a folder on your Mac");
   expect(access).not.toContain("New folder");
 });
@@ -384,7 +380,7 @@ test("every project error has the draft's copy and actions", () => {
   expect(projectNotice("project_unreadable", "The project folder cannot be read.", null)).not.toHaveProperty("detail");
   expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["Choose local folder", "Check again"]]);
   expect(view("cleanup_failed")).toEqual(["main message", ["Retry"]]);
-  // An unreachable repository's recoveries are the notice's own now.
+  // An unreachable repository's recoveries are the notice's own.
   expect(view("access_failed")[1]).toEqual(["Choose local folder", "Retry"]);
 });
 
@@ -398,9 +394,8 @@ test("the Project step's lost focus goes to the error, else the progress notice,
   expect(screen({ phase: { kind: "selecting", path: "/p" } }, { busy: true })).toContain('role="status" tabindex="-1"');
 });
 
-// A notice's 16px icon is centred on a 20px first line (ds/surfaces.css .doan-alert-icon). A body without a title, such
-// as "Your Codex sign-in expired. Sign in again.", must start on that line: a top margin there put the icon 4px
-// above the text in Settings and first run (measured in the built app).
+// A notice's 16px icon is centred on a 20px first line (ds/surfaces.css .doan-alert-icon); a body without a title must start
+// on that line, or the icon sits 4px above the text.
 test("a notice body takes its top margin only under a title, so a body alone stays centred on its icon", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -553,12 +548,12 @@ test("a notice's recovery actions and the screen's own actions never repeat", ()
   const count = (html: string, label: string) => html.split(`>${label}</button>`).length - 1;
   const url = "https://github.com/acme/studio";
   const clone = { url, phase: { kind: "clone" as const, url, inspectionId: null, destination: "/Users/ada/code/studio" } };
-  // 56: the notice keeps only Back to agents; the screen keeps its Choose another folder.
+  // The notice keeps only Back to agents; the screen keeps its Choose another folder.
   expect(projectNotice("no_ready_agent", undefined, null).actions.map(a => a.label)).toEqual(["Back to agents"]);
   const blocked = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } }, { agentReady: false });
   expect(count(blocked, "Choose another folder")).toBe(1);
   expect(count(blocked, "Back to agents")).toBe(1);
-  // 65: the notice offers both, so the 'Already have this repository?' row goes.
+  // The notice offers both, so the 'Already have this repository?' row goes.
   const mismatch = screen({ ...clone, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
   expect(mismatch).not.toContain("Already have this repository?");
   expect(mismatch).not.toContain(">Choose existing folder</button>");
@@ -567,20 +562,20 @@ test("a notice's recovery actions and the screen's own actions never repeat", ()
   const found = screen({ url, phase: { kind: "candidates", inspectionId: "i", url, candidates: [{ path: "/Users/ada/code/studio", changes: [] }], choice: "/Users/ada/code/studio" }, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
   expect(count(found, "Edit repository URL")).toBe(1);
   expect(count(found, "Choose another folder")).toBe(1);
-  // 66: Use existing folder answers 'Already have this repository?'; Change location replaces the card's Change.
+  // Use existing folder answers 'Already have this repository?'; Change location replaces the card's Change.
   const exists = screen({ ...clone, error: { code: "destination_exists" } });
   expect(exists).not.toContain("Already have this repository?");
   expect(exists).not.toContain(">Choose existing folder</button>");
   expect(count(exists, "Edit repository URL")).toBe(1);
   expect(count(exists, "Change")).toBe(0);
   expect(count(exists, "Change location")).toBe(1);
-  // 67 and 71: only the card's Change repeats Change location; the row stays.
+  // Only the card's Change repeats Change location; the row stays.
   for (const html of [screen({ ...clone, error: { code: "path_unavailable" } }, { projects: ["/Users/ada/code"] }), screen({ ...clone, error: { code: "clone_failed" } })]) {
     expect(count(html, "Change")).toBe(0);
     expect(count(html, "Change location")).toBe(1);
     expect(html).toContain("Already have this repository?");
   }
-  // 72: Retry repeats nothing, so the screen is unchanged.
+  // Retry repeats nothing, so the screen is unchanged.
   const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn’t remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
   expect(count(cleanup, "Change")).toBe(1);
   expect(cleanup).toContain("Already have this repository?");
@@ -614,18 +609,17 @@ test("Cloning was cancelled is a status notice panel like the other states, hold
 test("a subtle button directly on the Agent/Project glass takes the step capsule's backdrop fill", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  // --affordance-subtle is about the glass's own colour mid-window, so the fill vanished there (68 Cancel, 46 Choose
-  // another folder). Panels, the Welcome surface and hover/pressed/disabled keep the DS fills.
+  // --affordance-subtle is about the glass's own colour mid-window, so the subtle fill vanishes there. Panels, the Welcome surface
+  // and hover/pressed/disabled keep the DS fills.
   expect(css).toContain('.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }');
 });
 
-// First run shares the page's improvements.
 test("the steps scroll as one full-width surface around the 560px column, with the thin scroll bar", async () => {
   expect(renderToStaticMarkup(<SceneScroll><h2>Step</h2></SceneScroll>)).toBe('<div class="ob-scroll doan-scroll"><div class="ob-scene"><h2>Step</h2></div></div>');
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.ob-scroll \{[^}]*flex: 1; min-height: 0;[^}]*overflow-y: auto; overscroll-behavior: contain;/);
-  // The column no longer scrolls itself; it is at least the surface's height, so Welcome's photo fills the rest.
+  // The column does not scroll itself; it is at least the surface's height, so Welcome's photo fills the rest.
   const scene = css.match(/\n\.ob-scene \{[^}]*\}/)![0];
   expect(scene).toContain("flex: 1 0 auto;");
   expect(scene).not.toContain("overflow");
@@ -652,7 +646,7 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
   noSelectableButton(view);
 });
 
-// Drafts project-unreadable (candidates) and project-unreadable-setup (setup panel) in config-error-source.html.
+// An unreadable folder on the candidates screen and on the setup panel.
 test("a folder Doan couldn’t read shows the CLI's message as the notice's selectable second line, on both screens", () => {
   const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
   const error = { code: "project_unreadable" as const, message: "The project folder cannot be read.", detail: reason };
@@ -686,8 +680,8 @@ test("selectable: the chosen project's path and the clone destination's path", (
   noSelectableButton(plan);
 });
 
-// Draft keep-out-git-init, frame setup-panel: outside Git, Keep out of Git also runs git init. The panel has no change
-// list, so a line under the Doan files card says so, and the Set up button is described by it.
+// Outside Git, Keep out of Git also runs git init. The panel has no change list, so a line under the Doan files card says so,
+// and the Set up button is described by it.
 const NEW_REPO: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/moodboard", changes: [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"], storage: "local" };
 test("outside Git, Keep out of Git shows the git init line under the card and the button names it", () => {
   const html = screen({ storage: "local", phase: NEW_REPO });
@@ -805,9 +799,7 @@ test("first run: after a cancelled clone, a chosen folder's failure shows its ow
   expect(html).not.toContain("Cloning was cancelled");
 });
 
-// New folder (.doan/canvases/new-project-folder.html 'card-busy', 'notice-exists-folder', 'notice-exists-file',
-// 'notice-inside-project', 'notice-create-failed'): busy disables both card buttons; its notices are the folder
-// source's, under the card, with their actions inside.
+// Busy disables both card buttons; New folder's notices are the folder source's, under the card, with their actions inside.
 test("the card's New folder is disabled with Choose folder while the step is busy", () => {
   const html = screen({}, { use: "addPage", busy: true });
   expect(html).toContain('data-ui-size="sm" disabled="">Choose folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled="" data-new-folder="">New folder</button>');

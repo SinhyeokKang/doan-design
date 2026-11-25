@@ -6,10 +6,8 @@ import type { WorkItem } from "../main/workState";
 import { initialCanvasState } from "./CanvasController";
 import type { ShellProject } from "../restore/uiState";
 
-// PRODUCT §5 item 1: an auto-registered worktree that is not a list is hidden everywhere the
-// group's worktrees show, its registration and removal move nothing, and the worktree on screen that vanishes or hides
-// hands the screen to the worktree selected before it (else the main checkout) instead of going Home. Hooks run as plain
-// state so App's own wiring runs (App.terminalWork.test.tsx).
+// PRODUCT §5 item 1: an auto-registered worktree that is not a list is hidden, and the worktree on screen that
+// vanishes hands the screen to the one selected before it (else the main checkout). Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -67,7 +65,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -75,6 +73,7 @@ const { Home } = await import("./Home");
 const { ProblemOverlay } = await import("./ProblemOverlay");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
+const { AddProjectsPage } = await import("./AddProjectsPage");
 
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
@@ -315,8 +314,8 @@ test("a launch restore on an auto-registered worktree waits while it is read, th
   expect(sidebar().loaded).toBe(W);
 });
 
-// at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
-// and the group's saved selection stay until it is read, even when another root is read first.
+// At a restart the auto-registered worktree is `loading`, hidden but not gone; its remembered canvas and the
+// group's saved selection stay until it is read.
 const loading = (root: string): FolderEntry => ({ path: root, kind: "loading", lastCommon: KEY });
 const VIEW = { scale: 0.5, x: 12, y: -40 };
 const homeRestore = { screen: "home", expanded: {}, lastByRoot: { [W]: { canvas: A, view: VIEW } }, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: W, selectedAt: 5 } } };
@@ -342,8 +341,8 @@ test("a Home restore keeps the group's selected auto-registered worktree while i
   expect(home()).toBeDefined();
 });
 
-// a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
-// as Locate moves the origin (POSTMORTEM 2026-10-25); Remove from Doan of the whole group still leaves for Home.
+// A page opened from the vanished worktree's workspace leaves for the worktree that took its place, as Locate
+// moves the origin; Remove from Doan of the whole group still leaves for Home.
 const leave = () => { (all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { previous(): void }).previous(); render(); };
 const pages = [
   ["Project Settings", () => { sidebar().projectSettings(W); render(); }],
@@ -373,3 +372,108 @@ for (const [name, open] of pages) {
     expect(sidebar().loaded).toBeNull();
   });
 }
+
+const savedState = () => doan.saveUiState!.mock.lastCall?.[0] as { expanded: Record<string, string[]>; conversationByRoot?: Record<string, string>; shellProjects?: Record<string, ShellProject> } | undefined;
+
+// A navigation before the startup read cancels the restore; the read's sidebar memory is still merged, not dropped
+// by the first save (POSTMORTEM 2026-11-01 'A ui-state save sent before the startup read').
+test("a restore cancelled before the startup read still keeps the read's projects, expanded folders and last canvases", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({
+    screen: "workspace", root: OTHER, expanded: { [OTHER]: [".doan/canvases"], [MAIN]: [".doan/ds"] }, lastByRoot: { [OTHER]: { canvas: A, view: VIEW } },
+    shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: OTHER, selectedAt: 5, groups: { ds: false } }, "/gone": { roots: ["/x/gone"], expanded: true } },
+  });
+  await flush(); render();
+  getWork([]); await flush(); render();
+  expect(controller().remember!).toHaveBeenCalledWith(OTHER, { canvas: A, view: VIEW });
+  const saved = savedState()!;
+  expect(saved.expanded).toEqual({ [OTHER]: [".doan/canvases"], [MAIN]: [".doan/ds"] });
+  // The person's own move keeps its selection; the read's fold state and closed groups join it.
+  expect(saved.shellProjects?.[KEY]).toMatchObject({ roots: [MAIN, OTHER, W], expanded: true, selectedRoot: MAIN, groups: { ds: false } });
+  expect(sidebar().loaded).toBe(MAIN);
+});
+
+test("a root removed before the startup read gets none of the read's sidebar memory back", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  folders([main(), wt()]);
+  readUiState({ screen: "home", expanded: { [OTHER]: [".doan/canvases"] }, lastByRoot: { [OTHER]: { canvas: A, view: VIEW } }, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: OTHER, selectedAt: 5 } } });
+  await flush(); render();
+  getWork([]); await flush(); render();
+  expect(controller().remember!).not.toHaveBeenCalledWith(OTHER, { canvas: A, view: VIEW });
+  expect(savedState()?.expanded[OTHER]).toBeUndefined();
+  expect(savedState()?.shellProjects?.[KEY]?.roots).not.toContain(OTHER);
+});
+
+// Main replaces ui-state.json on each save, so a hidden root's memory must outlive the hide (ARCHITECTURE §7
+// 'Auto-registered roots in the shell': per-root memory reads the unfiltered list).
+test("hiding an auto-registered worktree keeps its per-root memory; leaving the list forgets it", async () => {
+  await start([main(), other(), wt()], { screen: "home", expanded: { [W]: [".doan/canvases"] }, lastByRoot: {}, conversationByRoot: { [W]: "c-w" } });
+  expect(savedState()?.expanded[W]).toEqual([".doan/canvases"]);
+  folders([main(), other(), hiddenW()]);
+  expect(savedState()?.expanded[W]).toEqual([".doan/canvases"]);
+  expect(savedState()?.conversationByRoot?.[W]).toBe("c-w");
+  folders([main(), other()]);
+  expect(savedState()?.expanded[W]).toBeUndefined();
+  expect(savedState()?.conversationByRoot?.[W]).toBeUndefined();
+});
+
+// PRODUCT §5 item 1: the loaded project's hand fold lasts while it stays loaded, whatever moves inside it.
+const disclose = (key: string) => { (sidebar() as unknown as { disclose(key: string): void }).disclose(key); render(); };
+test("a project folded by its chevron stays folded through a move inside it and the removal of another of its roots", async () => {
+  await start();
+  enter(MAIN); show(MAIN, A);
+  disclose(KEY);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  enter(OTHER);
+  expect(sidebar().loaded).toBe(OTHER);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  folders([main(), other()]);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+  folders([other()]);
+  expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+});
+
+// PRODUCT §5 item 0 'New folder': the default location is the last registered project's parent, and an
+// auto-registered worktree never adds a project.
+test("the Add Projects page learns which listed roots are auto-registered", async () => {
+  await start();
+  listeners.openAddProjects!(); render();
+  const props = all(tree).find(element => element.type === AddProjectsPage)!.props as { projects: string[]; autoRegistered: string[] };
+  expect(props.projects).toEqual([MAIN, OTHER, W]);
+  expect(props.autoRegistered).toEqual([W]);
+});
+
+// POSTMORTEM 2026-11-01: what the person changed before the startup read wins over what the read holds.
+const readLater = async (state: unknown) => { readUiState(state); await flush(); render(); getWork([]); await flush(); render(); };
+test("a project the person folded before the startup read stays folded when the read had it unfolded", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  disclose(KEY);
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true } } });
+  expect(sidebar().projects[KEY]).toMatchObject({ expanded: false, collapsed: true });
+});
+
+test("a group the person closed before the startup read stays closed beside the read's closed groups", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  (sidebar() as unknown as { toggleGroup(key: string, id: string): void }).toggleGroup(KEY, "canvases"); render();
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: false, groups: { ds: false } } } });
+  expect(sidebar().projects[KEY]?.groups).toEqual({ ds: false, canvases: false });
+});
+
+// PRODUCT §5 item 1: opening a canvas opens its group, also when the read closed that group.
+test("a canvas opened before the startup read keeps its group open though the read had it closed", async () => {
+  const DS = ".doan/ds/color.html";
+  render();
+  folders([list(MAIN, [A, DS]), other(), wt()]);
+  enter(MAIN); show(MAIN, DS);
+  await readLater({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: false, groups: { ds: false, canvases: false } } } });
+  expect(sidebar().projects[KEY]?.groups).toEqual({ canvases: false });
+});

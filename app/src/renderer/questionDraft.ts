@@ -1,14 +1,13 @@
 import type { Question, QuestionAnswerInput } from "../main/conversation/question";
 import { questionAnswer } from "../main/conversation/questionAnswer";
 
-// The answer a person is choosing on a question card. The store keeps it by request so it
-// outlives the thread's redraw for another conversation; Send's rule is main's own check (questionAnswer).
+// Kept by request so it outlives the thread's redraw for another conversation; Send's rule is main's own check
+// (questionAnswer).
 
-// selected: option indexes. other: Other is chosen (a question without options is always answered by its text).
-// text: Other's text, kept while another option is chosen so choosing Other again brings it back.
+// text is kept while another option is chosen, so choosing Other again brings it back. A question without options is
+// always answered by its text.
 export interface QuestionChoice { selected: number[]; other: boolean; text: string }
-// sending: an answer or a skip is on its way to main; the card is locked until it folds or main refuses.
-// failed: the press main refused, so the line names it.
+// sending locks the card until it folds or main refuses.
 export interface QuestionDraft { choices: Readonly<Record<string, QuestionChoice>>; sending: "answer" | "skip" | null; failed: "answer" | "skip" | null }
 export const EMPTY_QUESTION_DRAFT: QuestionDraft = { choices: {}, sending: null, failed: null };
 
@@ -19,7 +18,7 @@ export type QuestionDraftAction =
   | { type: "other"; question: Question }
   | { type: "text"; questionId: string; text: string }
   | { type: "sending"; how: "answer" | "skip" }
-  // main refused for a reason other than stale: unlocked, the choices kept.
+  // Unlocked, the choices kept.
   | { type: "failed" };
 
 const EMPTY_CHOICE: QuestionChoice = { selected: [], other: false, text: "" };
@@ -39,8 +38,7 @@ export function questionDraft(draft: QuestionDraft, action: QuestionDraftAction)
   return { ...draft, choices: { ...draft.choices, [id]: next }, failed: null };
 }
 
-// Other's text goes only while Other is chosen, or always for a question answered by text alone; empty text goes too,
-// so questionAnswer reads an Other left blank as no answer.
+// Empty text goes too, so questionAnswer reads an Other left blank as no answer.
 export function questionInput(questions: readonly Question[], draft: QuestionDraft): QuestionAnswerInput {
   const answers: Record<string, { selected: number[]; other?: string }> = {};
   for (const question of questions) {

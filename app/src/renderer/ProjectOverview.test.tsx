@@ -118,7 +118,7 @@ test("the duplicate-ID notice shows under the header", () => {
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
   const loading = render("loading");
   const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
-  // aria-disabled, still focusable (U10): a trigger focused when the list goes back to loading keeps focus.
+  // aria-disabled, still focusable: a trigger focused when the list goes back to loading keeps focus.
   expect(titleTag(loading)).toContain('aria-disabled="true"');
   expect(titleTag(loading)).not.toMatch(/ disabled=""/);
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
@@ -128,7 +128,7 @@ test("while the list is read the title is unavailable and the composer is a new 
   expect(titleTag(failed)).not.toContain("disabled");
 });
 
-// U7: the column leads with the canvas panel's thread notice, before the suggestions, and the composer stays usable.
+// The column leads with the canvas panel's thread notice, before the suggestions, and the composer stays usable.
 test("a failed first read shows the canvas panel's notice with Retry in the new conversation column", () => {
   const html = render("error");
   const column = html.slice(html.indexOf('class="ov-col ov-new"'));
@@ -139,7 +139,7 @@ test("a failed first read shows the canvas panel's notice with Retry in the new 
   expect(render("loading")).not.toContain("thread-notice");
 });
 
-// D11: while the re-read runs the Retry is busy; a second failure changes the line so it is read again.
+// While the re-read runs the Retry is busy; a second failure changes the line so it is read again.
 test("the column's Retry runs while the list is read again, and a repeated failure is announced again", () => {
   const running = render("error", { listRetry: { running: true, failures: 0 } });
   expect(running).toMatch(/<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>/);
@@ -194,9 +194,8 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
   expect(worktreeChoice({ kind: "cliError", path: "/code/cli", reason: "r" } as FolderEntry)).toEqual({ kind: "repair", actions: ["retry", "details"] });
 });
 
-// design-sync (doan-project.html, doan-conversation.html), measured in the built app: the app body's tabular figures
-// widened the short times ("12m" by 2.5px), button.doan-chip's open fill replaced the open worktree chip's pressed
-// fill, and the Stopped notice's bare lucide glyph rendered at 24px instead of 16.
+// The app body's tabular figures widen short times, button.doan-chip's open fill would replace the worktree chip's pressed fill,
+// and a bare lucide glyph renders at 24px instead of 16.
 test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -207,16 +206,16 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, :is\(\.cp-scroll, \.ov-new\) > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
-// runtime-test: the worktree row's label span grows (flex: 1), and the chip is a span too, so it stretched to 115px
-// in both Home's and the Overview's worktree menus. The chip keeps its content width.
+// The worktree row's label span grows (flex: 1) and the chip is a span too, so it would stretch in Home's and the Overview's
+// worktree menus.
 test("a worktree row's status chip keeps its content width", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".shell-worktree > .ob-chip { flex: none; }");
 });
 
-// runtime-test: at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
-// (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
+// A placeholder that wraps to two lines in the empty capsule would drop to one at the first typed character; one line keeps
+// both the same.
 test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -232,8 +231,8 @@ test("the picker shows the conversation's own mode, and a new conversation's def
   expect(render([], { prefs: { permissions: { claude: "bypass" } }, defaults: { provider: "claude", permissionMode: "acceptEdits" } })).toContain('data-mode="acceptEdits"');
 });
 
-// Thread spacing (2026-11-03 user): wider gaps between thread items and more room above the composer; the new
-// conversation's suggestion rows stay right above the composer on the Overview and in the canvas panel.
+// Wider gaps between thread items and more room above the composer; the suggestion rows stay right above the composer on the
+// Overview and in the canvas panel.
 test("thread spacing, and the suggestion rows right above the composer on the Overview and in the canvas panel", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

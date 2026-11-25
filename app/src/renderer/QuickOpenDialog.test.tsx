@@ -277,8 +277,8 @@ test("the first row scrolls the list to its top so the first group title shows; 
   expect(activeScroll(49)).toBe("nearest");
 });
 
-// design-sync S1 (2026-10-30): the list sits 4px outside its clipping box (negative inline margin) so rows meet the
-// field's edges; clipping both axes cut 4px off the list's scrollbar in the real app.
+// The list sits 4px outside its clipping box (negative inline margin) so rows meet the field's edges; clipping both axes would
+// cut 4px off the list's scrollbar.
 test("the results box clips only the block axis so the list's scrollbar is not cut", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.qo-height \{[^}]*overflow-x: visible; overflow-y: clip;/);

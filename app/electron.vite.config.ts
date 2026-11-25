@@ -3,12 +3,8 @@ import type { Plugin } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 
-// The built window loads only its own files, plus canvas iframes from the
-// local server, whose port changes every run. electron-vite dev serves the
-// renderer over http with an HMR websocket, so only dev names that origin.
-// Overview thumbnails arrive as PNG bytes over IPC and show as blob: URLs.
-// The windows load from file:, where 'self' covers local files, so <base>, plugins and form
-// submissions are refused outright rather than left to default-src.
+// Canvas iframes come from the local server (new port per run) and thumbnails are blob: URLs; only dev adds its origin.
+// Under file:, 'self' covers local files, so <base>, plugins and form submits are refused outright.
 function contentSecurityPolicy(): Plugin {
   return {
     name: "doan-csp",
@@ -25,9 +21,8 @@ function contentSecurityPolicy(): Plugin {
 
 export default defineConfig({
   main: {
-    // Only node-pty is externalized because its native binary cannot be bundled.
-    // Other dependencies stay bundled: Node's ESM resolver rejects ajv's
-    // extensionless subpath import (`ajv/dist/2020`).
+    // Only node-pty is externalized (native binary); the rest is bundled because Node's ESM resolver rejects
+    // ajv's extensionless `ajv/dist/2020` import.
     build: { externalizeDeps: false, rolldownOptions: { external: ["node-pty"], input: { index: fileURLToPath(new URL("./src/main/index.ts", import.meta.url)) } } },
   },
   preload: {

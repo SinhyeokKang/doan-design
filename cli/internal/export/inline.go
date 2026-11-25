@@ -11,7 +11,7 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
 
-// MaxBytes is the export size cap (design: 50 MiB, the app's pasted-image cap).
+// MaxBytes is the export size cap, the same 50 MiB as the app's pasted-image cap.
 const MaxBytes int64 = 50 << 20
 
 // Result is a canvas with every reached local asset inlined.
@@ -28,16 +28,14 @@ type Result struct {
 	// Assets holds each inlined file once, by real repo-relative path, with
 	// its size on disk, sorted by path.
 	Assets []Asset
-	// Refused holds each reference that blocks the export: every SVG <use>
-	// that leaves the canvas first, then the others in document order.
-	// It is partial when TooLarge is true.
+	// Refused holds each reference that blocks the export: every SVG <use> that leaves the canvas
+	// first, then the others in document order. It is partial when TooLarge is true.
 	Refused []Refusal
 	// TooLarge reports that the output would exceed the limit; Inline stopped
 	// there instead of building it.
 	TooLarge bool
-	// Largest holds up to five files the export reached, largest first, with
-	// their sizes on disk (including a file too large to read). It is filled
-	// only when TooLarge is true and is empty otherwise.
+	// Largest holds up to five files the export reached, largest first, with their sizes on disk
+	// (including a file too large to read). It is filled only when TooLarge is true.
 	Largest []Asset
 }
 
@@ -46,9 +44,8 @@ type Asset struct {
 	Size int64
 }
 
-// Refusal names a blocked reference. From is the repo-relative path of the
-// canvas or CSS file that holds Href; no absolute path appears. Control
-// characters in Href are escaped (\n, \r, \t, \xNN), so a refusal is one line.
+// Refusal names a blocked reference by repo-relative paths only. Control characters in Href are
+// escaped (\n, \r, \t, \xNN), so a refusal is one line.
 type Refusal struct {
 	From, Href, Reason string
 }
@@ -58,18 +55,8 @@ func Inline(root string, config repo.Config, canvasPath string, src []byte) (Res
 	return InlineLimit(root, config, canvasPath, src, MaxBytes)
 }
 
-// InlineLimit rewrites the canvas source src at the listed canvas path so
-// that it needs no file from the repository. Only files the app would serve
-// are read: references outside the repository or the serving scope, local
-// frames, and missing files the canvas names directly are refused. Missing
-// files named inside CSS files stay as written, as the app also fails to load
-// them. An SVG <use> that names anything but a fragment of the canvas is
-// refused, because the app does not draw it.
-//
-// It stops with TooLarge as soon as the output is known to exceed limit
-// bytes: a file is sized before it is read, and every stylesheet and the
-// canvas count the bytes they gain while being rewritten, so repeated
-// @import expansion stops early. The error is for file-system failures only.
+// InlineLimit inlines only files the app would serve and refuses out-of-scope references, local frames, missing files the
+// canvas names and non-fragment <use>s. Refusals and TooLarge come back in Result; the error is for file-system failures only.
 func InlineLimit(root string, config repo.Config, canvasPath string, src []byte, limit int64) (Result, error) {
 	res, _, err := inline(repo.NewResolver(root), root, config, canvasPath, src, limit)
 	return res, err
@@ -150,11 +137,8 @@ type inliner struct {
 	based       string          // the canvas, when its <base href> moves the folder; "" otherwise
 }
 
-// sheet is one inlined stylesheet. Its text depends on the @import chain
-// only through which of the stylesheets it reached were ancestors (and so
-// were cut), recorded in deps; the same file reached by another chain that
-// agrees on deps has the same text. Without this, a cut cycle in a dense
-// import graph re-expands every simple path.
+// sheet's text depends on its @import chain only through deps (which reached stylesheets were cut as
+// ancestors), so chains that agree on deps share it; otherwise a cut cycle re-expands every simple path.
 type sheet struct {
 	deps map[string]bool // stylesheet reached → it was an ancestor
 	uri  string
@@ -162,12 +146,8 @@ type sheet struct {
 
 func (in *inliner) stopped() bool { return in.err != nil || in.tooLarge }
 
-// ref returns the replacement callback for references in the file from.
-// direct is true for the canvas itself. ancestors is the @import chain being
-// followed; reached collects the stylesheets reached below (nil for the
-// canvas, which no chain contains). grown counts
-// the size of the output being built from this file: once it passes the
-// limit, the whole export does, because that output ends up in it.
+// ref returns the replacement callback for references in from. grown counts this file's output: once it
+// passes the limit, the whole export does, because that output ends up in it.
 func (in *inliner) ref(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64) func(refKind, string, string) (string, bool) {
 	return func(kind refKind, href, custom string) (string, bool) {
 		if in.stopped() {
@@ -186,11 +166,10 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 
 // custom is the custom property whose value holds href, or "".
 func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, kind refKind, href, custom string) (string, bool) {
-	h := trimURL(href)
+	h := canvas.TrimURL(href)
 	if kind == kindUse {
-		// refuseUses already refused every <use> that leaves the canvas;
-		// none is resolved, so a missing, unserved or CDN target gets that
-		// one reason, and a fragment stays as written.
+		// refuseUses already refused every <use> that leaves the canvas, so none is resolved here and a
+		// fragment stays as written.
 		return "", false
 	}
 	switch classifyRef(kind, href) {
@@ -214,8 +193,8 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 				// Nothing uses it and the base would move it: it stays as written.
 				return "", false
 			}
-			// Nothing uses it, so the app loads nothing: resolve it where it
-			// is declared, as before, but a missing file blocks nothing.
+			// Nothing uses it, so the app loads nothing: resolve it where it is declared, but a missing file
+			// blocks nothing.
 			direct = false
 		}
 		if from == in.based {
@@ -251,11 +230,8 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 	return "", false
 }
 
-// refuseUses refuses every SVG <use> that leaves the canvas, as doan check
-// lists them (canvas.Canvas.UseRefs). The tokenizer the rewrite walks cannot
-// tell an SVG <use> from an HTML one, see that href wins over xlink:href, or
-// see a <use> it reads as <title> text where the parser does not. The
-// canvas is parsed only when its source names a <use> element.
+// refuseUses refuses every SVG <use> that leaves the canvas, as doan check lists them: the rewrite's
+// tokenizer cannot tell an SVG <use> from an HTML one or see that href wins over xlink:href.
 func (in *inliner) refuseUses(canvasPath string, src []byte) error {
 	if !namesUse(src) {
 		return nil
@@ -265,7 +241,7 @@ func (in *inliner) refuseUses(canvasPath string, src []byte) error {
 		return err
 	}
 	for _, r := range c.UseRefs {
-		in.refuse(canvasPath, trimURL(r), ReasonUseExternal)
+		in.refuse(canvasPath, canvas.TrimURL(r), ReasonUseExternal)
 	}
 	return nil
 }
@@ -314,9 +290,8 @@ func escapeControls(s string) string {
 	return b.String()
 }
 
-// read returns a file's bytes. A file bigger than what is left of the limit
-// is sized but not read: every file read appears in the output at least
-// once, so the export is already too large.
+// read sizes but does not read a file bigger than what is left of the limit: every file read appears in
+// the output at least once, so the export is already too large.
 func (in *inliner) read(real string) (string, error) {
 	if b, ok := in.files[real]; ok {
 		return b, nil
@@ -336,10 +311,8 @@ func (in *inliner) read(real string) (string, error) {
 	return in.files[real], nil
 }
 
-// inlineFile returns the data URI for a resolved file and the stylesheets
-// it reached, itself included. A stylesheet whose type the server sends as
-// CSS has its own references inlined first; any other type is sent as its
-// bytes, as the app would serve it.
+// inlineFile returns a resolved file's data URI and the stylesheets it reached, itself included. Only a
+// file the server sends as CSS has its own references inlined first.
 func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (string, map[string]bool, error) {
 	mime := mimeType(real)
 	if kind != kindStylesheet || !strings.HasPrefix(mime, "text/css") {

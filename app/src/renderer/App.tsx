@@ -6,7 +6,7 @@ import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
-import { afterRemoved, type RemovedState } from "./afterRemoved";
+import { afterRemoved } from "./afterRemoved";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -97,7 +97,7 @@ import type { CanvasPress } from "./ComposerParts";
 import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
-import { useThumbnails } from "./thumbnails";
+import { useThumbnailHub, useThumbnails } from "./thumbnails";
 import { canvasConversationRows, type CanvasConversationRow } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
@@ -139,9 +139,8 @@ export function menuCommand(name: MenuCommand | (string & {}), to: { home: () =>
   else if (name === "quickOpen") to.quickOpen();
 }
 
-// A focus move that waits (a pick's end) carries the intent it started with
-// (POSTMORTEM 2026-10-23 R-L): it holds while focus stays where the wait left it, and ends for good the moment
-// focus goes anywhere else, even if it comes back later.
+// A focus move that waits (a pick's end) carries the intent it started with (POSTMORTEM 2026-10-23): it holds while
+// focus stays where the wait left it, and ends for good once focus goes anywhere else.
 export class FocusIntent {
   private live = true;
   private readonly moved = (event: FocusEvent) => { if (!this.stays(event.target)) this.end(); };
@@ -154,9 +153,8 @@ export class FocusIntent {
 // may still take.
 interface WaitingChip { anchor: Anchor; composer: string | null; panel: string | null; focus: FocusIntent }
 
-// Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
-// sent before that memory was read (it would be dropped).
-// A project's closed groups after `change`; no field when every group is open, as ui-state stores them.
+// Main replaces ui-state wholesale on each save, so every save carries Home's memory and none is sent before it was
+// read. No field when every group is open, as ui-state stores them.
 function withGroups(project: ShellProject, change: (groups: ShellProject["groups"]) => ShellProject["groups"]): ShellProject {
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
@@ -188,20 +186,43 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
   return merged;
 }
 
-// First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
+// What the person folded, unfolded or opened and closed in the sidebar before ui-state was read, by project key.
+export interface ShellTouched { fold: ReadonlySet<string>; groups: ReadonlyMap<string, ReadonlySet<GroupId>> }
+
+// The read sidebar projects under the run's: a project the run holds keeps its roots and selection; its fold and each
+// group are the person's where they changed them before the read, else the read's.
+export function mergeShellProjects(saved: Readonly<Record<string, ShellProject>>, current: Readonly<Record<string, ShellProject>>, touched: ShellTouched): Record<string, ShellProject> {
+  const merged = { ...saved };
+  for (const [key, project] of Object.entries(current)) {
+    const read = saved[key];
+    if (!read) { merged[key] = project; continue; }
+    const selection = project.selectedRoot ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) }
+      : read.selectedRoot && project.roots.includes(read.selectedRoot) ? { selectedRoot: read.selectedRoot, ...(read.selectedAt !== undefined ? { selectedAt: read.selectedAt } : {}) } : {};
+    const folded = touched.fold.has(key);
+    const changed = touched.groups.get(key);
+    const closed = (["ds", "canvases"] as const).filter(id => (changed?.has(id) ? project.groups : read.groups)?.[id] === false);
+    merged[key] = {
+      roots: project.roots, ...selection,
+      expanded: folded ? project.expanded : read.expanded, ...(folded && project.collapsed ? { collapsed: true } : {}),
+      ...(closed.length ? { groups: Object.fromEntries(closed.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}),
+    };
+  }
+  return merged;
+}
+
+// First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard.
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
-// A reply chip whose canvas cannot be opened (draft frame `toasts`). The canvas is
-// named by the link's id, since no row names it; the project by its sidebar name. A project still being read or
-// with a problem says so as Quick Open does.
+// The canvas is named by the link's id, since no row names it; the project by its sidebar name. A project still
+// being read or with a problem says so as Quick Open does.
 export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable", canvas: string, project: string, entry: FolderEntry | undefined): string {
   if (target === "missing") return `Couldn’t open ${canvas}. The canvas isn’t in ${project}.`;
   if (target === "duplicate") return `Couldn’t open ${canvas}. More than one canvas in ${project} uses this ID. Run doan check in a terminal to find them.`;
   return unavailableCanvasMessage(entry, canvas, project);
 }
 
-// A Quick Open conversation that can no longer be opened (draft frame `open-failed`): the title quoted as the delete
-// toasts quote it, then the reply chip's sentences for a canvas that is gone or whose id is shared.
+// The title is quoted as the delete toasts quote it, then the reply chip's sentences for a canvas that is gone or
+// whose id is shared.
 export function conversationOpenRefusal(cause: "deleted" | "missing" | "duplicate", title: string, project: string): string {
   const name = quoted(title) ?? "this conversation";
   return cause === "deleted" ? `Couldn’t open ${name}. It was deleted.` : replyChipRefusal(cause, name, project, undefined);
@@ -225,17 +246,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
-  // The canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
-  // `seq` drops a closed dialog's late plan. Set through `changeTrashing`, so a reply that lands before the next render
-  // sees the dialog as it is.
+  // A Set Up reply can come after the folder list closed the dialog; that late reply must not close it again.
+  const setupRef = useRef(setup); setupRef.current = setup;
+  // main's plan for the canvas is null until it answers; `seq` drops a closed dialog's late plan. Set through
+  // `changeTrashing`, so a reply that lands before the next render sees the dialog as it is.
   const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number; move: TrashMove } | null>(null);
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
-  // The conversation a title menu's Delete asks about, and whether its request is out. Set through
-  // `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is where focus goes once the conversation
-  // was deleted, instead of the Delete's trigger: the shown conversation's composer (`field`), or the Canvas
-  // conversations row or title the list chose.
+  // Set through `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is where focus goes once
+  // deleted: the shown conversation's composer (`field`), or the row or title the list chose.
   const [deletingConversation, setDeletingConversation] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
   const deletingRef = useRef(deletingConversation);
   const changeDeleting = (next: typeof deletingConversation) => { deletingRef.current = next; setDeletingConversation(next); };
@@ -245,21 +265,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // a file, to the export's reply. The progress toast waits a second from that event.
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
   const exportTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  // The Add Projects page: where it returns to, the page's own report, and a
-  // counter File > Add Projects… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
+  // `chooseSeq` is raised by File > Add Projects… to run Choose folder; the page mounts anew (`seq`) on each
+  // opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
   const pageRef = useRef(page); pageRef.current = page;
-  // The Settings page: its category, what it was asked to focus on arrival, and
-  // whether a category holds a confirmation or a write. It shares the Add Projects page's origin, so moving between
-  // the two pages keeps where both return to.
+  // The Settings page's category, its arrival focus, and whether a category holds a confirmation or a write. It
+  // shares the Add Projects page's origin, so moving between them keeps where both return to.
   const [settings, setSettingsState] = useState<{ section: SettingsSection; arrival: SettingsArrival | null; locked: boolean }>({ section: "agents", arrival: null, locked: false });
   const settingsRef = useRef(settings); settingsRef.current = settings;
   const setSettings = (next: typeof settings) => { settingsRef.current = next; setSettingsState(next); };
   const settingsQueue = useRef(new SettingsTargetQueue());
   const arrivals = useRef(0);
-  // The Project Settings page: the worktree it shows, a key that changes only when
-  // another worktree is picked (a reroot is followed inside the page, which keeps its config session), its title-focus
-  // arrival and whether it holds a picker, a confirmation or a write. It shares the other pages' origin.
+  // `key` changes only when another worktree is picked: a reroot is followed inside the page, which keeps its config
+  // session. It shares the other pages' origin.
   const [projectSettings, setProjectSettingsState] = useState<{ root: string; key: number; arrival: { seq: number } | null; locked: boolean }>({ root: "", key: 0, arrival: null, locked: false });
   const projectSettingsRef = useRef(projectSettings); projectSettingsRef.current = projectSettings;
   const setProjectSettings = (next: typeof projectSettings) => { projectSettingsRef.current = next; setProjectSettingsState(next); };
@@ -290,9 +308,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The group's selection before it moved to an auto-registered worktree, by that worktree, in memory.
   const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
-  // The zoom and current frame go to the header alone: a pan or zoom publishes them many times a second, and an App
-  // render for each cost most of the page's script while moving. So `state.zoom`, `state.scale` and
-  // `state.currentFrame` can be older than the view; read them from `canvasView`.
+  // The zoom and current frame go to the header alone (an App render per pan or zoom tick cost most of the page's
+  // script), so `state.zoom`, `state.scale` and `state.currentFrame` can lag: read them from `canvasView`.
   const canvasView = useRef<CanvasViewStore>(null as unknown as CanvasViewStore);
   if (!(canvasView.current instanceof CanvasViewStore)) canvasView.current = new CanvasViewStore(canvasViewFields(state));
   const handedCanvas = useRef(state);
@@ -321,9 +338,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const pickerButton = useRef<HTMLButtonElement | null>(null);
   const waitingChip = useRef<WaitingChip | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
-  // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
-  // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
-  // but only the workspace Locate (which opens the new root itself) may move `loadedRoot` along with it.
+  // Set Up keeps `rerootSeq` at its start so an older re-root is not taken for its own. `locateFrom`: main reports a
+  // Locate as a re-root focus too, but only the workspace Locate may move `loadedRoot` with it.
   const rerootSeq = useRef(0), setupSeq = useRef(0), locateFrom = useRef<string | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
   const beforeWizard = useRef<HTMLElement | null>(null);
@@ -341,7 +357,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const overlayRetries = useRef(new Map<string, symbol>());
   const [, redrawRetry] = useState(0);
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
-  const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
   // canvas opens or the Overview is left, so the person learns why the canvas page went away.
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
@@ -386,15 +401,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return request.permissionMode ? rememberPermission(next, request.runtime, request.permissionMode) : next;
     }),
     followedMode: (provider, mode) => live.current.followMode(provider, mode),
+    seenFailed: (id, seq) => { overviewRun.current?.seenFailed(id, seq); canvasRun.current?.seenFailed(id, seq); },
     changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync(); },
   });
-  // The Overview's main conversation and its composer's lists, for the run; the root it shows, as
-  // committed.
+  // The Overview's main conversation and its composer's lists, for the run; the root it shows, as committed.
   const shownOverviewRef = useRef<string | null>(null);
   // conversationByRoot is written from the start; the Overview reads it only once ui-state was read (memoryRead).
   const conversationByRoot = useRef<Record<string, string>>({});
-  // The initial ui-state read has settled (a failed read counts). No save is sent before it: main replaces the whole
-  // file on each save, so an early save would drop every remembered field it does not carry (RBR4).
+  // The initial ui-state read has settled (a failed read counts). No save before it: main replaces the whole file on
+  // each save, so an early save would drop every field it does not carry.
   const memoryRead = useRef(false);
   // Fast changes (switches and auto-offs) made before that read, laid over the read map per provider when it lands.
   const fastBeforeRead = useRef(new Map<Provider, boolean>());
@@ -411,6 +426,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const conversationByCanvas = useRef<Record<string, Record<string, string>>>({});
   // Roots removed before that read: the read's memory for them is dropped by the merge.
   const canvasMemoryRemoved = useRef(new Set<string>());
+  const shellTouched = useRef({ fold: new Set<string>(), groups: new Map<string, Set<GroupId>>() });
+  const touchFold = (key: string) => { if (!memoryRead.current) shellTouched.current.fold.add(key); };
   // A canvas whose id another listed canvas shares has no memory: neither of the two can tell it is the one meant.
   const sharedCanvasId = (root: string, canvas: Canvas) => {
     const listed = entriesRef.current.find(entry => entry.path === root);
@@ -450,9 +467,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const sidebarFocus = useRef(false);
   // Only a toggle animates the shells' first column; the startup read and a resize do not.
   const sidebarMotion = useRef(false);
-  // The header button, ⌘B and View > Hide/Show Sidebar. Hiding unmounts the sidebar, so its open menus close with it
-  // instead of waiting under a flag to reappear (POSTMORTEM 2026-11-01 'A frame drawer list closed by a disabled trigger
-  // reopened by itself'). Not a Back/Forward visit.
+  // Hiding unmounts the sidebar, so its open menus close with it instead of waiting under a flag to reappear
+  // (POSTMORTEM 2026-11-01). Not a Back/Forward visit.
   function toggleSidebar() {
     const hide = !sidebarHiddenRef.current;
     const active = document.activeElement;
@@ -466,9 +482,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
   const [panelSize, setPanelSize] = useState<{ window: number; shell: number } | null>(null);
   const shellRoot = useRef<HTMLElement>(null);
-  // Which button takes focus after the panel folds ("show") or comes back ("hide"), or the panel itself ("panel", the
-  // agent notice's Open).
-  // "content": an entry's arrival takes focus inside the panel itself.
+  // Which button takes focus after the panel folds ("show") or comes back ("hide"), the panel itself ("panel"), or
+  // inside the panel on an entry's arrival ("content").
   const panelFocus = useRef<"show" | "hide" | "panel" | "content" | null>(null);
   // The same for the inspector: its Show button after it folds, its Hide button after it comes back.
   const inspectorFocus = useRef<"show" | "hide" | null>(null);
@@ -523,6 +538,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<PanelArrival | null>(null);
+  // Read by the screen entry: the panel applies an arrival in its own effect, which runs before App's in the same commit.
+  const arrivalShown = useRef(arrival);
+  arrivalShown.current = arrival;
+  const panelArrived = useRef(0);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1), window.doan);
@@ -603,16 +622,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         rerootSeq.current += 1;
         setReroot({ ...focus, seq: rerootSeq.current });
       }
-      const removed = entriesRef.current.filter(entry => !next.some(row => row.path === entry.path)).map(entry => entry.path);
+      // From main's whole list: a hidden auto-registered worktree is still registered and keeps its memory.
+      const removed = allEntriesRef.current.filter(entry => !all.some(row => row.path === entry.path)).map(entry => entry.path);
       if (removed.length) {
-        setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
-        setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
-          const roots = project.roots.filter(root => !removed.includes(root));
-          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
-        })));
-        const previous = historyRef.current;
-        const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
-        historyRef.current = nextHistory; setHistory(nextHistory);
+        forgetRemovedState(removed);
         forgetConversations(removed);
       }
       entriesRef.current = next;
@@ -633,17 +646,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // A reload can take the bubble while the prototype window is in front, so the hand-off is made again on activation,
+    // unless the controller returned focus to a bubble button meanwhile (the selection found again). A bubble shown again
+    // for another selection gets no focus back, so it does not end the hand-off.
+    const toolbarHandOff = (to: () => HTMLElement | null) => {
+      const returns = instance.bubbleReturns();
+      handFocus.current(() => { if (instance.bubbleReturns() === returns) to()?.focus({ preventScroll: true }); });
+    };
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
-      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => toolbarHandOff(() => playButton.current?.isConnected ? playButton.current : viewport.current),
     };
     instance.bubbleAdd = {
       host: element => setBubbleHost(element),
       onAdd: () => live.current.addToMessage(),
       button: () => bubbleAddButton.current,
       // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
-      onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
+      onFocusLost: () => toolbarHandOff(() => pickerButton.current?.isConnected ? pickerButton.current : viewport.current),
     };
     instance.bubbleInspect = {
       onInspect: () => live.current.showBubbleInspector(),
@@ -661,9 +681,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, []);
   // After the effect above, which makes the controller: the inspector's element menu subscribes before it exists.
   useEffect(() => controller.current?.onElementTree(message => treeListener.current?.(message)), []);
-  // App's own focus hand-offs also run with the window in the background (an agent's CLI call closes a dialog or ends
-  // first run, a toast expires), so each is made again on activation (POSTMORTEM 2026-11-17). The hand is stable; held
-  // in a ref, it keeps App's focus functions out of every effect's dependencies.
+  // App's focus hand-offs also run with the window in the background, so each is made again on activation
+  // (POSTMORTEM 2026-11-17). Held in a ref, the stable hand stays out of every effect's dependencies.
   const activationFocus = useActivationFocus();
   const handFocus = useRef(activationFocus);
   const inspectCall = useCallback((request: InspectRequest) => window.doan.inspect(request), []);
@@ -676,8 +695,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
   const clock = useVisibleClock(1000, window.doan);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
-  // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
-  // shares, so a hidden and shown window keeps it.
+  // First run shows when main's session has no completion record; the session is the one the CLI shares, so a
+  // hidden and shown window keeps it.
   useEffect(() => {
     let current = true;
     window.doan.startOnboardingSession().then(reply => {
@@ -696,9 +715,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     beforeWizard.current = null;
     focusCurrent(previous);
   }, [wizard]);
-  // While the Add Projects page selects or clones, or a Settings category or the Project Settings page holds a picker, a
-  // confirmation or a write, every move away is ignored here, in one place:
-  // marking the controls alone would leak through toasts and keyboard activation.
+  // While a page selects, clones, or holds a picker, confirmation or write, every move away is ignored here, in one
+  // place: marking the controls alone would leak through toasts and keyboard activation.
   const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked)
     || (currentScreen.current === "projectSettings" && projectSettingsRef.current.locked);
   const home = () => {
@@ -710,22 +728,30 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   };
   useEffect(() => {
     controller.current?.setWorkspaceActive(screen === "workspace");
+    // `doan open` can move the screen while the window is behind, so each entry focus is made again on activation, and
+    // only while the same screen shows.
     if (screen === "home") {
-      document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
+      handFocus.current(() => { if (currentScreen.current === "home") document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); });
     } else if (screen === "workspace") {
+      const root = loadedRoot;
+      const hand = (focus: () => void) => handFocus.current(() => { if (currentScreen.current === "workspace" && loadedRootRef.current === root) focus(); });
       // A problem scene takes focus first: what it covers is inert (PRODUCT §5 item 3 'Problem states'); the scene's
       // own effect gives it to the heading.
       if (sceneRef.current) { homeRun.current.takeFocus(); chipFocus.current = false; return; }
       // A Home send lands in the Overview's composer field.
-      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
+      const field = ".workspace .ov-main .composer-input", chip = ".workspace .ov-main .wt-chip";
+      if (homeRun.current.takeFocus() === "composer" && document.querySelector(field)) { hand(() => document.querySelector<HTMLElement>(field)?.focus()); return; }
       // A worktree picked from the Overview's branch chip lands on the new Overview's chip.
-      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
+      if (chipFocus.current) { chipFocus.current = false; if (document.querySelector(chip)) { hand(() => document.querySelector<HTMLElement>(chip)?.focus()); return; } }
       // An entry to a waiting request focused its card in the same commit; child effects run first, so this default
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
+      // The panel took this entry's arrival in the same commit; a composer fallback focuses in a microtask, after this.
+      // An earlier App hand-off ends here too, so activation does not visit its target first.
+      if (arrivalShown.current !== null && panelArrived.current === arrivalShown.current.seq) { handFocus.current(() => {}); return; }
       const previous = workspaceFocus.current;
-      (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
+      hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
   }, [screen, loadedRoot]);
   useEffect(() => {
@@ -740,7 +766,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const next = entries.find(entry => entry.path === root);
     if (!next || next.kind === "loading") return;
     if (next.kind === "list") controller.current?.openWorkspace(root, setLoadedRoot);
-    // A root still in a problem enters its Overview, where the overlay shows it (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…').
+    // A root still in a problem enters its Overview, where the overlay shows it (POSTMORTEM 2026-11-03).
     else controller.current?.openWorkspace(root, setLoadedRoot, false, undefined, true);
     setLocating(null);
   }, [entries, locating]);
@@ -757,6 +783,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (active) {
         conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current);
         conversationByCanvas.current = mergeCanvasMemory(state?.conversationByCanvas, conversationByCanvas.current, canvasMemoryRemoved.current);
+        // Merged here, not in the restore, which a navigation before the read cancels.
+        const read = afterRemoved({ shellProjects: state?.shellProjects ?? {}, expanded: state?.expanded ?? {}, history: emptyHistory() }, [...canvasMemoryRemoved.current]);
+        setExpanded(previous => ({ ...read.expanded, ...previous }));
+        // The canvas shown before the read keeps its group open (PRODUCT §5 item 1), whatever the read closed.
+        const shown = lastShown.current, open = groupToOpen(null, shown);
+        const shownKey = shown && groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === shown.root))?.key;
+        setShellProjects(previous => {
+          const merged = mergeShellProjects(read.shellProjects, previous, shellTouched.current);
+          return open && shownKey && merged[shownKey]?.groups?.[open] === false ? { ...merged, [shownKey]: withGroups(merged[shownKey], groups => openGroup(groups, open)) } : merged;
+        });
+        const remembered = controller.current?.memory() ?? {};
+        for (const [root, item] of Object.entries(state?.lastByRoot ?? {})) if (!(root in remembered) && !canvasMemoryRemoved.current.has(root)) controller.current?.remember(root, item);
         memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
       }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
@@ -781,11 +819,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return () => clearTimeout(timer);
     }
     setRestore("done");
-    if (!restore.state) return;
-    setExpanded(restore.state.expanded);
-    setShellProjects(restore.state.shellProjects ?? {});
-    for (const [root, item] of Object.entries(restore.state.lastByRoot)) controller.current?.remember(root, item);
-    if (plan.kind === "home") return;
+    if (!restore.state || plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
     controller.current?.remember(plan.root, plan.canvas?.view ? { canvas: plan.canvas.path, view: plan.canvas.view } : null);
     const listed = allEntries.find(entry => entry.path === plan.root);
@@ -844,7 +878,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const group = groups.find(group => group.rows.some(row => row.path === root));
     const selected = group && shellRef.current[group.key]?.selectedRoot;
     if (selected && selected !== root && entriesRef.current.find(entry => entry.path === root)?.autoRegistered) beforeAuto.current.set(root, selected);
-    if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
+    if (group) setShellProjects(previous => { const { collapsed, groups } = previous[group.key] ?? {}; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(collapsed ? { collapsed } : {}), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
     if (locked()) return;
@@ -879,11 +913,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
     overviewRun.current!.request(root, conversationId, waiting ? "permission" : null);
   }
-  // A Conversations row in the Overview: a canvas row opens its canvas; a project row shows its conversation in the main
-  // column with no Back/Forward visit, as the title menu's pick does. One waiting for an answer opens as a toast's Open
-  // does (scrolled to its request, focus on its first choice); otherwise the composer takes focus. The row of the
-  // conversation already shown only moves focus: picking it again would move the root's revision and drop a start or
-  // send reply still on its way.
+  // A canvas row opens its canvas; a project row shows its conversation in the main column with no visit. The row
+  // already shown only moves focus: picking it again would move the revision and drop a reply on its way.
   function openOverviewRow(root: string, item: CanvasConversationRow) {
     if (item.kind === "canvas") { if (item.row) openCanvasConversation(root, item.row, item.conversationId, { kind: "overviewRow" }); return; }
     const run = overviewRun.current!;
@@ -905,12 +936,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }
   // The conversation slots with the terminal sessions' spinners over them, as the sidebar shows them.
   const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
-  // A sidebar canvas row: its slot decides whether the panel unfolds. A row that needs an
-  // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
-  // panel picks by its shared rule (pickShownConversation). The slot is the one the row shows, so a terminal spinner over
-  // an unseen ending keeps the panel.
-  // `listed`: the sidebar shows the canvas's conversation list under this row, so the row carries no conversation
-  // signal and its press keeps the panel as an empty slot would.
+  // The row's slot decides whether the panel unfolds, so a terminal spinner over an unseen ending keeps the panel.
+  // `listed`: the conversation list shows under this row, so the row carries no signal and its press keeps the panel.
   function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number, listed = false) {
     const slot = listed ? null : shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
@@ -927,9 +954,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
     openCanvasConversation(root, row, conversationId, { kind: "notification", permission: waiting });
   }
-  // An entry to one of a canvas's conversations: the canvas opens with that
-  // conversation asked for in its panel, and the panel unfolds when the trigger opens it.
-  // `slot` is the canvas row's sidebar slot, which a sidebar row's trigger reads.
+  // The canvas opens with that conversation asked for in its panel, which unfolds when the trigger opens it. `slot`
+  // is the canvas row's sidebar slot, which a sidebar row's trigger reads.
   function openCanvasConversation(root: string, row: CanvasRow, conversationId: string, trigger: PanelTrigger, slot: Slot["kind"] | null = null) {
     if (locked()) return;
     const target: CanvasTarget = { root, canvas: row.id ? { path: row.path, id: row.id } : { path: row.path } };
@@ -941,12 +967,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (currentScreen.current === "workspace" && shown?.folder === root && shown.canvas === row.path && shownOverviewRef.current === null) reveal();
     else live.current.openShellCanvas(root, row, undefined, reveal);
   }
-  // An auto-registered worktree left the list as shown (its folder vanished, or it can no longer be read) without any
-  // move of the person's. Its remembered canvas and previous selection go. When it was on screen, its
-  // canvas, Overview or Project Settings page moves to the same place in the worktree selected before it, else the
-  // group's main checkout, even in a problem state; no toast. A page opened from its workspace keeps
-  // its screen and takes that worktree as its origin. A group with nothing left was removed from Doan, and that path
-  // goes Home as before.
+  // An auto-registered worktree left the shown list without the person's move: on screen, its page moves to the
+  // worktree selected before it (else the main checkout), no toast; a group with nothing left goes Home.
   function leaveVanished(before: readonly FolderEntry[], after: readonly FolderEntry[]) {
     for (const gone of before) {
       if (gone.autoRegistered !== true || after.some(entry => entry.path === gone.path)) continue;
@@ -996,6 +1018,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const entry = entries.find(entry => entry.path === loadedRoot);
   const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
   const names = projectNames(entries.map(entry => entry.path));
+  const autoRoots = entries.flatMap(entry => entry.autoRegistered ? [entry.path] : []);
   // Home conversations are decided by HomeRun; App wires its navigation, toasts and dialogs.
   const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
@@ -1040,15 +1063,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // A locked page ignores only the move to a workspace: the row still unfolds another project, and
     // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
     if (locked()) {
-      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
+      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot)) {
+        touchFold(key);
         setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } }));
+      }
       return;
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
     // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
     // from the page it goes back to the loaded workspace.
     if (loaded) {
-      if (shellRef.current[key]?.collapsed) setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } }));
+      if (shellRef.current[key]?.collapsed) { touchFold(key); setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } })); }
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (PRODUCT §5 item 1).
@@ -1064,17 +1089,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
     if (intent !== navigationIntent.current || signature !== JSON.stringify(groups.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })))) return;
     const root = selectProjectRoot(memory, activity ?? [], loadedRoot); if (!root) return;
-    // Another project's row opens its Overview from anywhere, never its last canvas, and never folds it: only its chevron
-    // does (user decisions; project-row-disclosure draft). A problem root's Overview shows under its overlay.
+    // Another project's row opens its Overview from anywhere, never its last canvas, and never folds it: only its
+    // chevron does. A problem root's Overview shows under its overlay.
     controller.current?.openWorkspace(root, next => {
+      touchFold(key);
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
     }, false, undefined, true);
   };
-  // The project row's chevron (project-row-disclosure draft): fold or unfold only, the loaded project included.
+  // The project row's chevron: fold or unfold only, the loaded project included.
   const discloseProject = (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    touchFold(key);
     setShellProjects(previous => {
       const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
       const open = projectExpanded(memory, loadedRoot);
@@ -1091,6 +1118,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // A locked page keeps the disclosure, as project expansion does.
   const toggleShellGroup = (key: string, id: GroupId) => {
     const group = cards.find(card => card.key === key); if (!group) return;
+    if (!memoryRead.current) shellTouched.current.groups.set(key, new Set(shellTouched.current.groups.get(key)).add(id));
     setShellProjects(previous => ({ ...previous, [key]: withGroups({ ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }, groups => toggleGroup(groups, id)) }));
   };
   // Whatever opened it, a newly shown canvas opens its group; a group closed while it stays shown stays closed.
@@ -1104,6 +1132,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setShellProjects(previous => previous[key]?.groups?.[id] === false ? { ...previous, [key]: withGroups(previous[key]!, groups => openGroup(groups, id)) } : previous);
   }, [state.open?.folder, state.shown]);
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
+  // Quick Open closes its dialog before it calls this, so focus left inside it is in a closed dialog; a styling class
+  // would stop matching silently once removed (POSTMORTEM 2026-10-30).
+  const closeQuickOpen = () => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog:not([open])")) modalClosed(); };
 
 
   // The existing-user buddy screen holds first run's lock while it is open.
@@ -1120,8 +1151,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }, [buddyIntro.open]);
   const modal = wizard !== null || buddyIntro.open || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
-  // itself is not modal (POSTMORTEM 2026-10-25 'Native hiding bypassed
-  // renderer-only lifetime checks').
+  // itself is not modal (POSTMORTEM 2026-10-25).
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
   const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, showBubbleInspector: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
@@ -1132,9 +1162,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
     const after = afterDelete.current;
-    const field = after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
+    const find = () => after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
     afterDelete.current = null;
-    if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
+    // Main's reply can come after the person left for another app; the replay finds the target as drawn then.
+    if (after && find()) {
+      handFocus.current(() => { const field = find(); if (field) { if (after.field) focusFieldEnd(field); else field.focus(); } });
+      return;
+    }
     const previous = beforeModal.current;
     // A Set Up (or other action) opened from the overlay that took the overlay with it lands where the overlay's going
     // sends focus (PRODUCT §5 item 3 'Problem states'), not on the screen's fallback.
@@ -1167,9 +1201,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     waitingChip.current = null;
     insertAdd(pending);
   });
-  // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (PRODUCT §5 item 3
-  // 'Problem states'). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
-  // which would take it to the sidebar.
+  // The overlay went with focus in it: focus goes to the uncovered body (PRODUCT §5 item 3 'Problem states'), after
+  // the inert above comes off and ahead of the recovery focus below, which would take it to the sidebar.
   useLayoutEffect(() => {
     const was = overlayCommitted.current;
     overlayCommitted.current = overlaidRef.current;
@@ -1221,9 +1254,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     pageRef.current = next; setPage(next);
     setScreen("addProjects");
   }
-  // Every way into Settings — the header tab, Settings… (⌘,), Home's agent picker, a sign-in toast — comes here.
-  // While a category holds a confirmation or a write, the latest target waits for it
-  // (POSTMORTEM 2026-10-25 'A forwarded Settings target discarded a pending setup confirmation').
+  // Every way into Settings comes here. While a category holds a confirmation or a write, the latest target waits for
+  // it (POSTMORTEM 2026-10-25).
   function openSettings(target: SettingsTarget) {
     if (live.current.modal) return;
     if (currentScreen.current === "settings") {
@@ -1254,9 +1286,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setSettingsAnnouncement(undefined);
     setSettings({ ...settingsRef.current, section, arrival: null });
   };
-  // Project Settings from a project menu (the sidebar's or the Overview's recovery menu). On the page, picking another
-  // worktree switches to it with a new page and the same origin, and picking the same one focuses its title;
-  // a locked page takes neither.
+  // On the page, picking another worktree switches to it with a new page and the same origin, and picking the same one
+  // focuses its title; a locked page takes neither.
   function openProjectSettings(root: string) {
     if (live.current.modal) return;
     const current = projectSettingsRef.current;
@@ -1283,7 +1314,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setProjectSettings({ ...current, locked: next });
   };
   // Locate or Set Up moved the page's worktree: App's root and an origin on the old root's workspace follow, or leaving
-  // would find the origin gone and go Home (POSTMORTEM 2026-10-25 'Locating a project kept the old root's selection').
+  // would find the origin gone and go Home (POSTMORTEM 2026-10-25).
   const projectSettingsRerooted = (root: string, origin: AddPageOrigin) => {
     setProjectSettings({ ...projectSettingsRef.current, root });
     const next = { ...pageRef.current, origin };
@@ -1322,9 +1353,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (to.kind === "workspace") live.current.enter(to.root);
     else { cancelRestore(); controller.current?.cancelWorkspaceOpen(); setScreen("home"); }
   }
-  // A registered project goes Home with it chosen and its row flashed. The registration can answer before the folder
-  // list has the root, so the choice waits for the list rather than reading it once (POSTMORTEM 2026-10-25
-  // 'Navigation feedback read the previous React snapshot').
+  // A registered project goes Home chosen and flashed. The registration can answer before the folder list has the root,
+  // so the choice waits for the list (POSTMORTEM 2026-10-25).
   const [pendingAdd, setPendingAdd] = useState<string | null>(null);
   function pageAdded(root: string) {
     if (currentScreen.current !== "addProjects") return;
@@ -1392,8 +1422,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
   // when the window comes back to the front.
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
-  // Settings > MCP Connectors: one reader of main's snapshots for the whole window, since a connection attempt
-  // outlives the page. It tells a failure elsewhere in the shared toast (spec 4) and follows running turns (spec 10).
+  // One reader of main's MCP Connectors snapshots for the whole window, since a connection attempt outlives the page;
+  // it toasts a failure elsewhere and follows running turns.
   const mcpWatch = useRef<McpConnectorsWatch | null>(null);
   if (!mcpWatch.current) mcpWatch.current = new McpConnectorsWatch({
     api: window.doan,
@@ -1411,7 +1441,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // A notice goes once its agent's running turn has ended; the conversation lists redraw App when that changes.
   useEffect(() => { mcpWatch.current!.runningChanged(); });
   // While neither Claude Code nor Codex is signed in, a shown or restored MCP Connectors becomes Agents; on the page
-  // focus goes to the Agents title and the page says why once (spec 1).
+  // focus goes to the Agents title and the page says why once.
   useEffect(() => {
     if (mcpShown !== false || settingsRef.current.section !== "mcp") return;
     const onPage = currentScreen.current === "settings";
@@ -1451,9 +1481,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, { provider, model: null, effort: null, permissionMode: mode });
     if (next) void savePreferences({ newConversation: next });
   }
-  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first. A Radix
-  // popover (the usage popover) closes on Escape and prevents the default; its role="dialog" content is not one the
-  // overlay query finds, so a handled Escape is skipped as CanvasController skips it.
+  // Escape leaves a page unless a field or IME composition holds it, or an overlay closes itself first. A Radix popover
+  // closes on Escape and prevents the default, so a handled Escape is skipped as CanvasController skips it.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings" && currentScreen.current !== "projectSettings")) return;
@@ -1462,9 +1491,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
   }, []);
-  // Only the 'Use a folder on your Mac' card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
-  // drop and the window never opens the file; a target that took the drag has already prevented the default. Text
-  // and links are left to the fields that take them.
+  // Only the 'Use a folder on your Mac' card takes a file drop; elsewhere the window refuses files so it never opens one.
+  // A target that took the drag has already prevented the default; text and links are left to fields.
   useEffect(() => {
     const refuse = (event: DragEvent) => {
       if (event.defaultPrevented || !Array.from(event.dataTransfer?.types ?? []).includes("Files")) return;
@@ -1501,22 +1529,26 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (result.kind === "removed") forgetRemoved(paths);
     return result;
   }
-  // What the window forgets about roots it or `doan remove` (folders:removed) took out of the list. Going Home is the
-  // entries effect's, as for any vanished root. A second pass for the same roots sets no state, so the CLI's event for
-  // roots this window's own Remove already tidied changes nothing.
+  // The sidebar's part of a removal, also for roots main's list dropped. Refs and setters only: `onFolders` keeps the
+  // first render's copy.
+  function forgetRemovedState(paths: readonly string[]) {
+    const none = emptyHistory();
+    setShellProjects(previous => afterRemoved({ shellProjects: previous, expanded: {}, history: none }, paths).shellProjects);
+    setExpanded(previous => afterRemoved({ shellProjects: {}, expanded: previous, history: none }, paths).expanded);
+    const current = historyRef.current, next = afterRemoved({ shellProjects: {}, expanded: {}, history: current }, paths).history;
+    if (next !== current) { historyRef.current = next; setHistory(next); }
+  }
+  // What the window forgets about roots it or `doan remove` (folders:removed) took out; going Home is the entries effect's.
+  // A second pass for the same roots sets no state.
   function forgetRemoved(paths: readonly string[]) {
-    const current: RemovedState = { shellProjects: shellRef.current, expanded: expandedRef.current, history: historyRef.current };
-    const next = afterRemoved(current, paths);
-    setShellProjects(next.shellProjects); setExpanded(next.expanded);
-    if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
+    forgetRemovedState(paths);
     for (const root of paths) controller.current?.remember(root, null);
     // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
     if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || root in conversationByCanvas.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
-  // The dialog asks main for its plan before it can be confirmed. A busy plan keeps it open with its working line and a
-  // failed one with its reason; notListed and notFile close it with that refusal's toast. Closing returns focus to the
-  // row's menu button through `beforeModal`.
+  // The dialog asks main for its plan before it can be confirmed; notListed and notFile close it with that refusal's
+  // toast. Closing returns focus to the row's menu button through `beforeModal`.
   function openTrash(root: string, row: CanvasRow, button: HTMLElement | null) {
     if (locked() || live.current.modal) return;
     beforeModal.current = button;
@@ -1540,10 +1572,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function closeTrash() { changeTrashing(null); modalClosed(); }
   // Cancel and Escape: refused while the move is out, since cancelling would stop nothing.
   function cancelTrash() { if (!trashingRef.current?.move.pending) closeTrash(); }
-  // Confirmed: the dialog stays, busy and refusing its cancel, until main answers (DESIGN 'Busy action'). A move that
-  // went closes it with its toast; a refusal stays inside it, where Move to Trash tries again. The row leaving the list
-  // may close it first; the reply then still shows its toast. The mark set before the request makes the open canvas's
-  // removal a trash, not a move to another canvas of the same id.
+  // The dialog stays busy and refuses its cancel until main answers (DESIGN 'Busy action'). The mark set before the
+  // request makes the open canvas's removal a trash, not a move to another canvas of the same id.
   function confirmTrash() {
     const current = trashingRef.current;
     if (!current || current.move.pending || current.plan?.kind !== "ready" || trashWorking(current.root, current.row)) return;
@@ -1560,9 +1590,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     };
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
   }
-  // A title menu row's Delete asks first. Cancel and Escape return focus to the menu's
-  // trigger (`beforeModal`); the row's button is inside the closed menu. A Conversations list row's Delete passes
-  // itself as the trigger.
+  // Cancel and Escape return focus to the menu's trigger (`beforeModal`); the row's button is inside the closed menu. A
+  // Conversations list row's Delete passes itself as the trigger.
   function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
     if (locked() || live.current.modal) return false;
     beforeModal.current = trigger;
@@ -1577,9 +1606,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const list = homeRun.current.listState(target.root);
     return Array.isArray(list) ? list.find(c => c.conversationId === target.conversationId) : undefined;
   }
-  // The store marks the conversation as being deleted before main is asked, and the mark ends exactly once: deleted
-  // (success, or not_found: main has none either) or cancelled (any other refusal, a rejected call). A leaked mark would
-  // freeze that conversation's state until a reload. The dialog closes on the reply; only a refusal shows a toast.
+  // The deleting mark ends exactly once: deleted (success, or not_found) or cancelled (any other refusal, a rejected
+  // call). A leaked mark would freeze that conversation's state until a reload.
   async function confirmDelete() {
     const current = deletingRef.current;
     if (!current || current.pending) return;
@@ -1607,9 +1635,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           if (target.from === "canvasList") afterDelete.current = target.after.kind === "row"
             ? { field: false, selector: `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]`, fallback: ".ov-right .rp-head" }
             : { field: false, selector: ".ov-right .rp-head" };
-          // The canvas panel moves on to the next conversation (or the new state) under the title menu button, which takes
-          // focus (draft frame delete-shown).
-          // A sidebar Delete's row comes first even for the shown conversation: focus stays in the list it was pressed in.
+          // The canvas panel moves on under the title menu button, which takes focus. A sidebar Delete's row comes first even
+          // for the shown conversation: focus stays in the list it was pressed in.
           else if (target.from === "sidebar") afterDelete.current = { field: false, selector: sidebarRow(target.after), fallback: sidebarRow(target.canvasRow) };
           else if (shown) afterDelete.current = from === "overview" ? { field: true, selector: ".workspace .ov-main .composer-input" } : { field: false, selector: ".doan-conv-panel .doan-conv-title .ov-title" };
         } finally { store.deleted(conversationId); }
@@ -1661,9 +1688,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     };
     window.doan.exportCanvas(root, row.path).then(done, () => done({ kind: "failed", reason: "failed" }));
   }
-  // The canvas toolbar's Export: the row menu's export on the open canvas. Focus that
-  // fell to the page while the save panel was open goes back to the button once, when main reports the run or answers
-  // (POSTMORTEM 2026-11-03: never leave focus on the page body). Reads refs only, so the running listener may call it.
+  // Focus that fell to the page while the save panel was open goes back to the button once, when main reports the run
+  // or answers (POSTMORTEM 2026-11-03). Reads refs only, so the running listener may call it.
   const exportFocus = useRef<{ key: string; button: HTMLElement } | null>(null);
   function returnExportFocus(key: string) {
     const waiting = exportFocus.current;
@@ -1737,9 +1763,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!open || !rightPanelRef.current.open) return null;
     return { kind: "canvas", root: open.folder, path: open.canvas, conversationId: canvasRun.current!.showing()?.conversationId ?? null };
   }
-  // A conversation result opens through HomeRun with the rows Quick Open searched. The one already on screen only takes
-  // focus: no move and no visit. One that can no longer be opened goes nowhere and returns false, so Quick Open hands
-  // focus back to where it was opened.
+  // The conversation already on screen only takes focus: no move and no visit. One that can no longer be opened returns
+  // false, so Quick Open hands focus back to where it was opened.
   function pickConversation(result: Extract<SearchResult, { kind: "conversation" }>): boolean {
     const target = entries.find(entry => entry.path === result.root);
     const rows = target?.kind === "list" ? target.canvases : [];
@@ -1772,13 +1797,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is no longer in the canvas."); };
     controller.current?.openCanvas(result.root, row, frameId === undefined ? undefined : { frame: frameId }, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
-  // A doan:// link (ARCHITECTURE §7 'Deep links'): Quick Open's move. A frame moves the view as Quick Open's
-  // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
-  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. A link
-  // landing on a locked page or first run goes nowhere. A link or a `doan open` comes only from a person (a click, or a
-  // request they asked an agent for), so an open dialog is dismissed first through its own cancel event, the path
-  // Escape and Cancel take; one that refuses (it is busy) keeps the move from happening. A blocked link says why, in
-  // the modal dialog still open (a running Set Up, first run), the only place not inert, or else in the usual place.
+  // ARCHITECTURE §7 'Deep links'. A link comes only from a person, so an open dialog is dismissed first through its own
+  // cancel event; one that refuses (busy) keeps the move from happening.
   function openLink(result: OpenLinkResult) {
     if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
     const decision = decideOpen(result, openPage());
@@ -1788,11 +1808,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }
     controller.current?.openCanvas(result.root, decision.row, result.frame === undefined ? undefined : { frame: result.frame }, { unavailable, opened: () => completeNavigation(result.root) });
   }
-  // A chip in an agent's reply, from the canvas panel or the Overview of `root`.
-  // A chip into the canvas on screen locates there, as a sent chip does: no move, no visit. A chip into another canvas
-  // of the root moves as a link does (decideOpen, then Quick Open's path with its visit), to its frame without
-  // selecting it or to its element after the first layout; a target that is not there leaves the canvas only. A canvas
-  // that cannot be opened shows one toast. Settles with the locate's outcome, or null when it did not locate.
+  // A chip into the canvas on screen locates there, with no move or visit; one into another canvas moves as a link does
+  // (decideOpen). Settles with the locate's outcome, or null when it did not locate.
   function replyChip(root: string, link: ReplyAnchor): Promise<LocateOutcome | null> {
     const entry = entriesRef.current.find(entry => entry.path === root);
     const onScreen = canvasOnScreenRef.current;
@@ -1838,9 +1855,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The prototype composer's pick, as this window's own composers remember theirs (Last used, and a fixed Settings
   // default only by what was picked).
   function prototypeLastUsed(choice: ComposerChoice) { rememberPick(choice); }
-  // `doan open` moves as a link does, but answers main instead of showing a toast: a refusal changes nothing on screen,
-  // and the agent tells the person why. The answer is sent once the move is decided, not when the canvas has loaded;
-  // the frame result comes from the canvas's listed frames, the ones the rendered canvas reports.
+  // `doan open` moves as a link does but answers main instead of toasting; the answer is sent once the move is decided,
+  // and the frame result comes from the canvas's listed frames.
   function openCanvasRequest(request: OpenAsk) {
     // Past `expires` main has already told the CLI busy and drops any answer: close no dialog and move nowhere.
     // Checked again before the move, since closing a dialog runs its handlers first.
@@ -1858,14 +1874,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!opened) { answer({ kind: "canvas_not_found" }); return; }
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
-  // A started handoff moves from its source page (the source canvas's page, or for a project conversation the root's
-  // Overview showing it) through Quick Open's path, with the panel on the receiving conversation and focus on its card,
-  // or shows the toast. A target the renderer's list does not name yet waits for that read up to HANDOFF_WAIT_MS;
-  // leaving the source page, or any move or panel or Overview choice of the person's meanwhile, turns the move into the
-  // toast (POSTMORTEM 2026-10-25: an action offered before a read finishes waits for it; 2026-10-26: a later choice of
-  // the person's is never replaced). Unlike a link, it never closes a dialog: the person did not ask for this move.
-  // Several started handoffs never move: a summary toast, or nothing on the source page, whose lines already show each
-  // one.
+  // A target the list does not name yet waits for that read up to HANDOFF_WAIT_MS; any choice of the person's meanwhile
+  // turns the move into the toast (POSTMORTEM 2026-10-25, 2026-10-26). It never closes a dialog: the person did not ask for it.
   interface HandoffWait { notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; revision: number; entry: FolderEntry | undefined }
   const handoffWait = useRef<HandoffWait | null>(null);
   // A toast's Open whose canvas the list did not name yet: it waits the same way, and a later move of the person's drops
@@ -1963,7 +1973,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const done = () => { clearTimeout(wait.timer); handoffOpen.current = null; };
     if (wait.intent !== navigationIntent.current) { done(); return; }
     // Only a read still to come is waited for: a finished one that failed, or a project removed, answers at once
-    // (POSTMORTEM 2026-10-25 recurrence).
+    // (POSTMORTEM 2026-10-25).
     if (!row && !wait.expired && (entry?.kind === "loading" || (entry?.kind === "list" && entry === wait.entry))) return;
     done();
     if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path, live.current.projectLabel(root))); return; }
@@ -2012,8 +2022,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   overlaidRef.current = overlaid;
   // A later visit can show the same root and kind without owning the earlier visit's activation focus.
   if (sceneKey !== (sceneRef.current?.key ?? null)) sceneRef.current = sceneKey === null ? null : { key: sceneKey };
-  // Details is open per root and kind: another root or kind closes it, a read in between keeps it (PRODUCT §5 item 3 'Problem states'), and
-  // keeps the message last shown while the entry carries none.
+  // Details is open per root and kind: another root or kind closes it, a read in between keeps it, and it keeps the
+  // message last shown while the entry carries none.
   const [details, setDetails] = useState<{ root: string; kind: ProblemKind } | null>(null);
   const detailsOpen = scene !== null && details?.root === loadedRoot && details.kind === scene.entryKind;
   useEffect(() => { if (details && !detailsOpen) setDetails(null); }, [details, detailsOpen]);
@@ -2028,9 +2038,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (pressed && (!sceneShown || pressed.root !== loadedRoot || (wasBusy.current && !busy))) setPressed(null);
     wasBusy.current = busy;
   }, [pressed, sceneShown, loadedRoot, busy]);
-  // Only Retry, Locate and Set Up can make the scene busy, so only they keep the press for the spinner. A press that
-  // ends without a read (main answered and the root is not being read; the Set Up form closed) lets it go, so a later
-  // read the person did not start shows no spinner.
+  // Only Retry, Locate and Set Up can make the scene busy. A press that ends without a read lets go, so a later read the
+  // person did not start shows no spinner.
   const pressEnded = (root: string, name: RowAction) => {
     if (entriesRef.current.find(entry => entry.path === root)?.kind === "loading") return;
     setPressed(current => current?.root === root && current.name === name ? null : current);
@@ -2060,8 +2069,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Alternating a trailing no-break space makes the same heading read again.
   const [announcement, setAnnouncement] = useState<{ text: string; seq: number } | null>(null);
   const announce = (text: string) => setAnnouncement(previous => ({ text, seq: (previous?.seq ?? 0) + 1 }));
-  // The scene takes focus to its heading when the person arrived at it, or when focus was in what it covers, on the
-  // page, or in the overlay itself (a kind change after a recovery); otherwise the live region reads it (PRODUCT §5 item 3 'Problem states').
+  // The scene takes focus to its heading when the person arrived at it or focus was in what it covers, on the page, or
+  // in the overlay; otherwise the live region reads it (PRODUCT §5 item 3 'Problem states').
   const entryKey = screen === "workspace" ? loadedRoot : null;
   const sceneSeen = useRef<{ scene: string | null; arrival: number; entry: string | null; busy: boolean }>({ scene: null, arrival: 0, entry: null, busy: false });
   useEffect(() => {
@@ -2093,9 +2102,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const panelKey = panelCanvas ? JSON.stringify([panelCanvas.folder, panelCanvas.row.id ?? null, panelCanvas.canvas]) : null;
   const panelTarget = useMemo<CanvasTarget | null>(() => panelCanvas ? { root: panelCanvas.folder, canvas: panelCanvas.row.id ? { path: panelCanvas.canvas, id: panelCanvas.row.id } : { path: panelCanvas.canvas } } : null, [panelKey]);
   const panelTargetRef = useRef(panelTarget); panelTargetRef.current = panelTarget;
-  // The canvas a reply chip can locate in: the panel's, while the canvas page shows it, with its root, since worktrees
-  // share canvas ids (POSTMORTEM 2026-11-01). The Overview leaves the last canvas laid out but covers it, so it is not
-  // on screen then.
+  // The panel's canvas while the canvas page shows it, with its root, since worktrees share canvas ids (POSTMORTEM
+  // 2026-11-01). The Overview covers the last laid-out canvas, so it is not on screen then.
   const canvasOnScreenRef = useRef<{ root: string; id: string } | null>(null);
   canvasOnScreenRef.current = panelCanvas && !state.unlisted && panelCanvas.row.id ? { root: panelCanvas.folder, id: panelCanvas.row.id } : null;
   // Keyed by the canvas, not the target object: a render that reads the same canvas does not show it again.
@@ -2171,12 +2179,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
   // No key, Esc included, reaches the canvas under a problem's overlay (ARCHITECTURE §7 'Problem overlay').
   useLayoutEffect(() => { controller.current?.setCovered(overlaid); }, [overlaid]);
-  // Pick from canvas: the composer's Pick, the toolbar's Picker and ⌘L share one pick.
-  // The pick's start keeps where focus was, so the end can tell whether focus still waits for the composer.
-  // The pick's start: the composer field it will put the chip in, where focus was, and whether focus may go back.
-  // `pressed`: the pick ends because the person pressed a control (the Picker, Pick, ⌘L, Select or Hand), which keeps
-  // focus where that press left it.
-  // `bubble`: the pick started from a size bubble button, which the pick's clear of the selection takes away.
+  // The composer's Pick, the toolbar's Picker and ⌘L share one pick. `pressed`: a control press ended it, so focus stays
+  // there. `bubble`: it started from a size bubble button, which the pick's clear of the selection takes away.
   const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean; bubble: boolean } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
@@ -2206,9 +2210,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!picking && pickerReady && !rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) foldPanel(true, "content");
     togglePick();
   }
-  // The size bubble's Add to message: the selection's chip at the panel composer's caret, as a pick of it would put it,
-  // with the selection, the bubble and `doan active` left as they are. A folded panel unfolds as for the Picker; its
-  // composer stays mounted but inert until that commit, so the chip waits for it (the layout effect after the inert one).
+  // The selection's chip at the panel composer's caret, with the selection and `doan active` left as they are. A folded
+  // panel's composer is inert until its unfold commits, so the chip waits for it (the layout effect after the inert one).
   function addToMessage() {
     if (overlaidRef.current || !bubbleAddView.enabled || bubbleAnchor === null) return;
     waitingChip.current?.focus.end();
@@ -2247,13 +2250,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const composing = link.composing();
     const returns = holds && !composing;
     if (result.kind !== "picked") {
-      // A cancel by a press leaves focus on what was pressed. Esc and the other cancels go back to where focus was
-      // before the pick, or the field when that was the page itself (spec 3: never the page body), but only from where
-      // the pick left focus: focus the person moved meanwhile, such as into the field, stays.
+      // A cancel by a press leaves focus on what was pressed. Other cancels go back to where focus was before the pick (never
+      // the page body), but only from where the pick left focus.
       if (!returns || intent.pressed) return;
-      // A pick from a size bubble button cleared the selection and took the button with it (Add to message hidden, Play
-      // removed), so focus waited on the toolbar where the bubble handed it: the field is where it goes back to. The
-      // cancel comes after the commit that unfolded a folded panel, so the field takes focus.
+      // A pick from a size bubble button took the button with it, so focus waited on the toolbar: the field is where it goes
+      // back to, after the commit that unfolded a folded panel.
       if (intent.bubble) { link.focus(); return; }
       const left = !active || active === document.body || active === intent.from || (active instanceof Node && !!viewport.current?.contains(active));
       if (!left) return;
@@ -2262,20 +2263,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       else link.focus();
       return;
     }
-    // A chip always lands focus in the field (spec 3), even when focus moved meanwhile, such as into the Presets
-    // popover the canvas click closed. Focus first, then the chip: the field puts its kept caret back on focus, and
-    // Chromium moves a caret set in an unfocused field to the field's start when it takes focus afterwards (BR4b
-    // runtime probe).
+    // Focus first, then the chip: Chromium moves a caret set in an unfocused field to the field's start when it takes
+    // focus afterwards.
     if (!composing) link.focus();
     link.insert(result.anchor);
   }
-  // A captured area. Availability was decided when capture mode started;
-  // the composer may since have turned to a terminal session or another conversation, or its draft may have filled
-  // (main refuses an eleventh file), and none of that ends capture mode. So the composer is checked again before any
-  // chip or snapshot, with captureAvailability's order and copy; the limit keeps its left-out line. The checking
-  // chip goes in at once. A folded panel unfolds, with focus for the composer, only once main answers: unfolding
-  // narrows the canvas area, so before main has read the pixels the area would show something else. A composer no
-  // longer shown gets no focus; the answer still lands on the chip wherever its draft is.
+  // Capture mode outlives composer changes (a terminal session, another conversation, a full draft), so the composer is
+  // checked again with captureAvailability's order and copy; a folded panel unfolds only once main has read the pixels.
   function captured(rect: Rect): (() => Promise<unknown>) | null {
     const at = canvasRun.current!.composerKey();
     if (at === null) return null;
@@ -2303,9 +2297,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!controller.current?.locate(anchor, settle)) settle("unavailable");
   });
   useEffect(() => {
-    // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
-    // menu state needs no screen of its own; its flag only names the page in `doan remove`'s busy sentence.
-    // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (ARCHITECTURE §7 'Problem overlay').
+    // The Project Settings page enables the menu as Settings does; its flag only names the page in `doan remove`'s busy
+    // sentence. Under the overlay there are no canvas or Overview items (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
       ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}), ...(onProjectSettings ? { projectSettings: true } : {}) });
@@ -2340,9 +2333,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
     previousOverview.current = shownOverview;
   }, [shownOverview]);
-  // The canvas page's right column: the conversation panel at its remembered width,
-  // clamped to the window's bounds, or none while folded. The Overview's column has its own remembered width under the
-  // same bounds: the canvas panel stays in the layout under the Overview, so the one measure serves both.
+  // The canvas panel at its remembered width clamped to the window, or none while folded. The Overview's column uses the
+  // same bounds: the canvas panel stays in the layout under the Overview, so one measure serves both.
   const canvasPage = overview === null;
   const panelBox = panelSize ?? { window: 0, shell: 0 };
   const panelLimits = panelBounds(panelBox.window, panelBox.shell);
@@ -2358,9 +2350,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const shownInspector = panelWidth(inspectorPanel.width, inspectorLimits, PANEL_MIN);
   const inspectorColumn = inspectorShown ? `${shownInspector}px` : "0px";
   const inspectorShownRef = useRef(inspectorShown); inspectorShownRef.current = inspectorShown;
-  // The docked buddy lives while the workspace is the screen: canvas switches and the Overview keep it, and Home,
-  // Settings and Add Projects give its WebGL context back. It animates on its own frames; App only tells it what
-  // changed. The <main> is its stable container: slots fold and leave, the shell stays.
+  // The docked buddy lives while the workspace is the screen; Home, Settings and Add Projects give its WebGL context back.
+  // The <main> is its stable container: slots fold and leave, the shell stays.
   const inWorkspace = screen === "workspace";
   useEffect(() => {
     const root = shellRoot.current;
@@ -2396,8 +2387,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // Every screen draws its own header; the shown one is outside the inert workspace or page.
     [...document.querySelectorAll<HTMLElement>(".shell-sidebar-toggle")].find(button => !button.closest("[inert]"))?.focus();
   }, [sidebarHidden]);
-  // The composer is contenteditable, where Chromium takes ⌘B as Bold before the menu's key equivalent sees it (T0 PoC):
-  // the field hands it to the sidebar instead. A handled key never reaches the menu, so this cannot toggle twice.
+  // Chromium takes ⌘B as Bold in the contenteditable composer before the menu's key equivalent sees it, so the field hands
+  // it to the sidebar. A handled key never reaches the menu, so this cannot toggle twice.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing || event.key.toLowerCase() !== "b") return;
@@ -2458,7 +2449,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setArrival({ focus, seq: ++panelArrivals.current, ...(handoff ? { handoff } : {}) });
   }
   // The other worktree notice's Open (docs/design/canvas.md 'Terminal work in another worktree'): opens W's same canvas,
-  // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
+  // selecting W with one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
     if (!state.open) return;
     controller.current?.cancelPick();
@@ -2506,9 +2497,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     inspectorFocus.current = null;
     if (to) document.querySelector<HTMLElement>(to === "show" ? HEADER_SHOW_INSPECTOR : ".doan-insp-panel .doan-panel-hide")?.focus();
   }, [inspectorPanel.open]);
-  // Whether the control that last took focus was in the inspector column: the column turns inert in the same commit that
-  // hides it, so by the time an effect runs focus has already fallen to the page, and only this says it was there. Read
-  // when focus arrives, since the control itself may have been redrawn since (a row list read again).
+  // focusInInspector records that focus was in the column: it turns inert in the commit that hides it, so focus is already on
+  // the page when an effect runs. Read when focus arrives, since the control may have been redrawn.
   const inspectorActivation = useRef<() => void>(() => {});
   const inspectorShowFocused = useRef<Element | null>(null);
   const focusInInspector = useRef(false);
@@ -2525,9 +2515,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     document.addEventListener("focusin", focusin);
     return () => document.removeEventListener("focusin", focusin);
   }, []);
-  // A window narrowed under the inspector's minimum takes the column away; focus inside it goes to Show inspector,
-  // which now says why, rather than falling to the page.
-  // Widening again removes Show inspector; if focus was on it, it goes on to Hide inspector, as unfolding does.
+  // A window narrowed under the inspector's minimum takes the column away; focus inside goes to Show inspector. Widening
+  // again removes it, so focus on it goes on to Hide inspector.
   const inspectorWasShown = useRef(inspectorShown);
   // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
   // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.
@@ -2583,12 +2572,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
-  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
+  // Every viewer of a root in this window (the Overview list, the canvas panel's thread cards) shares its images.
+  const thumbnailHub = useThumbnailHub(window.doan);
+  const thumbs = useThumbnails(thumbnailHub, overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
   const overviewShown = overview ? overviewRun.current!.view(overview.path) : null;
-  // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
-  // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
-  // never replays history, so a restart cannot undo a Fast the person turned on again (shouldTurnOffFast).
-  // A conversation the lists do not name yet waits in fastOffPending until one does.
+  // Fast turned itself off: that provider's Last used follows and the composer's held switch goes. Only here, as events
+  // arrive: this channel never replays history, so a restart cannot undo a Fast turned on again (shouldTurnOffFast).
   const fastOffFor = (conversationId: string, seenAt: number): boolean => {
     const provider = [...homeRun.current.lists.values()].flat().find(c => c.conversationId === conversationId)?.provider
       ?? homeRun.current.conversations.find(c => c.conversationId === conversationId)?.provider;
@@ -2617,9 +2606,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }
-    // Checked one task after the modal closes, the timing arrival settling has always had: a move the close leads to
-    // lands first. Kept as is when the comment draft guard went (POSTMORTEM 2026-10-23 'Draft guards changed existing
-    // transition timing').
+    // Checked one task after the modal closes, so a move the close leads to lands first (POSTMORTEM 2026-10-23 'Draft
+    // guards changed existing transition timing').
     const timer = setTimeout(() => homeRun.current.modalChanged(false), 0);
     return () => clearTimeout(timer);
   }, [modal]);
@@ -2674,10 +2662,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setRunTick(tick => tick + 1);
   }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision, overlaid]);
   const shown = run.strip(loadedRoot);
-  // The canvas page has no conversation strip: the panel shows this canvas's conversation, and the sidebar slots and
-  // permission toasts the others. A problem or reading root keeps it over its overlay, without the
-  // Open that would lead under it (ARCHITECTURE §7 'Problem overlay'); it follows the overlay, so a re-read shorter
-  // than 300 ms does not flash it in.
+  // The canvas page has no conversation strip. A problem or reading root keeps it over its overlay without Open
+  // (ARCHITECTURE §7 'Problem overlay'); it follows the overlay, so a re-read under 300 ms does not flash it in.
   const stripShown = overlaid && shown && stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null });
   const strip = shown && stripShown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
     view={stripShown}
@@ -2714,7 +2700,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   return <TooltipProvider>
   {screen === "home" && <Home header={topBar(true)} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
-    memory={composerMemory} working={run.workingRoots()} restore={run.restore} start={(request, last) => run.start(request, last)} addProjects={openAddProjects}
+    memory={composerMemory} working={run.workingRoots()} restore={run.restore} start={(request, last) => run.start(request, last).then(outcome => {
+      // The new conversation's first message enters the Overview's thread.
+      if ("ok" in outcome && outcome.conversationId) overviewRun.current?.store.markSent(outcome.conversationId, request.text, 0);
+      return outcome;
+    })} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
@@ -2723,7 +2713,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => void action(name, root, notice)}
     onRemove={() => void removeProject([projectSettings.root])} />}
-  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${overlaid ? " overlaid" : ""}${strip ? " with-strip" : ""}`}
     style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }}
@@ -2749,7 +2739,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
-      onReplyChip={link => replyChip(overview.path, link)}
+      onReplyChip={link => replyChip(overview.path, link)} thumbnailHub={thumbnailHub}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -2770,19 +2760,19 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
-          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
+          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => { panelArrived.current = seq; setArrival(current => current?.seq === seq ? null : current); }}
           onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} />}
+          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
-  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
-  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); if (setupRef.current !== setup) return; setSetup(null); modalClosed(); }} onRerooted={(root, message) => { setHighlight([root]); toast.show(message); if (setupRef.current !== setup) return; choose(root); setSetup(null); modalClosed(); }} />}
+  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={closeQuickOpen} />}
   {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
     onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
@@ -2806,7 +2796,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
       setWizard(null);
@@ -2826,9 +2816,8 @@ function topDialog(): HTMLDialogElement | null {
   return open[open.length - 1] ?? null;
 }
 
-// Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
-// the tabs and Back unavailable while App ignores them.
-// `updateDisabled` is the Settings menu item's rule (a locked page, a modal, first run), which the update button follows.
+// On a page Back returns to where it was opened from; `locked` marks the tabs and Back unavailable while App ignores
+// them. `updateDisabled` is the Settings menu item's rule, which the update button follows.
 export function TopBar({ sidebar, back, forward, previous, next, page, locked, lockReason, reasonId, updateDisabled, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; lockReason: string | null; reasonId: string; updateDisabled: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
@@ -2847,7 +2836,7 @@ export function TopBar({ sidebar, back, forward, previous, next, page, locked, l
         <TooltipContent>Forward</TooltipContent></Tooltip>
       {locked && lockReason && <span className="sr-only" id={reasonId}>{lockReason}</span>}</div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
-    {/* Beside the tabs (docs/design/shell.md 'Agent usage'), then the update button at the right end. */}
+    {/* The update button follows at the right end (docs/design/shell.md 'Agent usage'). */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
     <UpdateHeaderButton disabled={updateDisabled} canvasPress={usage.canvasPress} />
   </header>;
@@ -2907,8 +2896,8 @@ function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, vi
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}
-    {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
-        coming and going never moves it (docs/design/canvas.md 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
+    {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column, whose
+       coming and going never moves it. */}
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}

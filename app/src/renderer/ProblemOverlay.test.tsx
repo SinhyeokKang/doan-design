@@ -5,7 +5,7 @@ import type { FolderEntry } from "../main/view";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, type ProblemOverlayView } from "./problemView";
 
-// PRODUCT §5 item 3 'Problem states', ARCHITECTURE §7 'Problem overlay' and the confirmed draft (.doan/canvases/problem-project.html).
+// PRODUCT §5 item 3 'Problem states', ARCHITECTURE §7 'Problem overlay'.
 const view = (entry: FolderEntry, shown: Parameters<typeof problemView>[3]["shown"] = null, slow = false) => problemView(entry, "acme-web", "/Users/ada", { slow, shown })!;
 const draw = (overlayView: ProblemOverlayView, props: Partial<Parameters<typeof ProblemOverlay>[0]> = {}) =>
   renderToStaticMarkup(<ProblemOverlay view={overlayView} details={false} pressed={null} announcement="" onAction={vi.fn()} {...props} />);
@@ -69,9 +69,20 @@ test("busy: every action is aria-disabled and stays focusable; the pressed one s
   const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
   const html = draw(busy, { pressed: "retry", announcement: "Doan couldn’t read acme-web’s configuration" });
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button>');
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true">Show in Finder</button>');
-  expect(html).not.toContain("disabled=\"\"");
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true" data-disabled="">Show in Finder</button>');
+  expect(html).not.toMatch(/\sdisabled=""/);
   expect(html).toContain('<p class="sr-only" role="status" aria-live="polite">Doan couldn’t read acme-web’s configuration</p>');
+});
+
+// A reread can start without a press (the folder came back); the shared fills skip only data-disabled and aria-busy.
+test("busy with no pressed action: every action takes the disabled look, the prominent one too, and the subtle one keeps its glass fill", () => {
+  const busy = view({ path: "/Users/ada/code/acme-web", kind: "loading" }, { kind: "problem", entryKind: "error" });
+  const html = draw(busy, { pressed: null });
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" data-disabled="">Retry</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true" data-disabled="">Show in Finder</button>');
+  expect(html).toMatch(/<button type="button" class="doan-button ghost" data-ui-size="sm" aria-disabled="true" data-disabled="" aria-expanded="false">Details/);
+  expect(html).not.toContain("aria-busy");
+  expect(css).toContain('.problem-overlay .doan-button[data-ui-variant="subtle"]:is(:not(:hover, :active), [data-disabled]) { background: var(--affordance-backdrop-hover); }');
 });
 
 test("reading: the opaque panel with a status line and no scene", () => {
@@ -120,8 +131,8 @@ test("overlay CSS: above the panel handles (4), under the toast (6); blur with a
   expect(block(".problem-scene .problem-icon")).toMatch(/width: 32px;[^}]*height: 32px;[^}]*stroke-width: 1\.5;/);
 });
 
-// The overlay takes the right column's cell in the content row, so the right column, which has no placement of its
-// own, was auto-placed into a new row under the sidebar and the content row shrank by its height (found by /design-sync).
+// The overlay takes the right column's cell in the content row, so the right column, which has no placement of its own, would
+// be auto-placed into a new row under the sidebar and shrink the content row.
 test("overlay CSS: the right column (Overview list or canvas conversations) keeps its cell under the overlay; the scene reads in the onboarding scene's body type", () => {
   expect(block(".workspace.overlaid > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-column: 4;/);
   expect(block(".workspace.overlaid:not(.with-strip) > :is(.right-stack, .doan-conv-column)")).toMatch(/grid-row: -2;/);

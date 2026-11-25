@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -324,6 +324,22 @@ describe("connect", () => {
     expect(existsSync(join(dir, "mcp-connectors.json"))).toBe(false);
   });
 
+  // A fenced Claude turn may write .credentials.json, so it can create a folder there; it is no credential.
+  it("a folder planted at .credentials.json is cleared and the Connect still succeeds", async () => {
+    const s = service();
+    s.connect("claude", "doan-notion");
+    const p = await login("claude");
+    hook!(LINK);
+    const planted = join(profile("claude"), ".credentials.json");
+    mkdirSync(join(planted, "nested"), { recursive: true }); writeFileSync(join(planted, "nested/x"), "x");
+    cli.approve(p);
+    await s.idle();
+    expect(row(s, "claude", "doan-notion")?.failure).toBeNull();
+    expect(status(s, "claude", "doan-notion")).toBe("connected");
+    expect(existsSync(planted)).toBe(false);
+    expect(readdirSync(join(dir, "agent-auth")).filter(name => name.startsWith("."))).toEqual([]);
+  });
+
   it("a sign-in or sign-out in progress (admit busy) fails with the busy reason", async () => {
     refusals.codex = "busy";
     const s = service();
@@ -445,7 +461,7 @@ describe("add and remove", () => {
     expect(s.add("http://mcp.example.com/mcp")).toEqual({ ok: false, reason: "not_https" });
   });
 
-  // E1 defect 2: a server added by URL stayed Checking with Connect disabled until the page was entered again.
+  // A server added by URL must not stay Checking with Connect disabled until the page is entered again.
   it("a successful Add reads the new server's status in every signed-in provider, so it leaves Checking", async () => {
     readiness.claude = { ready: false, cause: "not_connected", action: "signIn" };
     const s = service();
@@ -682,6 +698,22 @@ describe("sign-out and replacement logout", () => {
     await s.idle();
   });
 
+  it("a Codex replacement still records a failed logout and registers the rest when another doan- registration has a URL Doan would not store", async () => {
+    cli.failing.add("codex logout doan-figma");
+    cli.registered.codex.set("doan-plain", { url: "http://example.com/mcp", auth: true });
+    const staging = join(dir, "agent-auth", "profiles", "codex-next");
+    mkdirSync(staging);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const s = service();
+      expect(await s.logoutForAuth("codex", request("codex", { kind: "replace", staging }))).toEqual({ failed: ["doan-figma"] });
+      expect(readFileSync(join(staging, "config.toml"), "utf8")).toBe('\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
+      expect(store.pending()).toEqual([{ provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
+      expect(store.blocked("codex", "doan-figma")).toBe(true);
+      await s.idle();
+    } finally { errors.mockRestore(); }
+  });
+
   it("a Claude replacement logs out only when the account changed; a failed logout blocks that Claude Connect", async () => {
     cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
     cli.registered.claude.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });
@@ -914,8 +946,8 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  // A parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known
-  // server. The reviewer's three fallback inputs, each with a URL server in the connectors file.
+  // A parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known server. Each input has
+  // a URL server in the connectors file.
   it.each([
     ["not valid TOML outside the servers", "not = [ valid toml\n"],
     ["an unclosed multi-line string before the servers", 'instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n'],

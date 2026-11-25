@@ -92,10 +92,8 @@ func workTarget(root, path string) (string, error) {
 	return resolved, nil
 }
 
-// belowRoot is abs relative to its nearest ancestor that is the root directory, or "" when no ancestor is.
-// It compares file identity, as repo.Resolver does for link targets, because an absolute path may name the
-// root through a link or in another letter case or Unicode form than the disk (a shell's logical $PWD keeps
-// what the person typed), and EvalSymlinks keeps that spelling. The rest of abs stays lexical.
+// belowRoot is abs relative to its nearest ancestor that is the root directory, or "". It compares file identity, since abs
+// may spell the root through a link or in another case or Unicode form (a shell's logical $PWD); the rest stays lexical.
 func belowRoot(root, abs string) (string, error) {
 	rootInfo, err := os.Stat(root)
 	if err != nil {
@@ -113,6 +111,7 @@ func belowRoot(root, abs string) (string, error) {
 	}
 }
 
+// workSession is the one session identity rule, for work signals and shell check session associations.
 func workSession(claude, thread, legacy string) (provider, id string) {
 	if (claude != "" && (thread != "" || legacy != "")) || (thread != "" && legacy != "" && thread != legacy) {
 		return "", ""

@@ -61,8 +61,8 @@ test("empty native items do not discard readable neighboring payloads", async ()
   assert.equal(f.clears(), 0);
 });
 
-// Electron's text/html writer on macOS prefixes <meta charset='utf-8'>, so restoring under text/html stacked one more
-// prefix per probe. The HTML goes back under its raw pasteboard type, byte for byte.
+// Electron's text/html writer on macOS prefixes <meta charset='utf-8'>, so the HTML must go back under its raw
+// pasteboard type, byte for byte.
 test("restores text/html unchanged, under the raw pasteboard type, with its other types", async () => {
   for (const html of ["<b>x</b>", "<meta charset='utf-8'><b>x</b>"]) {
     const f = fixture([new Item({ "text/plain": "x", "text/html": html })]);

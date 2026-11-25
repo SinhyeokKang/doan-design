@@ -5,9 +5,8 @@ import type { PreferencesSnapshot } from "../main/preferences";
 import type { PrototypeReveal } from "../main/prototype/ipc";
 import type { ComposerChoice } from "./rememberChoice";
 
-// The prototype window's chips, Sign in and Open buttons, which main hands the main window once it brought it forward,
-// and the prototype composer's Last used. Driven with hooks as plain state and a stub controller, as
-// App.replyChips.test.tsx is.
+// The prototype window's chips, Sign in and Open buttons, which main hands the main window once it brought it
+// forward, and the prototype composer's Last used. Hooks run as plain state with a stub controller.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -65,7 +64,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

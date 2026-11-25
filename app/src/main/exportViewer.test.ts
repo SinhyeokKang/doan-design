@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Eye, Hand, MousePointer2, Play } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame, Locator } from "playwright";
+import { parseSync } from "rolldown/utils";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { bounded } from "../../runtime/harness";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
@@ -29,6 +30,7 @@ import { prototypeHeaderRows as appPrototypeHeaderRows, prototypeViewportBox as 
 import { drawerKey as appDrawerKey, groupDrawer as appGroupDrawer } from "../renderer/frameDrawerList";
 import { bubbleItems as appBubbleItems } from "../renderer/bubbleItems";
 import { measureLines as appMeasureLines } from "../renderer/measure";
+import { frameName as appFrameName } from "../renderer/canvasTree";
 import { drawerPlayRequest as appDrawerPlayRequest, playDrawer as appPlayDrawer, playRequest as appPlayRequest, playTooltip as appPlayTooltip, sizeBubblePlay as appSizeBubblePlay, type PlayState } from "../renderer/prototypePlay";
 import { sizeLabel as appSizeLabel } from "../renderer/selection";
 import { closedFocusTarget as appClosedFocusTarget } from "../renderer/prototypePlay";
@@ -75,8 +77,6 @@ const PLAYER_NAMES = ["PLAY_HASH", "playHash", "playHashFor", "playerAddress", "
 type Lib = Record<string, any>;
 const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")}, ${PLAYER_NAMES.map(name => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(", ")} })`, {}) as Lib;
 const v = load(lib);
-
-// ── Golden: the height rules are the app's, as text ───────────────────────────
 
 // Vitest hands over the transformed function (types and comments gone, tabs, `.5`, hex literals in
 // decimal, a `;` after a loop's brace), so both sides are reduced to tokens before they are compared.
@@ -137,8 +137,8 @@ describe("lib.js height and scroll rules", () => {
     expect(normalize(extractFunction(dropped, "frameBottom"))).not.toBe(normalize(frameBottom.toString()));
   });
 
-  // The POSTMORTEM 2026-11-01 canvas: absolutely positioned frames and a document that is no
-  // taller than the iframe once it fits. The viewer's functions must settle, not alternate.
+  // Absolutely positioned frames and a document no taller than the iframe once it fits: the viewer's functions must
+  // settle, not alternate.
   test("a canvas of absolutely positioned frames settles on its extent", () => {
     const inner = 150;
     let state = v.nextHeight(null, v.documentHeight(0, 405, inner, 405), inner, 0);
@@ -177,9 +177,18 @@ function extractConst(source: string, name: string): string {
 describe("measure.js frame walk and wheel hand-off", () => {
   const app = canvasScript.toString();
   const appConst = (name: string) => normalize(extractConst(app, name).replace(/\blib\./g, ""));
-  test.each(["bodyClips", "ancestors", "scrollsFurther"])("%s is the same as in canvasScript.ts", (name) => {
+  // The compiled app writes every string in double quotes.
+  const doubleQuoted = (text: string) => text.replace(/'([^'\\]*)'/g, (_, body: string) => JSON.stringify(body));
+  test.each(["bodyClips", "ancestors", "scrollsFurther", "stylesheetPending"])("%s is the same as in canvasScript.ts", (name) => {
     expect(appConst(name).length).toBeGreaterThan(40);
-    expect(normalize(extractConst(measure, name))).toBe(appConst(name));
+    expect(doubleQuoted(normalize(extractConst(measure, name)))).toBe(appConst(name));
+  });
+
+  // The app keeps the first layout's time for its anchor retry; the viewer only needs whether it happened.
+  const settledApp = () => appConst("stylesheetSettled").replace("firstLayoutAt!==null", "laidOut");
+  test("stylesheetSettled is the same as in canvasScript.ts", () => {
+    expect(settledApp()).toContain("laidOut");
+    expect(normalize(extractConst(measure, "stylesheetSettled"))).toBe(settledApp());
   });
 
   test("the comparison fails when a copy drifts", () => {
@@ -189,10 +198,12 @@ describe("measure.js frame walk and wheel hand-off", () => {
     expect(normalize(extractConst(walk, "ancestors"))).not.toBe(appConst("ancestors"));
     const wheel = measure.replace("node !== document.body;", "node !== null;");
     expect(normalize(extractConst(wheel, "scrollsFurther"))).not.toBe(appConst("scrollsFurther"));
+    const media = measure.replace(" && (!link.media || matchMedia(link.media).matches)", "");
+    expect(doubleQuoted(normalize(extractConst(media, "stylesheetPending")))).not.toBe(appConst("stylesheetPending"));
+    const settled = measure.replace('if (event.type === "error") failedSheets.add(event.target);', "");
+    expect(normalize(extractConst(settled, "stylesheetSettled"))).not.toBe(settledApp());
   });
 });
-
-// ── Constants and the zoom model ──────────────────────────────────────────────
 
 const appRemeasure = Number(/const REMEASURE_MS = (\d+);/.exec(readFileSync(new URL("../renderer/CanvasController.ts", import.meta.url), "utf8"))?.[1]);
 
@@ -285,8 +296,6 @@ describe("lib.js zoom math", () => {
     expect(v.scrollFor(fit, v.geometry(fit.scale, 1440, 1000, viewport)).top).toBe(0);
   });
 });
-
-// ── Messages from the canvas ──────────────────────────────────────────────────
 
 const frame = (extra: Record<string, unknown> = {}) => ({ id: "a", x: 0, y: 0, width: 10, height: 10, ...extra });
 const layout = (extra: Record<string, unknown> = {}) => ({ type: "layout", href: "about:srcdoc", height: 500, viewport: 150, frames: [frame()], ...extra });
@@ -397,8 +406,6 @@ describe("message validation", () => {
   });
 });
 
-// ── Viewer state ──────────────────────────────────────────────────────────────
-
 describe("first layout and its timeout", () => {
   test("the board is hidden until the first layout, which shows it at the height the canvas reported", () => {
     const start = v.initialViewer();
@@ -470,6 +477,11 @@ describe("frame drawer view", () => {
     expect(shown).toMatchObject({ enabled: true, buttonLabel: "4. Payment", ariaLabel: "Frame 4: Payment", note: null });
     // The same names the app's drawer shows.
     for (const [index, row] of shown.rows.entries()) expect(row.name).toBe(frameLabel(frames[index]!, index).name);
+  });
+
+  test("the assembled shell script keeps (no id) for a frame with an empty id", () => {
+    const rows = runInNewContext(`${lib}\n${viewerAppJs}\n${playerJs}\ndrawerView([{ id: "" }], 1, 0).rows`, {}) as { name: string }[];
+    expect(rows.map(row => row.name)).toEqual(["(no id)"]);
   });
 
   test("with no frame in view the button says Frames", () => {
@@ -571,8 +583,6 @@ describe("popup lists", () => {
     expect(v.popupKey(open, "ArrowDown", 0)).toMatchObject({ prevent: false });
   });
 });
-
-// ── Tools: Select and Hand ─────────────────────────────
 
 describe("tool keys are the app's", () => {
   const press = (over: Partial<ShortcutEvent> = {}): ShortcutEvent => ({ type: "keydown", code: "KeyV", key: "v", repeat: false, isComposing: false, keyCode: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
@@ -735,8 +745,6 @@ describe("key messages from the canvas", () => {
   });
 });
 
-// ── The files themselves ──────────────────────────────────────────────────────
-
 describe("viewer files", () => {
   const files: Record<string, string> = { "lib.js": lib, "measure.js": measure, "shell.js": shellJs, "player.js": playerJs, "shell.css": shellCss, "shell.html": shellHtml };
 
@@ -749,6 +757,37 @@ describe("viewer files", () => {
 
   test("lib.js followed by measure.js or shell.js compiles in one function (no clashing names)", () => {
     for (const script of [canvasInspectScripts + "\n" + measure, `${viewerAppJs}\n${playerJs}\nif (!startPlayer()) (function () {\n${boardInspectScripts}\n${shellJs}\n})();`]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
+  });
+
+  // A repeated function declaration compiles and the last one silently wins, so compiling cannot find a clash.
+  const declaredTwice = (names: string[]): string[] => {
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const name of names) {
+      const { program, errors } = parseSync(name, read(name));
+      expect(errors, name).toEqual([]);
+      for (const node of program.body as any[]) {
+        const ids: any[] = node.type === "VariableDeclaration" ? node.declarations.map((d: any) => d.id)
+          : node.type === "FunctionDeclaration" || node.type === "ClassDeclaration" ? [node.id] : [];
+        for (const id of ids) {
+          // A destructuring pattern would need its own walk.
+          expect(id.type, name).toBe("Identifier");
+          if (seen.has(id.name)) clashes.push(`${id.name}: ${seen.get(id.name)}, ${name}`);
+          seen.set(id.name, name);
+        }
+      }
+    }
+    expect(seen.size).toBeGreaterThan(10);
+    return clashes;
+  };
+
+  // The scopes assemble.go builds from more than one file.
+  test.each([
+    ["the shell script", ["lib.js", "viewerApp.js", "player.js"]],
+    ["the board's scope", ["inspectPanel.js", "inspectMessage.js", "inspectView.js", "shell.js"]],
+    ["the measure script", ["lib.js", "inspect.js", "inspectSelection.js", "measure.js"]],
+  ])("%s declares each top-level name once", (_scope, names) => {
+    expect(declaredTwice(names)).toEqual([]);
   });
 
   test("the scripts inline safely into <script>", () => {
@@ -806,8 +845,7 @@ describe("viewer files", () => {
   });
 });
 
-// design-sync: the draft's header was measured against this page in Chromium, and three rules were missing or lost
-// a cascade tie. The values are the app's.
+// The values are the app's; each rule must exist on this page and win its cascade tie.
 describe("header rules the draft's measurement pinned", () => {
   const rule = (selector: string): string => new RegExp(`^${selector.replace(/[.[\]()]/g, "\\$&")} \\{([^}]*)\\}$`, "m").exec(shellCss)?.[1] ?? "";
 
@@ -853,8 +891,6 @@ describe("without JavaScript", () => {
   });
 });
 
-// ── The content panel and the toolbar ───────────────
-
 const appCss = (path: string): string => readFileSync(new URL(`../renderer/${path}`, import.meta.url), "utf8");
 const tokensCss = appCss("tokens.css");
 const stylesCss = appCss("styles.css");
@@ -867,6 +903,15 @@ const declarations = (css: string, selector: string): string[] => {
   const body = new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
   if (body === undefined) throw new Error(`no rule ${selector}`);
   return body.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+};
+
+// The declarations of `selector` inside the stylesheet's forced-colours blocks.
+const forcedColours = (css: string, selector: string): string[] => {
+  const blocks = [...css.matchAll(/^@media \(forced-colors: active\) \{$/gm)].map(match => blockFrom(css, match.index, match.index + match[0].length - 1, "@media"));
+  return blocks.flatMap(block => {
+    const inner = block.slice(block.indexOf("{") + 1, -1);
+    return inner.split("\n").some(line => line.trim().startsWith(`${selector} {`)) ? declarations(inner, selector) : [];
+  });
 };
 
 describe("breadcrumb rules shared with the canvas header", () => {
@@ -994,10 +1039,8 @@ describe("the content panel", () => {
   });
 });
 
-// Chromium draws a cross-origin (out-of-process) iframe only within 16384 device px of its
-// compositing origin when an ancestor clips with the same radius on all four corners: at DPR 2 a
-// board wider or taller than 8192 CSS px was cut off for good. Measured in Electron 45 and Chrome
-// 157; a rectangular clip, a clip with unequal radii and an unclipped radius drew it whole.
+// Chromium draws a cross-origin iframe only within 16384 device px of its compositing origin when an ancestor clips
+// with four equal radii: at DPR 2 a board over 8192 CSS px was cut off. Other clips drew it whole (Electron 45, Chrome 157).
 describe("the board iframe's ancestors never clip with four equal radii", () => {
   const split = (text: string, at: RegExp): string[] => {
     const parts: string[] = [];
@@ -1022,9 +1065,8 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
           .filter(s => !s.includes("::")).map(s => ({ subject: s, declarations }));
       });
     });
-  // An element on the way up from the iframe: its tag, id, every class it can carry and, when
-  // known, every attribute. A subject matches it unless its tag, an id, a class or an attribute
-  // name says otherwise; pseudo-classes are ignored, so a rule that only might apply still counts.
+  // An element on the way up from the iframe. A subject matches it unless its tag, an id, a class or an attribute name
+  // says otherwise; pseudo-classes are ignored, so a rule that only might apply still counts.
   type Element = { tag: string; id?: string | undefined; classes: string[]; attributes?: string[] };
   const matches = (subject: string, element: Element): boolean => {
     const attributes = [...subject.matchAll(/\[\s*([\w-]+)/g)].map(([, name]) => name!);
@@ -1054,9 +1096,8 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     }
   });
 
-  // The prototype window's chain is React's (ContentPanel and WindowShell in prototype/PrototypeWindow.tsx). Its run
-  // iframe can be far larger than 8192 px in Fit (the marked viewport, scaled down), and it reaches every corner of the
-  // panel in Responsive, so the content clips the top corners and the stage inside it only the bottom ones.
+  // The prototype window's run iframe can be far larger than 8192 px in Fit and reaches every panel corner in Responsive,
+  // so the content clips the top corners and the stage inside it only the bottom ones.
   const bottomRadius = /^border(-bottom-(left|right)|-end-(start|end))?-radius$/;
   test("prototype window: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
     expect(declared(stylesCss, { tag: "div", classes: ["pw-panel"], attributes: ["class"] }, clipping)).toEqual([]);
@@ -1070,9 +1111,8 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     }
   });
 
-  // With the conversation panel open the content panel stands alone again, beside an independent panel: no rule of the
-  // open layout reshapes its corners or clips, so the content still rounds only its top corners and the stage only its
-  // bottom ones, and the open shell itself clips nothing.
+  // With the conversation panel open, no rule of the open layout reshapes the content panel's corners or clips: the
+  // content still rounds only its top corners, the stage only its bottom ones, and the open shell clips nothing.
   test("prototype window with the conversation panel open: the content panel keeps the shipped split clip", () => {
     // Every rule whose selector reaches the content panel, its content or its stage through the open layout.
     const openRules = [...stylesCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)]
@@ -1108,6 +1148,50 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     for (const element of chain) {
       expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
     }
+  });
+
+  // The exported player's run iframe is as large as the app's, so its chain splits the clip the same way. The chain is
+  // read from the player template up from #pw-stage, plus the box and iframe player.js puts in the stage.
+  const playerChain = (): Element[] => {
+    const template = /<template id="player">([\s\S]*?)<\/template>/.exec(shellHtml.replace(/<!--[\s\S]*?-->/g, ""))?.[1] ?? "";
+    const open: Element[] = [];
+    for (const [tagText, close, name, attributes] of template.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/gi)) {
+      const tag = name!.toLowerCase();
+      if (close) { open.splice(open.map(e => e.tag).lastIndexOf(tag)); continue; }
+      const element = { tag, id: /\sid="([^"]*)"/.exec(attributes!)?.[1], classes: /\sclass="([^"]*)"/.exec(attributes!)?.[1]?.split(/\s+/) ?? [] };
+      if (element.id === "pw-stage") {
+        const box = { tag: "div", classes: ["pw-box"] }, frame = { tag: "iframe", classes: ["pw-frame"] };
+        return [frame, box, element, ...open.reverse(), ...page];
+      }
+      if (!tagText.endsWith("/>") && !/^(meta|link|br|img|input|hr|source|wbr|path|circle|rect|line)$/.test(tag)) open.push(element);
+    }
+    return [];
+  };
+
+  test("export player: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
+    // player.js puts the iframe in a .pw-box it appends to the stage, and prepends the template's content to body.
+    expect(playerJs).toContain('box.className = "pw-box";');
+    expect(playerJs).toContain('iframe.className = "pw-frame";');
+    expect(playerJs).toContain("box.append(iframe);");
+    expect(playerJs).toContain("stage.append(box);");
+    expect(playerJs).toContain('document.body.prepend($("player").content.cloneNode(true));');
+    const chain = playerChain();
+    expect(chain.map(e => e.tag + (e.id ? `#${e.id}` : "") + e.classes.map(c => `.${c}`).join(""))).toEqual(
+      ["iframe.pw-frame", "div.pw-box", "div#pw-stage.pw-stage", "div#pw-content.pw-content", "div#pw-panel.pw-panel", "div#pw.pw", "body", "html"]);
+    const [, , stage, content, panel] = chain;
+    expect(declared(shellCss, panel!, clipping)).toEqual([]);
+    expect(declared(shellCss, content!, bottomRadius)).toEqual([]);
+    expect(declared(shellCss, content!, clipping)).not.toEqual([]);
+    expect(declared(shellCss, stage!, topRadius)).toEqual([]);
+    expect(declared(shellCss, stage!, clipping)).not.toEqual([]);
+    expect(declarations(shellCss, ".pw-panel")).toContain("border-radius: var(--radius-container)");
+    expect(declarations(shellCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
+    expect(declarations(shellCss, ".pw-stage")).toEqual(expect.arrayContaining(["border-bottom-left-radius: var(--radius-container)", "border-bottom-right-radius: var(--radius-container)"]));
+    for (const element of chain.filter(e => e !== stage && e !== content && e !== panel)) {
+      expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
+    // A name-row player is the same element with one more class.
+    expect(declared(shellCss, { tag: "div", id: "pw", classes: ["pw", "name-row"] }, radius)).toEqual([]);
   });
 });
 
@@ -1182,8 +1266,8 @@ describe("the toolbar", () => {
     }
     // Select is the first tool: pressed, and the toolbar's one Tab stop.
     expect(toolButtons.map(b => [attr(b.attrs, "aria-pressed"), attr(b.attrs, "tabindex")])).toEqual([["true", "0"], ["false", "-1"]]);
-    // After a divider, Play prototype as the app's: an action with no pressed state that never holds the Tab stop,
-    // unavailable until the canvas is drawn, its reason its own description, and lucide's Play.
+    // After a divider, Play prototype as the app's: an action with no pressed state or Tab stop, unavailable until the
+    // canvas is drawn, its reason its own description, and lucide's Play.
     expect(toolbar?.[1]).toContain('<span class="doan-canvas-tools-sep" role="separator" aria-orientation="vertical"></span>');
     const play = buttons.at(-1)!;
     expect(buttons).toHaveLength(3);
@@ -1215,7 +1299,84 @@ describe("the toolbar", () => {
   });
 });
 
-// ── Tool wiring in the page and in the canvas ───────
+// The first layout waits for the canvas's linked stylesheets, as the app's canvasScript.ts does (its "measures the
+// parsed canvas after its linked stylesheet has …" tests): a height measured unstyled sticks through nextHeight.
+describe("measure.js waits for linked stylesheets before its first layout", () => {
+  class FakeLink { sheet: object | null = null; media = ""; disabled = false; }
+  const canvas = (links: FakeLink[]) => {
+    const posted: { type: string; height?: number }[] = [];
+    const listeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const documentListeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const frames: (() => void)[] = [];
+    const html = { height: 364, scrollHeight: 364, getBoundingClientRect: () => ({ top: 0, height: html.height }) };
+    const parent = { postMessage: (message: { type: string; height?: number }) => posted.push(message) };
+    const document = {
+      readyState: "interactive", documentElement: html, body: null, adoptedStyleSheets: [],
+      addEventListener: (type: string, fn: (event: unknown) => void) => documentListeners.push({ type, fn }),
+      fonts: { addEventListener() {}, ready: new Promise(() => {}) },
+      querySelectorAll: (selector: string) => selector.startsWith("link[") ? links : [],
+    };
+    const context = {
+      document, parent, innerHeight: 150, scrollX: 0, scrollY: 0, location: { href: "about:srcdoc" },
+      HTMLLinkElement: FakeLink, history: { pushState() {}, replaceState() {} },
+      ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
+      requestAnimationFrame: (fn: () => void) => frames.push(fn),
+      getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible", position: "static", display: "block" }),
+      matchMedia: (query: string) => ({ matches: query !== "print" }),
+      addEventListener: (type: string, fn: (event: unknown) => void) => listeners.push({ type, fn }),
+    };
+    runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
+    const fire = (list: typeof listeners, type: string, event: unknown = {}) => { for (const l of list) if (l.type === type) l.fn(event); };
+    return {
+      html, document,
+      layouts: () => posted.filter(message => message.type === "layout"),
+      trigger: (type: string) => fire(listeners, type),
+      fromParent: (data: unknown) => fire(listeners, "message", { source: parent, data }),
+      settle: (type: "load" | "error", link: FakeLink) => fire(documentListeners, type, { type, target: link }),
+      runFrames: () => { for (const fn of frames.splice(0)) fn(); },
+    };
+  };
+
+  test.each(["loaded", "failed"])("measures the parsed canvas after its linked stylesheet has %s", outcome => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    c.fromParent({ type: "measure" });
+    c.runFrames();
+    expect(c.layouts()).toHaveLength(0);
+    if (outcome === "loaded") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.document.readyState = "complete";
+    c.trigger("load");
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test.each(["load", "error"] as const)("a linked stylesheet's %s before the window's sends the first layout", type => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    expect(c.layouts()).toHaveLength(0);
+    if (type === "load") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.settle(type, link);
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test.each(["disabled", "for another medium"])("a stylesheet %s does not hold the first layout", kind => {
+    const link = new FakeLink();
+    if (kind === "disabled") link.disabled = true;
+    else link.media = "print";
+    expect(canvas([link]).layouts()).toHaveLength(1);
+  });
+
+  test("a stylesheet for the current medium holds the first layout", () => {
+    const link = new FakeLink();
+    link.media = "screen";
+    expect(canvas([link]).layouts()).toHaveLength(0);
+  });
+});
 
 describe("tool wiring", () => {
   const code = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -1251,8 +1412,8 @@ describe("tool wiring", () => {
     expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(4);
   });
 
-  // A pointer resting over the canvas keeps the cursor the canvas document last set until it moves (measured in
-  // Chromium with a real pointer), so while the board pans the canvas shows the hand itself.
+  // A pointer resting over the canvas keeps the cursor the canvas document last set until it moves, so while the board
+  // pans the canvas shows the hand itself.
   test("the page tells the canvas when the board pans, once per change and again for a newly loaded document", () => {
     const sync = /function syncSurface\(\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
     expect(sync).toMatch(/const pan = board\.toggleAttribute\("data-pan", layerShown\(tool, spaceHeld, drag !== null, boardDrawn\(\)\)\);/);
@@ -1336,18 +1497,15 @@ describe("tool wiring", () => {
   });
 });
 
-// ── The header and the frame drawer in a real DOM ─────────────────────────────
-
-// The page `assemble` writes (cli/internal/export/assemble.go), filled here in one pass over shell.html: a canvas of
-// `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
-// reports a layout, so the page stays before its first view until the timeout.
+// The page `assemble` writes (cli/internal/export/assemble.go), filled from shell.html. Without lib.js and measure.js
+// (`reports: false`) the canvas never reports a layout, so the page stays before its first view until the timeout.
 const viewerPage = (body: string, { width = 800, reports = true, scripted = true } = {}, beforeShell?: () => void, beforeCanvas?: () => void): string => {
   const head = reports ? `<script>(function () {\n${beforeCanvas ? `(${beforeCanvas})();` : ""}\n${lib}\n${canvasInspectScripts}\n${measure}\n})();</script>` : "";
   const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
   const values: Record<string, string> = {
     PROJECT: "northwind-customer-portal", INITIAL: "N", HUE: "indigo",
     NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
-    // No face: these pages are measured in the fallback font and need not decode the 93 KB face each time.
+    // No face: these pages use the fallback font and need not decode the 93 KB face each time.
     FONT: "",
     SCRIPT: scripted ? `(function () {\n${beforeShell ? `(${beforeShell})();` : ""}\n${lib}\n${viewerAppJs}\n${playerJs}\n${playerJs ? "if (!startPlayer()) " : ""}(function () {\n${boardInspectScripts}\n${shellJs}\n})();\n})();` : "", SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
   };
@@ -1355,9 +1513,8 @@ const viewerPage = (body: string, { width = 800, reports = true, scripted = true
 };
 const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
 
-// One Electron serves every real-DOM block in this file, so these hooks are the file's, wherever they sit.
-// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
-// before the test limit.
+// One Electron serves every real-DOM block in this file, so these hooks are the file's. Each helper step is bounded
+// at 15 s, so a step that hangs fails by its own name before the 60 s test limit.
 let dom: ElectronDom;
 beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
 afterAll(async () => { await dom?.close(); }, 30_000);
@@ -1406,11 +1563,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }, FIT_INSET.left);
   };
 
-  // Playwright aims at the shell's current layout, but Chromium routes a press into the canvas, an out-of-process
-  // frame, by the board it last composited. On a loaded machine a click sent just after the stage moved (the panel
-  // opening, or ⇧0 rescaling a canvas that Fit drew before `open` widened the window) reached the shell's #canvas
-  // element instead: the canvas document saw no press and nothing was selected. Point at the target until a trusted move there reaches it inside the
-  // canvas; a press at the same point then takes the same route.
+  // Chromium routes a press into the out-of-process canvas by the board it last composited, so a click just after the
+  // stage moved can reach the shell instead. Move until a trusted move reaches the canvas; a press there takes that route.
   const pointAt = async (target: Locator, position: { x: number; y: number }) => {
     type PointerView = Window & { doanPointer?: EventTarget | null };
     await target.evaluate(el => {
@@ -1745,9 +1899,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await hide.getAttribute("aria-describedby")).toBeNull();
   });
 
-  // Hold the shell's commands in delivery order at the sandbox boundary. Mouse input still goes
-  // through Chromium's hit testing. Releasing the queue can split a physical down/up gesture.
-  // `folded`: the gesture is the folded viewer's first click, whose select mode arrives with the canvas's load.
+  // Holds the shell's commands in delivery order at the sandbox boundary; releasing the queue can split a physical
+  // down/up gesture. `folded`: the folded viewer's first click, whose select mode arrives with the canvas's load.
   const openingGesture = async (reopen = false, folded = false) => {
     const frame = await openCanvas('<section data-doan-frame="cart" data-doan-title="Cart"><button style="width:100%;height:180px" onpointerdown="this.dataset.pressed=1" onclick="this.textContent=\'Activated\'">Buy</button></section>', 320, undefined, () => {
       const held: MessageEvent[] = [];
@@ -1820,7 +1973,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     expect(await frame.locator("#selected-mark").isVisible()).toBe(true);
   });
 
-  // POSTMORTEM 2026-11-20: the folded viewer's first click can come before its select mode reaches the canvas.
+  // The folded viewer's first click can come before its select mode reaches the canvas.
   test.each(["before press ends", "after release"])("the folded viewer's first canvas click selects once when select mode arrives %s", async timing => {
     const { frame, button, mouse, deliver } = await openingGesture(false, true);
     await frame.evaluate(() => {
@@ -1936,8 +2089,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     }
   });
 
-  // The new epoch first redraws the kept Cart; only the click's own inspection that follows steps into Buy.
-  // Waiting for Cart passed on that intermediate render and missed it on a loaded machine.
+  // The new epoch first redraws the kept Cart; only the click's own inspection that follows steps into Buy, so waiting
+  // for Cart alone can pass on that intermediate render.
   test("the first click after reopening steps from the selection the folded inspector kept", async () => {
     const { frame, mouse, deliver } = await openingGesture(true);
     await mouse.down(); await mouse.up();
@@ -2177,7 +2330,7 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
       value: document.getElementById("zoom-value")!.textContent, cursor: style.cursor, color: style.color, background: style.backgroundColor };
   }, id);
 
-  // POSTMORTEM 2026-11-13: a control that turns unavailable while focused must keep focus; read document.activeElement.
+  // A control that turns unavailable while focused must keep focus; read document.activeElement.
   test("Zoom out and Zoom in pressed from the keyboard to their limits keep focus, read unavailable and do nothing more", async () => {
     const frame = await open(twoFrames);
     const keyboard = frame.page().keyboard;
@@ -2261,9 +2414,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     for (const row of rows.filter(row => row.current === null)) expect(row).toMatchObject({ oldWord: false, mark: null });
   }, 60_000);
 
-  // ── Select, the size bubble and Play prototype on the board ──
-  // A board of prototype frames: Cart (marked) links to Payment (marked) from inside its nested, unmarked Row frame;
-  // Bad's mark is invalid; Screen is unmarked around a marked Card; Plain has no mark.
+  // Cart (marked) links to Payment (marked) from inside its nested, unmarked Row frame; Bad's mark is invalid; Screen is
+  // unmarked around a marked Card; Plain has no mark.
   const playBoard = [
     '<section data-doan-frame="cart" data-doan-title="Cart" data-doan-prototype="320x200" style="height:200px;padding:20px;box-sizing:border-box">',
     '<div data-doan-frame="row" data-doan-title="Row" style="height:80px"><button data-doan-id="buy" data-doan-goto="pay" style="width:120px;height:40px">Buy</button></div></section>',
@@ -2456,11 +2608,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
     await frame.getByRole("button", { name: "Payment, frame. Elements in this frame", exact: true }).waitFor();
   });
 
-  // ── The player window, as the board opens it ──
-  // The test page cannot be a player window (its address is about:srcdoc, with no #doan-play=), so window.open is
-  // replaced before shell.js runs: each call is recorded, `blocked` makes the next ones return null as a pop-up blocker
-  // does, and an opened window is a stand-in that records what the board posts to it. The real windows are checked in
-  // Chromium and WebKit from exported files.
+  // The test page cannot be a player window (about:srcdoc), so window.open is stubbed before shell.js runs: `blocked`
+  // returns null as a pop-up blocker does. The real windows are checked in Chromium and WebKit from exported files.
   const openStub = () => {
     type Stand = { closed: boolean; posted: unknown[]; focus(): void; postMessage(data: unknown): void };
     const w = window as unknown as { opened: { url: string; name: string; stand: Stand | null }[]; blocked: number; open(url: string, name: string): Stand | null };
@@ -2565,10 +2714,8 @@ describe("the viewer header in a real DOM", { timeout: 60_000 }, () => {
   });
 });
 
-// ── The app's prototype and size-bubble judgments, generated for the viewer ───
-// viewerApp.js is app/scripts/viewerInspect.mjs's bundle of the app's own TypeScript: the board judges Play, groups
-// the play drawer, places the size bubble and draws the Option measurement with the app's code, never a copy. These
-// pin what the bundle exports and that it answers as the app does; `--check` pins that it is current.
+// viewerApp.js is viewerInspect.mjs's bundle of the app's own TypeScript, never a copy. These pin what it exports
+// and that it answers as the app does; `--check` pins that it is current.
 
 type ViewerApp = Record<string, any>;
 const generated = (): ViewerApp => runInNewContext(`${viewerAppJs}\nviewerApp`, {}) as ViewerApp;
@@ -2731,7 +2878,8 @@ describe("viewerApp.js: the app's judgments, generated", () => {
     for (const mark of ["390x844", "0x1", "390x844\\n", null]) expect(app.parsePrototypeMark(mark)).toEqual(appParsePrototypeMark(mark));
     expect(app.PROTOTYPE_LOAD_TIMEOUT_MS).toBe(PROTOTYPE_LOAD_TIMEOUT_MS);
     expect([app.LOADING_LABEL, app.RETRY, app.CLOSE]).toEqual([LOADING_LABEL, RETRY, CLOSE]);
-    for (const view of [{ frames, frame: "home", gotos }, { frames, frame: "gone", gotos: [] }, { frames: [], frame: "home", gotos: [] }]) {
+    const blank = [{ id: "a", title: "", size: "390x844", number: 1 }, { id: "b", title: "  ", size: "390x844", number: 2 }, { id: "c", title: " C ", size: "390x844", number: 3 }];
+    for (const view of [{ frames, frame: "home", gotos }, { frames, frame: "gone", gotos: [] }, { frames: [], frame: "home", gotos: [] }, { frames: blank, frame: "a", gotos: [] }]) {
       expect(app.drawerGroups(view)).toEqual(appDrawerGroups(view));
     }
     expect(app.drawerLabel({ canvas: "checkout" })).toBe(appDrawerLabel({ canvas: "checkout" }));
@@ -2757,15 +2905,18 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 });
 
 
-// ── The browser player ────────────────────────────────────────────────────────
-// Play on the board reopens this same file as a player window, `#doan-play=<id>` in its address (lib.js), which
-// plays the frame in a new sandboxed iframe for every run with isolate.js first and the app's run script after it.
-// What the player decides is the app's (viewerApp.js); these pin the browser's own rules: its address, its strings to
-// and from the board, its copy, its header rows and what a reload of the window keeps.
-// The player's copy is in player.js (the board shares it), which defines only names at load: read with no globals.
-const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS })`, {}) as Lib : {};
+// Play reopens this file as a player window (`#doan-play=<id>`); what it decides is the app's (viewerApp.js). These pin
+// the browser's own rules; player.js defines only names at load, so it is read with no globals.
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, playedFrameName: typeof playedFrameName === "undefined" ? undefined : playedFrameName })`, {}) as Lib : {};
 
 describe("the browser player's rules", () => {
+  // The window title, the name button and the move announcement name a frame as the app does (canvasTree.ts frameName).
+  test("a frame is named by its trimmed title, else its id", () => {
+    for (const frame of [{ id: "pay", title: "Pay" }, { id: "pay", title: " Pay " }, { id: "pay", title: "" }, { id: "pay", title: "   " }, { id: "pay" }]) {
+      expect(pc.playedFrameName?.(frame), JSON.stringify(frame)).toBe(appFrameName(frame));
+    }
+  });
+
   test("the reading line waits as long as the app's", () => {
     const app = readFileSync(new URL("../renderer/prototype/PrototypeWindow.tsx", import.meta.url), "utf8");
     const delay = Number(/const READING_DELAY_MS = (\d+);/.exec(app)?.[1]);
@@ -2903,10 +3054,8 @@ describe("the player's files", () => {
   });
 });
 
-// ── The player's Export prototype ─────────────────────────────────────────────
-// The player downloads the playing frame's prototype file by joining the strings the general Export's META carries
-// (assemble.go frameExports). Go's own tests run this join over real pages and compare it with `doan export --frame
-// <id> --prototype` (assemble_export_test.go); here are its copy, its file name, its refusals and its escaping.
+// The player joins the strings the general Export's META carries (assemble.go frameExports); Go's tests compare that
+// join with `doan export --frame <id> --prototype` (assemble_export_test.go). Here: copy, file name, refusals, escaping.
 const EXPORT_NAMES = ["EXPORT_PROGRESS_DELAY_MS", "MAX_FILE_NAME", "exportProgressText", "exportRefusedText", "exportRequestedText", "exportFileName", "srcdocAttribute", "prototypeExport", "srcdocSlices"];
 const px: Lib = playerJs ? runInNewContext(`${playerJs}\n({ ${EXPORT_NAMES.map(name => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(", ")} })`, {}) as Lib : {};
 // No lone surrogate (String.prototype.isWellFormed is past the app's TypeScript lib).
@@ -3063,7 +3212,6 @@ describe("the player's Export prototype", () => {
     expect(playerJs).not.toMatch(/exportAvailability\(.*, false\)/);
     // A broken link's toast must not replace an export's progress or result toast (view.ts linkMove).
     expect(extractFunction(playerJs, "follow")).not.toMatch(/linkMove\([\s\S]*, false\);/);
-    // The old placeholder is gone.
     expect(playerJs).not.toContain("TODO(export prototype)");
   });
 });
@@ -3094,10 +3242,8 @@ describe("the board's copy is the browser copy", () => {
   });
 });
 
-// ── The layout's marks, parents and links in a real DOM ───────────────────────
-// measure.js reports what Play prototype judges: the raw mark, `cut`, `parent` and the links, as the app's injected
-// canvasScript reports them. Both run first in the same canvas document; the board's link groups then come from the
-// generated judgments and match the shared fixture, which the Go link groups also read.
+// measure.js reports what Play prototype judges as the app's canvasScript does, both first in the same document; the
+// board's link groups come from the generated judgments and match the shared fixture the Go link groups also read.
 describe("the viewer's layout frames and links in a real DOM", { timeout: 60_000 }, () => {
   type Reported = { frames: { id: string; prototype?: string; cut?: true; parent?: number }[]; gotos: { value: string; frame?: number }[] };
   const shape = (layout: Reported): Reported => ({
@@ -3165,8 +3311,6 @@ describe("the viewer's layout frames and links in a real DOM", { timeout: 60_000
   });
 });
 
-// ── The Go MIME table is the app server's ─────────────────────────────────────
-
 describe("MIME table", () => {
   // Both tables are read as text: server.ts does not export TYPES, and the Go literal is the
   // contract (cli/internal/export/mime.go asks for one entry per line).
@@ -3190,8 +3334,6 @@ describe("MIME table", () => {
     expect(Object.fromEntries(go)).toEqual(Object.fromEntries(server));
   });
 });
-
-// ── The exported prototype page (prototype.html, prototype.css, prototype.js, isolate.js) ─────
 
 // Read without throwing, so a missing file fails these tests and not the whole module.
 const readViewer = (name: string): string => {
@@ -3376,10 +3518,8 @@ class FakeHistory {
   }
 }
 
-// Timers keep their delay on a fake clock, and a MutationObserver gets the changes `mutate()` records at `deliver()`, as
-// a microtask checkpoint would hand them over.
-// The root and the body are stand-ins unless a case passes its own; `backgrounds` is the computed background colour
-// the script reads for an element, transparent unless a case sets one.
+// Timers keep their delay on a fake clock; a MutationObserver gets `mutate()`'s changes at `deliver()`, as a microtask
+// checkpoint would. `backgrounds` is the computed background colour per element, transparent unless a case sets one.
 function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout", page: { html?: FakeElement; body?: FakeElement } = {}) {
   const posts: unknown[] = [];
   const backgrounds = new Map<FakeElement, string>();
@@ -3765,9 +3905,8 @@ describe("isolate.js keeps History calls with a URL from stopping the canvas", (
   });
 });
 
-// isolate.js decides a link click the way the prototype window's injected script does (prototypeScript.ts), on the
-// same shared table and in the same real DOM. prototype.js names each iframe after the frame it plays; here a script
-// before isolate.js sets that name, since the test document is not the page's iframe.
+// isolate.js decides a link click as the prototype window's script does, on the same shared table and real DOM. A
+// script before isolate.js sets the iframe name prototype.js would, since the test document is not the page's iframe.
 interface ClickCase {
   name: string;
   html: string;
@@ -3856,9 +3995,8 @@ describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
     expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
   });
 
-  // A click whose bubble phase never reaches the window still posts, and leaves nothing behind for the next click, which
-  // is decided on its own. No href here: the href comes off only in the window's bubble phase, so on an <a href> a canvas
-  // that stops propagation leaves the browser's navigation as it was before, and the test frame would leave.
+  // A click whose bubble phase never reaches the window still posts and leaves nothing for the next click. No href here:
+  // it comes off only in the window's bubble phase, so on an <a href> the test frame would leave.
   test("a canvas listener that stops propagation does not stop a link, and the next click is decided on its own", async () => {
     const script = `<script>let n = 0;
       document.getElementById("x").addEventListener("click", event => { n += 1; if (n === 1) event.stopPropagation(); });
@@ -3872,9 +4010,8 @@ describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
     expect((await dom.flush(frame)).slice(before.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
   });
 
-  // The canvas's cancel is judged as in the prototype window, by the final defaultPrevented: isolate.js cancels no
-  // followed click itself, so no way of cancelling is mistaken or missed. Every case runs on an href in the document,
-  // an href to another one and no href, and checks that the document stayed and the href is back after the timer.
+  // The canvas's cancel is judged by the final defaultPrevented, as in the prototype window; isolate.js cancels no
+  // followed click itself. Each case checks that the document stayed and the href is back after the timer.
   describe.each([["#sec"], ["other.html"], [null]])("a link with href %s", href => {
     // The href's attribute node as the page parsed it, to check that the same node comes back.
     const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>` +
@@ -4015,10 +4152,8 @@ describe("isolate.js follows links in a real DOM", { timeout: 60_000 }, () => {
     })).toEqual(["about:srcdoc", [], false, true]);
   });
 
-  // A documented limit: a listener the canvas adds during the click that runs after ours and sets the href again gives
-  // the browser something to follow, so the frame navigates while the link is still followed. The document is gone by
-  // then, so the page around it (the test's top window) reads what happened. A document kept busy after the click lets
-  // the navigation commit before a 0 ms timer's message reaches the page, which then arrives with no source.
+  // A documented limit: a listener added during the click that sets the href again after ours lets the frame navigate,
+  // so the test's top window reads what happened; a busy document can make the message arrive with no source.
   test.each([[0], [300]])("an href the canvas sets again after ours came off is followed by the browser too (busy %i ms after the click)", async busy => {
     const script = `<script>document.getElementById("x").addEventListener("click", () =>
       window.addEventListener("click", () => document.getElementById("x").setAttribute("href", "#new"), { once: true }));</script>`;
@@ -4586,6 +4721,13 @@ describe("the prototype page's look is the app's", () => {
     }
   });
 
+  test.each([["shell.css", shellCss], ["prototype.css", protoCss]])("%s: the notice and the panel keep ds/surfaces.css's forced-colours edge", (_name, css) => {
+    expect(forcedColours(surfacesCss, ".doan-notice.doan-panel")).not.toEqual([]);
+    for (const selector of [".doan-panel", ".doan-notice", ".doan-alert-icon", ".doan-notice.doan-panel"]) {
+      expect(forcedColours(css, selector), selector).toEqual(forcedColours(surfacesCss, selector));
+    }
+  });
+
   test("the line sits where the export viewer's no-JavaScript line does, on the inset grey", () => {
     expect(declarations(protoCss, ".proto-line")).toEqual(declarations(shellCss, ".vw-noscript"));
     expect(declarations(protoCss, "body")).toContain("background: var(--surface-inset)");
@@ -4657,9 +4799,8 @@ describe("inspector message boundary", () => {
     boundary(cap(canvas, "MAX_TEXT_RECTS"), n => ({ ...range, rects: Array(n).fill({ x: 0, y: 0, width: 1, height: 1 }) }));
   });
 
-  // The selection's nearest frame, which Play prototype reads: a frame or element kind, an id unless an element is
-  // outside every frame, and its place among the listed frames only with an id. A selection-only reply has no rows
-  // or nodes but still names it; a reply with nodes always names it.
+  // The selection's nearest frame: a frame or element kind, an id unless outside every frame, and its place only with an
+  // id. A selection-only reply still names it; a reply with nodes always does.
   test("the selection's frame is kept as a fresh object, and a malformed one drops the reply", () => {
     const folded = { ...selection, rows: [], nodes: [], target: { kind: "element", id: "cart", index: 3, extra: 1 } };
     const parsed = parse(folded);
@@ -4689,9 +4830,8 @@ describe("inspector message boundary", () => {
   });
 });
 
-// PRODUCT §5 item 3 'Browser player' and 'Prototype file': as in the prototype window once it is open, a frame change
-// keeps the browser window's size and position. No viewer script sizes or moves a window, and the board opens the
-// player without window features, so the browser alone decides the player's first size.
+// PRODUCT §5 item 3 'Browser player' and 'Prototype file': no viewer script sizes or moves a window, and the board
+// opens the player without window features, so the browser alone decides its first size.
 describe("the export player and the prototype file never size or move the browser window", () => {
   const sources: Record<string, string> = {
     "shell.js": shellJs, "player.js": playerJs, "viewerApp.js": viewerAppJs, "lib.js": lib, "prototype.js": protoJs, "isolate.js": isolateJs,

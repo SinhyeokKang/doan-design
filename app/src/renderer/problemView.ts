@@ -5,14 +5,13 @@ import type { RowAction } from "./homeCards";
 import type { SidebarSlot } from "./canvasNotice";
 import { displayPath } from "./projectDisplay";
 
-// What a project in a problem state shows: the overlay over its content and the sidebar row's icon
-// (PRODUCT §5 items 1 and 3). Pure; the shell owns timers, focus and inert.
+// Pure; the shell owns timers, focus and inert (PRODUCT §5 items 1 and 3).
 
 export type ProblemKind = "notFound" | "uninitialized" | "error" | "cliError";
 export type ActionVariant = "prominent" | "subtle" | "ghost";
 export interface ProblemAction { name: RowAction; variant: ActionVariant }
 
-// `newer`: a Config error from a config in a newer format, kept so a Retry's read shows the same line.
+// `newer`: kept so a Retry's read shows the same line.
 export type ShownOverlay = { kind: "problem"; entryKind: ProblemKind; newer?: true } | { kind: "reading" } | null;
 
 export type ProblemOverlayView =
@@ -23,8 +22,8 @@ export type ProblemOverlayView =
     line: { path?: string; text: string };
     // The first action is the one prominent action.
     actions: ProblemAction[];
-    // `error` and `cliError`, from the entry; absent while `busy` since the entry is `loading` then. The shell keeps
-    // the text it last saw so an open Details block stays filled.
+    // Absent while `busy`, since the entry is `loading` then; the shell keeps the last text so an open Details block stays
+    // filled.
     detail?: string;
     busy: boolean;
   };
@@ -53,8 +52,8 @@ function scene(kind: ProblemKind, name: string, path: string, home: string | nul
   }
 }
 
-// `slow`: 300 ms have passed since the entry became `loading`. `shown`: the overlay on screen just before. A `loading`
-// that follows a problem scene keeps that scene with its buttons busy, whatever `slow` says (PRODUCT §5 item 3 'Problem states').
+// A `loading` that follows a problem scene keeps that scene with its buttons busy, whatever `slow` says (PRODUCT §5
+// item 3 'Problem states').
 export function problemView(entry: FolderEntry, name: string, homeDirectory: string | null, state: { slow: boolean; shown: ShownOverlay }): ProblemOverlayView | null {
   if (entry.kind === "list") return null;
   if (entry.kind === "loading") {
@@ -68,9 +67,8 @@ export function problemView(entry: FolderEntry, name: string, homeDirectory: str
   };
 }
 
-// A problem or reading root still shows the Overview. The canvas shows only for a canvas of the loaded root.
-// The one-line sentences for a project that is still being read or can't be used, shared by the Home composer's send
-// line and the toasts of an Open that could not go through, so every screen names the project the same way.
+// Shared by the Home composer's send line and the toasts of an Open that could not go through, so every screen names
+// the project the same way.
 export function projectReadingLine(project: string): string { return `${project} is still being read.`; }
 export function projectUnavailableLine(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }
 
@@ -81,7 +79,7 @@ export function workspaceBody(screen: string, root: string | null, open: Pick<Op
 
 export type RowSlot = { kind: "problem"; icon: LucideIcon; label: string } | { kind: "reading"; label: string } | SidebarSlot;
 
-// Order: permission request or question, problem icon, working, unseen. `slow` gates the reading spinner.
+// `slow` gates the reading spinner.
 export function sidebarSlot(entry: FolderEntry, name: string, conversationSlot: SidebarSlot | null, slow: boolean): RowSlot | null {
   if (conversationSlot?.kind === "permission") return conversationSlot;
   if (isProblem(entry)) {
@@ -92,7 +90,7 @@ export function sidebarSlot(entry: FolderEntry, name: string, conversationSlot: 
   return conversationSlot;
 }
 
-// The Overview's composer, or the canvas area. A disabled composer falls back to `focusCurrent` in the shell.
+// A disabled composer falls back to `focusCurrent` in the shell.
 export function resolvedFocus(body: "overview" | "canvas"): "composer" | "canvasArea" {
   return body === "overview" ? "composer" : "canvasArea";
 }

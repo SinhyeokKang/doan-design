@@ -366,6 +366,9 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
   overflow-wrap: anywhere;
 }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+@media (forced-colors: active) {
+  .doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }
+}
 
 /* ── Tooltip and key (ds/surfaces.css .doan-tooltip, ds/controls.css .doan-kbd) ─ */
 /* The page has no Radix: shell.js places the one tooltip over its tool, 4 above it as the app's
@@ -630,10 +633,12 @@ html:not(.js) .doan-canvas-bottom { display: none; }
 .pw .doan-toggle-group[role="group"] .doan-icon-button[data-ui-placement="chrome"][aria-pressed="true"] { background: var(--surface-panel); box-shadow: var(--shadow-panel); color: var(--text-standard); }
 
 /* The content panel: the run iframes in their boxes; a loading run stays hidden under the one on
-   screen. Fit keeps the mark's viewport and scales it from its top-left (player.js). */
+   screen. Fit keeps the mark's viewport and scales it from its top-left (player.js). The content clips the
+   top corners and the stage the bottom ones: a clip with four equal radii cuts a large cross-origin iframe
+   (POSTMORTEM 2026-11-11). */
 .pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
-.pw-content { position: absolute; inset: 0; overflow: clip; border-radius: inherit; }
-.pw-stage { position: absolute; inset: 0; overflow: clip; border-radius: inherit; }
+.pw-content { position: absolute; inset: 0; overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.pw-stage { position: absolute; inset: 0; overflow: clip; border-bottom-left-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
 .pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
 .pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
 .pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }

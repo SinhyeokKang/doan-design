@@ -1,11 +1,11 @@
-// A reply chip's link, `doan:<canvas-id>/<frame|element>/<id>`. The renderer and
-// the eval both import this, so the file takes no value imports: a renderer value import of a main module that pulls
-// in Node or ajv leaves the built window blank (POSTMORTEM 2026-10-30, `rendererImports.test.ts`).
+// A reply chip's link, `doan:<canvas-id>/<frame|element>/<id>`. The renderer and the eval import this, so it takes no
+// value imports (POSTMORTEM 2026-10-30, `rendererImports.test.ts`).
 
 export interface ReplyAnchor { canvas: string; kind: "frame" | "element"; id: string }
 
-// ARCHITECTURE §1 Conventions 2. Kept here because the copy in the restore code is not exported.
-const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// ARCHITECTURE §1 Conventions 2; store.ts validates stored canvas ids with it. Defined here because this module takes
+// no value imports.
+export const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // Matches `canvasMessage.ts` MAX_STRING and the picker, which drop a doan id over 200: a cut id could match another target.
 const MAX_ID = 200;
 const SCHEME = "doan:";

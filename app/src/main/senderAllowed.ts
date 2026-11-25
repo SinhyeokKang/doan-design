@@ -1,9 +1,7 @@
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 
-// `prototype` is the single-frame prototype window: its main frame drives its own run and its conversation panel. It
-// reaches the main window's state only through the composer channels below (attachments are its own ids), conversation
-// requests main scopes to the playing canvas (index.ts), and its own narrow reads; a canvas that escaped into it could
-// not change the selection, settings or another conversation.
+// `prototype` reaches the main window's state only through the composer channels below, conversation requests main
+// scopes to the playing canvas (index.ts) and its own reads, so a canvas that escaped into it changes nothing else.
 export type WindowKind = "main" | "prototype";
 
 const mainOnly = new Set([
@@ -24,7 +22,7 @@ const mainOnly = new Set([
   // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
   // The first-run session the CLI shares; the prototype window has no first run.
-  "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
+  "onboarding:start", "onboarding:status", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // Preset reads for the home (the prototype window's composer has its own entry below).
   "design-skills:list", "design-skills:get",
   // Home attachments (the prototype window's composer has its own entry below).
@@ -67,14 +65,15 @@ const mainOnly = new Set([
   PROTOTYPE_CHANNELS.playing,
 ]);
 
-// The panel's composer: preset reads, its own attachments (no capture: the window has no board), agent reply links and
-// the context ring drawer's usage read (entries carry no account identity, usageTypes.ts). The main window's own set
-// is not widened for it.
+// The panel's composer: preset reads, its own attachments (no capture), reply links, the usage read (no account
+// identity, usageTypes.ts) and thread-card thumbnails. The main window's own set is not widened for it.
 const prototypeComposer = [
   "design-skills:list", "design-skills:get",
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:add-pasted-text", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
   "shell:openLink",
   "agent-usage:read",
+  // Main answers the playing root only (prototype/thumbnailScope.ts).
+  "thumbnails:get", "thumbnails:visible",
 ];
 
 const prototypeOnly: ReadonlySet<string> = new Set([...PROTOTYPE_WINDOW_REQUESTS, ...prototypeComposer]);

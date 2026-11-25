@@ -18,7 +18,9 @@ export interface Anchor {
   point?: { frameId?: string; dx: number; dy: number };
 }
 // model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
-export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "prompt_unread" | "unknown";
+// The store reads a turn end only with one of these values (store.ts payload).
+export const FAILURE_CODES = ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "model_unavailable", "prompt_unread", "unknown"] as const;
+export type FailureCode = (typeof FAILURE_CODES)[number];
 // detail: what a choice saves beyond this request (a rule, a setting), shown before the person picks it.
 export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny"; detail?: string }
 // summary: what the approval lets run (the command, the files, the permissions); reason: the agent's own words about it.
@@ -32,24 +34,28 @@ export interface QuestionResolved { type: "question.resolved"; requestId: string
 // A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
 // never walks it to count one.
 export type AttachmentRecord = ({ name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string }) & { lines?: number; excerpt?: string };
-// The first message of a conversation a handoff started: the earlier conversation and its canvas, absent when that was
-// a project conversation (the root's Overview). Its text is that agent's handoff, kept as written and never read for
-// {{n}} markers (anchors stay empty). An earlier build reads only an origin with a canvas.
+// A handoff-started conversation's first message: the earlier conversation and its canvas (absent for a project one).
+// Its text is that agent's handoff, never read for {{n}} markers. An earlier build reads only an origin with a canvas.
 export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas }
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own.
 export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
-// A row of the conversation "skills" method: a project skill the conversation's provider loads for a folder, or one of
-// the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
-// parsers live in skills.ts.
+// A row of the conversation "skills" method: a project skill or a built-in command Doan runs (providerCommands.ts).
+// Type-only here, since the renderer imports it; the parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
-export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
+export interface EditLines { added: number; removed: number }
+export const FAST_UNUSED_REASONS = ["plan", "extra_usage", "model", "policy", "cooldown"] as const;
+export type FastUnusedReason = (typeof FAST_UNUSED_REASONS)[number];
+export const INTERRUPT_REASONS = ["user", "appQuit", "crashed"] as const;
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
-  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string }
+  // callId: edits only; the key of their activity.result (ARCHITECTURE §7 'Edit line counts').
+  | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
+  // An older Doan cannot read a history that holds one.
+  | { type: "activity.result"; callId: string; path?: string; lines: EditLines }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
@@ -60,7 +66,7 @@ export type EventPayload =
   // model: the model ID the provider's error named, kept so the thread reads the same cause once loaded again; only and
   // always with model_unavailable.
   | { type: "turn.failed"; code: FailureCode; detail?: string; model?: string }
-  | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
+  | { type: "interrupted"; reason: (typeof INTERRUPT_REASONS)[number] }
   // archived and restored: written only by earlier builds, which archived a canvas's previous conversation and made an
   // archived one current again; still read, never written by this build.
   | { type: "conversation.archived" }
@@ -107,6 +113,10 @@ export interface TransportState {
   fastUnused?: FastUnused;
   // Claude only: the failure code an assistant frame's `error` named (claudeFrame); a failed result takes it over its text.
   claudeFailure?: FailureCode;
+  // Claude only: pending edit tool_use ids → their activity's stored path ("" for none); `activities` holds every tool.
+  claudeEdits?: Record<string, string>;
+  // Codex only: pending fileChange item ids → their activities' stored paths ("" for none).
+  codexEdits?: Record<string, string[]>;
   // Claude only: the index of the thinking block now streaming, whose stop ends the thinking stage.
   thinkingBlock?: number;
   // Claude only: the turn compacted the context (a top-level compact_boundary), with the tokens it left when the CLI
@@ -117,9 +127,8 @@ export interface TransportState {
   running?: string[];
 }
 export type FastUnused = Extract<EventPayload, { type: "fast.unused" }>;
-// What a live turn is doing now, read from provider frames beside the events. It is never
-// stored: it only means something while the turn runs. A tool stage follows the activity rules: a path, a summary of at
-// most 512 characters, no shell command text and no Doan connector tool input.
+// What a live turn is doing now, read from provider frames beside the events and never stored. A tool stage follows the
+// activity rules: a path, a summary of at most 512 characters, no shell command text, no connector tool input.
 export type TurnStage =
   | { kind: "thinking" }
   | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; path?: string; summary: string }

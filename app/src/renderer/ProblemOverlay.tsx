@@ -2,15 +2,14 @@ import type { ReactNode, Ref } from "react";
 import { ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import type { ProblemOverlayView } from "./problemView";
 
-// The config file a Config error's line starts with, drawn as a code chip like Missing's path (confirmed draft
-// .doan/canvases/problem-project.html).
+// The config file a Config error's line starts with, drawn as a code chip like Missing's path.
 const CONFIG_FILE = ".doan/config.json";
 // The window draws one workspace, so one overlay at most.
 export const PROBLEM_HEADING_ID = "problem-overlay-heading";
 const LINE_ID = "problem-overlay-line";
 
-// The overlay over a problem project's content (PRODUCT §5 item 3 'Problem states'; ARCHITECTURE §7 'Problem overlay'). It draws `problemView`'s
-// result only; App owns the Details state per root, the busy action, focus and the live region's text.
+// PRODUCT §5 item 3 'Problem states'; ARCHITECTURE §7 'Problem overlay'. It draws `problemView`'s result only; App owns the
+// Details state per root, the busy action, focus and the live region's text.
 export function ProblemOverlay({ view, details, detail, pressed, announcement, onAction, headingRef }: {
   view: Extract<ProblemOverlayView, { kind: "reading" }> | Omit<Extract<ProblemOverlayView, { kind: "problem" }>, "entryKind">;
   headingRef?: Ref<HTMLHeadingElement>;
@@ -37,9 +36,10 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="problem-actions">{view.actions.map(({ name, variant }) => {
         const spinning = view.busy && pressed === name;
-        // Busy actions stay focusable (aria-disabled, not disabled) so focus stays on the pressed one.
+        // Busy actions stay focusable (aria-disabled, not disabled) so focus stays on the pressed one; the others take
+        // the disabled look, which the shared hover and pressed fills skip.
         return <button key={name} type="button" className={`doan-button${variant === "ghost" ? " ghost" : ""}`}
-          data-ui-variant={variant === "ghost" ? undefined : variant} data-ui-size="sm" aria-disabled={view.busy || undefined} aria-busy={spinning || undefined}
+          data-ui-variant={variant === "ghost" ? undefined : variant} data-ui-size="sm" aria-disabled={view.busy || undefined} data-disabled={view.busy && !spinning ? "" : undefined} aria-busy={spinning || undefined}
           aria-expanded={name === "details" ? details : undefined} onClick={() => { if (!view.busy) onAction(name); }}>
           {spinning && <span className="doan-spinner" aria-hidden="true" />}{ROW_ACTION_LABELS[name]}{name === "details" && (details ? " ▾" : " ▸")}
         </button>;

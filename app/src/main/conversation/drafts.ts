@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { MAX_ATTACHMENTS } from "../attachments";
 import { canonicalDirectory, openRegular, readRegular } from "./io";
 import { combineQueued } from "./queue";
-import { LIMITS, validAnchor } from "./prompt";
+import { anchorTokens, LIMITS } from "./prompt";
 import { absolutePath, object } from "./sessions";
-import { validCanvas, validId } from "./store";
+import { validAttachment, validCanvas, validId } from "./store";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 // A message sent while its conversation worked, waiting to go out with the others after the turn. sending: its send has
 // started and is not accepted yet; it stays on disk until then, so a crash returns it as a draft instead of losing it.
@@ -15,9 +15,8 @@ export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; a
 // into one draft for the person to edit. reason: "turn_failed", "interrupted", "restarted" or the refused send's code.
 export interface ReturnedDraft { text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; reason: string }
 export type DraftParts = Omit<ReturnedDraft, "reason">;
-// A message a send or start carries from when main takes it until main accepts or refuses it: the composer that sent it
-// has let it go, and the history has nothing yet, so a quit in between would lose it. A send's names its conversation, a
-// start's the root (and canvas) it starts in, since its conversation does not exist yet.
+// A message a send or start carries from when main takes it until main accepts or refuses it, so a quit in between
+// cannot lose it. A send's names its conversation, a start's the root (and canvas), since no conversation exists yet.
 export type HeldMessage = DraftParts & ({ conversationId: string } | { root: string; canvas?: Canvas });
 // A start's message the app ended before acceptance, waiting for a composer of its root (and canvas) to take it.
 export interface ReturnedStart extends DraftParts { root: string; canvas?: Canvas }
@@ -25,32 +24,15 @@ interface DraftsFile { queued: Record<string, QueuedItem[]>; returned: Record<st
 // The whole file, which the reader reads only up to this size; the writer refuses a queued message that would pass it.
 export const DRAFTS_FILE_BYTES = 16 * 1024 * 1024;
 
-// A conversation's queue and returned draft together stay within one message (prompt.ts LIMITS, MAX_ATTACHMENTS), the
-// size the composer they come back to can hold and a send can carry. The writer refuses a queued message that would
-// pass it and the reader reads only what is within it, so what main accepted is always read back whole.
+// A conversation's queue and returned draft together stay within one message (prompt.ts LIMITS, MAX_ATTACHMENTS): the
+// writer refuses past it and the reader reads only within it, so what main accepted is always read back whole.
 function fits(value: DraftParts): boolean {
   return value.text.length <= LIMITS.text && value.anchors.length <= LIMITS.anchors && value.attachments.length <= MAX_ATTACHMENTS;
 }
 function text(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= LIMITS.text && !value.includes("\0"); }
-// Like prompt.ts anchorTokens: every {{n}} names one of the anchors, each once.
-function anchored(value: string, anchors: readonly unknown[]): boolean {
-  if (anchors.length > LIMITS.anchors || !anchors.every(validAnchor)) return false;
-  const seen = new Set<number>(); let invalid = false;
-  const rest = value.replace(/\{\{([^{}]*)\}\}/g, (_match, n: string) => {
-    if (!/^[1-9][0-9]*$/.test(n) || Number(n) > anchors.length) invalid = true;
-    seen.add(Number(n)); return "";
-  });
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the replace callback sets this
-  return !invalid && !rest.includes("{{") && !rest.includes("}}") && seen.size === anchors.length;
-}
-function attachment(value: unknown): value is AttachmentRecord {
-  if (!object(value) || !text(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
-  if (value.kind === "directory") return !("size" in value);
-  return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
-}
 function parts(value: unknown): value is DraftParts {
-  return object(value) && text(value.text) && Array.isArray(value.anchors) && anchored(value.text, [...value.anchors]) &&
-    Array.isArray(value.attachments) && value.attachments.length <= MAX_ATTACHMENTS && [...value.attachments].every(attachment);
+  return object(value) && text(value.text) && Array.isArray(value.anchors) && anchorTokens(value.text, [...value.anchors]) !== null &&
+    Array.isArray(value.attachments) && value.attachments.length <= MAX_ATTACHMENTS && [...value.attachments].every(validAttachment);
 }
 function queuedItems(value: unknown): value is QueuedItem[] {
   return Array.isArray(value) && [...value].every(item => object(item) && typeof item.itemId === "string" && item.itemId.length > 0 && item.itemId.length <= 64 &&
@@ -110,10 +92,8 @@ function startOn(start: ReturnedStart, root: string, canvas: Canvas | undefined)
   return start.canvas.id !== undefined && canvas.id !== undefined ? start.canvas.id === canvas.id : start.canvas.path === canvas.path;
 }
 
-// The input queue and the drafts it hands back, per conversation, in <userData>/conversations/drafts.json. Every change
-// is written at once (temporary file and rename); at the next start the queued messages become drafts and never go out
-// by themselves. A file that is not a drafts file is kept for diagnosis: nothing more is queued, and returned drafts
-// stay in memory only. directory null: memory only (tests and callers without a store). fileBytes: the file limit.
+// The queue and returned drafts per conversation in <userData>/conversations/drafts.json; queued messages become drafts at
+// the next start. A non-drafts file is kept: nothing more is queued, drafts stay in memory. directory null: memory only.
 export class DraftStore {
   private file: DraftsFile = { queued: {}, returned: {}, sending: {}, starts: {} };
   private unread: { queued: Record<string, unknown>; returned: Record<string, unknown> } = { queued: {}, returned: {} };
@@ -153,20 +133,25 @@ export class DraftStore {
       } else this.file.starts[key] = { ...where, text, anchors, attachments };
     }
     this.file.sending = {};
-    for (const [id, items] of left) this.merge(id, joined(items), "restarted");
+    // A send held behind its queue (handoffWait), or a queue written before held sends were counted, can pass one message,
+    // which the start after this one could not read; so a queued item that does not fit is dropped, as a held send is.
+    for (const [id, items] of left) for (const { text, anchors, attachments } of items) {
+      const earlier = this.file.returned[id];
+      if (fits(joined([...earlier ? [earlier] : [], { text, anchors, attachments }]))) this.merge(id, { text, anchors, attachments }, "restarted");
+      else console.error("doan: a queued message does not fit its conversation's draft; dropped");
+    }
     this.file.queued = {};
     this.save();
   }
   // The messages still waiting, without those whose send has started.
   queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
-  // Refused (queue_limit) before anything changes when the conversation's returned draft, queue and this item would not
-  // fit one message, or the file would pass what the reader reads; throws when the queue cannot be saved.
-  // first: ahead of the waiting ones (a turn's own message the usage limit stopped, which goes out again first).
+  // Refused (queue_limit) before any change when draft, held send, queue and item would not fit one message or the file limit; throws
+  // when the queue cannot be saved. first: ahead of the waiting ones (a usage-limited turn's own message).
   add(id: string, item: QueuedItem, first = false): void {
     if (this.broken || id in this.unread.queued || id in this.unread.returned) throw new Error("Conversation drafts are damaged");
-    const before = this.file.queued[id], earlier = this.file.returned[id];
-    if (!fits(joined([...(earlier ? [earlier] : []), ...before ?? [], item]))) throw new Error("queue_limit");
-    this.file.queued[id] = first ? [item, ...before ?? []] : [...before ?? [], item];
+    const before = this.file.queued[id], after = first ? [item, ...before ?? []] : [...before ?? [], item];
+    if (!this.fitsQueue(id, after)) throw new Error("queue_limit");
+    this.file.queued[id] = after;
     try {
       if (this.bytes() > this.fileBytes) throw new Error("queue_limit");
       this.write();
@@ -212,16 +197,28 @@ export class DraftStore {
     if (left.length) this.file.queued[id] = left; else delete this.file.queued[id];
     this.save();
   }
-  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write.
-  // Those on their way out stay with their send.
-  move(from: string, to: string): QueuedItem[] {
+  // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write. Those on
+  // their way out stay with their send. One that would not fit there as add() judges (the person may have used the
+  // target since its start) joins the source's returned draft instead, which the source's own bound already covers.
+  move(from: string, to: string): { moved: QueuedItem[]; returned: QueuedItem[] } {
     const items = this.queued(from);
-    if (!items.length) return [];
-    this.file.queued[to] = [...this.file.queued[to] ?? [], ...items];
+    if (!items.length) return { moved: [], returned: [] };
     const left = (this.file.queued[from] ?? []).filter(item => item.sending);
     if (left.length) this.file.queued[from] = left; else delete this.file.queued[from];
+    const moved: QueuedItem[] = [], returned: QueuedItem[] = [];
+    const damaged = this.broken || to in this.unread.queued || to in this.unread.returned;
+    for (const item of items) {
+      const before = this.file.queued[to];
+      if (!damaged && this.fitsQueue(to, [...before ?? [], item])) {
+        this.file.queued[to] = [...before ?? [], item];
+        if (this.bytes() <= this.fileBytes) { moved.push(item); continue; }
+        this.restore(to, before);
+      }
+      this.merge(from, { text: item.text, anchors: item.anchors, attachments: item.attachments }, "queue_limit");
+      returned.push(item);
+    }
     this.save();
-    return [...items];
+    return { moved, returned };
   }
   // The whole queue back as one draft (messages on their way out first, as queued), in one write; false when empty.
   giveBackQueued(id: string, reason: string): boolean {
@@ -261,9 +258,8 @@ export class DraftStore {
     try { this.write(); } catch (error) { this.file.starts = before; throw error; }
     return { ...joined(keys.map(key => before[key]!)), reason: "restarted" };
   }
-  // No composer will take these any more: the canvas went to the Trash (the starts takeStart would hand its composer),
-  // or the project was removed from Doan (every start of its roots). Never throws: the move or the removal already
-  // happened. A paste such a start carried was never marked sent, so the next launch's attachment cleanup removes it.
+  // The canvas went to the Trash or the project was removed, so no composer will take these. Never throws: the move or
+  // removal already happened; an unsent paste is removed by the next launch's attachment cleanup.
   discardCanvasStarts(rootPath: string, canvas: Canvas): void { this.discardStarts(start => startOn(start, rootPath, canvas)); }
   discardRootStarts(roots: readonly string[]): void { this.discardStarts(start => roots.includes(start.root)); }
   private discardStarts(gone: (start: ReturnedStart) => boolean): void {
@@ -284,19 +280,23 @@ export class DraftStore {
     const earlier = this.file.returned[id];
     this.file.returned[id] = { ...(earlier ? joined([earlier, draft]) : draft), reason };
   }
+  // The conversation's returned draft, held sends and this queue, joined in the order the next start merges them, fit one message.
+  private fitsQueue(id: string, queue: readonly QueuedItem[]): boolean {
+    const earlier = this.file.returned[id];
+    const held = Object.values(this.file.sending).filter(message => "conversationId" in message && message.conversationId === id);
+    return fits(joined([...(earlier ? [earlier] : []), ...held, ...queue]));
+  }
   private restore(id: string, items: QueuedItem[] | undefined): void { if (items) this.file.queued[id] = items; else delete this.file.queued[id]; }
   private save(): void { try { this.write(); } catch (error) { console.error("doan: conversation drafts could not be saved", error); } }
   // The file as written, unreadable conversations kept as they were.
   private serialized(file: DraftsFile): string {
     const queued = Object.fromEntries(Object.entries(file.queued).filter(([, items]) => items.length > 0));
-    // Held and returned starts only when there are any, so a file without them reads as before in older builds.
+    // Held and returned starts only when there are any, so older builds still read a file without them.
     const sending = Object.keys(file.sending).length ? { sending: file.sending } : {}, starts = Object.keys(file.starts).length ? { starts: file.starts } : {};
     return JSON.stringify({ v: 1, queued: { ...this.unread.queued, ...queued }, returned: { ...this.unread.returned, ...file.returned }, ...sending, ...starts });
   }
-  // The most the file can take for what is accepted now, whatever happens to it later: each conversation as its queue
-  // with every item marked sending beside its returned draft, or as one returned draft holding all of it (a restart, a
-  // failed turn), with the longest reason, whichever is larger; conversations change form independently, so each takes
-  // its own larger form. No later write of these items can then pass what the reader reads.
+  // The most the file can take for what is accepted now: each conversation in its larger form, the queue all marked sending
+  // beside its draft or one draft holding all of it with the longest reason, so no later write passes the reader's limit.
   private bytes(): number {
     const size = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
     const reason = "x".repeat(64);

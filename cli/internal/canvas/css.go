@@ -51,16 +51,18 @@ func trimASCII(s string) string {
 	}
 	return s[a:b]
 }
-func quoted(s string, i int) (string, int) {
+
+// quoted reads the string at i; bad reports one cut by a newline, which CSS makes a bad string.
+func quoted(s string, i int) (v string, end int, bad bool) {
 	q := s[i]
 	i++
 	var b strings.Builder
 	for i < len(s) {
 		if s[i] == q {
-			return b.String(), i + 1
+			return b.String(), i + 1, false
 		}
 		if s[i] == '\n' || s[i] == '\r' || s[i] == '\f' {
-			return b.String(), i
+			return b.String(), i, true
 		}
 		if s[i] == '\\' && i+1 < len(s) {
 			i++
@@ -72,16 +74,17 @@ func quoted(s string, i int) (string, int) {
 		b.WriteByte(s[i])
 		i++
 	}
-	return b.String(), i
+	return b.String(), i, false
 }
 
-// lexer yields CSS tokens one at a time. The scanners keep only the tokens
-// of the statement they are in: a slice of every token costs about 40 bytes
-// per punctuation mark, which for a minified 24 MiB stylesheet is half a
-// gigabyte per scan and several gigabytes allocated while it grows.
+// lexer yields one token at a time and scanners keep only the current statement's: a slice of every
+// token of a minified 24 MiB stylesheet costs half a gigabyte per scan.
 type lexer struct {
 	s string
 	i int
+	// A string directly inside image-set() is a <url>, so it is a 'u' token. imageSet is one past the index of
+	// the "(" that opens the call, paren the open parentheses, and setParen the call's depth or 0.
+	imageSet, paren, setParen int
 }
 
 func (l *lexer) next() (token, bool) {
@@ -103,8 +106,11 @@ func (l *lexer) next() (token, bool) {
 		}
 		start := i
 		if s[i] == '\'' || s[i] == '"' {
-			v, end := quoted(s, i)
+			v, end, bad := quoted(s, i)
 			l.i = end
+			if !bad && l.setParen > 0 && l.paren == l.setParen {
+				return token{'u', v, start, end}, true
+			}
 			return token{'s', v, start, end}, true
 		}
 		if ident(s[i]) {
@@ -120,7 +126,7 @@ func (l *lexer) next() (token, bool) {
 				}
 				var v string
 				if i < len(s) && (s[i] == '\'' || s[i] == '"') {
-					v, i = quoted(s, i)
+					v, i, _ = quoted(s, i)
 					for i < len(s) && s[i] != ')' {
 						i++
 					}
@@ -140,8 +146,27 @@ func (l *lexer) next() (token, bool) {
 				l.i = i
 				return token{'u', v, start, i}, true
 			}
+			if n := lower(name); n == "image-set" || n == "-webkit-image-set" {
+				l.imageSet = i + 1
+			}
 			l.i = i
 			return token{'i', name, start, i}, true
+		}
+		switch s[i] {
+		case '(':
+			l.paren++
+			if l.imageSet == i+1 {
+				l.setParen = l.paren
+			}
+		case ')':
+			if l.paren == l.setParen {
+				l.setParen = 0
+			}
+			if l.paren > 0 {
+				l.paren--
+			}
+		case '{', '}':
+			l.paren, l.setParen = 0, 0
 		}
 		l.i = i + 1
 		return token{s[i], s[i : i+1], i, i + 1}, true
@@ -415,16 +440,14 @@ func (s *Scan) merge(other Scan) {
 	s.URLs = append(s.URLs, other.URLs...)
 }
 
-// CSSRef is a reference ScanCSS reports (a url() token or the target of a
-// top-level @import), with the byte span of its token so it can be rewritten
-// in place. Value is fully escape-decoded, unlike ScanCSS's text.
+// CSSRef is a url() token or top-level @import target ScanCSS reports, with its token's byte span for
+// rewriting in place. Value is fully escape-decoded, unlike ScanCSS's text.
 type CSSRef struct {
 	Value      string
 	Import     bool
 	Start, End int
-	// Custom is the custom property whose declared value holds this url(),
-	// or "". The browser resolves such a url() only where a var() puts it
-	// into a real property, so its base is the consumer's, not this text's.
+	// Custom is the custom property whose value holds this url(), or "". The browser resolves such a url()
+	// only where a var() puts it into a real property, so its base is the consumer's.
 	Custom string
 }
 
@@ -497,14 +520,12 @@ type CustomUse struct {
 	// URLSyntax holds the @property registrations whose syntax accepts
 	// <url>; the browser resolves their url()s where they are declared.
 	URLSyntax map[string]bool
-	// Needs holds, for each property in Used, what an element must have for
-	// one of the rules that use it to apply (see Elements.Match), and
-	// HopNeeds the same for each hop in Hops.
+	// Needs holds, for each property in Used, what an element must have for a rule using it to apply
+	// (Elements.Match); HopNeeds the same for each hop in Hops.
 	Needs    map[string][][]string
 	HopNeeds map[string]map[string][][]string
-	// Editable reports a user-modify declaration (Chromium's
-	// -webkit-user-modify), which makes elements editable like
-	// contenteditable, whatever its value.
+	// Editable reports a user-modify declaration (Chromium's -webkit-user-modify), which makes elements
+	// editable like contenteditable, whatever its value.
 	Editable bool
 }
 
@@ -539,11 +560,8 @@ func CustomUses(text string, mode Mode) CustomUse {
 			u.HopNeeds[from][name] = append(u.HopNeeds[from][name], c)
 		}
 	}
-	// registering is the @property block being read, or "", and seen the
-	// descriptors it has: "url" for a syntax that accepts <url>, "inherits"
-	// and "initial-value". The browser drops a rule without inherits, or
-	// without initial-value for any syntax but "*", and the property then
-	// stays unregistered.
+	// registering is the @property block being read, or ""; seen has "url" (syntax accepts <url>), "inherits" and "initial-value".
+	// The browser drops a rule without inherits, or without initial-value unless syntax is "*".
 	registering := ""
 	seen := map[string]bool{}
 	register := func() {
@@ -649,12 +667,8 @@ func newCustomUse() CustomUse {
 		Needs: map[string][][]string{}, HopNeeds: map[string]map[string][][]string{}}
 }
 
-// block is one open {} block: a style rule, an at-rule whose style rules
-// apply as written (conditional), or another at-rule, inside which nothing
-// is judged. A style rule's needs are read from its prelude
-// (text[start:end]) only once a declaration in it uses a custom property:
-// reading every rule's selectors would allocate for each rule of a large
-// stylesheet.
+// block is one open {} block: a style rule, a conditional at-rule, or another at-rule inside which nothing is
+// judged. A rule's prelude is read only once a declaration uses a custom property, to spare large stylesheets.
 type block struct {
 	start, end  int
 	needs       [][]string
@@ -694,9 +708,8 @@ func currentNeeds(text string, blocks []block) [][]string {
 			b := &blocks[i]
 			if !b.parsed {
 				b.needs, b.parsed = anyElement, true
-				// The browser drops a comment without leaving whitespace
-				// (":/**/root" is ":root"), but the lexer's token positions
-				// would read it as a combinator, so such a selector is not judged.
+				// The browser drops a comment without whitespace (":/**/root" is ":root"), but the lexer's positions
+				// would read a combinator, so such a selector is not judged.
 				if prelude := text[b.start:b.end]; !strings.Contains(prelude, "/*") {
 					b.needs = selectorNeeds(tokens(prelude))
 				}
@@ -719,12 +732,8 @@ func tokens(text string) []token {
 	}
 }
 
-// selectorNeeds returns, for each selector of a list, the class, id and type
-// keys its rightmost compound requires (Elements keys). The element the rule
-// styles must match that compound, so a canvas without such an element never
-// applies the rule. Pseudo-classes, pseudo-elements, attributes and & only
-// narrow a compound further and are skipped; a selector this cannot read
-// (escapes, namespaces, anything unexpected) needs nothing.
+// selectorNeeds returns the class, id and type keys each selector's rightmost compound requires. Pseudos,
+// attributes and & only narrow it and are skipped; a selector this cannot read needs nothing.
 func selectorNeeds(prelude []token) [][]string {
 	var out [][]string
 	start, depth := 0, 0

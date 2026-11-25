@@ -325,8 +325,7 @@ describe("parseCanvasMessage: wheel", () => {
   });
 });
 
-// The canvas's text range: the rects the app paints and, once released, the text ⌘C copies. Over a cap the whole
-// message is dropped: the script clips before sending, so only a forged message is over.
+// Over a cap the whole message is dropped: the script clips before sending, so only a forged one is over.
 describe("parseCanvasMessage: text-hit", () => {
   const textHit = (over: Record<string, unknown> = {}) => ({ type: "text-hit", document: "doc-1", probe: 3, hit: true, ...over });
   test("keeps the document, the probe and whether the point is on text", () => {
@@ -487,7 +486,6 @@ describe("parseCanvasMessage: select", () => {
     expect(parseCanvasMessage(select())).not.toHaveProperty("answer");
     expect(parseCanvasMessage(select({ answer: "select-anchor" }))).toHaveProperty("answer", "select-anchor");
     expect(parseCanvasMessage(select({ answer: "select-anchor", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-anchor" });
-    // The pin answer went with the app's comment pins.
     for (const answer of ["select-comment", "pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
     expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-anchor" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
   });
@@ -599,7 +597,6 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
-// Space down/up and V/H forwarded from a focused canvas.
 describe("parseCanvasMessage: hand tool keys", () => {
   test("accepts Space down and up", () => {
     for (const down of [true, false]) {
@@ -627,13 +624,11 @@ describe("parseCanvasMessage: hand tool keys", () => {
   });
 });
 
-// The draft guard's transition request went with the app's comment drafts.
 test("drops a transition-intent message", () => {
   expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
 });
 
-// The canvas answers the app's pick with `picked`, bound to the pick command by
-// its own `pick` seq and its own type, never by the selection seq.
+// `picked` is bound to the pick command by its own `pick` seq and type, never by the selection seq.
 describe("parseCanvasMessage: picked", () => {
   const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, document: "doc", pick: 2, ...over });
 

@@ -1,22 +1,22 @@
 ---
-name: ship
+name: deliver
 description: Use to carry one small change through tdd→implement→code-review→refactor→(postmortem)→push in sequence. Proceeds automatically when gates pass, and stops and reports at failures and user-decision points.
 ---
 
-Conducts one small, surgical change in the order **`/tdd` → commit → `/implement` → commit → `/code-review` → `/refactor` → (`/postmortem`) → docs freshness → push**. Sub-skills do the body of each step; `/ship` only handles order, gates, and stopping. There is no deploy step.
+Conducts one small, surgical change in the order **`/tdd` → commit → `/implement` → commit → `/code-review` → `/refactor` → (`/postmortem`) → docs freshness → push**. Sub-skills do the body of each step; `/deliver` only handles order, gates, and stopping. There is no deploy step.
 
 **Load each sub-skill when its step starts** (Claude Code: the Skill tool; Codex: read `.agents/skills/<name>/SKILL.md`) and follow its body, even when you ran it earlier in the session. The gates below are only the exit checks: they leave out each sub-skill's own rules, such as `/tdd` stopping on an unexpected green, `/implement`'s self-check and POSTMORTEM grep, and `/refactor` seeing a bug finding's regression test go red before fixing it. Fixing review findings without `/refactor` skips those rules.
 
-> A sub-skill's report ("Next: /refactor" etc.) is not the end of the turn. Inside `/ship`, run the next step in the same turn. The only things that stop it are the conditions under 'Stop' below.
+> A sub-skill's report ("Next: /refactor" etc.) is not the end of the turn. Inside `/deliver`, run the next step in the same turn. The only things that stop it are the conditions under 'Stop' below.
 
 ## Usage
 
-- `/ship <change description>` / `/ship` — targets the change just agreed on.
-- `/ship bypass <change description>` — a large change whose design is already done in `docs/features/<slug>/`. Skips only the scope guard below; all other gates still run. Uses `tasks.md` as the plan source, and if the document splits the work into stages, runs only one stage at a time. Do not turn on `bypass` yourself if the user did not use it.
+- `/deliver <change description>` / `/deliver` — targets the change just agreed on.
+- `/deliver bypass <change description>` — a large change whose design is already done in `docs/features/<slug>/`. Skips only the scope guard below; all other gates still run. Uses `tasks.md` as the plan source, and if the document splits the work into stages, runs only one stage at a time. Do not turn on `bypass` yourself if the user did not use it.
 
 ## Lead (develop checkout)
 
-When `/ship`, `/orchestrate` or `/chain` is invoked in the develop checkout, this session is the **lead** (AGENTS.md 'Workflow' Lead and conductors): it starts a conductor for the work and merges the result, and runs none of the steps below. Harness and docs changes it still makes itself on develop (AGENTS.md 'Commit conventions'). A lead holds several conductors at once; that is the point of the split.
+When `/deliver`, `/orchestrate` or `/chain` is invoked in the develop checkout, this session is the **lead** (AGENTS.md 'Workflow' Lead and conductors): it starts a conductor for the work and merges the result, and runs none of the steps below. Harness and docs changes it still makes itself on develop (AGENTS.md 'Commit conventions'). A lead holds several conductors at once; that is the point of the split.
 
 **If this session is the lead, read [lead.md](lead.md) now and follow it** before anything else: how lead and conductor message each other, and the Lead steps 1–6 (start the conductor, watch, review the PR, resolve contention, merge and clean up, verify what the conductors left unverified).
 

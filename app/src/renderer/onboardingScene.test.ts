@@ -46,7 +46,6 @@ test("Welcome, Buddy, Agent, Project and Home follow the approved order", () => 
   expect(state).toEqual({ scene: "project", generation: 3 });
   state = nextScene(state, { type: "completed" }, { ...idle, auth: oneReady });
   expect(state).toEqual({ scene: "home", generation: 4 });
-  // Restarting first run starts at Welcome again.
   expect(initialScene(false)).toEqual({ scene: "welcome", generation: 0 });
 });
 

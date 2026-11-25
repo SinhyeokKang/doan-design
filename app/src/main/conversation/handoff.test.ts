@@ -130,8 +130,7 @@ describe("missedHandoffs", () => {
   });
 });
 
-// The listed canvases a turn's edit paths name, for missed lines and drawn cards (the edge cases promotion's grounds
-// used to pin).
+// The listed canvases a turn's edit paths name, for missed lines and drawn cards.
 describe("canvasesAt", () => {
   const root = "/private/tmp/repo";
   const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
@@ -161,7 +160,7 @@ describe("canvasesAt", () => {
   });
 });
 
-// How a handoff turn's queue goes out once every request resolved (one request: as before; several: draft when any was
+// How a handoff turn's queue goes out once every request resolved (one request: move; several: draft when any was
 // cancelled, otherwise the source).
 describe("handoffQueueOutcome", () => {
   it("keeps a single request's outcomes: started moves, refused stays, cancelled returns to the draft", () => {
@@ -178,7 +177,7 @@ describe("handoffQueueOutcome", () => {
   });
 });
 
-// One notice per turn: none without a started handoff, today's form for one, the targets in request order for several.
+// One notice per turn: none without a started handoff, the single form for one, the targets in request order for several.
 describe("handoffNoticeKind", () => {
   const from = { conversationId: "s", canvas: source };
   const b = { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } }, c = { conversationId: "c", canvas: { path: ".doan/canvases/c.html" } };

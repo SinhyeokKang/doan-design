@@ -1,16 +1,11 @@
-// Electron main script for R8d's checks: loads a canvas file in a hidden window of
-// the app's own Electron, so layout comes from the engine the app renders canvases
-// with, and prints the measurement as JSON on stdout. One file per launch: a second
-// window loading a file from another directory failed with ERR_FAILED (Electron 45).
-//   electron layout.cjs --user-data-dir=<tmp> <width> <file>
+// R8d's Electron main script, usage `electron layout.cjs --user-data-dir=<tmp> <width> <file>`; prints JSON.
+// One file per launch: a second window loading from another directory failed with ERR_FAILED (Electron 45).
 const { app, BrowserWindow } = require("electron");
 
 const [width, file] = process.argv.slice(2).filter(arg => !arg.startsWith("--"));
 
-// Runs in the page. Identities are frames and data-doan-id elements; `own` is the
-// element's direct text, so a renamed child does not change its parent, and `label`
-// its whole text, so a label wrapped in markup still reads as one. `within` is the
-// nearest identity above an element, so checks can tell markup inside an element.
+// Runs in the page. `own` is an identity's direct text (a renamed child leaves its parent unchanged), `label` its
+// whole text, and `within` the nearest identity above it.
 function measure() {
   const norm = text => text.replace(/\s+/g, " ").trim();
   const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }; };

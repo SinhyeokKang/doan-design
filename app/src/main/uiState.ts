@@ -12,17 +12,15 @@ export interface UiStateStore {
   // Validates the renderer's value and schedules a write of what survived;
   // false when the whole value is refused (wrong shape or over 64 KiB).
   save(value: unknown): boolean;
-  // Writes the last accepted value now, synchronously, unless it is already on
-  // disk: the app is quitting, and neither the debounce nor a write still
-  // running would finish.
+  // Writes the last accepted value now, synchronously, unless it is already on disk: the app is quitting, and neither
+  // the debounce nor a running write would finish.
   flushSync(): void;
   // Settles after the current write, for callers that must not race it.
   idle(): Promise<void>;
 }
 
-// The rename is synchronous on purpose: an async rename already handed to the
-// thread pool cannot be called back, so it could land after a quit's sync
-// flush and put an older value on disk.
+// The rename is synchronous: an async rename already handed to the thread pool cannot be called back, so it could land
+// after a quit's sync flush and put an older value on disk.
 export interface UiStateFs {
   writeFile(path: string, text: string): Promise<void>;
   renameSync(from: string, to: string): void;
@@ -113,10 +111,8 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
   };
 }
 
-// FolderStore's startup step for ui-state.json (ARCHITECTURE §7 'Root spellings'): rewrites the file with the memory
-// kept under each alias moved to its real path, before folders.json changes and before the renderer reads or saves it.
-// A missing file or one that would read as nothing (broken, over the limit) has nothing to move. False, with the file
-// as it was, when it cannot be read or written; the saved spellings then stay for this run.
+// FolderStore's startup step for ui-state.json (ARCHITECTURE §7 'Root spellings'): moves each alias's memory to its
+// real path. False, with the file as it was, when it cannot be read or written.
 export async function moveUiStateRoots(file: string, aliases: ReadonlyMap<string, string>): Promise<boolean> {
   let text: string;
   try {
