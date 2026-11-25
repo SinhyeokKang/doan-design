@@ -1,5 +1,6 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
+import { foldConversation, mergeEvents } from "../main/conversation/state";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
 export type StripState =
@@ -17,35 +18,28 @@ export function asksPerson(kind: StripState["kind"]): kind is "permission" | "qu
   return kind === "permission" || kind === "question";
 }
 
-// foldConversation's turn rules: only the latest turn counts and nothing after its terminal event. main's state.ts is
-// not imported because it pulls node:path.
+// The turn rules are main's fold (latest turn only, nothing after its terminal event); the strip adds what it shows.
 export function stripState(events: readonly ConversationEvent[]): StripState {
-  let state: StripState = { kind: "starting" }, turnId: string | null = null, terminal = false, activity: string | null = null;
-  const pending: (PermissionRequest | QuestionRequest)[] = [];
-  for (const event of events) {
-    if (event.type === "turn.started") { turnId = event.turnId; terminal = false; activity = null; pending.length = 0; state = { kind: "starting" }; continue; }
-    if (event.turnId !== turnId || terminal) continue;
-    switch (event.type) {
-      case "activity": activity = event.summary; state = { kind: "working", activity }; break;
-      case "message.delta": case "message.done": if (state.kind === "starting") state = { kind: "working", activity }; break;
-      case "permission.request": case "question.request": pending.push(event); break;
-      case "permission.resolved": case "question.resolved": {
-        // Only a request of the resolution's own kind, as main's fold keys them.
-        const kind = event.type === "permission.resolved" ? "permission.request" : "question.request";
-        const at = pending.findIndex(p => p.type === kind && p.requestId === event.requestId);
-        if (at !== -1) pending.splice(at, 1);
-        state = { kind: "working", activity };
-        break;
-      }
-      case "turn.done": terminal = true; state = { kind: "done" }; break;
-      case "turn.failed": terminal = true; state = { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}) }; break;
-      case "interrupted": terminal = true; state = { kind: "interrupted", reason: event.reason }; break;
+  const conversationId = events[0]?.conversationId ?? "";
+  const fold = foldConversation(events, conversationId, false);
+  if (fold.turnId === null) return { kind: "starting" };
+  const turn = mergeEvents(events, [], conversationId).filter(event => event.turnId === fold.turnId);
+  switch (fold.turn) {
+    case "idle": return { kind: "done" };
+    case "interrupted": return { kind: "interrupted", reason: fold.interruption! };
+    case "failed": {
+      const failed = turn.find((event): event is Extract<ConversationEvent, { type: "turn.failed" }> => event.type === "turn.failed")!;
+      return { kind: "failed", code: failed.code, ...(failed.model !== undefined ? { model: failed.model } : {}) };
     }
+    case "starting": return { kind: "starting" };
   }
-  const ask = pending[0];
-  if (!terminal && ask) return ask.type === "question.request" ? { kind: "question", requestId: ask.requestId, question: ask.questions[0]?.question ?? "" }
+  const ask = turn.find((event): event is ConversationEvent & (PermissionRequest | QuestionRequest) =>
+    event.type === "permission.request" ? fold.permissions[event.requestId] === "pending" : event.type === "question.request" && fold.questions[event.requestId] === "pending");
+  if (ask) return ask.type === "question.request" ? { kind: "question", requestId: ask.requestId, question: ask.questions[0]?.question ?? "" }
     : { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind, ...(o.detail ? { detail: o.detail } : {}) })) };
-  return state;
+  let activity: string | null = null;
+  for (const event of turn) if (event.type === "activity") activity = event.summary;
+  return { kind: "working", activity };
 }
 
 export type StripAction =

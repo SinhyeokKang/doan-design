@@ -101,6 +101,15 @@ test("events after a terminal event and from earlier turns do not change the sta
   expect(stripState(two)).toEqual({ kind: "working", activity: "Reading" });
 });
 
+// The strip folds as main's foldConversation does: an earlier build's archive line expires the open requests, and events
+// count in seq order, once each.
+test("the strip follows main's fold: an archive line expires open requests; events count by seq, once", () => {
+  expect(stripState(events(...started, ASK, { type: "conversation.archived" }))).toEqual({ kind: "working", activity: null });
+  const [user, turn, ask, resolved] = events(...started, ASK, { type: "permission.resolved", requestId: "r1", optionId: "a" });
+  expect(stripState([user!, turn!, resolved!, ask!])).toEqual({ kind: "working", activity: null });
+  expect(stripState([user!, turn!, ask!, ask!])).toMatchObject({ kind: "permission", requestId: "r1" });
+});
+
 test("each provider names itself", () => {
   expect(stripView({ kind: "working", activity: null }, { ...CTX, provider: "copilot" }).title).toBe("GitHub Copilot is working");
 });
