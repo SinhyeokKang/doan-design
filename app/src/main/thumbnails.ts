@@ -243,7 +243,12 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const recheck = async (root: string, paths?: ReadonlySet<string>) => {
     for (const [key, target] of known) {
       const before = basis.get(key);
-      if (target.root !== root || before === undefined || (paths !== undefined && !paths.has(target.path))) continue;
+      if (target.root !== root || (paths !== undefined && !paths.has(target.path))) continue;
+      // Nothing captured to compare, and nothing queued: the renderer asks again only when told.
+      if (before === undefined) {
+        if (queue.active !== key && !queue.pending.some((job) => job.key === key)) deps.changed(target);
+        continue;
+      }
       const now = await current(target);
       if (basis.get(key) !== before) continue;
       if (now === null || thumbnailStale(before, now, deps.appVersion, now.tokens)) {

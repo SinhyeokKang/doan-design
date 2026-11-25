@@ -469,9 +469,10 @@ test.each<[string, (f: Fixture) => void, (f: Fixture) => void]>([
   thumbnails.entriesChanged(f.entries);
   f.release();
   await vi.waitFor(() => expect([...f.changed].sort()).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]));
+  // The renderer asks again only when told: a card left waiting hears that its canvas changed.
   restore(f);
   thumbnails.entriesChanged(f.entries);
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.waitFor(() => expect(f.changed.filter((path) => path === ".doan/canvases/a.html")).toHaveLength(2));
   expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
   await started(f, 2);
   expect(f.captures.at(-1)?.endsWith("a.html")).toBe(true);
@@ -489,7 +490,6 @@ test("a project removed while a get reads the cache is captured when it is added
   thumbnails.entriesChanged(f.entries);
   await asked;
   await removal;
-  await new Promise((resolve) => setTimeout(resolve, 20));
   expect(f.captures).toEqual([]);
   f.entries = before;
   thumbnails.entriesChanged(f.entries);
