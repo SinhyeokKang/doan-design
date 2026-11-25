@@ -26,18 +26,13 @@ func sessionFromEnvironment(home string) *sessionRecording {
 }
 
 func sessionSettings(home, runtimePath, claude, thread, legacy, claudeConfig, codexConfig string) *sessionRecording {
-	if (claude != "" && (thread != "" || legacy != "")) || (thread != "" && legacy != "" && thread != legacy) {
+	runtime, id := workSession(claude, thread, legacy)
+	if id == "" {
 		return nil
 	}
-	runtime, id, config := "claude", claude, claudeConfig
-	if claude == "" {
-		runtime, id, config = "codex", thread, codexConfig
-		if id == "" {
-			id = legacy
-		}
-	}
-	if id == "" || strings.HasPrefix(id, "-") || strings.ContainsRune(id, 0) {
-		return nil
+	config := claudeConfig
+	if runtime == "codex" {
+		config = codexConfig
 	}
 	if config == "" {
 		if !filepath.IsAbs(home) {

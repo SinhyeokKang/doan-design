@@ -115,6 +115,20 @@ func Withheld(p string) bool {
 	return false
 }
 
+// Served reports whether repo-relative real path p is equal to or under a Scope entry, by path segment, and not Withheld.
+// doan check (css_not_served) and export judge serving with it.
+func Served(p string, scope []string) bool {
+	if Withheld(p) {
+		return false
+	}
+	for _, s := range scope {
+		if p == s || strings.HasPrefix(p, s+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // MetadataPath keeps project settings and other .doan/ metadata out of the serving scope.
 func MetadataPath(p string) bool {
 	return (p == ".doan" || strings.HasPrefix(p, ".doan/")) &&
