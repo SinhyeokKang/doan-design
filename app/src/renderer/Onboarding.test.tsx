@@ -278,7 +278,7 @@ test("an invalid URL marks the field and keeps Find repository disabled; an acce
   expect(access).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1" id="ob-project-error"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable"><strong class="ob-notice-title">Couldn’t access this repository<\/strong><span class="ob-notice-body">[^<]*<\/span><\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry<\/button><\/div><\/div>/);
   expect(access).not.toContain("ob-recovery");
   expect(access).not.toContain("ob-state-actions");
-  // The draft's error frame keeps the screen to the URL and its recovery.
+  // An unreachable repository keeps the screen to the URL and its recovery.
   expect(access).not.toContain("Use a folder on your Mac");
   expect(access).not.toContain("New folder");
 });
@@ -646,7 +646,7 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
   noSelectableButton(view);
 });
 
-// The candidates and setup-panel cases of config-error-source.html.
+// An unreadable folder on the candidates screen and on the setup panel.
 test("a folder Doan couldn’t read shows the CLI's message as the notice's selectable second line, on both screens", () => {
   const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
   const error = { code: "project_unreadable" as const, message: "The project folder cannot be read.", detail: reason };

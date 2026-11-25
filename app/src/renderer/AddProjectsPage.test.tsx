@@ -57,7 +57,7 @@ test("a cancelled clone on the page offers Choose local folder in its notice and
 });
 
 // The page's footer only leaves, so a local folder's setup offers Choose another folder under its panel;
-// first run keeps its shipped setup panel.
+// first run keeps its own setup panel.
 test("a local folder's setup offers Choose another folder on the page only", () => {
   const setup: Partial<ProjectStepState> = { phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } };
   const other = '<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>';

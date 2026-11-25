@@ -145,7 +145,7 @@ export type LocateOutcome = "shown" | "missing" | "timeout" | "unavailable";
 export const LOCATE_MISSING_TEXT = "No longer in the canvas";
 export const LOCATE_NOTE_MS = 4000;
 
-// Shown for 4 s or until the next action; the result arrives after the click or Enter that asked, so these listeners see
+// The locate note shows for 4 s or until the next action; the result arrives after the click or Enter that asked, so these listeners see
 // only later input. A scroll of `scroller` counts too, or the note would point at another line.
 export function useLocateNote(scroller?: () => EventTarget | null): [shown: boolean, show: () => void] {
   const [shown, setShown] = useState(0);
@@ -879,8 +879,8 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// The running turn reads as the indicator's settled stage kind, so it changes only when that kind does. `ended` holds the
-// cards as the history has them: a Stop stops their spinners before the turn's end arrives, and the count waits for it.
+// Changes only with the settled stage kind. It alone announces the background line (no live region there, Stopping too).
+// `ended`: history's cards, since a Stop ends their spinners before turn.end, and the count waits for it.
 function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
@@ -892,7 +892,7 @@ function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], p
   return title ? `${title}${title.endsWith(".") ? "" : "."} ${cards}` : cards;
 }
 
-// No live region and no focus. Its own timer redraws only this line each second, so the thread's items do not run every
+// The turn indicator has no live region or focus. Its own timer redraws only this line each second, so the thread's items do not run every
 // second; it stops while hidden and counts again from `at` (POSTMORTEM 2026-10-25: document visibility is not native visibility).
 export function TurnIndicator({ text, at, provider, visibility }: { text: string; at: string; provider: Provider; visibility: VisibleCalls }) {
   const [, tick] = useState(0);

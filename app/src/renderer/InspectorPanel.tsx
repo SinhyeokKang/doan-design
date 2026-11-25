@@ -39,7 +39,7 @@ export function selectionName(view: SelectionView): string {
   return view.element.doanId || view.tag;
 }
 
-// While folded or yielding it stays in the DOM out of the Tab order, so the Show button's aria-controls resolves. `onEscape`:
+// The inspector column: while folded or yielding it stays in the DOM out of the Tab order, so the Show button's aria-controls resolves. `onEscape`:
 // every panel tooltip hands its Escape to the canvas page (CanvasController.toolbarEscape), since Radix prevents the key first.
 export function InspectorColumn({ shown, width, bounds, onHide, onResize, preview, selection, document, inspect, tree, onNotice, onEscape }: {
   shown: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;

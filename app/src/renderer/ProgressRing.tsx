@@ -7,8 +7,8 @@ export function ringDanger(percent: number): boolean {
   return percent >= DANGER;
 }
 
-// r and stroke are each ring's geometry in viewBox units (the usage ring's 11/2, the context ring's 10.5/3 keeps a 2px stroke
-// at 16px). Other props reach the span, so a tooltip trigger's ref and handlers land on it (React 19 passes ref as a prop).
+// Shared by the usage and context rings: r and stroke are viewBox units (11/2; 10.5/3 keeps a 2px stroke at 16px). Other
+// props reach the span, so a tooltip trigger's ref and handlers land on it (React 19 passes ref as a prop).
 export type ProgressRingProps = ComponentProps<"span"> & { className: string; value: number | null; danger: boolean; r: number; stroke: number; "data-provider"?: string };
 export function ProgressRing({ value, danger, r, stroke, children, ...rest }: ProgressRingProps) {
   return <span {...rest} data-band={danger ? "full" : undefined}>

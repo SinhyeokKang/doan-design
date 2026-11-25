@@ -12,8 +12,8 @@ export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 export type DeleteTarget = { conversationId: string; root: string; title: string; provider: Provider }
   & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus } | { from: "sidebar"; after: string; canvasRow: string });
 
-// A menu item beside the row's radio item, so pressing it never picks the row. `onEscape` closes the menu: the highlighted
-// button's tooltip is the top dismissable layer, so without it the first Escape closes only the tooltip.
+// The title menu row's Delete, beside the row's radio item so pressing it never picks the row; unavailable, it keeps
+// aria-disabled and reads its reason. `onEscape` closes the menu: the button's tooltip is the top layer, or Escape closes only it.
 export function ConversationDeleteItem({ conversationId, title, deletable, onDelete, onEscape }: {
   conversationId: string; title: string; deletable: DeleteAvailability; onDelete(): void; onEscape(): void;
 }) {
@@ -37,7 +37,7 @@ export function unsentDraft(draft: DockedDraft | undefined): boolean {
   return !!draft && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
 }
 
-// Found by `dialog[open]` and its role (POSTMORTEM 2026-10-30). While the request is out the alert refuses its cancel:
+// The delete confirmation is found by `dialog[open]` and its role (POSTMORTEM 2026-10-30). While the request is out the alert refuses its cancel:
 // cancelling would stop nothing, and the store has one deleting mark per conversation.
 export function ConversationDeleteDialog({ view, reason, pending, cancel, confirm }: {
   view: { title: string; body: string }; reason: string | null; pending: boolean; cancel(): void; confirm(): void;

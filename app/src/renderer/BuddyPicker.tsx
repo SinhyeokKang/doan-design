@@ -6,7 +6,7 @@ import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
 import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, WHEEL_QUIET } from "./coverFlow";
 
-// Both rows are a radio group named by the visible heading, each radio named by the buddy's name and described by its
+// First run's row and Settings' rows are each a radio group named by the visible heading, each radio named by the buddy's name and described by its
 // line. `name` is the radio group's name and the prefix of the label ids.
 export interface BuddyPickerProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; select(id: BuddyId): void }
 
@@ -151,7 +151,7 @@ export function BuddyRows({ name, labelledBy, selected, disabled, inert, request
   </div>;
 }
 
-// No live role: the screen's own live region reads the failure once. `panel`: first run's white panel notice, where
+// The failed-save notice has no live role: the screen's own live region reads the failure once. `panel`: first run's white panel notice, where
 // Retry is subtle; on Settings' inset notice it is panel. `running`: Retry stays busy and keeps focus.
 export function BuddyFailureNotice({ failure, id, className, panel = false, running = false, retry }: { failure: BuddyFailure; id: string; className: string; panel?: boolean; running?: boolean; retry(): void }): ReactNode {
   return <div className={`doan-notice error${panel ? " doan-panel" : ""} ${className}`}>

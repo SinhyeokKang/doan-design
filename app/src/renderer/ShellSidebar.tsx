@@ -78,8 +78,8 @@ interface Props {
   // The viewed canvas's conversations under its row (PRODUCT §5 item 1).
   conversations?: SidebarConversations;
 }
-// `shown`: the conversation the canvas panel shows, or would show unfolded. `bare`: the sidebar slots without conversation states,
-// for the canvas row while its list carries those. `after`: the tree key focus goes to once deleted, computed before the alert.
+// `shown`: the panel's conversation, or the one it would show. `bare`: slots without conversation states, for a row whose list
+// carries them. `folded` is device-wide. `remove`'s `target.after`: focus after the delete, computed before the alert.
 export interface SidebarConversations {
   list(root: string): readonly ConversationSummary[] | "loading" | "error";
   shown: string | null;
@@ -103,14 +103,14 @@ export interface CanvasMenu {
 export type OpenMenu = { kind: "project" | "canvas"; key: string };
 // `canvas` and `conversation` rows hand a lost focus to their siblings, then their parent (recoveryKey).
 export interface TreeRow { key: string; parent?: string; canvas?: boolean; conversation?: boolean }
-// The project menu's root left its card, or the canvas menu's row left the tree or the page locked (POSTMORTEM 2026-11-01). A canvas
-// menu is never judged by the project rule, which would close it as soon as it opened.
+// A menu closes when, by kind: the project menu's root left its card; the canvas menu's row left the tree or the page
+// locked (POSTMORTEM 2026-11-01). A canvas menu is never judged by the project rule, which would close it at once.
 export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], menuRoot: string | null, rows: readonly TreeRow[], locked: boolean): boolean {
   if (menu?.kind === "project") return !cards.some(card => card.key === menu.key && card.rows.some(row => row.path === menuRoot));
   if (menu?.kind === "canvas") return locked || !rows.some(row => row.key === menu.key);
   return false;
 }
-// A canvas row hands focus to the next row of its group, else the previous, else the group's head; a conversation row does the
+// When the focused row leaves the tree: a canvas row hands focus to the next row of its group, else the previous, else the group's head; a conversation row does the
 // same within its list, else goes to its canvas row. Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
@@ -186,8 +186,8 @@ interface RowMenu {
   // Focus for a menu whose row left the tree while it was open.
   lostFocus(): void;
 }
-// Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows reach them and their reason is read through
-// `aria-describedby` (docs/design/onboarding.md 'Locked Back'). While locked the button is unavailable too.
+// Canvas row menu: unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows reach them and their reason is read
+// (docs/design/onboarding.md 'Locked Back'). While locked its button is unavailable too, unlike the project menu's.
 function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
   const exportReason = canvasExportReason(row, menu.exporting(root, row.path), false);

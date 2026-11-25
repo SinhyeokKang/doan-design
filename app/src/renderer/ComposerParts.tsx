@@ -116,8 +116,8 @@ export function ComposerChips(props: {
   </div>;
 }
 
-// ChipField draws one contenteditable element both shapes keep (remounting would drop focus and IME composition). Segments,
-// since {text, anchors} cannot tell a typed {{1}} from a chip's marker (anchorField.ts toMessage).
+// ChipField keeps one contenteditable across both shapes (a remount drops focus and IME composition). The value is segments,
+// converted at send (anchorField.ts toMessage): {text, anchors} cannot tell a typed {{1}} from a chip's marker.
 export interface ComboboxProps { listId: string; activeId: string | undefined }
 export interface ComposerFieldHandle {
   focus(caret?: "end"): void;
@@ -609,8 +609,8 @@ export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerVi
   </>;
 }
 
-// Full access keeps its name, warning icon and danger ink (data-warning, also under a stored Ask first); in the docked tray
-// the label may hide, so the tooltip and aria-label keep the name. data-run-mode: a longer label hides at a wider tray.
+// Full access keeps its name, warning icon and danger ink (data-warning, also when settings run a stored Ask first as it);
+// its label may hide in the tray, so tooltip and aria-label keep it. data-run-mode: that longer label hides at a wider tray.
 export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {
   const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel}
     data-warning={view.trigger.warning ? "" : undefined} data-run-mode={view.runMode} disabled={disabled}>
@@ -626,8 +626,8 @@ export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view
 // The Send slot. While a start is pending it keeps its place with a spinner. While a turn runs the docked composer puts
 // Stop or Queue in the same place (composerAction), so the slot never moves.
 const SLOT_LABELS: Record<ComposerAction, string> = { send: "Send", stop: "Stop", queue: "Queue" };
-// `hint`: a native title, since a disabled button gets no Radix tooltip. tip and description: the usage limit's reset in
-// the tooltip and sr-only description; no native title shows beside the tooltip.
+// `hint`: why Send is off when no line says so. tip and description: the usage limit's reset, in the tooltip and sr-only
+// description; the name stays the slot's label.
 export function SendButton({ enabled, sending, onSend, action = "send", hint, tip, description }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction; hint?: string | undefined; tip?: string | undefined; description?: string | undefined }) {
   const label = SLOT_LABELS[action];
   const hintId = useId();

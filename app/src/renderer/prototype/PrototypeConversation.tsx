@@ -15,7 +15,7 @@ import type { PrototypeConversationCalls, PrototypeConversationRun } from "./con
 import { NameTip } from "../NameTip";
 import { useThumbnailHub } from "../thumbnails";
 
-// Its thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal, which brings the main window
+// The prototype panel's thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal, which brings the main window
 // forward to act there; this window waits for nothing back.
 
 export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {} }: {

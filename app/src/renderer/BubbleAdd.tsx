@@ -5,8 +5,8 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 import { Crosshair, SlidersHorizontal } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
-// The host's native click listener stops the press before the viewport's listeners and calls App
-// (CanvasController.bubbleAdd), so the button has no onClick (ARCHITECTURE §3 'Actions and focus').
+// The host's native click listener stops the press before the viewport's listeners and calls App (CanvasController.bubbleAdd),
+// so no onClick. The tooltip's Escape goes to the controller (ARCHITECTURE §3 'Actions and focus').
 const REASON_ID = "canvas-bubble-add-reason";
 
 interface BubbleAddProps { enabled: boolean; reason: string | null; button: RefObject<HTMLButtonElement | null>; onEscape(event: KeyboardEvent): void }

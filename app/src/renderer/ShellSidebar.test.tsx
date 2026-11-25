@@ -701,7 +701,7 @@ it("CSS: the conversation list's chevron, Delete and status follow the canvas ro
   const spot = css.match(/\.shell-conv-row:is\(:hover, :focus-visible, :has\(:focus-visible\)\) > \.row-slot \{([^}]*)\}/)![1]!;
   expect(spot).toContain("clip-path: inset(50%)");
   expect(spot).not.toMatch(/display|visibility/);
-  // The draft's indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
+  // The indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
   expect(css).toContain(".shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2)));");
   expect(css).toContain(".shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
   // The shown conversation's row takes the pressed fill under the pointer, the others the hover fill.

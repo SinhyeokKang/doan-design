@@ -17,8 +17,8 @@ const PERMISSION = {
 } as const;
 const SAVE_FAILED = "Couldn’t save your notification choices. Your last saved choices still apply.";
 
-// Unreadable preferences.json applies defaults until the next change moves it aside; a newer one is kept and nothing is saved.
-// className places it: first run's Buddy step shows the same copy as a panel notice over its row.
+// The preferences.json read notice: unreadable means defaults until the next change moves the file aside; newer is kept,
+// nothing saved. className places it (first run's Buddy step shows it as a panel notice).
 export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined, className = "settings-notice"): ReactNode {
   if (notice === "broken") return <div className={`doan-notice error ${className}`} role="alert"><AlertIcon /><span className="selectable">Doan couldn’t read its saved settings, so defaults apply.</span></div>;
   if (notice === "newer") return <div className={`doan-notice ${className}`} role="status"><AlertIcon /><span className="selectable"><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>

@@ -292,7 +292,7 @@ test("a missing or checking attachment does not hold a command or its card", asy
   (field(card.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(card.onCard).toHaveBeenCalledWith(commandCard("claude", "model"));
-  // A message keeps the shipped check.
+  // A message keeps the attachment check.
   const message = setup({}, [[KEY, draft("Use this file", { attachments: [MISSING], shape: "box" })]]);
   (field(message.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();

@@ -548,7 +548,7 @@ test("a blocked refusal holds Send with its reason until the person edits the dr
   expect(has(render(), "No agent is ready to run.")).toBe(false);
 });
 
-// The shipped queue rule (not_running): the turn ended before the queue took the message.
+// The queue rule (not_running): the turn ended before the queue took the message.
 test("a queue refused as not_running goes out as a send of the same message", async () => {
   const { props, store, send, queue, render } = setup({}, [["conversation:a", draft("Also this")]]);
   props.turn = "running";
@@ -954,7 +954,7 @@ test("Enter, Shift+Enter, Shift+Tab, the / list and Backspace's chip removal kee
   const tab = tabKey({ shiftKey: true });
   (field(render()).onKeyDown as (event: unknown) => void)(tab);
   await flush();
-  // An attachment-only draft sends with Enter as before; the suggestion never goes with it.
+  // An attachment-only draft sends with Enter; the suggestion never goes with it.
   expect(send).toHaveBeenCalledTimes(1);
   expect(send.mock.calls[0]![0]).toMatchObject({ attachments: [{ id: "f1" }] });
   expect(JSON.stringify(send.mock.calls[0]![0])).not.toContain(SUGGESTION);

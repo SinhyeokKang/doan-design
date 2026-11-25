@@ -40,7 +40,7 @@ import type { SettingsTarget } from "./settingsSections";
 import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
 import { useActivationFocus } from "./activationFocus";
 
-// Its host (Overview, canvas panel) owns the conversation, the drafts map, the lists and every call to main; this component
+// The docked composer's host (Overview, canvas panel) owns the conversation, the drafts map, the lists and every call to main; this component
 // decides shape, the Send slot, the reason line and focus.
 
 // files: the attachments' names, sizes and kinds, for the thread to draw a queued message Send now moves there; main
@@ -284,8 +284,8 @@ export function DockedComposer(props: DockedComposerProps) {
   usePresetListOutside(slashOpen, slashList, () => field.current?.element() ?? null, () => setDismissedKey(key), props.canvasPress);
   const chips = [...draft.attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(draft.preset ? [{ label: draft.preset.title, preset: true }] : [])];
 
-  // The capsule's wrap is measured after the draw below. An edit drops a refusal the person is answering; `shapeOnly` (the shape
-  // catching up with host chips) keeps a refusal the host just reported with those chips.
+  // An edit drops a refusal the person is answering; `shapeOnly` (the shape catching up with host chips) keeps one the host just
+  // reported with those chips, and a send refusal keeps its own draft comparison. The capsule's wrap is measured after the draw.
   const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false, shapeOnly = false) => {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
@@ -681,8 +681,8 @@ export function QueueRows(props: QueueRowsProps) {
     if (lost.current && !wanted) { lost.current = false; handFocus(() => props.focusInput()); }
   });
 
-  // Only while focus is still on the leaving row (or was dropped with it): an agent may read the message long after the press,
-  // and focus the person moved meanwhile stays.
+  // Place focus only while it is still on the leaving row (or was dropped with it): an agent may read the message long after
+  // the press, and focus the person moved meanwhile stays.
   const focusAfter = (id: string, asked: QueueRowsProps["items"]) => {
     const active = document.activeElement;
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;

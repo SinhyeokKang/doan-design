@@ -160,7 +160,7 @@ test("the canvas's press signal closes an open Presets popover without returning
     expect(autoFocus.preventDefault).toHaveBeenCalled();
     expect(picked).not.toHaveBeenCalled();
 
-    // A later close Radix makes itself (Escape) returns focus as before.
+    // A later close Radix makes itself (Escape) returns focus to the trigger.
     (draw().root.onOpenChange as (open: boolean) => void)(true);
     (draw().root.onOpenChange as (open: boolean) => void)(false);
     const escape = { preventDefault: vi.fn() };

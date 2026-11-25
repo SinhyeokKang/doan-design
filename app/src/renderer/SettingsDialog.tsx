@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
-// Opens with focus on Cancel, so automatic focus never lands on the action that writes. `pending`: while the owner's write is
+// The confirmation opens with focus on Cancel, so automatic focus never lands on the action that writes. `pending`: while the owner's write is
 // out the verb spins and Cancel, Escape and the verb stay focusable but do nothing; the owner unmounts it once answered.
 export function SettingsDialog({ title, label, description, children, verb, pending, answer }: { title: ReactNode; label?: string; description: ReactNode; children?: ReactNode; verb: string; pending?: boolean; answer: (allow: boolean) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);

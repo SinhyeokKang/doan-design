@@ -127,8 +127,8 @@ const NEW = "";
 const NO_ROWS: readonly CanvasRow[] = [];
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
-// Whether the shown composer refuses attachments (Attach, paste, drop, Capture area): a terminal session keeps its own
-// model and effort, or an external agent started it. A resume held while its terminal works is a new conversation.
+// The composer refuses attachments (Attach, paste, drop, Capture area) when it continues a terminal session or shows an
+// external agent's conversation. A resume held while its terminal works is a new conversation.
 export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
   if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
   return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";

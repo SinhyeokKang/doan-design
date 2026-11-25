@@ -275,8 +275,8 @@ type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "cha
 // status: a state, not a failure (a cancelled clone); it has no error tone and is announced politely.
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; status?: true; actions: { command: ProjectAction; label: string }[] }
 const action = (command: ProjectAction, label: string) => ({ command, label });
-// fromUrl: a folder chosen there must be that repository's. insideProject: the doan project a clone destination sits in. home
-// shortens New folder's location; directory: that existing name is a folder, so it can be used.
+// fromUrl: a chosen folder must be that repository's. folder: named in a mismatch, as "This folder" would read as the clone
+// destination. home shortens New folder's location; directory: that existing name is usable.
 export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null, home: string | null = null, directory = true): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
@@ -628,12 +628,12 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <StorageCard id="ob-setup-storage" value={state.storage ?? "repo"} kept={keptLocal(p)} disabled={busy} change={on.setStorage} />
         {/* The panel has no change list, so the new repository a plan outside Git creates is told here; it follows the radio. */}
         {gitInitShown && <p className="ob-provider-help storage-git-init" id={GIT_INIT_ID}>Doan will run <code>git init</code> here to create a Git repository.</p>}
-        {/* The page consents through its footer's Add project; first run keeps its shipped button in the panel. */}
+        {/* The page consents through its footer's Add project; first run keeps its own button in the panel. */}
         {notice ? <ProjectNoticeView notice={notice} run={run} paths={[`${p.path}/.git`]} />
           : use === "onboarding" && <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" aria-describedby={gitInitShown ? GIT_INIT_ID : undefined} onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
-      {/* The page offers another folder under its panel; first run keeps its shipped panel. */}
+      {/* The page offers another folder under its panel; first run keeps its own panel. */}
       {p.kind === "setup" && p.url === null && use === "addPage" && smallActions(["Choose another folder", "chooseFolder"])}
       {p.kind === "selecting" && <Progress panel={panel} title="Setting up your project" body={shown(p.path, home)} />}
     </>;
@@ -734,7 +734,7 @@ function useOverlayKeys(overlay: RefObject<HTMLDialogElement | null>, stacked: R
   }, [overlay, stacked]);
 }
 
-// For someone who finished first run without a buddy saved (main decides at launch). Continue saves the buddy on screen unless a
+// The buddy screen for someone who finished first run without a buddy saved (main decides at launch). Continue saves the buddy on screen unless a
 // pick already saved, then closes; a failed save keeps the screen with its notice.
 export function BuddyIntro({ selection, preferences, onClose }: { selection: BuddySelection; preferences: PreferencesSnapshot | null; onClose: () => void }) {
   const heading = useRef<HTMLHeadingElement | null>(null);

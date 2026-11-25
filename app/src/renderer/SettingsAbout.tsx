@@ -19,7 +19,7 @@ const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity
 const AUTO_SAVE_FAILED = "Couldn’t save your automatic-check choice. Your last saved choice still applies.";
 const BLOCKED_READ = `${UPDATE_BLOCKED.title}. ${UPDATE_BLOCKED.text}`;
 
-// No part has a live role; the page's one live region reads results. `notesFailed` comes last under the row because it answers
+// The Version row has no live role; the page's one live region reads results. `notesFailed` comes last under the row because it answers
 // the latest press.
 function versionRow(row: UpdateRowView | null, notesFailed: string | null, stateId: string, press: (button: UpdateButton) => void) {
   let trailing: ReactNode = null;
@@ -31,7 +31,7 @@ function versionRow(row: UpdateRowView | null, notesFailed: string | null, state
     const buttons = row.actions.map(button => <button key={button.action} type="button" className="doan-button"
       data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} aria-disabled={button.busy} aria-busy={button.busy}
       onClick={() => { if (!button.busy) press(button); }}>{button.busy ? <><span className="doan-spinner" aria-hidden="true" />{button.label}</> : button.label}</button>);
-    // A lone Check for Updates sits in the trailing column as the shipped rows' single control does; a pair, or an
+    // A lone Check for Updates sits in the trailing column as other rows' single control does; a pair, or an
     // action answering the line under the row, sit together in the actions group.
     trailing = row.actions.length === 1 && row.error === null ? buttons : <span className="update-msg-actions">{buttons}</span>;
   }

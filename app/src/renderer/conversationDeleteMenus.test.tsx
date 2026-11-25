@@ -144,7 +144,7 @@ test("Overview: Delete asks the host about that conversation and its trigger, an
   expect(event.preventDefault).not.toHaveBeenCalled();
   expect(onDeleteConversation).toHaveBeenCalledWith({ conversationId: A, root: ROOT, title: "Checkout copy", provider: "claude", from: "overview" }, null);
   expect(select).not.toHaveBeenCalled();
-  // The closing menu leaves focus to the alert; a later close returns it as before.
+  // The closing menu leaves focus to the alert; a later close returns it to the trigger.
   const close = menu.contents.find(props => props["className"] === "doan-floating doan-menu conv-menu")!["onCloseAutoFocus"] as (event: { preventDefault(): void }) => void;
   const first = { preventDefault: vi.fn() }, second = { preventDefault: vi.fn() };
   close(first); close(second);

@@ -151,7 +151,7 @@ test("near the limit a counter shows what is left; over it Send is disabled and 
   expect(over).toContain("<span>Shorten the message to send it.</span>");
 });
 
-// Values pinned where a later edit would silently move them; each is a value the confirmed draft relies on.
+// Values pinned where a later edit would silently move them.
 test("Home CSS keeps the draft's measured icon sizes, popover status type, chip ink and shared button paddings", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   // Effort and tray chevrons step down to 14px with their icons; the model and project chevrons stay 16px.
@@ -163,10 +163,10 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toContain(".doan-menu-item .check { flex: none; width: 12px;");
   // A portalled popover inherits the page's 13px body; the loading and no-match line is body-sm 14/20.
   expect(css).toMatch(/\.popover-state \{[^}]*font-size: var\(--type-body-sm-size\); line-height: var\(--type-body-sm-line-height\);/);
-  // The preset chip's x renders in the shared chip-remove metadata ink, as the confirmed draft does.
+  // The preset chip's x renders in the shared chip-remove metadata ink.
   expect(css).toContain(".chip-remove.doan-icon-button { color: var(--text-metadata); }");
   expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
-  // Send keeps the shared disabled fill while sending, as the draft renders it.
+  // Send keeps the shared disabled fill while sending.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
 });
 

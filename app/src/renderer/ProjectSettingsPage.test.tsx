@@ -206,7 +206,7 @@ test("No token CSS and nothing shared: the empty guidance with Choose, and Add f
   unmount();
 });
 
-// One row per problem tile of the draft.
+// One row per problem kind.
 const PROBLEM_TILES: [string, () => FolderEntry, string, string[], boolean][] = [
   ["Missing", missing, "Doan can’t find this folder, so its settings can’t be read or changed.", ["Locate"], false],
   ["Not set up", uninitialized, "This folder isn’t set up for Doan yet, so it has no settings to change.", ["Set up"], true],
@@ -381,7 +381,7 @@ test("Add file or folder asks first over the page: the title names the path, Can
   click("Add file or folder"); await flush(); render();
   expect(doan.chooseConfigPath).toHaveBeenCalledWith(ROOT, "serve");
   const dialog = confirmation()!;
-  // The title shows the path as code, as the draft does; the dialog's accessible name is the plain sentence.
+  // The title shows the path as code; the dialog's accessible name is the plain sentence.
   expect(dialog.props).toMatchObject({ label: "Share design/brand with canvases?", verb: "Share" });
   expect(words(dialog.props.title)).toBe("Share design/brand with canvases?");
   expect(all(dialog.props.title as ReactNode).some(element => element.type === "code" && element.props.children === "design/brand")).toBe(true);

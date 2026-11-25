@@ -6,22 +6,22 @@ import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 
 export const LIST_FAILED_TEXT = "Couldn’t read conversations";
 
-// DESIGN 'Busy action': while its read runs it keeps its fill, label and focus, with the spinner, aria-busy and aria-disabled.
+// The list's Retry (DESIGN 'Busy action'): while its read runs it keeps its fill, label and focus, with the spinner, aria-busy and aria-disabled.
 // Plain functions, not components, so the button stays the element its host draws.
 export function listRetryButton(retry: ListRetry, variant: "panel" | "subtle", onRetry: () => void) {
   return retryButton({ running: retry.running, variant, onRetry });
 }
 
-// While its request is out the line and the button stay, so focus stays on it. `describedBy` links the line that says what it
-// retries (DESIGN 'Accessible names'); onRetry gets the pressed button, so a host can place focus once the line goes.
+// Any Retry beside a failure line: while its request is out the line and button stay, so focus stays. `describedBy` links the
+// line that says what it retries (DESIGN 'Accessible names'); onRetry gets the pressed button, to place focus once it goes.
 export function retryButton({ running, variant, describedBy, onRetry }: { running: boolean; variant: "panel" | "subtle"; describedBy?: string; onRetry(button: HTMLElement | null): void }) {
   return <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} aria-describedby={describedBy}
     aria-disabled={running || undefined} aria-busy={running || undefined} onClick={(event?: MouseEvent<HTMLButtonElement>) => { if (!running) onRetry(event?.currentTarget ?? null); }}>
     {running ? <><span className="doan-spinner" aria-hidden="true" />Retry</> : "Retry"}</button>;
 }
 
-// `work` resolves true on success; a press while one runs does nothing. On success focus that was on the Retry moves to the first
-// control still in its row, else its section, else its page, instead of falling to <body>.
+// Retry state for an untracked request: `work` resolves true on success; a press while one runs does nothing. On success focus
+// on the Retry moves to the first control still in its row, else its section, else its page, instead of falling to <body>.
 const CONTROLS = 'button:not(:disabled):not([aria-disabled="true"]), [role="switch"]:not(:disabled), input:not(:disabled), [href]';
 export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pressed?: HTMLElement | null): void } {
   const [state, setState] = useState(LIST_RETRY_IDLE);

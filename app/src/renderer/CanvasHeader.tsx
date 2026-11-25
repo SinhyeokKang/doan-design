@@ -24,8 +24,8 @@ export interface CanvasHeaderNavigation {
   worktree(root: string, canvasPath: string): void;
 }
 
-// It reuses the Overview header box (.ov-head), so the two headers line up. Each Show button names its panel in
-// `data-panel-target`, which App's focus return reads. `view` changes without an App render; `state` may lag it.
+// Show buttons name their panel in `data-panel-target`, which App's focus return reads. An open menu closes when `canvasKey`
+// changes; `fallbackFocus` takes focus a closing menu cannot return. `state` may lag `view`, which changes without an App render.
 export function CanvasHeader({ navigation, state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel, inspector }: {
   navigation: CanvasHeaderNavigation | null; state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
   fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };

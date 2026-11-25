@@ -138,10 +138,11 @@ export interface HeroComposerProps {
 
 // The group sits 64px above the panel's centre with at least --space-8 around it.
 const STAGE_LIFT = 64, STAGE_MIN = 32;
-// The group's height in its reference state (an empty two-line field, suggestions shown): what a draft adds is left out, so it
-// grows downward from a field that stays where it was. A project none of whose roots is a list can't take a request.
+// A project none of whose roots is a list can't take a request.
 function projectDown(card: { rows: readonly FolderEntry[] }): boolean { return card.rows.every(row => row.kind !== "list"); }
 
+// The group's height in its reference state (an empty two-line field, suggestions shown): what a draft adds is left out, so it
+// grows downward from a field that stays where it was.
 function referenceHeight(stage: HTMLElement): number {
   const box = (node: Element) => node.getBoundingClientRect();
   const card = stage.querySelector(".composer-card"), field = stage.querySelector(".composer-input");
@@ -533,8 +534,8 @@ export function HeroComposer(props: HeroComposerProps) {
     queueMicrotask(() => field.current?.focus());
   };
 
-  // A first message a quit stopped before main accepted it comes back once after what is typed, when its project is picked.
-  // main hands it over only once; one that comes while a start is out waits for it to settle.
+  // A first message a quit stopped returns once, after what is typed, waiting out a start in progress. main hands it over
+  // only once, so landing picks its own project again even if another was picked meanwhile.
   useEffect(() => {
     if (!root) return;
     restoreStartDraft(window.doan, memory.current.startsAsked, root, { root }, returned => {

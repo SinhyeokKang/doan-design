@@ -1807,7 +1807,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
   // A target the list does not name yet waits for that read up to HANDOFF_WAIT_MS; any choice of the person's meanwhile
-  // turns the move into the toast (POSTMORTEM 2026-10-25, 2026-10-26). It never closes a dialog.
+  // turns the move into the toast (POSTMORTEM 2026-10-25, 2026-10-26). It never closes a dialog: the person did not ask for it.
   interface HandoffWait { notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; revision: number; entry: FolderEntry | undefined }
   const handoffWait = useRef<HandoffWait | null>(null);
   // A toast's Open whose canvas the list did not name yet: it waits the same way, and a later move of the person's drops
@@ -2429,8 +2429,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     inspectorFocus.current = null;
     if (to) document.querySelector<HTMLElement>(to === "show" ? HEADER_SHOW_INSPECTOR : ".doan-insp-panel .doan-panel-hide")?.focus();
   }, [inspectorPanel.open]);
-  // The column turns inert in the same commit that hides it, so focus has already fallen to the page when an effect runs;
-  // only this says it was there. Read when focus arrives, since the control may have been redrawn.
+  // focusInInspector records that focus was in the column: it turns inert in the commit that hides it, so focus is already on
+  // the page when an effect runs. Read when focus arrives, since the control may have been redrawn.
   const inspectorActivation = useRef<() => void>(() => {});
   const inspectorShowFocused = useRef<Element | null>(null);
   const focusInInspector = useRef(false);
@@ -2448,7 +2448,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => document.removeEventListener("focusin", focusin);
   }, []);
   // A window narrowed under the inspector's minimum takes the column away; focus inside goes to Show inspector. Widening
-  // again removes it, so focus goes on to Hide inspector.
+  // again removes it, so focus on it goes on to Hide inspector.
   const inspectorWasShown = useRef(inspectorShown);
   // A hand-off made while the window is in the background is made again on activation (POSTMORTEM 2026-11-17): the
   // platform restores focus to the control it remembered, here one the column took away, and lands on Hide sidebar.

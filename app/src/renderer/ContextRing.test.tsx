@@ -41,7 +41,7 @@ describe("ContextRingView button", () => {
     expect(markup).toMatch(/^<button type="button" class="context-ring" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens" aria-haspopup="dialog" aria-expanded="false"/);
     expect(markup).not.toContain('role="img"');
     expect(markup).not.toContain("tabindex");
-    // The dial is the shipped 16px ring geometry, hidden from assistive tech; no text or mark is added.
+    // The dial is the composer's 16px context ring geometry, hidden from assistive tech; no text or mark is added.
     expect(markup).toMatch(/<span class="context-ring-dial" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/button>$/);
     expect(markup.replace(/<[^>]*>/g, "")).toBe("");
   });

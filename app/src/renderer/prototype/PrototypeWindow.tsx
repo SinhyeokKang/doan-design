@@ -32,7 +32,7 @@ import { useActivationFocus } from "../activationFocus";
 
 export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void } & PrototypeConversationCalls;
 
-// The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
+// The reading line waits so a quick load does not flash it in, as the problem overlay's does.
 const READING_DELAY_MS = 300;
 const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-state-line";
 // Export's sr-only reason while it is unavailable: Radix links the tooltip only while it is open.
@@ -223,7 +223,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const runGen = currentRun(layers, gen)?.gen ?? null;
   const loadingRun = phase === "loading" ? runGen : null;
 
-  // A move arms the pointer Reload's focus return when focus was in the frame and names the frame it moves to for the live region.
+  // A followed link: a move arms the pointer Reload's focus return when focus was in the frame and names the frame it moves to for the live region.
   // The broken link's toast stays off an export's toast, which it would replace.
   const followLink = (message: GotoMessage) => {
     const current = viewRef.current;

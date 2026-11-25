@@ -43,8 +43,7 @@ function RefreshTip({ onEscape, children }: { onEscape(): void; children: ReactE
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>Refresh usage</TooltipContent></Tooltip>;
 }
 
-// The provider's header row lifted whole, then the Context window line and the row's windows or reason. Refresh comes
-// after the body so Tab goes body → Refresh; the grid draws it at the head's end.
+// Refresh comes after the body so Tab goes body → Refresh; the grid draws it at the head's end.
 export function ContextDrawerPanel({ provider, view, titleId, bodyRef, onRefresh, onRefreshFocus, onOpenChange }: Pick<ContextRingViewProps, "provider" | "view" | "titleId" | "bodyRef" | "onRefresh" | "onRefreshFocus" | "onOpenChange">) {
   const { usage, busy } = view;
   return <>

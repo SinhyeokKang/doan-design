@@ -224,8 +224,8 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
   return { rig, dispose() { rig.dispose(); canvas.removeEventListener("webglcontextrestored", restored); restore(); } };
 }
 
-// A buddy that drew and lost its context mounts again on webglcontextrestored, else after waits doubling from RETRY_MS, at
-// most RETRIES tries (ARCHITECTURE §7 'Buddy (mascot)'); dockedBuddyShell.ts recovers on the same schedule.
+// Two GPU resets in a row make Chromium refuse WebGL for about two minutes with no restore event, so the doubling
+// retries from RETRY_MS must outlast that; a buddy that never drew is not retried here.
 export const RETRY_MS = 1000;
 export const RETRIES = 8;
 
