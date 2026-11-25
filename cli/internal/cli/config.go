@@ -166,12 +166,26 @@ func configPath(root, path string, token bool) (string, *Error) {
 }
 
 // withheldAsTyped judges the path as typed below root, so a link named .env-docs is refused even when it resolves to an
-// allowed directory. The lexical form goes first: belowRoot would drop a typed in-repo link that points back to root.
+// allowed directory. Under another spelling of root it cuts at the farthest ancestor that is root, which keeps a typed
+// in-repo link back to root in the name (belowRoot cuts at the nearest).
 func withheldAsTyped(root, path string) (bool, error) {
 	typed, err := filepath.Rel(root, path)
 	if err != nil || typed == ".." || strings.HasPrefix(typed, ".."+string(filepath.Separator)) {
-		if typed, err = belowRoot(root, path); err != nil {
+		rootInfo, err := os.Stat(root)
+		if err != nil {
 			return false, err
+		}
+		typed = ""
+		path = filepath.Clean(path)
+		for ancestor := path; ; ancestor = filepath.Dir(ancestor) {
+			if info, err := os.Stat(ancestor); err == nil && os.SameFile(info, rootInfo) {
+				if typed, err = filepath.Rel(ancestor, path); err != nil {
+					return false, err
+				}
+			}
+			if filepath.Dir(ancestor) == ancestor {
+				break
+			}
 		}
 	}
 	return repo.Withheld(filepath.ToSlash(typed)), nil
