@@ -303,6 +303,31 @@ test("a Set Up from the overlay that succeeds removes the overlay and puts focus
   expect(focused.at(-1)).toBe("composer");
 });
 
+// Main publishes the set-up folder before Set Up replies, so App closes the dialog first; the dialog's late reply
+// must not arm the modal focus return again, or the next unrelated folder change takes focus from the person.
+test.each([
+  ["success", (dialog: { onClose(): void }) => dialog.onClose(), [listed("/w/a")], undefined],
+  ["rerooted", (dialog: { onRerooted(root: string, message: string): void }) => dialog.onRerooted("/w/b", "This folder is inside /w/b."), [listed("/w/b")], { from: "/w/a", root: "/w/b" }],
+] as const)("a %s Set Up reply after the folder list closed the dialog moves no focus later", (name, reply, after, focus) => {
+  render(); folders([uninitialized()]);
+  toOverview();
+  const button = element("setUp", ["problem-overlay", "workspace"]);
+  dom(button);
+  overlay()!.onAction("setUp"); render();
+  const dialog = find<{ onClose(): void; onRerooted(root: string, message: string): void }>(ProjectSetupDialog)[0]!.props;
+  Object.assign(button, { isConnected: false });
+  dom(BODY);
+  folders([...after], focus);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  // The person types somewhere else; then the reply lands.
+  dom(element("field", ["ov-main", "workspace"]));
+  reply(dialog as never); render();
+  focused.length = 0;
+  folders([...after, listed("/w/c")]);
+  expect(focused).toEqual([]);
+  if (name === "rerooted") expect(harness.toast.show).toHaveBeenCalledWith("This folder is inside /w/b.");
+});
+
 test("a Set Up closed by an outside change with the window in the background focuses the composer again on activation", () => {
   // POSTMORTEM 2026-11-17: activation restores focus to the Set Up button that went, and with it gone to Hide sidebar.
   render(); folders([uninitialized()]);

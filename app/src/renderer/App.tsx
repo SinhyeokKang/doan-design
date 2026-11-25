@@ -236,6 +236,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // A Set Up reply can come after the folder list closed the dialog; that late reply must not close it again.
+  const setupRef = useRef(setup); setupRef.current = setup;
   // main's plan for the canvas is null until it answers; `seq` drops a closed dialog's late plan. Set through
   // `changeTrashing`, so a reply that lands before the next render sees the dialog as it is.
   const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number; move: TrashMove } | null>(null);
@@ -2719,7 +2721,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
-  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
+  {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); if (setupRef.current !== setup) return; setSetup(null); modalClosed(); }} onRerooted={(root, message) => { setHighlight([root]); toast.show(message); if (setupRef.current !== setup) return; choose(root); setSetup(null); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancelRemove(); }}
     onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); cancelRemove(); } }}>
