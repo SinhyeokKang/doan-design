@@ -22,12 +22,32 @@
      - user 프레임 `tool_result`(`transport.ts:430`)의 최상위 `tool_use_result`(`sdk.d.ts:6573`)에서 `structuredPatch`의 `+`/`-` 줄을 센다.
      - `TransportState`에 edit 도구의 id 집합을 따로 둔다. 지금의 `state.activities`에는 모든 도구 id가 들어 있기 때문이다. 프레임에 `tool_result`가 정확히 하나이고, 그 `tool_use_id`가 이 집합에 있을 때만 센다. 결과가 여러 개인 프레임은 어느 결과의 `tool_use_result`인지 알 수 없으므로 세지 않는다.
      - `is_error`인 결과와 패치가 없는 결과는 기록하지 않는다. 새 파일 Write에서 `structuredPatch`가 비어 있으면, `type: "create"`일 때 `content`의 줄 수를 추가 줄로 센다.
-     - `userModified`, MultiEdit, `replace_all`의 실제 모양은 T0에서 확인한다.
-   - Codex: `item/completed`의 fileChange가 `status: "completed"`일 때, 각 `changes[].diff`를 unified diff로 센다. `changes[].kind`는 객체이므로 `kind.type`(`add`/`delete`/`update`)을 읽는다(`fixtures/codex.json:51-53`). `add`·`delete`일 때 diff가 전체 내용인지 hunk인지는 T0에서 확인한다. `declined`·`failed`는 기록하지 않는다. 한 항목에 같은 경로가 두 번 나오면 결과 이벤트도 두 번 나오고, renderer가 더한다.
+     - T0 관찰(2.1.284·2.1.332, 두 버전이 같다):
+       - Edit 결과의 `tool_use_result`는 `filePath`·`oldString`·`newString`·`originalFile`·`structuredPatch`·`userModified`·`replaceAll`을 가진다(2.1.332는 `contentNotInModelContext`도 있다). 수정 한 줄은 hunk 안의 `-` 한 줄과 `+` 한 줄이다.
+       - `replace_all`: `replaceAll: true`이고, 바뀐 세 줄이 hunk 하나에 `-`/`+` 세 쌍으로 들어 있다(+3 −3).
+       - 새 파일 Write: `type: "create"`, `structuredPatch: []`, `originalFile: null`이다. 그래서 `content`의 줄 수를 센다.
+       - 기존 파일 덮어쓰기 Write: `type: "update"`이고 `structuredPatch`에 hunk가 있다(+2 −4). 두 버전 모두 덮어쓰기 전에 Read를 먼저 불렀다.
+       - 거부와 실패: `tool_result`가 `is_error: true`이고 `tool_use_result`는 객체가 아니라 `"Error: …"` 문자열이다. 그래서 "객체이고 `structuredPatch`가 배열일 때만 센다"로 충분히 걸러진다.
+       - 한 메시지의 Edit 두 개(`parallel`)도 `tool_result`가 각각 다른 user 프레임으로 왔다. `tool_result`가 둘인 프레임은 녹화되지 않았으므로, 세지 않는 규칙은 방어용으로 남긴다.
+       - MultiEdit 도구는 두 버전 모두 없다(2.1.332는 ToolSearch가 찾지 못했다). 파일 삭제는 Bash `rm`으로 했으므로 편집이 아니다.
+       - `userModified`는 모든 녹화에서 `false`였다. Doan의 `canUseTool`은 입력을 그대로 돌려주므로 `true`가 되는 경로는 녹화하지 못했다.
+   - Codex: `item/completed`의 fileChange가 `status: "completed"`일 때 `changes[]`를 하나씩 센다. `changes[].kind`는 객체이므로 `kind.type`을 읽는다(`update`는 `{type, move_path}`, `add`·`delete`는 `{type}`).
+     - `update`: `diff`는 `---`/`+++` 헤더 없이 `@@`로 시작하는 hunk다. hunk 안의 `+`/`-` 줄을 센다.
+     - `add`: `diff`는 hunk가 아니라 새 파일의 전체 내용이다(`"one\ntwo\nthree\n"`). 내용의 줄 수를 추가 줄로 센다.
+     - `delete`: `diff`는 지운 파일의 전체 내용이다. 내용의 줄 수를 삭제 줄로 센다.
+     - 그래서 `countUnifiedDiff`만으로는 `add`·`delete`가 `null`(hunk 없음)이 된다. 정규화기는 `kind.type`으로 세는 함수를 고른다.
+     - `declined`는 `diff`를 그대로 가진 채 온다. `status`로 걸러야 한다. 실패한 apply_patch(맥락 줄을 찾지 못함)는 fileChange 항목을 만들지 않았다.
+     - 패치 하나가 두 파일을 고치면 항목 하나에 `changes`가 둘이다(경로마다 +1 −1). 덮어쓰기는 0.171.0에서 한 번 실패한 뒤(같은 경로에 delete와 add를 함께 쓴 패치를 apply_patch가 거부) `update` 하나로 다시 왔다. 같은 경로가 한 항목에 두 번 나오는 경우는 녹화되지 않았다. 그 경우 결과 이벤트도 두 번 나오고, renderer가 더한다.
    - ACP:
      - `status === "completed"`인 갱신에서 `type: "diff"` 항목의 `oldText`(없으면 빈 파일)와 `newText`를 줄 단위로 비교해 센다.
-     - diff content가 completed보다 먼저 온 갱신(상태 없음, `in_progress`)에 실릴 수 있다. 그래서 `AcpTool`에 마지막 diff content를 보관하고, 완료될 때 센다. 완료 뒤에 온 content-only 갱신은 지금처럼 버린다(`acp.ts:212-217`). 실제 순서는 T0에서 확인한다.
+     - diff content가 completed보다 먼저 온 갱신(상태 없음, `in_progress`)에 실릴 수 있다. 그래서 `AcpTool`에 마지막 diff content를 보관하고, 완료될 때 센다. 완료 뒤에 온 content-only 갱신은 지금처럼 버린다(`acp.ts:212-217`).
+     - 한 갱신의 `content`에 diff 항목이 여러 개일 수 있다(Copilot 1.0.114: 두 파일 패치는 경로마다 하나, 덮어쓰기는 같은 경로에 삭제와 추가 두 개). 그래서 보관과 계산은 diff 항목마다 하고, 결과도 항목마다 낸다. 같은 키의 결과는 renderer가 더한다.
+     - T0 관찰(Copilot):
+       - 1.0.89: `edit`/`create` 도구다. pending `tool_call`과 completed `tool_call_update`가 같은 diff를 가진다. `oldText`/`newText`는 도구의 바꿀 문자열 조각이고(`"line 3: apple"` → `"line 3: banana"`), 새 파일은 `oldText: ""`다. 거부·실패는 pending에만 diff가 있고 `failed`로 끝난다.
+       - 1.0.114: `apply_patch`다. pending `tool_call`에는 content가 없고, completed 갱신에만 diff가 있다. 수정은 hunk의 맥락을 포함한 앞뒤 조각이고, 새 파일은 `oldText: ""`와 전체 내용, 삭제는 전체 내용과 `newText: ""`다. 거부·실패는 diff 없이 `failed`로 끝난다. 두 파일 패치는 tool call 하나에 권한 요청이 두 번 왔다.
+       - 두 버전 모두 수정의 `oldText`/`newText`는 파일 전체가 아니라 같은 범위의 앞뒤다. 그래서 줄 단위로 비교한 숫자는 실제 변화와 같다.
      - Copilot의 `rawInput` apply_patch 문자열은 적용 여부를 알려주지 않으므로 쓰지 않는다.
+     - ACP 중 결과를 기록하는 provider는 Copilot뿐이다. Cursor와 Antigravity는 T0에서 범위 밖이 됐으므로(아래 'PoC 의존성'), 정규화기는 두 provider의 편집에 `activity.result`를 내지 않는다. Antigravity는 위 규칙대로 두면 `edit_file`에서는 pending의 제안 diff를 완료 때 세게 되는데, 그 숫자가 적용된 내용이라는 보장이 없다.
 3. renderer는 키(`callId`, Codex는 `callId`+`path`)로 결과를 같은 턴의 단계에 붙인다. 같은 키의 결과가 여러 번 오면 더한다. 키가 맞는 activity가 없거나 다른 턴의 activity와 맞는 결과는 무시한다. 같은 activity 행의 줄 수를 더해 머리 합계를 만든다.
 4. 턴이 끝난 뒤에 오는 결과는 생기지 않는다. 턴이 끝나면 transport(`transport.ts:336`, `:538`, `acp.ts:187`)와 service(`service.ts:693` `live.terminal`)가 이후 이벤트를 버린다. 그래서 Stop 순간 진행 중이던 편집에는 숫자가 없다(spec 완료 조건 4).
 
@@ -108,15 +128,29 @@
 
 ## PoC 의존성
 
-편집 결과 데이터의 실제 모양은 provider마다 아직 실기로 확인되지 않았다. T0에서 먼저 확인한다.
+T0 PoC를 2026-11-25에 마쳤다. 방법은 orch.md 결정 1이다. `.scratch/thread-edit-lines/record.mjs`가 Doan의 runner와 같은 방식으로 provider를 앱 밖에서 띄웠다. 사례마다 더미 파일 네 개가 든 새 git 저장소에서 짧은 턴 하나를 돌리고, provider가 준 편집 결과로 센 숫자를 그 저장소의 `git diff --cached --numstat HEAD`와 비교했다. 녹화를 줄인 픽스처와 출처는 `app/src/main/conversation/fixtures/README.md`의 thread-edit-lines 단락에 있다.
 
-- Claude Code: SDK 타입(`sdk-tools.d.ts` `FileEditOutput`/`FileWriteOutput`)에는 있다. 하지만 최소 지원 버전 2.1.284와 현재 버전에서 user 프레임에 `tool_use_result`가 실제로 오는지는 녹화된 픽스처가 없다.
-- Codex: 픽스처의 `diff`가 합성 값이다(`fixtures/codex.json:54`). unified diff인지, 헤더가 있는지, `add`일 때 어떤 모양인지 모른다.
-- Cursor: 픽스처의 `oldText`/`newText` 값이 이상하다(`"-- /dev/null"`, `"++ b//repo/hello.txt\nhi"`, `fixtures/acp-cursor.json:180-187`). 실제 값인지 녹화 오류인지 확인한다.
-- Copilot: 완료된 편집이 녹화된 픽스처가 없다.
-- Antigravity: 편집 프레임이 녹화된 픽스처가 없다.
+| provider | 버전 | 결과 | 녹화한 사례 | 픽스처 |
+|---|---|---|---|---|
+| Claude Code | 2.1.284, 2.1.332 | 통과 | edit, replaceall, write, overwrite, delete(Bash), deny, fail, parallel. MultiEdit는 도구가 없다 | `claude-edit-results.json` |
+| Codex | 0.158.0, 0.171.0 | 통과(update는 hunk, add·delete는 전체 내용) | edit, write, overwrite, delete, deny, fail, multipath | `codex-file-changes.json` |
+| Copilot | 1.0.89, 1.0.114 | 통과(조건부, 아래) | edit, write, overwrite, delete, deny, fail, multipath. 1.0.89의 delete·multipath는 셸 명령이었다 | `acp-copilot-edits.json` |
+| Cursor | 2026.11.22-e9042b2 | 확인 못 함 → 범위 밖 | 없음 | 없음(`acp-cursor.json`은 그대로) |
+| Antigravity | ACP server 1.3.0 | 실패 → 범위 밖 | edit, write, overwrite, deny, fail. delete는 모델 용량 오류(503)로 턴이 끝났다 | `acp-antigravity-edits.json`(근거 보존용) |
 
-PoC는 AGENTS.md 'Real agent sign-ins'에 따라 실제 로그인을 임시 홈에 복제해 실행하고, 끝나면 복제본을 지운다. 녹화한 프레임은 `fixtures/`에 넣고 경로와 내용은 더미로 바꾼다.
+- 통과 기준과의 대조:
+  - Claude Code: 모든 적용된 편집에서 user 프레임 `tool_use_result.structuredPatch`의 `+`/`-` 줄 수(새 파일은 `content` 줄 수)가 numstat과 같았다.
+  - Codex: `update`의 `changes[].diff`는 hunk가 있는 unified diff이고 숫자가 numstat과 같았다. `add`·`delete`의 diff는 hunk가 아니라 전체 내용이고, 그 줄 수가 numstat과 같았다.
+  - Copilot(조건부): completed 갱신의 diff로 센 숫자는 모든 적용된 편집에서 numstat과 같았다. 다만 기준 문구("`oldText`/`newText`가 편집 전후 파일 내용과 같다")는 새 파일과 삭제에서만 성립한다. 수정에서는 같은 범위의 앞뒤 조각이다. 조각이 줄 중간에서 시작하거나 끝나는 편집은 녹화하지 못했다. 이 경우에도 숫자가 맞는지는 확인하지 않았다.
+  - Cursor: 복제한 로그인으로 `authenticate`와 `session/new`까지는 됐다. 하지만 모든 턴이 "Upgrade your plan to continue"로 끝났다(기본 모델과 `composer-2.5[fast=true]`). 그래서 편집 프레임을 녹화하지 못했고, `fixtures/acp-cursor.json:180-187`의 이상한 `oldText`/`newText`가 실제 값인지도 확인하지 못했다.
+  - Antigravity: diff는 권한을 묻는 pending `tool_call`에만 온다. 그 `oldText`/`newText`는 파일 전체가 아니라 제안된 조각이다(`TargetContent`/`ReplacementContent`). 실패한 편집(fail)에도 같은 제안 diff가 온다. `create_file`(새 파일, 덮어쓰기)은 허용한 뒤 다른 `toolCallId`(`<sessionId>:1`)로 실행되고, 그 completed 갱신에는 diff가 없다. 원래 id는 파일이 써졌는데도 `failed`("Tool call was approved but never executed.")로 끝난다. 그래서 기준을 만족하지 못한다.
+- 로그인 복제(AGENTS.md 'Real agent sign-ins'):
+  - Claude: 실제 HOME의 로그인은 로그아웃 상태였다. 그래서 사용자 승인을 받아 Doan 앱 Claude 프로필의 Keychain 항목을 읽기만 해서, 임시 `CLAUDE_CONFIG_DIR`의 임시 Keychain 항목으로 복제했다. Claude는 HOME의 로그인 키체인으로 이 항목을 읽으므로, HOME은 Doan처럼 실제 값을 유지해야 했다.
+  - Codex: 실제 `~/.codex/auth.json`을 임시 `CODEX_HOME`에 복사하고 `cli_auth_credentials_store="file"`로 띄웠다. 처음 쓴 사본은 만료된 토큰이라 복제본에서 refresh가 일어났다. 사용자가 실제 HOME에서 다시 로그인한 뒤의 새 사본으로 전체 사례를 녹화했다.
+  - Copilot: 실제 HOME에는 Copilot 자체 로그인이 없다. 그래서 gh 토큰을 임시 HOME 실행의 `COPILOT_GITHUB_TOKEN`으로만 넘겼다.
+  - Cursor: Keychain 토큰을 임시 HOME의 `.cursor/auth.json`(`AGENT_CLI_CREDENTIAL_STORE=file`)으로 복제했다.
+  - Antigravity: `~/.gemini/antigravity-acp/acp_token.json`을 임시 `GEMINI_HOME`에 복사했다.
+  - 모든 사례에서 임시 홈, 사본, 임시 Keychain 항목을 지우고 남지 않았음을 확인했다.
 
 ## postmortem에서 가져온 주의점
 
