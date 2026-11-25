@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { codeToCopy, ConversationThread, entryTimes, FADE_MS, fadeOpacity, followResize, revealFrame, revealMode, revealStart, type ConversationThreadProps, type RevealState } from "./ConversationThread";
+import { codeToCopy, ConversationThread, entryTimes, FADE_MS, fadeOpacity, flushesReply, followResize, replyStart, revealFrame, revealMode, revealStart, scrollToItemHolds, type ConversationThreadProps, type RevealState } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 import type { ThreadItem } from "./threadItems";
 import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, nextFollow } from "./threadMotion";
@@ -133,6 +133,25 @@ describe("reveal", () => {
     expect(revealMode(false, true)).toBe("flush");
   });
 
+  test("a remount starts at the text the reply has; a reply that first appears while the thread is open starts at 0", () => {
+    const reply: ThreadItem = { kind: "agent", key: "m2", messageId: "m2", text: "Half of it", streaming: true };
+    // Opening, a folded panel unfolding, a switch back: nothing drawn before.
+    expect(replyStart([], reply)).toBe(10);
+    // Drawn in the previous render already (a history read again keeps the key).
+    expect(replyStart([user("u1", 1, "Go"), reply], reply)).toBe(10);
+    // New while the thread is open.
+    expect(replyStart([user("u1", 1, "Go")], reply)).toBe(0);
+  });
+
+  test("an item after the reply, a notice under the thread or a Stop flushes it; the last reply alone does not", () => {
+    const reply: ThreadItem = { kind: "agent", key: "m2", messageId: "m2", text: "Half", streaming: true };
+    const drawn = [user("u1", 1, "Go"), reply];
+    expect(flushesReply(reply, drawn, { stopping: false, notice: false })).toBe(false);
+    expect(flushesReply(reply, [...drawn, { kind: "fast", key: "f3", seq: 3, text: "Fast was off", turnedOff: false }], { stopping: false, notice: false })).toBe(true);
+    expect(flushesReply(reply, drawn, { stopping: false, notice: true })).toBe(true);
+    expect(flushesReply(reply, drawn, { stopping: true, notice: false })).toBe(true);
+  });
+
   test("a stop flushes the reply in the render it shows", () => {
     const text = "I changed the empty state in Payment. The action now reads Add a card.";
     const out = html([user("u1", 1, "Go"), { kind: "agent", key: "m2", messageId: "m2", text, streaming: true }], { stopping: true });
@@ -168,7 +187,26 @@ describe("follow", () => {
 
   test("scrolled away by the person, growth leaves the view and shows Jump to latest", () => {
     const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
-    expect(followResize(away, { reduced: false, revealing: true, distance: 300, now: at })).toEqual({ state: away, move: "none", behind: true });
+    expect(followResize(away, { reduced: false, revealing: true, distance: 300, now: at, grew: true })).toEqual({ state: away, move: "none", behind: true });
+  });
+
+  test("scrolled away, a row folding or unfolding or the viewport resizing without new content leaves Jump to latest as it was", () => {
+    const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
+    // An activity row folds (the content shrinks), or the window or composer resizes the viewport.
+    expect(followResize(away, { reduced: false, revealing: false, distance: 300, now: at, grew: false }).behind).toBeNull();
+    expect(followResize(away, { reduced: false, revealing: false, distance: 280, now: at, grew: false }).behind).toBeNull();
+  });
+
+  test("only a scroll to a waiting permission or question holds the follow; a handoff card's does not", () => {
+    const items: ThreadItem[] = [
+      { kind: "handoffCard", key: "h1", seq: 1, origin: { kind: "handoff", conversationId: "c0" }, text: "Earlier work", at: "2026-11-25T00:00:00Z" },
+      { kind: "permission", key: "p2", seq: 2, requestId: "r1", summary: "npm test", options: [], status: "pending", answer: null },
+      { kind: "permission", key: "p3", seq: 3, requestId: "r0", summary: "ls", options: [], status: "answered", answer: null },
+    ];
+    expect(scrollToItemHolds(items, "h1")).toBe(false);
+    expect(scrollToItemHolds(items, "p2")).toBe(true);
+    expect(scrollToItemHolds(items, "p3")).toBe(false);
+    expect(scrollToItemHolds(null, "p2")).toBe(false);
   });
 
   test("back near the bottom once the wheel's inertia is over, it follows again", () => {

@@ -76,6 +76,14 @@ test("a queue that starts with a command goes out as that command alone, as main
   expect(store.localSends(A).map(mark => mark.text)).toEqual(["/compact"]);
 });
 
+test("only the messages before the next command go out together, as main's nextQueued slices them", async () => {
+  const { store } = harness();
+  await opened(store);
+  for (const [id, text] of [["q1", "First"], ["q2", "Second"], ["q3", "/compact"], ["q4", "After"]] as const)
+    store.queued(ROOT, A, { id, text, message: { text, anchors: [], attachments: [] } });
+  expect(store.localSends(A).map(mark => mark.text)).toEqual(["First\n\nSecond"]);
+});
+
 test("the queue's mark survives the list read that drops the rows main sent", async () => {
   const list: ListView[] = [[summary({ queued: 1 })]];
   let started = 1, applied = 1;
