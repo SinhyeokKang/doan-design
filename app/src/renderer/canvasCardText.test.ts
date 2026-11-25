@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Canvas } from "../main/conversation/types";
-import { canvasCardText, middleCut, newCanvasesText } from "./canvasCardText";
+import type { CanvasRow } from "../main/view";
+import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText } from "./canvasCardText";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
@@ -95,6 +96,100 @@ describe("canvasCardText", () => {
   test("a pending request for a path not listed hides Open without a tail: it may not exist yet", () => {
     expect(view(card({ drawing: true, drawn: false, canvas: { path: CHECKOUT.path }, handoff: { outcome: "pending" } }), { listed: () => false }))
       .toMatchObject({ status: "Hands off when this turn ends", open: null });
+  });
+});
+
+// The meta under a card's status line says what the canvas is now (draft frames handoff, canvas-cards and copy).
+describe("canvasCardMeta", () => {
+  const ROOT = "/w/acme-web";
+  // Local times, as the tooltip reads them.
+  const NOW = new Date(2026, 10, 25, 14, 4).getTime();
+  const MINUTE = 60_000, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
+  const row = (patch: Partial<CanvasRow> = {}): CanvasRow => ({ path: CHECKOUT.path, id: "checkout", width: 390, mtimeMs: new Date(2026, 10, 25, 14, 2).getTime(),
+    frames: [{ id: "a" }, { id: "b" }, { id: "c" }], url: "doan://x", ...patch });
+  const ready = { kind: "ready" as const, url: "blob:1" };
+  const meta = (patch: Partial<CanvasRow> = {}, over: Parameters<typeof canvasCardMeta>[4] = {}) => canvasCardMeta(row(patch), ready, NOW, ROOT, over);
+
+  test("a listed canvas: its thumbnail, frame count and modified time with the absolute time", () => {
+    expect(canvasCardMeta(row(), ready, NOW, ROOT)).toEqual({ thumb: ready, frames: "3 frames", folder: null, handedOff: null,
+      edited: { lead: "Edited", text: "2m ago", dateTime: new Date(2026, 10, 25, 14, 2).toISOString(), title: "2026-11-25 14:02" } });
+  });
+
+  test("a canvas gone since shows nothing, a cached thumbnail included", () => {
+    expect(canvasCardMeta(undefined, ready, NOW, ROOT)).toEqual({ thumb: { kind: "none" }, frames: null, edited: null, folder: null, handedOff: null });
+  });
+
+  test.each([
+    ["not captured yet", {}, undefined, { kind: "pending" }],
+    ["pending", {}, { kind: "pending" as const }, { kind: "pending" }],
+    ["failed", {}, { kind: "failed" as const }, { kind: "failed" }],
+    ["ready", {}, ready, ready],
+        ["an unreadable canvas with an old image", { error: { code: "unreadable_canvas", message: "x" } }, ready, { kind: "unreadable" }],
+  ])("thumbnail: %s", (_name, patch, state, thumb) => {
+    expect(canvasCardMeta(row(patch), state, NOW, ROOT).thumb).toEqual(thumb);
+  });
+
+  test("thumbnail: a canvas without a width has none to capture", () => {
+    const { width: _width, ...bare } = row();
+    expect(canvasCardMeta(bare, undefined, NOW, ROOT).thumb).toEqual({ kind: "noWidth" });
+  });
+
+  test("Drawing shows no thumbnail and no frame count; the time and the folder stay", () => {
+    expect(meta({ path: ".doan/ds/button.html" }, { drawing: true })).toMatchObject({ thumb: { kind: "none" }, frames: null, folder: ".doan/ds", edited: { text: "2m ago" } });
+  });
+
+  test.each<[string, Partial<CanvasRow>, string]>([
+    ["none listed", { frames: [] }, "No frames"],
+    ["one", { frames: [{ id: "a" }] }, "1 frame"],
+    ["several", { frames: [{ id: "a" }, { id: "b" }] }, "2 frames"],
+    ["exactly the listed limit", { frames: Array.from({ length: 1000 }, (_, i) => ({ id: `f${i}` })) }, "1,000 frames"],
+    ["over the limit", { frames: Array.from({ length: 1000 }, (_, i) => ({ id: `f${i}` })), framesTruncated: true }, "1,000+ frames"],
+  ])("frames: %s", (_name, patch, frames) => {
+    expect(meta(patch).frames).toBe(frames);
+  });
+
+  test("frames not reported (an unreadable canvas): no count", () => {
+    const { frames: _frames, ...bare } = row();
+    expect(canvasCardMeta(bare, ready, NOW, ROOT).frames).toBeNull();
+  });
+
+  test("no modified time: no time", () => {
+    const { mtimeMs: _mtime, ...bare } = row();
+    expect(canvasCardMeta(bare, ready, NOW, ROOT).edited).toBeNull();
+  });
+
+  test.each([
+    [-MINUTE, "just now"], [0, "just now"], [MINUTE - 1, "just now"], [MINUTE, "1m ago"], [HOUR - 1, "59m ago"], [HOUR, "1h ago"],
+    [DAY - 1, "23h ago"], [DAY, "1d ago"], [2 * DAY - 1, "1d ago"], [2 * DAY, "Nov 23"], [400 * DAY, "Oct 21, 2025"],
+  ])("a canvas %i ms old reads %s", (age, text) => {
+    expect(meta({ mtimeMs: NOW - age }).edited?.text).toBe(text);
+  });
+
+  test.each<[string, string | null]>([
+    [".doan/canvases/checkout-flow.html", null],
+    [".doan/canvases/checkout/flow.html", null],
+    ["/w/acme-web/.doan/canvases/flow.html", null],
+    [".doan/ds/button.html", ".doan/ds"],
+    [".doan/ds/forms/field.html", ".doan/ds/forms"],
+    ["design/checkout/flow.html", "design/checkout"],
+    [".doan/canvases-old/flow.html", ".doan/canvases-old"],
+  ])("folder of %s is %s", (path, folder) => {
+    expect(meta({ path }).folder).toBe(folder);
+  });
+
+  test("a handoff card shows when it handed off in place of the modified time", () => {
+    const at = new Date(NOW - 5 * MINUTE);
+    expect(meta({}, { handedOffAt: at.toISOString() })).toMatchObject({ frames: "3 frames", edited: null,
+      handedOff: { lead: "Handed off", text: "5m ago", dateTime: at.toISOString(), title: "2026-11-25 13:59" } });
+  });
+
+  test("the handoff time stays once the source is gone or is the Overview", () => {
+    expect(canvasCardMeta(undefined, undefined, NOW, ROOT, { handedOffAt: new Date(NOW).toISOString() }))
+      .toMatchObject({ thumb: { kind: "none" }, frames: null, edited: null, folder: null, handedOff: { text: "just now" } });
+  });
+
+  test("an unreadable handoff time is left out", () => {
+    expect(meta({}, { handedOffAt: "" })).toMatchObject({ edited: null, handedOff: null });
   });
 });
 
