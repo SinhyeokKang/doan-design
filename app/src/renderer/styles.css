@@ -1341,11 +1341,13 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .card-head .cc-kind { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-standard); }
 .conversation-thread .card-head .cc-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .card-head .cc-status { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
-/* min-height: a drawing card keeps the line before it has meta, so it is as tall as once drawn. */
-.conversation-thread .card-head .cc-meta { display: flex; flex-wrap: wrap; column-gap: var(--space-1h); min-height: var(--type-caption-line-height); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-.conversation-thread .card-head .cc-meta > span { white-space: nowrap; }
+/* One line, so neither width nor the minute's new time changes a card's height; min-height keeps a drawing card's empty
+   line. The folder's zero basis takes only the room left (cut first, down to an ellipsis); the time cuts last. */
+.conversation-thread .card-head .cc-meta { display: flex; column-gap: var(--space-1h); min-height: var(--type-caption-line-height); overflow: hidden; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .card-head .cc-meta > span { flex: none; white-space: nowrap; }
 .conversation-thread .card-head .cc-meta .sep { color: var(--text-disabled); }
-.conversation-thread .card-head .cc-meta .cc-folder { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.conversation-thread .card-head .cc-meta .cc-folder { flex: 1 1 0; min-width: 1em; max-width: max-content; overflow: hidden; text-overflow: ellipsis; }
+.conversation-thread .card-head .cc-meta > span:has(> time) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .conversation-thread .card-head .cc-open { flex: none; color: var(--text-standard); }
 .conversation-thread .handoff-card:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .conversation-thread .handoff-card .handoff-body { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--border-standard); }
