@@ -58,3 +58,11 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 - 2026-11-25 lead: 새 lead가 할 일을 정리한다(사용자 지시).
   - 각 링크는 `/orchestrate` conductor로 띄운다(§3 'Lead'). 링크 1(handoff-card-emphasis)은 thread-edit-lines PR 머지 뒤 시작 점검을 거쳐 시작한다.
   - 주석 정리 feature를 진행한다. AGENTS.md 'Commit conventions'의 주석 규칙을 조였다(`0ab8ac6bf`: 1~2줄, 비자명한 제약·함정만, 코드 반복·이력·드래프트 서사 금지, 긴 이유는 ARCHITECTURE로). 테스트를 뺀 소스의 약 26%(TS·Go), CSS의 약 29%가 주석이다. 새 lead가 `/feature`로 기준과 디렉터리별 배치를 잡고 `/feature-review`까지 마친다. 구현(`/orchestrate`)은 이 체인의 마지막 링크가 머지된 뒤 시작한다. 거의 모든 파일을 건드려서, 진행 중인 링크와 `ConversationThread.tsx`, `styles.css`에서 충돌하기 때문이다. 지울 수 없는 긴 제약을 ARCHITECTURE로 옮길지는 그 feature에서 정한다.
+- 2026-11-25 lead: thread-edit-lines PR #391을 develop에 머지했다(`46f91b070`). conductor worktree를 지웠고 브랜치 `feat/thread-edit-lines`는 남겼다. 링크 1이 알아야 할 것:
+  - 대화 히스토리에 `activity.callId`와 `activity.result`가 생겼고, `turnStatus.ts`의 activity 머리가 구조화되었다(PRODUCT §5 item 3 'Edit line counts', ARCHITECTURE 'Edit line counts'). 링크 1과 2는 이 위에서 시작한다.
+  - Copilot `apply_patch` 단계가 경로 대신 도구 이름으로 표시되는 문제는 BACKLOG 'Known defects'에 있다.
+- 2026-11-25 lead: 이 lead가 머지한 두 PR의 미검증 항목을 develop(`46f91b070` 이후)에서 격리된 실제 앱으로 확인했다. 모두 확인했고, BACKLOG의 해당 미검증 항목을 지웠다.
+  - scrollbar-hover(#390): 마우스로 연 대화상자에서 쉴 때 썸 숨김, 호버·Tab에서 표시. 실제 macOS 설정 "항상 보기"(잠깐 바꾸고 unset으로 되돌림)에서 사이드바, Quick Open, 메뉴, 대화상자 모두 쉴 때 숨김, 호버·키보드에서 표시, 간격 유지.
+  - thread-edit-lines(#391): Codex와 Copilot 실제 편집 턴의 숫자가 `git diff --numstat`과 같다. 프로토타입 창 패널에도 같은 숫자가 보인다. 회전 중인 머리에는 합계가 없고 멈추면 나타난다(DOM 기록).
+  - 증거: main checkout의 `.scratch/lead-verify-261125/`.
+  - 주의: 공유 provider 프로필(`.scratch/provider-profile/userData`)을 복사하면 Claude Code와 Codex는 로그인이 만료된 것으로 보인다. 자격 증명이 프로필 경로의 해시가 붙은 Keychain 항목에 있기 때문이다. 이 두 provider의 probe는 원본 경로에서 돌리고, 바뀌는 작은 상태 파일은 백업했다 되돌린다.
