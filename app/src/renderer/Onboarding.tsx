@@ -485,7 +485,10 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       const active = document.activeElement;
       const node = projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
         state: session.state, agentReady: agentReady(), busy: session.busy() });
-      if (node) handFocus(() => { if (shownPhase.current === phase && node.isConnected) node.focus(); });
+      if (!node) return;
+      // The first call is the move itself, which `picker` and `urlRequested` were taken for; only a replay checks the phase.
+      let now = true;
+      handFocus(() => { if (now || (shownPhase.current === phase && node.isConnected)) node.focus(); now = false; });
     });
   }, [phase, handFocus]);
   return {

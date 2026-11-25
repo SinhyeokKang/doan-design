@@ -25,10 +25,14 @@ const { useProjectFocus } = await import("./Onboarding");
 
 class Element { disabled = false; focused = 0; isConnected = true; matches(selector: string) { return selector === ":disabled" ? this.disabled : false; } focus() { this.focused++; doc.activeElement = this; } }
 const doc: { activeElement: Element | null; body: Element; hasFocus(): boolean; querySelectorAll(): unknown[] } = { activeElement: null, body: new Element(), hasFocus: () => true, querySelectorAll: () => [] };
-vi.stubGlobal("HTMLElement", Element);
-vi.stubGlobal("document", doc);
-vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
-afterEach(() => { hooks.slots = []; doc.hasFocus = () => true; vi.useRealTimers(); });
+function stubGlobals() {
+  vi.stubGlobal("HTMLElement", Element);
+  vi.stubGlobal("document", doc);
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+}
+stubGlobals();
+// A test that stubs more (a window, a frame queue) gets the defaults back even when it fails.
+afterEach(() => { hooks.slots = []; doc.hasFocus = () => true; vi.useRealTimers(); vi.unstubAllGlobals(); stubGlobals(); });
 
 // An arrow key on the setup panel's storage radios plans the folder again, and the plan disables the radios meanwhile,
 // which drops focus: once the plan is made, focus is back on the radio the person chose, not on the heading.
@@ -160,8 +164,24 @@ test("a phase that ends with the window in the background focuses its target aga
   session.state = { phase: { kind: "inspecting" }, error: null }; render();
   activate();
   expect(alert.focused).toBe(4);
-  vi.unstubAllGlobals();
-  vi.stubGlobal("HTMLElement", Element);
-  vi.stubGlobal("document", doc);
-  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+});
+
+// Edit repository URL asks for the URL field; when the phase changes again before the frame, the first frame still makes
+// that move, as it did before the activation hand-off, and the later frame keeps it there.
+test("a URL request whose phase changes again before its frame still lands on the URL field", () => {
+  const frames: (() => void)[] = [];
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { frames.push(run); return 0; });
+  const url = new Element(), heading = new Element(), button = new Element();
+  let busy = true;
+  const session = { state: { phase: { kind: "inspecting" }, error: null }, busy: () => busy, picking: () => false, restart: () => { session.state = { phase: { kind: "choose" }, error: null }; busy = false; } };
+  const scope = { current: { querySelector: (selector: string) => selector === "#ob-project-url" ? url : null } };
+  const render = () => { hooks.cursor = 0; return useProjectFocus(session as never, scope as never, { current: heading } as never, () => true, true); };
+  doc.activeElement = button;
+  const { toUrl } = render();
+  for (const run of frames.splice(0)) run();
+  toUrl(); render();
+  busy = true; render();
+  for (const run of frames.splice(0)) run();
+  expect(url.focused).toBe(1);
+  expect(doc.activeElement === url).toBe(true);
 });
