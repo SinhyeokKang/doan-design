@@ -3,6 +3,7 @@ import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, FailureCode, 
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { boundaryLabel, type ThreadCommands } from "./commandView";
 import { PRESETS } from "../main/mcpConnectors/presets";
+import { stepCount } from "./editLinesLabel";
 
 // A conversation's merged events (main's state.ts mergeEvents) as the thread draws them.
 // Every item has a key that stays the same while later events arrive.
@@ -144,7 +145,8 @@ export function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
   return (last.kind === "read" || last.kind === "edit") && last.path ? `${RUNNING_VERB[last.kind]} ${last.path}` : last.verb;
 }
-export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
+// Re-exported where turnStatus.ts reads it; it lives beside the head's accessible name.
+export { stepCount };
 
 // Whether two items hold the same data. threadItems builds new objects on every call, so the thread compares items by
 // value to skip drawing unchanged ones; items hold plain data only (no functions, dates or class instances).

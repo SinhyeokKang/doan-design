@@ -128,6 +128,18 @@ describe("countTextChange", () => {
     });
     expect(Math.min(...runs)).toBeLessThan(50);
   });
+  // Lines that share a long prefix make each comparison as long as the line, so the time must not grow with line length.
+  it("stays within 50 ms for long lines that share a prefix", () => {
+    const prefix = "p".repeat(1_000);
+    const before = Array.from({ length: 9_800 }, (_, i) => `${prefix}${i}\n`).join("");
+    const after = Array.from({ length: 9_800 }, (_, i) => i % 24 === 0 && i < 9_600 ? `${prefix}${i}!\n` : `${prefix}${i}\n`).join("");
+    const runs = Array.from({ length: 3 }, () => {
+      const start = performance.now();
+      expect(countTextChange(before, after)).toEqual({ added: 400, removed: 400 });
+      return performance.now() - start;
+    });
+    expect(Math.min(...runs)).toBeLessThan(50);
+  });
   it("stays within 50 ms for a change just under the distance limit among repeated lines", () => {
     const before = Array.from({ length: 9_000 }, (_, i) => i % 3 ? "}\n" : `x${i}\n`).join("");
     const after = Array.from({ length: 9_000 }, (_, i) => i % 3 ? "}\n" : i < 1_200 ? `y${i}\n` : `x${i}\n`).join("");

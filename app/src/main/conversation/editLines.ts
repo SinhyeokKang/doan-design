@@ -48,16 +48,26 @@ export function countStructuredPatch(hunks: unknown): EditLines | null {
   return { added, removed };
 }
 
-// Each line keeps its newline, so a last line that gains or loses one counts as changed, as git counts it; CRLF and LF
-// read as the same line end.
-function splitLines(text: string): string[] {
-  return text.replaceAll("\r\n", "\n").split(/(?<=\n)/).filter(row => row !== "");
+// Lines become integer ids, so a comparison costs the same however long the lines are (a long shared prefix would
+// otherwise make every comparison as long as the line). CRLF and LF read as the same line end. A last line without a
+// newline counts as a different line from the same text with one, as git counts it: its key alone ends in "\n", which
+// no split line holds.
+function lineIds(text: string, ids: Map<string, number>): Int32Array {
+  const rows = text.replaceAll("\r\n", "\n").split("\n");
+  const last = rows.pop()!;
+  if (last !== "") rows.push(last + "\n");
+  return Int32Array.from(rows, row => {
+    let id = ids.get(row);
+    if (id === undefined) { id = ids.size; ids.set(row, id); }
+    return id;
+  });
 }
 
 // The lines between two texts, from the edit distance D alone (forward Myers after trimming the common ends):
 // added = M − LCS and removed = N − LCS, where LCS = (N + M − D) / 2.
 export function countTextChange(oldText: string, newText: string): EditLines | null {
-  const a = splitLines(oldText), b = splitLines(newText);
+  const ids = new Map<string, number>();
+  const a = lineIds(oldText, ids), b = lineIds(newText, ids);
   if (a.length + b.length > EDIT_LINES_MAX) return null;
   let start = 0, endA = a.length, endB = b.length;
   while (start < endA && start < endB && a[start] === b[start]) start++;
@@ -69,7 +79,7 @@ export function countTextChange(oldText: string, newText: string): EditLines | n
   return { added: m - common, removed: n - common };
 }
 
-function editDistance(a: readonly string[], b: readonly string[], start: number, n: number, m: number): number | null {
+function editDistance(a: Int32Array, b: Int32Array, start: number, n: number, m: number): number | null {
   if (n === 0 || m === 0) return n + m <= EDIT_DISTANCE_MAX ? n + m : null;
   const max = Math.min(n + m, EDIT_DISTANCE_MAX);
   const offset = max + 1;

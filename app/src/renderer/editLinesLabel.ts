@@ -1,5 +1,6 @@
 import type { EditLines } from "../main/conversation/types";
-import { stepCount } from "./threadItems";
+
+export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
 
 const NUMBER = new Intl.NumberFormat("en-US");
 const linesAdded = (n: number) => `${NUMBER.format(n)} ${n === 1 ? "line" : "lines"} added`;
