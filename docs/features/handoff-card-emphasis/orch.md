@@ -3,6 +3,7 @@
 - 출처: [spec](./spec.md) · [design](./design.md) · [tasks](./tasks.md). 체인 [chain-261125-1](../chain-261125-1/chain.md)의 링크 1이다.
 - 시작 해시: `cd697d3b1` (origin/develop, thread-edit-lines #391 `46f91b070` 포함)
 - 통합 브랜치: `feat/handoff-card-emphasis`
+- Orca Run: `run_0e9a11b2b3ac`
 - 런타임: conductor와 워커 모두 Claude. 모델 계열을 넘지 않는다.
 
 ## 결정 기록
@@ -10,14 +11,15 @@
 - T1(드래프트와 메타 결정)은 끝났다. 드래프트 `.doan/canvases/handoff-card-emphasis.html`을 사용자가 2026-11-25에 확정했다. 메타는 후보를 모두 남겼다. — conductor 판단, 근거: 체인 파일 '순서' 1, design.md '드래프트 요청'.
 - 상태 줄, 그룹 이름, Open 이름 문구는 드래프트의 `copy` 프레임을 따른다("Handed off to this conversation" 등). — conductor 판단, 근거: 확정된 드래프트.
 - T2의 결정 지점: design.md 범위(두 채널을 프로토타입 창에 열기, 재생 중인 root로 제한, 인스턴스 공유)를 넘는 새 캡처 경로나 채널이 필요하면 멈추고 사용자에게 묻는다. — 체인 시작 점검에서 사용자 승인.
+- 기존 이벤트 `thumbnails:changed`를 프로토타입 창(재생 중인 root)에도 보내는 것은 T2 범위 안이다. 새 채널이 아니고 같은 데이터이기 때문이다. — conductor 판단.
 - T6의 PRODUCT, ARCHITECTURE, BACKLOG 승격과 기능 디렉터리 삭제는 conductor가 문서별 커밋으로 한다. README 캔버스 수정과 이미지 내보내기는 UI 워커(B3)가 한다. — conductor 판단, 근거: `/orchestrate` §4·§5(conductor는 문서 커밋만 쓴다).
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | T2 썸네일 공유, 프로토타입 창 IPC | `renderer/thumbnails.ts`, `renderer/App.tsx`(썸네일 연결만), `main/senderAllowed.ts`, `main/thumbnails*.ts`, `main/index.ts`의 썸네일 핸들러, `preload/prototype.ts`, `renderer/prototype/` 썸네일 훅 연결부(새 파일 가능), 각 테스트 | 없음 | Opus high — IPC 신뢰 경계와 두 소비자 간 가시성 병합이라 틀리면 보안·경합 결함이 된다 | `npm --prefix app test`, typecheck, lint | 대기 |
-| B2 | T3 `handoffCardView`, `canvasCardMeta` | `renderer/handoffView.ts`, `renderer/canvasCardText.ts`, 각 테스트 | 없음 | Sonnet medium — 경우가 정해진 순수 함수와 테스트 | `npm --prefix app test`, typecheck, lint | 대기 |
+| B1 | T2 썸네일 공유, 프로토타입 창 IPC | `renderer/thumbnails.ts`, `renderer/App.tsx`(썸네일 연결만), `main/senderAllowed.ts`, `main/thumbnails*.ts`, `main/index.ts`의 썸네일 핸들러, `preload/prototype.ts`, `renderer/prototype/` 썸네일 훅 연결부(새 파일 가능), 각 테스트 | 없음 | Opus high — IPC 신뢰 경계와 두 소비자 간 가시성 병합이라 틀리면 보안·경합 결함이 된다 | `npm --prefix app test`, typecheck, lint | 진행 중 (`ctx_403cfa771c33`, worktree `hce-b1`) |
+| B2 | T3 `handoffCardView`, `canvasCardMeta` | `renderer/handoffView.ts`, `renderer/canvasCardText.ts`, 각 테스트 | 없음 | Sonnet medium — 경우가 정해진 순수 함수와 테스트 | `npm --prefix app test`, typecheck, lint | 진행 중 (`ctx_0721ad824019`, worktree `hce-b2`) |
 | B3 | T4 UI + T5 `/design-sync`·`/runtime-test` + T6 README 캔버스·이미지 | `ConversationThread.tsx`, `styles.css`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `prototype/PrototypeConversation.tsx`, `App.tsx`(prop 전달), 테스트, `docs/design/conversation.md`, `.doan/canvases/readme-features.html`, `docs/assets/readme/` | B1, B2 통합 | Opus high — 세 화면의 prop, memo deps, 공유 CSS, 실제 앱 측정까지 판단이 많다 | `npm --prefix app test`, typecheck, lint, `/design-sync`, `/runtime-test` | 대기 |
 | R1 | B1 리뷰 | 보고만 | B1 | Opus medium — IPC 경계 리뷰 | `/code-review` 보고서 | 대기 |
 | R2 | B2 리뷰 | 보고만 | B2 | Sonnet medium — 작은 순수 함수 diff | `/code-review` 보고서 | 대기 |
