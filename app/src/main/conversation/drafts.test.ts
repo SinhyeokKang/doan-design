@@ -361,6 +361,39 @@ describe("DraftStore held messages", () => {
     writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "kept", anchors: [], attachments: [], reason: "turn_failed" } } }));
     expect(new DraftStore(dir).take(A)).toMatchObject({ text: "kept" });
   });
+  // The next start joins a held send with its conversation's draft and queue, so the writer counts it too.
+  it("refuses a queued item that would not fit one message with its conversation's held send, and reads the rest back whole", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: A, text: "sent", anchors: [], attachments: Array(6).fill(file) });
+    expect(() => store.add(A, { itemId: "q1", text: "queued", anchors: [], attachments: Array(6).fill(file) })).toThrow("queue_limit");
+    expect(store.queued(A)).toEqual([]);
+    store.add(A, { itemId: "q1", text: "queued", anchors: [], attachments: Array(4).fill(file) });
+    store.add(B, { itemId: "q2", text: "other", anchors: [], attachments: Array(6).fill(file) });
+    new DraftStore(dir);
+    const third = new DraftStore(dir);
+    expect(third.take(A)).toEqual({ text: "sent\n\nqueued", anchors: [], attachments: Array(10).fill(file), reason: "restarted" });
+    expect(third.take(B)).toMatchObject({ text: "other" });
+  });
+  it("counts a held send's text with the queue as one message", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.hold(C, { conversationId: A, text: "x".repeat(20_000), anchors: [], attachments: [] });
+    expect(() => store.add(A, { itemId: "q1", text: "y".repeat(12_767), anchors: [], attachments: [] })).toThrow("queue_limit");
+    store.add(A, { itemId: "q1", text: "y".repeat(12_766), anchors: [], attachments: [] });
+    new DraftStore(dir);
+    expect(new DraftStore(dir).take(A)!.text).toHaveLength(32_768);
+  });
+  it("keeps a held send and drops a queued item that no longer fits beside it when an older file has both", () => {
+    const dir = directory();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, returned: {},
+      queued: { [A]: [{ itemId: "q1", text: "too many", anchors: [], attachments: Array(6).fill(file) }, { itemId: "q2", text: "small", anchors: [], attachments: [] }] },
+      sending: { [C]: { conversationId: A, text: "sent", anchors: [], attachments: Array(6).fill(file) } } }));
+    new DraftStore(dir);
+    expect(error).toHaveBeenCalledWith("doan: a queued message does not fit its conversation's draft; dropped");
+    const next = new DraftStore(dir);
+    expect(next.take(A)).toEqual({ text: "sent\n\nsmall", anchors: [], attachments: Array(6).fill(file), reason: "restarted" });
+    expect(() => next.add(A, { itemId: "q3", text: "later", anchors: [], attachments: [] })).not.toThrow();
+  });
   it("never throws when a held message cannot be saved", () => {
     const store = new DraftStore(directory());
     vi.spyOn(console, "error").mockImplementation(() => {});
