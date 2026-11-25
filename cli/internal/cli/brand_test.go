@@ -110,6 +110,16 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	}
 }
 
+// Every subcommand reads as the command; candidates.test.ts holds the same cases.
+func TestBrandCandidatesKnowEverySubcommand(t *testing.T) {
+	for _, sub := range []string{"active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "version", "work"} {
+		text := "Run doan " + sub + " here."
+		if got := brandCandidates(text); !reflect.DeepEqual(got, []brandCandidate{{Index: 4, Form: "doan", Kind: "command"}}) {
+			t.Errorf("%s: %+v", sub, got)
+		}
+	}
+}
+
 // Human-facing CLI text names the product Doan: messages, nextSteps and --help are string literals in cli/.
 func TestCLIStringsNameTheProductDoan(t *testing.T) {
 	root := filepath.Join("..", "..")
