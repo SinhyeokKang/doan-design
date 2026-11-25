@@ -4,14 +4,13 @@
 
 ## T1. 드래프트와 모션 결정
 
-- `/design-draft thread-motion`으로 진입 A·B·C와 점진 표시 A·B·C를 재생 가능하게 그린다. 사용자가 앱에서 고른다. 고르지 않은 안은 지운다.
+- `/design-draft thread-motion`으로 진입(A로 확정)과 점진 표시(B로 확정)를 재생 가능하게 그린다. 사용자가 앱에서 고른다. 고르지 않은 안은 지운다.
 - 검증: `doan check`가 통과하고, `doan ls`의 프레임이 `entry`, `stream`, `reduced`이고 각 프레임에 고른 안만 남아 있고, 사용자가 고른 안이 design.md에 적혀 있다.
 - `[commit]` 드래프트(develop에서는 `/design-draft`가 직접 push한다)와 design.md.
 
 ## T2. PoC
 
 - 성능: `node .scratch/thread-motion/measure.mjs`. Playwright `_electron`으로 격리된 앱을 띄우는 probe다(`/design-sync`의 measure 스크립트와 같은 방식, `app/runtime/` 격리 사용). 가짜 에이전트 스트림으로 1만 자 답(코드 블록, 표 포함)을 347 패널에 보내고, 임시 점진 표시 루프로 프레임 시간을 잰다.
-- 진입 B를 골랐다면 composer → 스레드 FLIP을 세 화면에서 확인한다.
 - 검증: 프레임 시간 p95가 16ms 이하이고 최댓값이 50ms 이하다. 측정값(p95, 최댓값, 날짜)과 결론이 design.md 'PoC'에 적혀 있다. 기준을 넘으면 끝난 블록 memo를 강화한 뒤 다시 잰 결과도 적는다.
 - `[commit]` design.md
 
@@ -20,7 +19,7 @@
 - `/tdd`로 테스트를 먼저 쓰고 red를 확인한 뒤 `entering`, `revealStep`, `revealBoundary`, `followStep`, 따라가기 상태 전이를 구현한다. 기존 `threadItems.test.ts`에 케이스를 더하고, 새 함수는 새 테스트 파일에 둔다.
 - 검증: `npm --prefix app test`에서 다음이 통과한다.
   - `entering`: 로컬 전송 표시와 맞는 항목만 진입, 히스토리·다른 창 메시지·핸드오프 카드 제외, 새 대화의 첫 메시지 진입, 큐 메시지 여러 개 함께 진입, `q` 항목과 seq 항목이 둘 다 보이는 프레임과 그 다음 프레임에서 진입 한 번
-  - `revealStep`: 한 조각에 전체가 온 경우(0 → 1만 자) 250ms 안에 따라잡음, 작은 조각은 받은 만큼만, 큰 `dtMs`(숨긴 창) 따라잡음, finishing 150ms, flush 즉시, 받은 것보다 길어지지 않음
+  - `revealStep`: 한 조각에 전체가 온 경우(0 → 1만 자) 400ms 안에 따라잡음, 작은 조각은 받은 만큼만, 큰 `dtMs`(숨긴 창) 따라잡음, finishing 150ms, flush 즉시, 받은 것보다 길어지지 않음
   - `revealBoundary`: 단어, 코드 블록 안의 줄, 끝의 미완성 링크(`doan:` 포함)와 표 잡아 두기
   - `followStep`: 목표가 바뀌어도 넘지 않음, 0.5px 안에서 끝남, 살아 있는 바닥으로 자름
   - 따라가기 상태 전이: 사람 입력에 `pinned` 꺼짐, wheel 뒤 100ms 관성 대기, `scrollToItem` 뒤 바닥 복귀 전까지 따라가지 않음, 선택 시 멈춤, composer 입력은 영향 없음
