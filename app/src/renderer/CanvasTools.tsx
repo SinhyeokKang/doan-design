@@ -14,8 +14,8 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
   { tool: "hand", label: "Hand", key: "H", Icon: Hand },
 ];
 
-// Unavailable controls stay aria-disabled (reachable, tooltip shows why); Capture, Play and Export add an sr-only reason, since
-// Radix links a tooltip only while open. Capture stays enabled during its mode. Play is one element (POSTMORTEM 2026-11-13).
+// The pressed tool holds the one Tab stop. Unavailable controls stay aria-disabled (tooltip shows why); Capture, Play and Export
+// add an sr-only reason (Radix links a tooltip only while open). Capture stays enabled in its mode; Play is one element (POSTMORTEM 2026-11-13).
 const EXPORT_REASON_ID = "canvas-export-reason";
 const PLAY_REASON_ID = "canvas-play-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";

@@ -110,8 +110,8 @@ export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], men
   if (menu?.kind === "canvas") return locked || !rows.some(row => row.key === menu.key);
   return false;
 }
-// When the focused row leaves the tree: a canvas row hands focus to the next row of its group, else the previous, else the group's head; a conversation row does the
-// same within its list, else goes to its canvas row. Any other row: the row now at its place.
+// When the focused row leaves the tree: a canvas row hands focus to the next row of its group, else the previous, else its
+// head; a conversation row does the same within its list, else goes to its canvas row. Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
   const parent = previous[index]?.parent;

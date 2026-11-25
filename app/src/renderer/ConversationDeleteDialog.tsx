@@ -13,7 +13,7 @@ export type DeleteTarget = { conversationId: string; root: string; title: string
   & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus } | { from: "sidebar"; after: string; canvasRow: string });
 
 // The title menu row's Delete, beside the row's radio item so pressing it never picks the row; unavailable, it keeps
-// aria-disabled and reads its reason. `onEscape` closes the menu: the button's tooltip is the top layer, or Escape closes only it.
+// aria-disabled and reads its reason. `onEscape` closes the menu, or the first Escape closes only the button's tooltip (the top layer).
 export function ConversationDeleteItem({ conversationId, title, deletable, onDelete, onEscape }: {
   conversationId: string; title: string; deletable: DeleteAvailability; onDelete(): void; onEscape(): void;
 }) {

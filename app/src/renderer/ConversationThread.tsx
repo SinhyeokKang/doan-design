@@ -879,8 +879,8 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
   }
   return null;
 }
-// Changes only with the settled stage kind. It alone announces the background line (no live region there, Stopping too).
-// `ended`: history's cards, since a Stop ends their spinners before turn.end, and the count waits for it.
+// Changes only with the settled stage kind. It alone announces the background line (the line has no live region), Stopping included.
+// `ended`: history's cards, since a Stop ends their spinners before the turn's end arrives, and the count waits for it.
 function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;

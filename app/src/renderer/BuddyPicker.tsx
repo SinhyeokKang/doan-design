@@ -6,8 +6,8 @@ import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
 import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, WHEEL_QUIET } from "./coverFlow";
 
-// First run's row and Settings' rows are each a radio group named by the visible heading, each radio named by the buddy's name and described by its
-// line. `name` is the radio group's name and the prefix of the label ids.
+// First run's row and Settings' rows are each a radio group named by the visible heading, each radio named by the buddy's
+// name and described by its line. `name` is the radio group's name and the prefix of the label ids.
 export interface BuddyPickerProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; select(id: BuddyId): void }
 
 // Arrows override the native radio wrap, since the row stops at its ends. A horizontal scroll writes the cards'
