@@ -9,18 +9,24 @@ const X = { path: ".doan/canvases/x.html", id: "x" }, Y = { path: ".doan/canvase
 const ROWS: CanvasRow[] = [{ ...X, url: "", width: 390 }, { ...Y, url: "", width: 390 }];
 const card = (key: string, canvas = X): ThreadItem => ({ kind: "canvasCard", key, canvas, drawing: false, drawn: true });
 const listed = () => true;
+// Whether a card spins (Drawing): the thread asks canvasCardText.
+const still = () => false;
 
 describe("cardBanners", () => {
   test("names each card's banner, so a later card for a canvas already shown changes what is watched", () => {
-    const one = cardBanners([card("ct1:x")], ROWS, listed);
-    const two = cardBanners([card("ct1:x"), card("ct3:x")], ROWS, listed);
+    const one = cardBanners([card("ct1:x")], ROWS, listed, still);
+    const two = cardBanners([card("ct1:x"), card("ct3:x")], ROWS, listed, still);
     expect(one.map(banner => banner.key)).toEqual(["ct1:x"]);
     expect(two.map(banner => [banner.key, banner.row.path])).toEqual([["ct1:x", X.path], ["ct3:x", X.path]]);
   });
+  test("a card still drawing has no banner to watch, so a canvas being written is not captured", () => {
+    const drawing = (item: ThreadItem) => item.key === "ct3:y";
+    expect(cardBanners([card("ct1:x"), card("ct3:y", Y)], ROWS, listed, drawing).map(banner => banner.key)).toEqual(["ct1:x"]);
+  });
   test("a handoff card's canvas source has a banner; an Overview source and a gone canvas have none", () => {
     const handoff = (key: string, canvas?: typeof X): ThreadItem => ({ kind: "handoffCard", key, seq: 1, origin: { kind: "handoff", conversationId: "c0", ...(canvas ? { canvas } : {}) }, text: "x", at: "2026-11-25T05:00:00.000Z" });
-    expect(cardBanners([handoff("u1", Y), handoff("u2")], ROWS, listed).map(banner => banner.key)).toEqual(["u1"]);
-    expect(cardBanners([card("ct1:x")], ROWS, () => false)).toEqual([]);
+    expect(cardBanners([handoff("u1", Y), handoff("u2")], ROWS, listed, still).map(banner => banner.key)).toEqual(["u1"]);
+    expect(cardBanners([card("ct1:x")], ROWS, () => false, still)).toEqual([]);
   });
 });
 
@@ -28,11 +34,11 @@ describe("cardBanners", () => {
 // carries another path, which the observer would otherwise never report.
 describe("bannerWatchKey", () => {
   test("changes for a later card of the same canvas and for a renamed canvas", () => {
-    const before = bannerWatchKey(cardBanners([card("ct1:x")], ROWS, listed));
-    expect(bannerWatchKey(cardBanners([card("ct1:x"), card("ct3:x")], ROWS, listed))).not.toBe(before);
+    const before = bannerWatchKey(cardBanners([card("ct1:x")], ROWS, listed, still));
+    expect(bannerWatchKey(cardBanners([card("ct1:x"), card("ct3:x")], ROWS, listed, still))).not.toBe(before);
     const renamed: CanvasRow[] = [{ path: ".doan/canvases/x-v2.html", id: "x", url: "", width: 390 }];
-    expect(bannerWatchKey(cardBanners([card("ct1:x")], renamed, listed))).not.toBe(before);
-    expect(bannerWatchKey(cardBanners([card("ct1:x")], ROWS, listed))).toBe(before);
+    expect(bannerWatchKey(cardBanners([card("ct1:x")], renamed, listed, still))).not.toBe(before);
+    expect(bannerWatchKey(cardBanners([card("ct1:x")], ROWS, listed, still))).toBe(before);
   });
 });
 

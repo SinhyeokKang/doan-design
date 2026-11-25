@@ -585,7 +585,9 @@ function CardBanner({ thumb, path }: { thumb: CanvasCardMeta["thumb"]; path: str
 // tall as once drawn.
 function CardMeta({ meta, keep }: { meta: CanvasCardMeta; keep: boolean }) {
   const time = meta.edited ?? meta.handedOff;
-  const parts = [...[meta.folder, meta.frames].flatMap(text => text === null ? [] : [<span>{text}</span>]),
+  // A deep folder can be wider than the column: it shrinks and cuts, its full path in the tooltip while cut.
+  const parts = [...(meta.folder === null ? [] : [<NameTip text={meta.folder}><span className="cc-folder">{meta.folder}</span></NameTip>]),
+    ...(meta.frames === null ? [] : [<span>{meta.frames}</span>]),
     ...(time ? [<span>{`${time.lead} `}<Tooltip><TooltipTrigger asChild><time dateTime={time.dateTime}>{time.text}</time></TooltipTrigger><TooltipContent>{time.title}</TooltipContent></Tooltip></span>] : [])];
   if (parts.length === 0 && !keep) return null;
   return <span className="cc-meta">{parts.map((part, i) => <Fragment key={i}>{i > 0 && <span className="sep" aria-hidden="true">·</span>}{part}</Fragment>)}</span>;
@@ -710,10 +712,12 @@ export interface CardBanner { key: string; row: CanvasRow }
 export function bannerWatchKey(banners: readonly CardBanner[]): string {
   return banners.map(banner => `${banner.key}\t${banner.row.path}`).join("\n");
 }
-// The banners the thread's cards draw with a listed canvas's row, by card key.
-export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean): CardBanner[] {
+// The banners the thread's cards draw with a listed canvas's row, by card key. A card still drawing shows no image, so
+// its canvas, mid-write, is not asked for.
+export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean,
+  drawing: (item: Extract<ThreadItem, { kind: "canvasCard" }>) => boolean): CardBanner[] {
   return items.flatMap(item => {
-    const canvas = item.kind === "canvasCard" ? cardCanvas(item, rows) : item.kind === "handoffCard" ? item.origin.canvas : undefined;
+    const canvas = item.kind === "canvasCard" ? drawing(item) ? undefined : cardCanvas(item, rows) : item.kind === "handoffCard" ? item.origin.canvas : undefined;
     const row = canvas && cardRow(canvas, rows, listed);
     return row ? [{ key: item.key, row }] : [];
   });
@@ -840,7 +844,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
-  const [images, setImages] = useState<ReadonlyMap<string, ThumbnailState>>(NO_IMAGES);
+  // From the hub at once: a thread remounted for another conversation draws its banners with the images already there.
+  const [images, setImages] = useState<ReadonlyMap<string, ThumbnailState>>(() => props.thumbnails?.hub.items(props.thumbnails.root) ?? NO_IMAGES);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
@@ -1117,7 +1122,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
-    {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(items, rows, props.canvasListed)} scroller={scroller} onImages={setImages} />}
+    {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(drawn, rows, props.canvasListed, card => canvasCardText(card, { project: props.project, provider, listed: props.canvasListed }).icon === "spinner")} scroller={scroller} onImages={setImages} />}
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />

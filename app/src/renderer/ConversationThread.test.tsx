@@ -587,8 +587,7 @@ describe("a message Send now has in flight", () => {
   });
 });
 
-// The confirmed draft's canvas cards and the receiving conversation's handoff card (.doan/canvases/handoff-card-emphasis.html
-// frames handoff, canvas-cards, stacks, widths and copy): one surface and one head row for both.
+// Canvas cards and the receiving conversation's handoff card: one surface and one head row for both.
 describe("canvas cards and the handoff card", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
   type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
@@ -681,9 +680,19 @@ describe("canvas cards and the handoff card", () => {
   test("a canvas outside .doan/canvases/ names its folder first; no frames and no modified time leave what is known", () => {
     const BUTTON = { path: ".doan/ds/button.html", id: "button" };
     const out = html([card({ canvas: BUTTON })], { canvasRows: [row(BUTTON)] });
-    expect(out).toMatch(new RegExp(`<span class="cc-meta"><span>.doan/ds</span>${SEP}<span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`));
+    // The folder is its own item, which can shrink and cut with an ellipsis (its full path in the tooltip while cut).
+    expect(out).toMatch(new RegExp(`<span class="cc-meta"><span class="cc-folder" data-state="closed" data-slot="tooltip-trigger">.doan/ds</span>${SEP}<span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`));
     const { mtimeMs: _, ...bare } = row(CHECKOUT, { frames: [] });
     expect(html([card()], { canvasRows: [bare] })).toContain('<span class="cc-meta"><span>No frames</span></span>');
+  });
+
+  // A deep folder at the panel's 280 minimum is wider than the text column: it must shrink and cut, not run under Open.
+  test("the folder item can shrink below its text and cuts with an ellipsis", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const rule = /\.conversation-thread \.card-head \.cc-meta \.cc-folder \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/min-width: 0;/);
+    expect(rule).toMatch(/overflow: hidden;/);
+    expect(rule).toMatch(/text-overflow: ellipsis;/);
   });
 
   test("the group's name is the file and the status only; the meta never enters it", () => {

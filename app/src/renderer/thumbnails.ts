@@ -136,10 +136,16 @@ interface SharedRoot {
   items: ReadonlyMap<string, ThumbnailState>;
   listeners: Map<string, (items: ReadonlyMap<string, ThumbnailState>) => void>;
   stop(): void;
+  // The last viewer left within LEAVE_MS: the root waits to be disposed, and the next viewer takes that viewer's place.
+  leaving: { viewer: string; timer: ReturnType<typeof setTimeout> } | null;
 }
 
+// How long a root no viewer holds keeps its images: a thread remounts for each conversation it shows and takes the root
+// again only once that conversation's history is read, so the images and main's marks carry over the switch.
+export const LEAVE_MS = 2_000;
+
 // A window's thumbnails: one ThumbnailRequests per root for every viewer of that root, made on the first acquire and
-// disposed (its Blob URLs revoked) when the last viewer releases it.
+// disposed (its Blob URLs revoked) LEAVE_MS after the last viewer released it, unless a viewer took it meanwhile.
 export class ThumbnailHub {
   private roots = new Map<string, SharedRoot>();
   private viewers = 0;
@@ -147,9 +153,12 @@ export class ThumbnailHub {
   constructor(private readonly calls: ThumbnailCalls) {}
 
   acquire(root: string, listener: (items: ReadonlyMap<string, ThumbnailState>) => void): ThumbnailLease {
-    const viewer = String(++this.viewers);
     const existing = this.roots.get(root);
     const shared = existing ?? this.share(root);
+    // Its rows and visible paths stay until this viewer reports its own, so nothing is dropped and asked again.
+    const viewer = shared.leaving?.viewer ?? String(++this.viewers);
+    if (shared.leaving) clearTimeout(shared.leaving.timer);
+    shared.leaving = null;
     shared.listeners.set(viewer, listener);
     if (existing) listener(shared.items);
     let live = true;
@@ -161,11 +170,19 @@ export class ThumbnailHub {
         live = false;
         shared.listeners.delete(viewer);
         if (shared.listeners.size > 0) { shared.requests.release(viewer); return; }
-        this.roots.delete(root);
-        shared.stop();
-        shared.requests.dispose();
+        shared.leaving = { viewer, timer: setTimeout(() => {
+          shared.leaving = null;
+          this.roots.delete(root);
+          shared.stop();
+          shared.requests.dispose();
+        }, LEAVE_MS) };
       },
     };
+  }
+
+  // The root's images now, for a viewer's first render; none for a root no viewer holds.
+  items(root: string): ReadonlyMap<string, ThumbnailState> {
+    return this.roots.get(root)?.items ?? NO_ITEMS;
   }
 
   private share(root: string): SharedRoot {
@@ -176,11 +193,13 @@ export class ThumbnailHub {
     }, (at, path, visible) => {
       void this.calls.setThumbnailVisibility(at, path, visible).catch((error: unknown) => console.error("thumbnails:visible failed", error));
     });
-    const shared: SharedRoot = { requests, items: new Map(), listeners, stop: this.calls.onThumbnailChanged(target => { if (target.root === root) requests.changed(target.path); }) };
+    const shared: SharedRoot = { requests, items: new Map(), listeners, leaving: null, stop: this.calls.onThumbnailChanged(target => { if (target.root === root) requests.changed(target.path); }) };
     this.roots.set(root, shared);
     return shared;
   }
 }
+
+const NO_ITEMS: ReadonlyMap<string, ThumbnailState> = new Map();
 
 // One hub per window, for every viewer in it.
 export function useThumbnailHub(calls: ThumbnailCalls): ThumbnailHub {
@@ -190,7 +209,7 @@ export function useThumbnailHub(calls: ThumbnailCalls): ThumbnailHub {
 
 // One viewer's thumbnails of a root: the root's shared images and this viewer's own visibility reports.
 export function useThumbnails(hub: ThumbnailHub, root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
-  const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(new Map());
+  const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(() => root === null ? new Map() : hub.items(root));
   const lease = useRef<ThumbnailLease | null>(null);
   useEffect(() => {
     if (root === null) return;

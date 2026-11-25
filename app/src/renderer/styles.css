@@ -1339,6 +1339,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .card-head .cc-meta { display: flex; flex-wrap: wrap; column-gap: var(--space-1h); min-height: var(--type-caption-line-height); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conversation-thread .card-head .cc-meta > span { white-space: nowrap; }
 .conversation-thread .card-head .cc-meta .sep { color: var(--text-disabled); }
+.conversation-thread .card-head .cc-meta .cc-folder { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .conversation-thread .card-head .cc-open { flex: none; color: var(--text-standard); }
 .conversation-thread .handoff-card:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .conversation-thread .handoff-card .handoff-body { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--border-standard); }
