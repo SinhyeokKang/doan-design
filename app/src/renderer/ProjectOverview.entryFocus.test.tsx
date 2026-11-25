@@ -147,9 +147,10 @@ function backgroundOverview(events: ConversationEvent[], list: ConversationSumma
   return { run, overview, field, activate };
 }
 
+// A conversation shown again after another (A, B, A) is a new showing: the earlier entry's replay does not act on it.
 test("a waiting entry with the window in the background focuses the request again on activation, only while it shows", async () => {
   const B = "bbbbbbbb-0000-4000-8000-000000000002";
-  for (const switched of [false, true]) {
+  for (const switched of ["no", "away", "back"] as const) {
     hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
     const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), asks.permission];
     const { run, overview, activate } = backgroundOverview(events, [waiting, { ...waiting, conversationId: B, phase: "ended" }]);
@@ -161,22 +162,28 @@ test("a waiting entry with the window in the background focuses the request agai
     await flush();
     render(overview);
     expect(handle.focusItem).toHaveBeenCalledOnce();
-    if (switched) { run.select(ROOT, B); render(overview); }
+    if (switched !== "no") { run.select(ROOT, B); render(overview); }
+    if (switched === "back") { run.select(ROOT, A); render(overview); }
     await activate();
-    expect(handle.focusItem).toHaveBeenCalledTimes(switched ? 1 : 3);
+    expect(handle.focusItem).toHaveBeenCalledTimes(switched === "no" ? 3 : 1);
   }
 });
 
-test("Edit and resend answered with the window in the background focuses the field again on activation", async () => {
-  const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), at(3, { type: "turn.done" })];
-  const { run, overview, field, activate } = backgroundOverview(events, [{ ...waiting, phase: "ended" }]);
-  run.request(ROOT, A, null);
-  run.store.track(A);
-  render(overview);
-  await flush();
-  (threadProps(render(overview))!.onEditAndResend as () => void)();
-  await flush();
-  expect(field.focus).toHaveBeenCalledOnce();
-  await activate();
-  expect(field.focus).toHaveBeenCalledTimes(3);
+test("Edit and resend answered with the window in the background focuses the field again on activation, only while it shows", async () => {
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+  for (const switched of [false, true]) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), at(3, { type: "turn.done" })];
+    const { run, overview, field, activate } = backgroundOverview(events, [{ ...waiting, phase: "ended" }, { ...waiting, conversationId: B, phase: "ended" }]);
+    run.request(ROOT, A, null);
+    run.store.track(A);
+    render(overview);
+    await flush();
+    (threadProps(render(overview))!.onEditAndResend as () => void)();
+    await flush();
+    expect(field.focus).toHaveBeenCalledOnce();
+    if (switched) { run.select(ROOT, B); render(overview); }
+    await activate();
+    expect(field.focus).toHaveBeenCalledTimes(switched ? 1 : 3);
+  }
 });

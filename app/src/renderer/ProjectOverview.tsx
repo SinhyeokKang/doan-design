@@ -219,7 +219,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // An entry lands before main raises the window and a reply can come after the person left, so these focus moves are made
   // again on activation (POSTMORTEM 2026-11-17), and only while the same conversation shows.
   const handFocus = useActivationFocus();
-  const showing = (id: string) => { const now = run.view(root); return now.kind === "conversation" && now.conversationId === id; };
+  const shownNow = () => { const now = run.view(root); return now.kind === "conversation" ? { conversationId: now.conversationId, revision: run.revision(root) } : null; };
+  const stillShowing = (shown: { conversationId: string; revision: number }) => { const now = shownNow(); return now?.conversationId === shown.conversationId && now.revision === shown.revision; };
   useEffect(() => {
     if (!conversationId || !scroll || !Array.isArray(items)) return;
     const target = scrollTarget(items, asking);
@@ -229,11 +230,14 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     handle.current?.scrollToItem(target.key);
     // The entry also focuses the request's first choice: a permission request's first choice, a question's first
     // option or answer input.
-    const shown = conversationId;
-    handFocus(() => { if (showing(shown)) handle.current?.focusItem(target.key); });
+    const shown = { conversationId, revision: run.revision(root) };
+    handFocus(() => { if (stillShowing(shown)) handle.current?.focusItem(target.key); });
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
-  const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) handFocus(() => { if (showing(id)) focusField(); }); }); };
+  const resend = (id: string) => {
+    const revision = run.revision(root);
+    void run.editAndResend(root, id).then(focus => { if (focus) handFocus(() => { if (stillShowing({ conversationId: id, revision })) focusField(); }); });
+  };
   const editAndResend = (id: string) => {
     const confirm = run.store.editAndResendConfirm(id);
     if (confirm) setReplacing({ conversationId: id, confirm }); else resend(id);
