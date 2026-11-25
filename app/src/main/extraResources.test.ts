@@ -33,3 +33,14 @@ test("agent setup links the CLI and the skill where the package puts them", () =
 test("the packaged skill is the committed stub", () => {
   expect(existsSync(join(APP, "src/main/onboarding/SKILL.md"))).toBe(true);
 });
+
+// The CLI spells its own place in the bundle: the guide's onboarding command and the app it may open.
+test("the CLI looks for itself where the package puts it", () => {
+  const segments = packagedPath("build/bin/doan").split("/");
+  const [dir, name, ...deeper] = segments;
+  expect(deeper).toEqual([]);
+  const source = (file: string) => readFileSync(join(APP, "../cli/internal/cli", file), "utf8");
+  const joined = ["Contents", "Resources", ...segments].map(segment => `"${segment}"`).join(", ");
+  expect(source("skill.go")).toContain(`filepath.Join(bundle, ${joined})`);
+  expect(source("onboarding.go")).toContain(`filepath.Base(real) != "${name}" || filepath.Base(bin) != "${dir}" || filepath.Base(resources) != "Resources"`);
+});
