@@ -343,8 +343,8 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   };
 }
 
-// The others offer Fast as a model of its own.
-const FAST_PROVIDERS: readonly Provider[] = ["claude", "codex"];
+// The others offer Fast as a model of its own. main/conversation/ipc.ts gates Fast inline; homeComposer.test.ts ties the two.
+export const FAST_PROVIDERS: readonly Provider[] = ["claude", "codex"];
 // Claude Code's own words; check them again when the CLI's copy changes.
 const CLAUDE_FAST = "Same model, faster output. Requires usage credits.";
 function fastView(provider: Provider, model: ModelOption, on: boolean): FastView | null {

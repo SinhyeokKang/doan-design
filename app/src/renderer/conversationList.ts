@@ -11,6 +11,9 @@ export type ConversationList = ReadonlyMap<string, readonly ConversationSummary[
 // A scheduled conversation asks nothing of the person: after working and a terminal agent, before an unseen ending.
 const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1 };
 
+// The sidebar slot and the Overview row read an unseen ending alike.
+export const UNSEEN_LABEL = "Conversation finished — unread";
+
 // `seen`: marked seen before the list refresh arrived; the reply and the list notice may come in any order. Any
 // conversation counts: the sidebar's own callers keep their fromHome filter.
 export function conversationWork(c: ConversationSummary, seen: ReadonlySet<string>, scheduled: Slot | null = null): Slot | null {
@@ -22,7 +25,7 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (c.phase === "running" || c.working) return { kind: "working", label: `${p} is working` };
   if (scheduled) return scheduled;
   // Failed and stopped turns may have changed files too, so every ending waits to be seen.
-  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
+  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: UNSEEN_LABEL } : null;
 }
 
 export function scheduledOf(c: ConversationSummary, now = Date.now(), clock: Clock = localClock()): Slot | null {

@@ -6,7 +6,7 @@ import type { Point } from "./viewport";
 export const MIN_CAPTURE = 8;
 
 export const CAPTURE_UNAVAILABLE = "Capture area isn’t available while the canvas can’t be shown.";
-// A capture is an attachment, so it is closed for the same conversations as Attach (DockedComposer.tsx).
+// A capture is an attachment, so it is closed for the same conversations as Attach, which shows this text too.
 export const CAPTURE_TERMINAL = "Attachments can’t be added to a terminal session";
 export const CAPTURE_LIMIT = `Only ${MAX_ATTACHMENTS} attachments can be added. Remove one to add another.`;
 

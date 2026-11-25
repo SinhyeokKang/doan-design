@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Check, Copy } from "lucide-react";
 import { aboutView, type AboutRead, type AboutRow } from "../main/aboutView";
 import { aboutNotice, type AboutNotice, type NoticeLine } from "../main/agentSetup/notice";
-import type { Provider } from "../main/agentAuth/types";
+import { validProvider } from "../main/agentAuth/types";
 import type { PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { UpdateSnapshot } from "../main/update/types";
 import { releaseNotesFailedLine, UPDATE_BLOCKED, updateView, type UpdateButton, type UpdateRowView } from "../main/update/view";
@@ -15,7 +15,6 @@ import { preferencesNotice } from "./SettingsNotifications";
 
 const CHECKING = "Checking";
 const TONES: Record<AboutRow["tone"], string> = { neutral: "ob-chip", ok: "ob-chip ok", warning: "ob-chip warn", error: "ob-chip err" };
-const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity", "copilot"]);
 const AUTO_SAVE_FAILED = "Couldn’t save your automatic-check choice. Your last saved choice still applies.";
 const BLOCKED_READ = `${UPDATE_BLOCKED.title}. ${UPDATE_BLOCKED.text}`;
 
@@ -145,9 +144,9 @@ export function SettingsAbout({ actions, preferences, save }: {
   const view = aboutView(read);
   const notice = read === null ? null : aboutNotice(read.setup.items, read.setup.home);
   const row = (item: AboutRow) => {
-    const icon = PROVIDER_ROWS.has(item.id);
-    return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={icon ? "" : undefined}>
-      {icon && <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(item.id as Provider)} alt="" /></span>}
+    const provider = validProvider(item.id) ? item.id : null;
+    return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={provider ? "" : undefined}>
+      {provider && <span className="doan-preference-row-icon" aria-hidden="true"><img className="logo" src={providerLogo(provider)} alt="" /></span>}
       <div className="doan-preference-row-content"><span className="doan-preference-row-label">{item.label}</span>
         {item.description !== null && <span className="doan-preference-row-description selectable">{item.id === "cli" ? <code>{item.description}</code> : item.description}</span>}</div>
       {item.error === null && <div className="doan-preference-row-trailing">
