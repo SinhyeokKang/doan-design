@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Eye, Hand, MousePointer2, Play } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame, Locator } from "playwright";
+import { parseSync } from "rolldown/utils";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { bounded } from "../../runtime/harness";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
@@ -478,6 +479,11 @@ describe("frame drawer view", () => {
     for (const [index, row] of shown.rows.entries()) expect(row.name).toBe(frameLabel(frames[index]!, index).name);
   });
 
+  test("the assembled shell script keeps (no id) for a frame with an empty id", () => {
+    const rows = runInNewContext(`${lib}\n${viewerAppJs}\n${playerJs}\ndrawerView([{ id: "" }], 1, 0).rows`, {}) as { name: string }[];
+    expect(rows.map(row => row.name)).toEqual(["(no id)"]);
+  });
+
   test("with no frame in view the button says Frames", () => {
     expect(v.drawerView(frames, frames.length, null)).toMatchObject({ enabled: true, buttonLabel: "Frames", ariaLabel: "Frames" });
   });
@@ -753,6 +759,37 @@ describe("viewer files", () => {
     for (const script of [canvasInspectScripts + "\n" + measure, `${viewerAppJs}\n${playerJs}\nif (!startPlayer()) (function () {\n${boardInspectScripts}\n${shellJs}\n})();`]) expect(() => new Script(`(function () {\n${lib}\n${script}\n})();`)).not.toThrow();
   });
 
+  // A repeated function declaration compiles and the last one silently wins, so compiling cannot find a clash.
+  const declaredTwice = (names: string[]): string[] => {
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const name of names) {
+      const { program, errors } = parseSync(name, read(name));
+      expect(errors, name).toEqual([]);
+      for (const node of program.body as any[]) {
+        const ids: any[] = node.type === "VariableDeclaration" ? node.declarations.map((d: any) => d.id)
+          : node.type === "FunctionDeclaration" || node.type === "ClassDeclaration" ? [node.id] : [];
+        for (const id of ids) {
+          // A destructuring pattern would need its own walk.
+          expect(id.type, name).toBe("Identifier");
+          if (seen.has(id.name)) clashes.push(`${id.name}: ${seen.get(id.name)}, ${name}`);
+          seen.set(id.name, name);
+        }
+      }
+    }
+    expect(seen.size).toBeGreaterThan(10);
+    return clashes;
+  };
+
+  // The scopes assemble.go builds from more than one file.
+  test.each([
+    ["the shell script", ["lib.js", "viewerApp.js", "player.js"]],
+    ["the board's scope", ["inspectPanel.js", "inspectMessage.js", "inspectView.js", "shell.js"]],
+    ["the measure script", ["lib.js", "inspect.js", "inspectSelection.js", "measure.js"]],
+  ])("%s declares each top-level name once", (_scope, names) => {
+    expect(declaredTwice(names)).toEqual([]);
+  });
+
   test("the scripts inline safely into <script>", () => {
     for (const [name, source] of Object.entries({ "lib.js": lib, "measure.js": measure, "shell.js": shellJs, "player.js": playerJs, canvasInspectScripts, shellInspectScripts })) {
       expect(source, name).not.toMatch(/<\/script/i);
@@ -866,6 +903,15 @@ const declarations = (css: string, selector: string): string[] => {
   const body = new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]*)\\}`).exec(css)?.[1];
   if (body === undefined) throw new Error(`no rule ${selector}`);
   return body.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+};
+
+// The declarations of `selector` inside the stylesheet's forced-colours blocks.
+const forcedColours = (css: string, selector: string): string[] => {
+  const blocks = [...css.matchAll(/^@media \(forced-colors: active\) \{$/gm)].map(match => blockFrom(css, match.index, match.index + match[0].length - 1, "@media"));
+  return blocks.flatMap(block => {
+    const inner = block.slice(block.indexOf("{") + 1, -1);
+    return inner.split("\n").some(line => line.trim().startsWith(`${selector} {`)) ? declarations(inner, selector) : [];
+  });
 };
 
 describe("breadcrumb rules shared with the canvas header", () => {
@@ -2861,13 +2907,13 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 
 // Play reopens this file as a player window (`#doan-play=<id>`); what it decides is the app's (viewerApp.js). These pin
 // the browser's own rules; player.js defines only names at load, so it is read with no globals.
-const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, frameName })`, {}) as Lib : {};
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, playedFrameName: typeof playedFrameName === "undefined" ? undefined : playedFrameName })`, {}) as Lib : {};
 
 describe("the browser player's rules", () => {
   // The window title, the name button and the move announcement name a frame as the app does (canvasTree.ts frameName).
   test("a frame is named by its trimmed title, else its id", () => {
     for (const frame of [{ id: "pay", title: "Pay" }, { id: "pay", title: " Pay " }, { id: "pay", title: "" }, { id: "pay", title: "   " }, { id: "pay" }]) {
-      expect(pc.frameName?.(frame), JSON.stringify(frame)).toBe(appFrameName(frame));
+      expect(pc.playedFrameName?.(frame), JSON.stringify(frame)).toBe(appFrameName(frame));
     }
   });
 
@@ -4672,6 +4718,13 @@ describe("the prototype page's look is the app's", () => {
   test("the notice and the panel are ds/surfaces.css's", () => {
     for (const selector of [".doan-panel", ".doan-notice", ".doan-alert-icon", ".doan-notice.doan-panel"]) {
       expect(declarations(protoCss, selector), selector).toEqual(declarations(surfacesCss, selector));
+    }
+  });
+
+  test.each([["shell.css", shellCss], ["prototype.css", protoCss]])("%s: the notice and the panel keep ds/surfaces.css's forced-colours edge", (_name, css) => {
+    expect(forcedColours(surfacesCss, ".doan-notice.doan-panel")).not.toEqual([]);
+    for (const selector of [".doan-panel", ".doan-notice", ".doan-alert-icon", ".doan-notice.doan-panel"]) {
+      expect(forcedColours(css, selector), selector).toEqual(forcedColours(surfacesCss, selector));
     }
   });
 

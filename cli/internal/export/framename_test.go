@@ -2,7 +2,9 @@ package export
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
@@ -48,5 +50,28 @@ func TestExportNamesFramesByTrimmedTitleElseID(t *testing.T) {
 	}
 	if p.title != "Hero — Prototype" || !reflect.DeepEqual(pageGroup, want) {
 		t.Errorf("prototype page title %q group %q", p.title, p.meta)
+	}
+}
+
+// The thumbnail fixture holds trimProjectName to the renderer's trim; frame names follow the same cases.
+func TestFrameNameTrimsAsTheThumbnailFixture(t *testing.T) {
+	data, err := os.ReadFile("../../../schema/fixtures/project-thumb/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct{ Name, Initial string }
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		// "?" is the initial of a name that trims to nothing; otherwise the initial comes from the first rune kept.
+		switch got := frameName("id", c.Name); {
+		case c.Initial == "?":
+			if got != "id" {
+				t.Errorf("frameName(%q) = %q, want the id", c.Name, got)
+			}
+		case got == "id" || projectInitial(got) != c.Initial || !strings.Contains(c.Name, got):
+			t.Errorf("frameName(%q) = %q, want the trimmed title with initial %q", c.Name, got, c.Initial)
+		}
 	}
 }
