@@ -83,6 +83,18 @@ test("only the messages before the next command go out together, as main's nextQ
   expect(store.localSends(A).map(mark => mark.text)).toEqual(["First\n\nSecond"]);
 });
 
+// main's asIs also splits on the ACP conversation's unconfirmed commands, which the composer marks when it queues them.
+test("a queued passthrough command splits the mark as main's asIs does", async () => {
+  const { store } = harness();
+  await opened(store);
+  store.queued(ROOT, A, { id: "q1", text: "First", message: { text: "First", anchors: [], attachments: [] } });
+  store.queued(ROOT, A, { id: "q2", text: "/share the plan", message: { text: "/share the plan", anchors: [], attachments: [] }, command: true });
+  store.queued(ROOT, A, { id: "q3", text: "After", message: { text: "After", anchors: [], attachments: [] } });
+  expect(store.localSends(A).map(mark => mark.text)).toEqual(["First"]);
+  store.unqueued(A, "q1");
+  expect(store.localSends(A).map(mark => mark.text)).toEqual(["/share the plan"]);
+});
+
 test("the queue's mark survives the list read that drops the rows main sent", async () => {
   const list: ListView[] = [[summary({ queued: 1 })]];
   let started = 1, applied = 1;

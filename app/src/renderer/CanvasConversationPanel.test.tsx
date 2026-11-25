@@ -237,6 +237,8 @@ test("a queued message keeps its request for the thread", () => {
   expect(queuedMessage("q1", { text: "Change {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] }))
     .toEqual({ id: "q1", text: "Change Cart", message: { text: "Change {{1}}", anchors, attachments: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] } });
   expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
+  // A command keeps its mark, so the store splits the queue on it as main does.
+  expect(queuedMessage("q3", { text: "/share", anchors: [], attachments: [], command: true })).toEqual({ id: "q3", text: "/share", message: { text: "/share", anchors: [], attachments: [] }, command: true });
 });
 
 // A new conversation runs beside the others, so ⌘N while the first list read is still loading sends once the terminal
