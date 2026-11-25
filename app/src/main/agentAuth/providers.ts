@@ -3,6 +3,7 @@ import { codexRuleText, mergeClaudeAllow } from "../agentSetup/plan";
 import { readRegularFileSync } from "../regularFile";
 import stub from "../onboarding/SKILL.md?raw";
 import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER } from "./antigravity";
+import { validLabel } from "./metadata";
 import type { SettingMerge } from "./storage";
 import type { AccountIdentity, CheckResult, Provider } from "./types";
 
@@ -46,7 +47,7 @@ const failed: CheckResult = { status: "failed", code: "check_failed" };
 function json(text: string): Record<string, unknown> | null {
   try { const value = JSON.parse(text); return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null; } catch { return null; }
 }
-export const label = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0") ? value : undefined;
+export const label = (value: unknown) => validLabel(value) ? value : undefined;
 function account(id: unknown, workspace: unknown, displayName: unknown, email: unknown): AccountIdentity {
   const name = label(displayName), mail = label(email);
   return { id: label(id) ?? null, workspace: label(workspace) ?? null, ...(name ? { displayName: name } : {}), ...(mail ? { email: mail } : {}) };

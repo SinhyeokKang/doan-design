@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { codexPermission, type CodexDefaults, type CodexWorkspace, type PermissionModeId } from "../conversation/permissionMode";
+import { MAX_SLUG } from "../mcpConnectors/names";
 import { CONVERSATION_RUNTIME } from "../runtime";
 import type { Provider } from "./types";
 
@@ -34,10 +35,11 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
 
 // Claude takes these refresh locks before the shared storage lock. The MCP lock name is the connector name with
-// punctuation replaced by underscores plus a 16-digit hex hash; Seatbelt has no counted repetition.
+// punctuation replaced by underscores plus a 16-digit hex hash; Seatbelt has no counted repetition, so the slug's
+// optional characters are spelled out up to MAX_SLUG.
 const CLAUDE_REFRESH = `(let ((account-lock (string-append (param "AGENT_FOLDER") "/.oauth_refresh.lock")))
   (allow file-write* (literal account-lock) (literal (string-append account-lock ".owner")) (prefix (string-append account-lock ".owner.tmp."))))
-(allow file-write* (regex (string-append "^" (regex-quote (param "AGENT_FOLDER")) #"/mcp-refresh-doan_[a-z0-9]${"[a-z0-9_]?".repeat(15)}_${"[0-9a-f]".repeat(16)}\\.lock\\.lock$")))
+(allow file-write* (regex (string-append "^" (regex-quote (param "AGENT_FOLDER")) #"/mcp-refresh-doan_[a-z0-9]${"[a-z0-9_]?".repeat(MAX_SLUG - 1)}_${"[0-9a-f]".repeat(16)}\\.lock\\.lock$")))
 `;
 
 // The agent's folder is closed but for this allowlist (ARCHITECTURE §7 'Fence'). dirs open whole subtrees; files are

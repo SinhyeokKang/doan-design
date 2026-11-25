@@ -491,6 +491,37 @@ describe("sign-in", () => {
     expect(await storage.loadVault("antigravity")).toBeNull();
     expect(storage.readMetadata().accounts).toEqual([]);
   });
+  it("signs out an Antigravity connection whose vault cannot be decrypted, skipping only the server logout", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      await signedInAntigravity(m);
+      vi.spyOn(cipher, "decrypt").mockImplementation(async () => { throw new Error("key changed"); });
+      const out = started(await m.signOut("antigravity"));
+      const after = await acpRequest("initialize");
+      expect(after.requests().some(r => r.method === "logout")).toBe(false);
+      after.reply("initialize", INIT); await acpRequest("authenticate");
+      after.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null, error: null });
+      expect(existsSync(join(root, "vault", "antigravity.bin"))).toBe(false);
+      expect(storage.readMetadata().accounts).toEqual([]);
+    } finally { errors.mockRestore(); }
+  });
+  it("scrubs the materialized Antigravity token even when doan's vault copy cannot be removed", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      await signedInAntigravity(m);
+      const out = started(await m.signOut("antigravity"));
+      const logout = await acpRequest("initialize");
+      expect(existsSync(tokenFile("antigravity"))).toBe(true);
+      chmodSync(join(root, "vault"), 0o500);
+      // The server answers its logout but leaves its token file in place.
+      logout.reply("initialize", INIT); await acpRequest("logout"); logout.reply("logout", {});
+      expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" } });
+      expect(existsSync(tokenFile("antigravity"))).toBe(false);
+    } finally { errors.mockRestore(); }
+  });
   it("admits an unchecked run-verified connection and verifies it only from its own connection's completed run", async () => {
     const copilot = { ...fileProvider(tokenAccount), verifyByRun: true };
     const m = manager({ adapters: { ...withAcp(), copilot } });
@@ -1235,6 +1266,16 @@ describe("sign-out", () => {
     const retry = started(await m.signOut("claude"));
     await finish("logout", 0); await finish("status", 0);
     expect(await retry.done).toMatchObject({ phase: "disconnected", connection: null, error: null });
+  });
+  it("signs out a provider whose settings file a fenced run replaced with a folder", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const settings = join(storage.profileDir("cursor"), "conf/settings.json");
+    rmSync(settings, { force: true }); mkdirSync(join(settings, "nested"), { recursive: true });
+    const run = started(await m.signOut("cursor"));
+    await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "disconnected", connection: null, error: null });
+    expect(readFileSync(settings, "utf8")).toBe('{"storeTokenPlaintext":true}');
   });
   it("keeps blocking new runs when the dedicated credential cannot be deleted", async () => {
     const m = manager(); await m.load();

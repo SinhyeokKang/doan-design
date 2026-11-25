@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
 
 describe("reconcilePlan", () => {
@@ -117,5 +118,9 @@ describe("plaintextLeftovers", () => {
     expect(plaintextLeftovers("claude", [".credentials.json", ".claude.json", "settings.json"])).toEqual([".credentials.json"]);
     expect(plaintextLeftovers("claude", [".claude.json"])).toEqual([]);
     expect(plaintextLeftovers("codex", ["auth.json", ".credentials.json", "config.toml"])).toEqual([]);
+  });
+  // MCP's sign-in scrub and agent auth must name the same Claude fallback files.
+  test("Claude's leftovers are the plaintext fallback files agent auth names for Claude", () => {
+    expect(plaintextLeftovers("claude", [...PROVIDER_AUTH.claude.plaintext, ".claude.json"])).toEqual(PROVIDER_AUTH.claude.plaintext);
   });
 });
