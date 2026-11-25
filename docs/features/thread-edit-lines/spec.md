@@ -37,7 +37,22 @@ PRODUCT §3 In scope 6(Conversation)과 §5 item 3의 activity 행 규칙을 확
 
 ## 완료 조건
 
-1. T0 PoC가 편집 결과를 준다고 확인한 provider에서는, 편집이 적용되면 그 편집 단계에 추가 줄 수와 삭제 줄 수가 저장된다. T0가 끝나면 이 조건을 고정된 목록으로 다시 쓴다. 형식은 "<provider>: `fixtures/`의 녹화 프레임이 이 숫자의 `activity.result`를 낸다"이다. 빠진 provider는 BACKLOG 항목과 함께 적는다.
+1. 아래 provider에서는 편집이 적용되면 그 편집 단계에 추가 줄 수와 삭제 줄 수가 저장된다. 근거는 T0 PoC(2026-11-25) 녹화이고, 경로는 `app/src/main/conversation/fixtures/`다.
+   - Claude Code: `fixtures/claude-edit-results.json`의 녹화 프레임(2.1.284, 2.1.332)이 이 숫자의 `activity.result`를 낸다.
+     - edit +1 −1, replaceall +3 −3, write(새 파일) +3 −0, overwrite +2 −4
+     - parallel은 편집 두 개가 각각 +1 −1
+     - deny, fail, delete(Bash)는 결과를 내지 않는다.
+   - Codex: `fixtures/codex-file-changes.json`의 녹화 프레임(0.158.0, 0.171.0)이 이 숫자의 `activity.result`를 낸다.
+     - edit +1 −1, write(`add`) +3 −0, overwrite +2 −4, delete(`delete`) +0 −3
+     - multipath는 경로마다 +1 −1
+     - deny(`declined`)와 fail은 결과를 내지 않는다.
+   - Copilot: `fixtures/acp-copilot-edits.json`의 녹화 프레임이 이 숫자의 `activity.result`를 낸다.
+     - 1.0.89: edit +1 −1, write +3 −0, overwrite +2 −4
+     - 1.0.114: edit +1 −1, write +3 −0, overwrite 합계 +2 −4(같은 경로의 삭제 +0 −4와 추가 +2 −0), delete +0 −3, multipath는 경로마다 +1 −1
+     - deny와 fail은 결과를 내지 않는다. 1.0.89의 delete와 multipath는 셸 명령이었으므로 결과가 없다.
+   - 빠진 provider:
+     - Cursor: 계정 플랜 한도로 편집 턴을 녹화하지 못했다. BACKLOG 'Edit line counts for Cursor'.
+     - Antigravity: 적용된 편집의 diff를 주지 않는다. BACKLOG 'Edit line counts for Antigravity'.
 2. 펼친 activity 행의 편집 단계는 "Edited <path>" 뒤에 `+N −M`을 보여준다. 수정 한 줄은 추가 1과 삭제 1로 센다. 같은 파일을 여러 번 고치면 편집마다 따로 센다. 경로가 없는 단계("Edited a file")도 같은 편집의 결과이면 숫자를 보여준다.
 3. 접힌 머리가 단계 수를 보여줄 때, 줄 수가 있는 편집 단계가 하나라도 있으면 그 단계들의 합계 `+N −M`이 뒤에 붙는다. 줄 수가 있는 편집이 없으면 머리는 지금과 같다. 머리가 진행 중 문구("Editing <path>")로 회전하는 동안에는 합계를 붙이지 않는다. 숫자가 늦게 도착해도 따로 알리지 않는다(상태 줄 문구는 그대로다).
 4. 줄 수를 모르는 편집에는 숫자가 나오지 않는다. 다음이 여기에 해당한다.
