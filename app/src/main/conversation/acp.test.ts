@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acpPermission, acpPromptDone, acpQuestion, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
+import { acpFailureCode, acpPermission, acpPromptDone, acpPromptFailed, acpQuestion, initialAcp, normalizeAcp, type AcpTransport } from "./acp";
 import copilotEdits from "./fixtures/acp-copilot-edits.json";
 import antigravityEdits from "./fixtures/acp-antigravity-edits.json";
 import cursor from "./fixtures/acp-cursor.json";
@@ -173,5 +173,31 @@ describe("ACP edit line counts: synthetic updates", () => {
   it("records nothing once the turn ended (synthetic)", () => {
     const { state } = run([call("e", { content: [diff("a\n", "b\n")] })]);
     expect(normalizeAcp(state, update("e", { status: "completed" }), "/repo").events).toEqual([]);
+  });
+});
+
+// A provider's words map to one code whether the session was opening or a prompt ran; only text no pattern knows takes
+// the phase's own fallback.
+describe("ACP failure codes", () => {
+  it.each([
+    // Cursor's and Antigravity's error.data.message, and Doan's own wording for a stored sign-in a server asks to renew.
+    ["Authentication required", "not_logged_in"],
+    ["Authentication required: the stored sign-in no longer works", "not_logged_in"],
+    // Copilot CLI asking for a sign-in.
+    ["Error: Please sign in to view available models. Launch the CLI without arguments to sign in.", "not_logged_in"],
+    // cursor-agent's session/load for a session it never saved.
+    ["Session not found", "session_unavailable"],
+    ["You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at Jul 25th, 2026 1:02 PM.", "rate_limited"],
+    // AcpConnection's own deadline for a request.
+    ["session/new timed out", "process_exited"],
+  ] as const)("reads %j as %s in both phases", (detail, code) => {
+    expect(acpFailureCode(detail, "open")).toBe(code);
+    expect(acpFailureCode(detail, "prompt")).toBe(code);
+    expect(acpPromptFailed(initialAcp("t"), detail).events.at(-1)).toMatchObject({ type: "turn.failed", code });
+  });
+  it("keeps each phase's fallback for text no pattern knows", () => {
+    expect(acpFailureCode("Something else went wrong", "open")).toBe("session_unavailable");
+    expect(acpFailureCode("Something else went wrong", "prompt")).toBe("unknown");
+    expect(acpFailureCode("", "prompt")).toBe("unknown");
   });
 });
