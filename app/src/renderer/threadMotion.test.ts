@@ -206,7 +206,7 @@ describe("revealBoundary", () => {
     for (const text of ["See [the payment", "See [the payment screen]", "See [the payment screen](https://exa", "See [Payment](doan:canvas/payment.html#fr"]) {
       expect(revealBoundary(text, 0, text.length, false)).toBe(4);
     }
-    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6, false)).toBe("See [Payment](doan:canvas/payment.html#frame)".length);
+    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6, false)).toBe("See [Payment](doan:canvas/payment.html#frame) ".length);
   });
 
   test("a finished link shows whole, never part of its label", () => {

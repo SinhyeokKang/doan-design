@@ -69,14 +69,17 @@ function openFence(text: string, at: number): boolean {
   return open !== null;
 }
 
-// A `[` that may still become a link: not in a code span, not right after a letter or digit, its label so far without
-// brackets or parentheses.
+// A `[` that may still become a link, outside a code span. Once `](` has arrived it is one; before that, not right
+// after a Latin letter or digit (`a[i`) and with no bracket or parenthesis in its label (`[0, 1)`). CJK text puts
+// links right after a letter.
 function mayBeLink(text: string, bracket: number): boolean {
+  const rest = text.slice(bracket);
+  if (!LINK_START.test(rest)) return false;
   const lineStart = text.lastIndexOf("\n", bracket - 1) + 1;
   if ((text.slice(lineStart, bracket).match(/`/g)?.length ?? 0) % 2 === 1) return false;
-  if (bracket > 0 && /[\p{L}\p{N}]/u.test(text[bracket - 1]!)) return false;
-  const label = /^\[([^\]\n]*)/.exec(text.slice(bracket))![1]!;
-  return !/[()[]/.test(label) && LINK_START.test(text.slice(bracket));
+  if (/^\[[^\]\n]*\]\(/.test(rest)) return true;
+  if (bracket > 0 && /[\p{Script=Latin}\p{N}]/u.test(text[bracket - 1]!)) return false;
+  return !/[()[]/.test(rest.slice(1));
 }
 
 // Where to cut `text` when showing up to about `to` from `from`: a word's end; whole lines in a code block or a table;
@@ -108,10 +111,17 @@ export function revealBoundary(text: string, from: number, to: number, complete:
   let cut = end;
   if (end < text.length && !/\s/.test(text[end - 1]!)) {
     const lineEnd = last.next ?? text.length;
-    const word = words.segment(text.slice(last.start, lineEnd)).containing(end - 1 - last.start)!;
+    // Cut only between two words (CJK has no spaces) or at a space, so punctuation and markup marks stay with the
+    // word they close or open.
+    const segments = words.segment(text.slice(last.start, lineEnd));
+    let word = segments.containing(end - 1 - last.start)!;
     cut = last.start + word.index + word.segment.length;
-    // Punctuation trailing a word shows with it; a `[` waits, as it may start a link.
-    while (cut < text.length && /[^\s\p{L}\p{N}[]/u.test(text[cut]!)) cut += 1;
+    while (cut < lineEnd && !/\s/.test(text[cut]!)) {
+      const next = segments.containing(cut - last.start)!;
+      if (word.isWordLike && next.isWordLike) break;
+      word = next;
+      cut = last.start + next.index + next.segment.length;
+    }
     if (cut < text.length && /\s/.test(text[cut]!)) cut += 1;
   }
   const bracket = text.lastIndexOf("[", cut - 1);
