@@ -250,8 +250,8 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }');
 });
 
-// DESIGN 'Scrollbars': menus count only item focus (Radix focuses the menu on open) and only the colour changes.
-// The menu inherits that colour because Electron 45 does not repaint a thumb whose own :hover rule changes.
+// DESIGN 'Scrollbars': not :focus-within (open dialogs and menus hold focus); menus count item focus; colour only.
+// A menu inherits the thumb colour because Electron 45 does not repaint a thumb whose own :hover rule changes.
 test("scrollbar thumbs show only while the scroller is hovered or holds keyboard focus", () => {
   const css = read("./surfaces.css");
   expect(rule(css, ".doan-scroll:is(:hover, :focus-visible, :has(:focus-visible))")).toBe("scrollbar-color: var(--scrollbar-thumb-quiet) transparent;");
