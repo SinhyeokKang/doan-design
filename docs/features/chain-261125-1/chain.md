@@ -76,3 +76,4 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - 사용자에게 올린 것: 347에서 메타 줄이 두 줄로 감기면 카드 높이가 달라지고(211 대 195), 시간 문구가 바뀌면 높이가 다시 바뀐다. PRODUCT §5의 "Neither meta nor the image changes a card's height"와 어긋난다.
   - 확인되지 않은 관찰: 사라진 것으로 표시된 캔버스를 곧바로 같은 내용으로 다시 쓰면 30초 안에 카드가 "Drawn"으로 돌아오지 않았다(두 번). 나중에 다른 내용으로 다시 쓴 경우에는 3초 안에 돌아왔다. probe 탓인지 확인하지 못했다.
 - 2026-11-25 lead: 메타 줄 감김 건은 사용자가 한 줄 고정으로 정했다. 메타를 한 줄에 두고, 폭이 모자라면 폴더부터 말줄임한다. 구현은 링크 2가 머지된 뒤 `fix/card-meta-one-line` 브랜치에서 `/deliver` conductor로 한다(사용자 결정). 링크 2와 같은 `styles.css`, `ConversationThread.tsx`를 바꾸기 때문이다. BACKLOG 'Known defects'에 적어 두었다.
+- 2026-11-25 lead: 사용자 지시. 링크 2를 머지하면 곧바로 메타 한 줄 고정 `/deliver` conductor를 띄우고, 그 conductor를 기다리는 동안 lead가 링크 2의 미검증 항목을 develop에서 확인한다.
