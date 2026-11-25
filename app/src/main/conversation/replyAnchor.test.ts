@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseReplyAnchor } from "./replyAnchor";
+import { join } from "node:path";
+import { CANVAS_ID, parseReplyAnchor } from "./replyAnchor";
 
 describe("parseReplyAnchor", () => {
   it("reads a frame link and an element link", () => {
@@ -86,4 +87,10 @@ describe("parseReplyAnchor", () => {
   it("has no import at all", () => {
     expect(readFileSync(new URL("./replyAnchor.ts", import.meta.url), "utf8")).not.toMatch(/^\s*(import|export\s.*\sfrom)\s/m);
   });
+});
+
+// The conversation's single copy of the canvas id rule; the sessions schema states it for the CLI side.
+it("keeps CANVAS_ID at the sessions schema's canvas id pattern", () => {
+  const schema = JSON.parse(readFileSync(join(__dirname, "../../../../schema/sessions.v1.schema.json"), "utf8")) as { properties: { canvas: { properties: { id: { pattern: string } } } } };
+  expect(CANVAS_ID.source).toBe(schema.properties.canvas.properties.id.pattern);
 });
