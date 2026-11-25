@@ -48,7 +48,7 @@ PRODUCT §3 In scope 6(Conversation)과 §5 item 3의 activity 행 규칙을 확
      - deny(`declined`)와 fail은 결과를 내지 않는다.
    - Copilot: `fixtures/acp-copilot-edits.json`의 녹화 프레임이 이 숫자의 `activity.result`를 낸다.
      - 1.0.89: edit +1 −1, write +3 −0, overwrite +2 −4
-     - 1.0.114: edit +1 −1, write +3 −0, overwrite 합계 +2 −4(같은 경로의 삭제 +0 −4와 추가 +2 −0), delete +0 −3, multipath는 경로마다 +1 −1
+     - 1.0.114: edit +1 −1, write +3 −0, overwrite 합계 +2 −4(같은 경로의 삭제 +0 −4와 추가 +2 −0), delete +0 −3, multipath는 단계 하나("Edited config.txt", 마지막 권한 요청이 이름 붙인 경로)에 config.txt의 +1 −1 하나만 붙는다(notes.txt의 변화는 세지 않는다)
      - deny와 fail은 결과를 내지 않는다. 1.0.89의 delete와 multipath는 셸 명령이었으므로 결과가 없다.
    - 빠진 provider:
      - Cursor: 계정 플랜 한도로 편집 턴을 녹화하지 못했다. BACKLOG 'Edit line counts for Cursor'.

@@ -42,6 +42,7 @@
      - `status === "completed"`인 갱신에서 `type: "diff"` 항목의 `oldText`(없으면 빈 파일)와 `newText`를 줄 단위로 비교해 센다.
      - diff content가 completed보다 먼저 온 갱신(상태 없음, `in_progress`)에 실릴 수 있다. 그래서 `AcpTool`에 마지막 diff content를 보관하고, 완료될 때 센다. 완료 뒤에 온 content-only 갱신은 지금처럼 버린다(`acp.ts:212-217`).
      - 한 갱신의 `content`에 diff 항목이 여러 개일 수 있다(Copilot 1.0.114: 두 파일 패치는 경로마다 하나, 덮어쓰기는 같은 경로에 삭제와 추가 두 개). 그래서 보관과 계산은 diff 항목마다 하고, 결과도 항목마다 낸다. 같은 키의 결과는 renderer가 더한다.
+     - tool call 하나는 여러 파일을 고쳐도 단계(activity) 하나다. 그 단계의 path는 `locations`나 권한 요청의 `rawInput.fileName`에서 오고, 요청이 여러 번 오면 마지막 요청의 경로다. 그래서 diff 항목 중 path가 단계의 path와 같은 것만 센다. 단계에 path가 없으면 모두 센다. 결과의 `path`는 단계의 path다(사용자 결정). Copilot 1.0.114의 두 파일 패치는 "Edited config.txt +1 −1" 하나가 되고 notes.txt의 변화는 세지 않는다. 덮어쓰기는 삭제와 추가가 같은 경로라 둘 다 센다(+0 −4, +2 −0).
      - T0 관찰(Copilot):
        - 1.0.89: `edit`/`create` 도구다. pending `tool_call`과 completed `tool_call_update`가 같은 diff를 가진다. `oldText`/`newText`는 도구의 바꿀 문자열 조각이고(`"line 3: apple"` → `"line 3: banana"`), 새 파일은 `oldText: ""`다. 거부·실패는 pending에만 diff가 있고 `failed`로 끝난다.
        - 1.0.114: `apply_patch`다. pending `tool_call`에는 content가 없고, completed 갱신에만 diff가 있다. 수정은 hunk의 맥락을 포함한 앞뒤 조각이고, 새 파일은 `oldText: ""`와 전체 내용, 삭제는 전체 내용과 `newText: ""`다. 거부·실패는 diff 없이 `failed`로 끝난다. 두 파일 패치는 tool call 하나에 권한 요청이 두 번 왔다.
