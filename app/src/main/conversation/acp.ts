@@ -5,7 +5,7 @@ import { QUESTION_LIMITS } from "./question";
 import { countTextChange } from "./editLines";
 import { callIdOf, contextBefore, contextValue, displayPath, editResult, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
 import { clip, quoted, visibleText } from "./cardText";
-import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
+import type { EventPayload, FailureCode, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
 // (`agent acp`), Copilot (`copilot --acp --stdio`) and Antigravity (agy_acp_server) speak it.
@@ -265,7 +265,17 @@ export function acpPromptDone(state: AcpTransport, result: unknown): TransportRe
   if (typeof reason !== "string") return finishAcp(state, { type: "turn.failed", code: "unknown", detail: "ACP prompt returned no stopReason" });
   return finishAcp(state, { type: "turn.done" });
 }
+// One reading of a failure's text whether the session was opening or a prompt ran, so a provider's words give one code;
+// only text no pattern knows takes the phase's own fallback. Each pattern comes from a recorded message.
+export function acpFailureCode(detail: string, phase: "open" | "prompt"): FailureCode {
+  // AcpConnection's own deadline for a request.
+  if (/^\S+ timed out$/.test(detail)) return "process_exited";
+  // Copilot CLI: "Please sign in to view available models."
+  if (/sign in/i.test(detail)) return "not_logged_in";
+  const code = transportError(detail);
+  return code === "unknown" && phase === "open" ? "session_unavailable" : code;
+}
 export function acpPromptFailed(state: AcpTransport, detail: string): TransportResult & { state: AcpTransport } {
-  return finishAcp(state, { type: "turn.failed", code: transportError(detail), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+  return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
 }
 export function acpEnded(state: AcpTransport): TransportResult & { state: AcpTransport } { return finishAcp(state, { type: "turn.failed", code: "process_exited" }); }
