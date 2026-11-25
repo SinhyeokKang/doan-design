@@ -249,10 +249,12 @@ function withFileSummary(summaries: Record<string, string>, id: string, summary:
   return { ...Object.fromEntries(kept), [id]: summary };
 }
 type ActivityEvent = Extract<EventPayload, { type: "activity" }>;
+// The store refuses U+0000 and one refused event fails the turn's whole write; activity text keeps every other character.
+export function storableText(text: string): string { return text.replaceAll("\0", "<U+0000>"); }
 function activity(kind: ActivityKind, path: string, line: string, root: string, callId?: string): ActivityEvent {
-  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored. The store
-  // refuses U+0000 and one refused event fails the turn's whole write, so the summary escapes it and such a path goes.
-  const summary = visibleText(line).slice(0, 512);
+  // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored. A path with
+  // U+0000 goes for storableText's reason.
+  const summary = storableText(line).slice(0, 512);
   const id = callId ? { callId } : {};
   if (!path || path.includes("\0")) return { type: "activity", kind, summary, ...id };
   const resolved = posix.resolve(root, path);
