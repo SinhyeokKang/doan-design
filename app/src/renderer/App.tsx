@@ -647,13 +647,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
     // A reload can take the bubble while the prototype window is in front, so the hand-off is made again on activation,
-    // unless the selection came back with the bubble's own button meanwhile.
-    const bubbleShown = (button: HTMLElement | null | undefined) => !!button?.isConnected && button.closest("[hidden]") === null;
+    // unless the selection came back meanwhile: the controller then returns focus to a bubble button, maybe another one.
+    const onScreen = (button: HTMLElement | null | undefined) => !!button?.isConnected && button.closest("[hidden]") === null;
+    const bubbleShown = () => [instance.bubblePlayButton(), bubbleAddButton.current, bubbleInspectButton.current].some(onScreen);
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
       onFocusLost: () => handFocus.current(() => {
-        if (!bubbleShown(instance.bubblePlayButton())) (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true });
+        if (!bubbleShown()) (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true });
       }),
     };
     instance.bubbleAdd = {
@@ -662,7 +663,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       button: () => bubbleAddButton.current,
       // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
       onFocusLost: () => handFocus.current(() => {
-        if (!bubbleShown(bubbleAddButton.current)) (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true });
+        if (!bubbleShown()) (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true });
       }),
     };
     instance.bubbleInspect = {

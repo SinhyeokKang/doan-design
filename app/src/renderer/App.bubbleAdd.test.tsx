@@ -320,6 +320,24 @@ test.each(["Play", "Add to message"] as const)("the bubble going with focus on %
   } finally { vi.useRealTimers(); }
 });
 
+// A reload that drops Play but finds the selection again returns focus to Add to message (Play no longer applies), so
+// any bubble button shown again ends the toolbar's hand-off, whichever hand-off activation replays first.
+test("the toolbar Play's hand-off is not made again once Add to message shows again instead of Play", async () => {
+  await bubbleWithComposer();
+  const toolbarPlay = element("toolbar Play");
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay.onFocusLost();
+    expect(toolbarPlay.focus).toHaveBeenCalledOnce();
+    bubble()!.button.current = { ...element("Add to message"), closest: () => null };
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(toolbarPlay.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
 test("the controller reads App's Add to message button", async () => {
   await bubbleWithComposer();
   const add = element("Add to message");
