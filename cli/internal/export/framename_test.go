@@ -53,7 +53,7 @@ func TestExportNamesFramesByTrimmedTitleElseID(t *testing.T) {
 	}
 }
 
-// The thumbnail fixture holds trimProjectName to the renderer's trim; frame names follow the same cases.
+// The thumbnail fixture holds jsTrim to the renderer's trim; frame names follow the same cases.
 func TestFrameNameTrimsAsTheThumbnailFixture(t *testing.T) {
 	data, err := os.ReadFile("../../../schema/fixtures/project-thumb/cases.json")
 	if err != nil {
