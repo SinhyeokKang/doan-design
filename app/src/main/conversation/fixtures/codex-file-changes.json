@@ -1,0 +1,3599 @@
+{
+ "source": "thread-edit-lines T0 probe, 2026-11-25: codex app-server (see README)",
+ "0.158.0": {
+  "delete": {
+   "numstat": [
+    {
+     "path": "old.txt",
+     "added": 0,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795587009,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795587009777
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587011905
+     },
+     "emittedAtMs": 1795587011905
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587011905
+     },
+     "emittedAtMs": 1795587011907
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587014242
+     },
+     "emittedAtMs": 1795587014242
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587014247
+     },
+     "emittedAtMs": 1795587014249
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/old.txt",
+         "kind": {
+          "type": "delete"
+         },
+         "diff": "this file is obsolete\nsecond line\nthird line\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587015497
+     },
+     "emittedAtMs": 1795587015497
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/old.txt",
+         "kind": {
+          "type": "delete"
+         },
+         "diff": "this file is obsolete\nsecond line\nthird line\n"
+        }
+       ],
+       "status": "completed"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587015528
+     },
+     "emittedAtMs": 1795587015529
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587016546
+     },
+     "emittedAtMs": 1795587016546
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795587016546
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587016903
+     },
+     "emittedAtMs": 1795587016904
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795587009,
+       "completedAt": 1795587016,
+       "durationMs": 7211
+      }
+     },
+     "emittedAtMs": 1795587016928
+    }
+   ]
+  },
+  "deny": {
+   "numstat": [],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795587018,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795587018338
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587020573
+     },
+     "emittedAtMs": 1795587020573
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587020573
+     },
+     "emittedAtMs": 1795587020574
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587022940
+     },
+     "emittedAtMs": 1795587022940
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587022942
+     },
+     "emittedAtMs": 1795587022945
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587024746
+     },
+     "emittedAtMs": 1795587024747
+    },
+    {
+     "method": "item/fileChange/requestApproval",
+     "id": 0,
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "exec-00000000-0000-4000-8000-000000000004",
+      "startedAtMs": 1795587024751,
+      "reason": null,
+      "grantRoot": null
+     }
+    },
+    {
+     "reply": {
+      "id": 0,
+      "result": {
+       "decision": "decline"
+      }
+     }
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "declined"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587024755
+     },
+     "emittedAtMs": 1795587024756
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587025945
+     },
+     "emittedAtMs": 1795587025945
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587025949
+     },
+     "emittedAtMs": 1795587025950
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587026033
+     },
+     "emittedAtMs": 1795587026033
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DEN"
+     },
+     "emittedAtMs": 1795587026033
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "IED"
+     },
+     "emittedAtMs": 1795587026070
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DENIED",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587026183
+     },
+     "emittedAtMs": 1795587026184
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DENIED",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795587018,
+       "completedAt": 1795587026,
+       "durationMs": 7923
+      }
+     },
+     "emittedAtMs": 1795587026209
+    }
+   ]
+  },
+  "edit": {
+   "numstat": [
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586972,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586972252
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586974021
+     },
+     "emittedAtMs": 1795586974021
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586974021
+     },
+     "emittedAtMs": 1795586974024
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586975681
+     },
+     "emittedAtMs": 1795586975681
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586975681
+     },
+     "emittedAtMs": 1795586975683
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586976866
+     },
+     "emittedAtMs": 1795586976868
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "completed"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586976898
+     },
+     "emittedAtMs": 1795586976900
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586979084
+     },
+     "emittedAtMs": 1795586979084
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586979085
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586979150
+     },
+     "emittedAtMs": 1795586979155
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586972,
+       "completedAt": 1795586979,
+       "durationMs": 7046
+      }
+     },
+     "emittedAtMs": 1795586979175
+    }
+   ]
+  },
+  "fail": {
+   "numstat": [],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795587027,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795587027618
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587030062
+     },
+     "emittedAtMs": 1795587030062
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587030062
+     },
+     "emittedAtMs": 1795587030063
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587031642
+     },
+     "emittedAtMs": 1795587031642
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587031642
+     },
+     "emittedAtMs": 1795587031643
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587033844
+     },
+     "emittedAtMs": 1795587033844
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587033844
+     },
+     "emittedAtMs": 1795587033845
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587033848
+     },
+     "emittedAtMs": 1795587033848
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795587033848
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587033945
+     },
+     "emittedAtMs": 1795587033946
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795587027,
+       "completedAt": 1795587033,
+       "durationMs": 6403
+      }
+     },
+     "emittedAtMs": 1795587033970
+    }
+   ]
+  },
+  "multipath": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 1,
+     "removed": 1
+    },
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795587035,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795587035304
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587037346
+     },
+     "emittedAtMs": 1795587037346
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587037346
+     },
+     "emittedAtMs": 1795587037348
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587039396
+     },
+     "emittedAtMs": 1795587039396
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587039396
+     },
+     "emittedAtMs": 1795587039402
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,3 +1,3 @@\n mode = draft\n-level = 3\n+level = 4\n owner = nobody\n"
+        },
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587040831
+     },
+     "emittedAtMs": 1795587040833
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,3 +1,3 @@\n mode = draft\n-level = 3\n+level = 4\n owner = nobody\n"
+        },
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "completed"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587040883
+     },
+     "emittedAtMs": 1795587040884
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587041707
+     },
+     "emittedAtMs": 1795587041707
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795587041707
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587041779
+     },
+     "emittedAtMs": 1795587041781
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795587035,
+       "completedAt": 1795587041,
+       "durationMs": 6561
+      }
+     },
+     "emittedAtMs": 1795587041805
+    }
+   ]
+  },
+  "overwrite": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 2,
+     "removed": 4
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586990,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586990354
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586992519
+     },
+     "emittedAtMs": 1795586992519
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586992519
+     },
+     "emittedAtMs": 1795586992520
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586998164
+     },
+     "emittedAtMs": 1795586998164
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586998164
+     },
+     "emittedAtMs": 1795586998168
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "commentary",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586998319
+     },
+     "emittedAtMs": 1795586998319
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "commentary",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586998653
+     },
+     "emittedAtMs": 1795586998654
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "commandExecution",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "pluginId": null,
+       "scriptPath": null,
+       "command": "/bin/zsh -lc \"sed -n '1,200p' config.txt\"",
+       "cwd": "/repo",
+       "processId": "13309",
+       "source": "unifiedExecStartup",
+       "status": "inProgress",
+       "commandActions": [
+        {
+         "type": "read",
+         "command": "sed -n '1,200p' config.txt",
+         "name": "config.txt",
+         "path": "/repo/config.txt"
+        }
+       ],
+       "aggregatedOutput": null,
+       "exitCode": null,
+       "durationMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587000156
+     },
+     "emittedAtMs": 1795587000171
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "commandExecution",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "pluginId": null,
+       "scriptPath": null,
+       "command": "/bin/zsh -lc \"sed -n '1,200p' config.txt\"",
+       "cwd": "/repo",
+       "processId": "13309",
+       "source": "unifiedExecStartup",
+       "status": "completed",
+       "commandActions": [
+        {
+         "type": "read",
+         "command": "sed -n '1,200p' config.txt",
+         "name": "config.txt",
+         "path": "/repo/config.txt"
+        }
+       ],
+       "aggregatedOutput": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+       "exitCode": 0,
+       "durationMs": 2
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587000159
+     },
+     "emittedAtMs": 1795587000172
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587004923
+     },
+     "emittedAtMs": 1795587004923
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587004926
+     },
+     "emittedAtMs": 1795587004930
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000005",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,4 +1,2 @@\n-mode = draft\n-level = 3\n-owner = nobody\n-retries = 2\n+mode = final\n+level = 9\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587006997
+     },
+     "emittedAtMs": 1795587006997
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000005",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,4 +1,2 @@\n-mode = draft\n-level = 3\n-owner = nobody\n-retries = 2\n+mode = final\n+level = 9\n"
+        }
+       ],
+       "status": "completed"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587007031
+     },
+     "emittedAtMs": 1795587007032
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic02",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795587008221
+     },
+     "emittedAtMs": 1795587008221
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic02",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795587008221
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic02",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795587008367
+     },
+     "emittedAtMs": 1795587008369
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic02",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586990,
+       "completedAt": 1795587008,
+       "durationMs": 18127
+      }
+     },
+     "emittedAtMs": 1795587008393
+    }
+   ]
+  },
+  "write": {
+   "numstat": [
+    {
+     "path": "hello.txt",
+     "added": 3,
+     "removed": 0
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586980,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586980623
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586983194
+     },
+     "emittedAtMs": 1795586983194
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ]
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586983194
+     },
+     "emittedAtMs": 1795586983196
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586984833
+     },
+     "emittedAtMs": 1795586984833
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": []
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586984833
+     },
+     "emittedAtMs": 1795586984834
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/hello.txt",
+         "kind": {
+          "type": "add"
+         },
+         "diff": "one\ntwo\nthree\n"
+        }
+       ],
+       "status": "inProgress"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586985936
+     },
+     "emittedAtMs": 1795586985936
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/hello.txt",
+         "kind": {
+          "type": "add"
+         },
+         "diff": "one\ntwo\nthree\n"
+        }
+       ],
+       "status": "completed"
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586985967
+     },
+     "emittedAtMs": 1795586985969
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586988888
+     },
+     "emittedAtMs": 1795586988888
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586988888
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "completedAtMs": 1795586988888
+     },
+     "emittedAtMs": 1795586988889
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586980,
+       "completedAt": 1795586988,
+       "durationMs": 8349
+      }
+     },
+     "emittedAtMs": 1795586988917
+    }
+   ]
+  }
+ },
+ "0.171.0": {
+  "delete": {
+   "numstat": [
+    {
+     "path": "old.txt",
+     "added": 0,
+     "removed": 3
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586918,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586919062
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586921084,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586921084
+     },
+     "emittedAtMs": 1795586921085
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586921084,
+       "completedAtMs": 1795586921085
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586921085
+     },
+     "emittedAtMs": 1795586921088
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586922515,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586922515
+     },
+     "emittedAtMs": 1795586922515
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586922515,
+       "completedAtMs": 1795586922517
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586922517
+     },
+     "emittedAtMs": 1795586922521
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/old.txt",
+         "kind": {
+          "type": "delete"
+         },
+         "diff": "this file is obsolete\nsecond line\nthird line\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586924336,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586924336
+     },
+     "emittedAtMs": 1795586924336
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/old.txt",
+         "kind": {
+          "type": "delete"
+         },
+         "diff": "this file is obsolete\nsecond line\nthird line\n"
+        }
+       ],
+       "status": "completed",
+       "startedAtMs": 1795586924336,
+       "completedAtMs": 1795586924379
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586924379
+     },
+     "emittedAtMs": 1795586924384
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586925547,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586925547
+     },
+     "emittedAtMs": 1795586925548
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586925548
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586925547,
+       "completedAtMs": 1795586925620
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586925620
+     },
+     "emittedAtMs": 1795586925678
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586925547,
+         "completedAtMs": 1795586925620
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586918,
+       "completedAt": 1795586925,
+       "durationMs": 6769
+      }
+     },
+     "emittedAtMs": 1795586925698
+    }
+   ]
+  },
+  "deny": {
+   "numstat": [],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586927,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586927177
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586929852,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586929852
+     },
+     "emittedAtMs": 1795586929852
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586929852,
+       "completedAtMs": 1795586929852
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586929852
+     },
+     "emittedAtMs": 1795586929863
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586931027,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586931027
+     },
+     "emittedAtMs": 1795586931027
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586931027,
+       "completedAtMs": 1795586931028
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586931028
+     },
+     "emittedAtMs": 1795586931046
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586932894,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586932894
+     },
+     "emittedAtMs": 1795586932895
+    },
+    {
+     "method": "item/fileChange/requestApproval",
+     "id": 0,
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "exec-00000000-0000-4000-8000-000000000004",
+      "startedAtMs": 1795586932901,
+      "reason": null,
+      "grantRoot": null
+     }
+    },
+    {
+     "reply": {
+      "id": 0,
+      "result": {
+       "decision": "decline"
+      }
+     }
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "declined",
+       "startedAtMs": 1795586932894,
+       "completedAtMs": 1795586932908
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586932908
+     },
+     "emittedAtMs": 1795586932911
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586934321,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586934321
+     },
+     "emittedAtMs": 1795586934321
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DEN"
+     },
+     "emittedAtMs": 1795586934322
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "IED"
+     },
+     "emittedAtMs": 1795586934322
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DENIED",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586934321,
+       "completedAtMs": 1795586934448
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 3,
+      "completedAtMs": 1795586934448
+     },
+     "emittedAtMs": 1795586934451
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DENIED",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586934321,
+         "completedAtMs": 1795586934448
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586927,
+       "completedAt": 1795586934,
+       "durationMs": 7410
+      }
+     },
+     "emittedAtMs": 1795586934505
+    }
+   ]
+  },
+  "edit": {
+   "numstat": [
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586882,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586882277
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586884556,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586884556
+     },
+     "emittedAtMs": 1795586884557
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586884556,
+       "completedAtMs": 1795586884556
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586884556
+     },
+     "emittedAtMs": 1795586884559
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586885994,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586885994
+     },
+     "emittedAtMs": 1795586885994
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586885994,
+       "completedAtMs": 1795586885997
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586885997
+     },
+     "emittedAtMs": 1795586886000
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "commentary",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586886082,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586886082
+     },
+     "emittedAtMs": 1795586886082
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "commentary",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586886082,
+       "completedAtMs": 1795586886312
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 1,
+      "completedAtMs": 1795586886312
+     },
+     "emittedAtMs": 1795586886314
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586888009,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586888009
+     },
+     "emittedAtMs": 1795586888010
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "completed",
+       "startedAtMs": 1795586888009,
+       "completedAtMs": 1795586888047
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586888047
+     },
+     "emittedAtMs": 1795586888049
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic02",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586888944,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586888944
+     },
+     "emittedAtMs": 1795586888945
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic02",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586888945
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic02",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586888944,
+       "completedAtMs": 1795586889047
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586889047
+     },
+     "emittedAtMs": 1795586889087
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic02",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586888944,
+         "completedAtMs": 1795586889047
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586882,
+       "completedAt": 1795586889,
+       "durationMs": 6935
+      }
+     },
+     "emittedAtMs": 1795586889155
+    }
+   ]
+  },
+  "fail": {
+   "numstat": [],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586936,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586936344
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586938522,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586938522
+     },
+     "emittedAtMs": 1795586938523
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586938522,
+       "completedAtMs": 1795586938523
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586938523
+     },
+     "emittedAtMs": 1795586938528
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586940011,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586940011
+     },
+     "emittedAtMs": 1795586940011
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586940011,
+       "completedAtMs": 1795586940015
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586940015
+     },
+     "emittedAtMs": 1795586940017
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586942232,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586942232
+     },
+     "emittedAtMs": 1795586942232
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586942233
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586942232,
+       "completedAtMs": 1795586942344
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586942344
+     },
+     "emittedAtMs": 1795586942347
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586942232,
+         "completedAtMs": 1795586942344
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586936,
+       "completedAt": 1795586942,
+       "durationMs": 6154
+      }
+     },
+     "emittedAtMs": 1795586942399
+    }
+   ]
+  },
+  "multipath": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 1,
+     "removed": 1
+    },
+    {
+     "path": "notes.txt",
+     "added": 1,
+     "removed": 1
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586943,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586943503
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586945872,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586945872
+     },
+     "emittedAtMs": 1795586945872
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586945872,
+       "completedAtMs": 1795586945872
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586945872
+     },
+     "emittedAtMs": 1795586945881
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586947760,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586947760
+     },
+     "emittedAtMs": 1795586947760
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586947760,
+       "completedAtMs": 1795586947760
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586947760
+     },
+     "emittedAtMs": 1795586947762
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,3 +1,3 @@\n mode = draft\n-level = 3\n+level = 4\n owner = nobody\n"
+        },
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586949268,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586949268
+     },
+     "emittedAtMs": 1795586949269
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,3 +1,3 @@\n mode = draft\n-level = 3\n+level = 4\n owner = nobody\n"
+        },
+        {
+         "path": "/repo/notes.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -2,3 +2,3 @@\n line 2: bravo\n-line 3: apple\n+line 3: banana\n line 4: delta\n"
+        }
+       ],
+       "status": "completed",
+       "startedAtMs": 1795586949268,
+       "completedAtMs": 1795586949364
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586949364
+     },
+     "emittedAtMs": 1795586949367
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586950587,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586950587
+     },
+     "emittedAtMs": 1795586950587
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586950587
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586950587,
+       "completedAtMs": 1795586950684
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586950684
+     },
+     "emittedAtMs": 1795586950703
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586950587,
+         "completedAtMs": 1795586950684
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586943,
+       "completedAt": 1795586950,
+       "durationMs": 7319
+      }
+     },
+     "emittedAtMs": 1795586950763
+    }
+   ]
+  },
+  "overwrite": {
+   "numstat": [
+    {
+     "path": "config.txt",
+     "added": 2,
+     "removed": 4
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586898,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586898920
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586901015,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586901015
+     },
+     "emittedAtMs": 1795586901015
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586901015,
+       "completedAtMs": 1795586901015
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586901015
+     },
+     "emittedAtMs": 1795586901016
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586903397,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586903397
+     },
+     "emittedAtMs": 1795586903397
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586903397,
+       "completedAtMs": 1795586903401
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586903401
+     },
+     "emittedAtMs": 1795586903402
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586910609,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586910609
+     },
+     "emittedAtMs": 1795586910609
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic02",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586910609,
+       "completedAtMs": 1795586910609
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586910609
+     },
+     "emittedAtMs": 1795586910613
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "commandExecution",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "pluginId": null,
+       "scriptPath": null,
+       "command": "/bin/zsh -lc \"sed -n '1,200p' config.txt\"",
+       "cwd": "/repo",
+       "processId": "97312",
+       "source": "unifiedExecStartup",
+       "status": "inProgress",
+       "commandActions": [
+        {
+         "type": "read",
+         "command": "sed -n '1,200p' config.txt",
+         "name": "config.txt",
+         "path": "/repo/config.txt"
+        }
+       ],
+       "aggregatedOutput": null,
+       "exitCode": null,
+       "durationMs": null,
+       "startedAtMs": 1795586912299,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586912299
+     },
+     "emittedAtMs": 1795586912304
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "commandExecution",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "pluginId": null,
+       "scriptPath": null,
+       "command": "/bin/zsh -lc \"sed -n '1,200p' config.txt\"",
+       "cwd": "/repo",
+       "processId": "97312",
+       "source": "unifiedExecStartup",
+       "status": "completed",
+       "commandActions": [
+        {
+         "type": "read",
+         "command": "sed -n '1,200p' config.txt",
+         "name": "config.txt",
+         "path": "/repo/config.txt"
+        }
+       ],
+       "aggregatedOutput": "mode = draft\nlevel = 3\nowner = nobody\nretries = 2\n",
+       "exitCode": 0,
+       "durationMs": 0,
+       "startedAtMs": 1795586912299,
+       "completedAtMs": 1795586912299
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586912299
+     },
+     "emittedAtMs": 1795586912312
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic03",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586913737,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586913737
+     },
+     "emittedAtMs": 1795586913738
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic03",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586913737,
+       "completedAtMs": 1795586913737
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586913737
+     },
+     "emittedAtMs": 1795586913739
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000005",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,4 +1,2 @@\n-mode = draft\n-level = 3\n-owner = nobody\n-retries = 2\n+mode = final\n+level = 9\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586915714,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586915714
+     },
+     "emittedAtMs": 1795586915715
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000005",
+       "changes": [
+        {
+         "path": "/repo/config.txt",
+         "kind": {
+          "type": "update",
+          "move_path": null
+         },
+         "diff": "@@ -1,4 +1,2 @@\n-mode = draft\n-level = 3\n-owner = nobody\n-retries = 2\n+mode = final\n+level = 9\n"
+        }
+       ],
+       "status": "completed",
+       "startedAtMs": 1795586915714,
+       "completedAtMs": 1795586915750
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586915750
+     },
+     "emittedAtMs": 1795586915764
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586916850,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586916850
+     },
+     "emittedAtMs": 1795586916850
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586916850
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586916850,
+       "completedAtMs": 1795586916950
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586916950
+     },
+     "emittedAtMs": 1795586916969
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586916850,
+         "completedAtMs": 1795586916950
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586898,
+       "completedAt": 1795586916,
+       "durationMs": 18224
+      }
+     },
+     "emittedAtMs": 1795586916984
+    }
+   ]
+  },
+  "write": {
+   "numstat": [
+    {
+     "path": "hello.txt",
+     "added": 3,
+     "removed": 0
+    }
+   ],
+   "frames": [
+    {
+     "method": "turn/started",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [],
+       "itemsView": "notLoaded",
+       "status": "inProgress",
+       "error": null,
+       "startedAt": 1795586890,
+       "completedAt": null,
+       "durationMs": null
+      }
+     },
+     "emittedAtMs": 1795586890525
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586892877,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586892877
+     },
+     "emittedAtMs": 1795586892877
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "userMessage",
+       "id": "00000000-0000-4000-8000-000000000003",
+       "clientId": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "<prompt>"
+        }
+       ],
+       "startedAtMs": 1795586892877,
+       "completedAtMs": 1795586892877
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586892877
+     },
+     "emittedAtMs": 1795586892878
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586894658,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586894658
+     },
+     "emittedAtMs": 1795586894658
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "reasoning",
+       "id": "rs_synthetic01",
+       "summary": [],
+       "content": [],
+       "startedAtMs": 1795586894658,
+       "completedAtMs": 1795586894661
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586894661
+     },
+     "emittedAtMs": 1795586894663
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/hello.txt",
+         "kind": {
+          "type": "add"
+         },
+         "diff": "one\ntwo\nthree\n"
+        }
+       ],
+       "status": "inProgress",
+       "startedAtMs": 1795586896341,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586896341
+     },
+     "emittedAtMs": 1795586896341
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "fileChange",
+       "id": "exec-00000000-0000-4000-8000-000000000004",
+       "changes": [
+        {
+         "path": "/repo/hello.txt",
+         "kind": {
+          "type": "add"
+         },
+         "diff": "one\ntwo\nthree\n"
+        }
+       ],
+       "status": "completed",
+       "startedAtMs": 1795586896341,
+       "completedAtMs": 1795586896364
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": null,
+      "completedAtMs": 1795586896364
+     },
+     "emittedAtMs": 1795586896365
+    },
+    {
+     "method": "item/started",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586897674,
+       "completedAtMs": null
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "startedAtMs": 1795586897674
+     },
+     "emittedAtMs": 1795586897674
+    },
+    {
+     "method": "item/agentMessage/delta",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "itemId": "msg_synthetic01",
+      "delta": "DONE"
+     },
+     "emittedAtMs": 1795586897674
+    },
+    {
+     "method": "item/completed",
+     "params": {
+      "item": {
+       "type": "agentMessage",
+       "moderation": null,
+       "id": "msg_synthetic01",
+       "text": "DONE",
+       "phase": "final_answer",
+       "memoryCitation": null,
+       "delivery": null,
+       "questions": null,
+       "startedAtMs": 1795586897674,
+       "completedAtMs": 1795586897746
+      },
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turnId": "00000000-0000-4000-8000-000000000002",
+      "contentTokenCount": 2,
+      "completedAtMs": 1795586897746
+     },
+     "emittedAtMs": 1795586897748
+    },
+    {
+     "method": "turn/completed",
+     "params": {
+      "threadId": "00000000-0000-4000-8000-000000000001",
+      "turn": {
+       "id": "00000000-0000-4000-8000-000000000002",
+       "rootTurnId": "00000000-0000-4000-8000-000000000002",
+       "items": [
+        {
+         "type": "agentMessage",
+         "moderation": null,
+         "id": "msg_synthetic01",
+         "text": "DONE",
+         "phase": "final_answer",
+         "memoryCitation": null,
+         "delivery": null,
+         "questions": null,
+         "startedAtMs": 1795586897674,
+         "completedAtMs": 1795586897746
+        }
+       ],
+       "itemsView": "summary",
+       "status": "completed",
+       "error": null,
+       "startedAt": 1795586890,
+       "completedAt": 1795586897,
+       "durationMs": 7329
+      }
+     },
+     "emittedAtMs": 1795586897783
+    }
+   ]
+  }
+ }
+}
