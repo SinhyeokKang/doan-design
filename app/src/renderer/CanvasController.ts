@@ -1439,6 +1439,8 @@ export class CanvasController {
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
+    // ⌘ released inside a focused canvas never reaches the app as a keyup; a stale one would be resent to every reload.
+    this.metaHeld = event.metaKey;
     // Over the canvas itself the move arrives as its hover message.
     if (Object.is(event.target, this.viewport) || Object.is(event.target, this.layer)) this.personActive(false);
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
