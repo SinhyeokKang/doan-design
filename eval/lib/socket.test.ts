@@ -109,7 +109,7 @@ const signedOutDto = (provider: string) => ({ provider, phase: "disconnected", r
 const CHANGES = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
 
 // Every reply the fake gives must itself be a valid app-socket v2 response.
-function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => void) {
+function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => boolean) {
   const app = onboardingApp(script, root, initialize);
   const token = "t".repeat(64);
   return (request: Record<string, unknown>, sentToken = token): any => {

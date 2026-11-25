@@ -2,6 +2,7 @@
 // node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge] | --self-test [--scenarios <ids>]
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { constants } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/runtime/real-state.ts";
@@ -51,9 +52,9 @@ async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judge
   }
 }
 
-interface RoundSetup { options: Options; cli: string; stub: string; meta: RoundMeta; out: string }
+export interface RoundSetup { options: Options; cli: string; stub: string; meta: RoundMeta; out: string }
 
-async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent, n: number): Promise<RunRecord> {
+export async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent, n: number): Promise<RunRecord> {
   const name = `${scenario.id}-${agent}${setup.options.repeat > 1 ? `-${n}` : ""}`;
   const dir = join(setup.out, name);
   mkdirSync(dir, { recursive: true });
@@ -70,13 +71,22 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     await ws.stopCanvasWatch();
-    const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, doanLog: ws.doanLog, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites, canvasLog: ws.canvasLog });
-    const checks = await runChecks(scenario, ctx);
+    let read: { evidence: ReturnType<typeof readAgentTranscript>; ctx: ReturnType<typeof createContext> } | null = null;
+    let checks: Check[];
+    // An unreadable record (an unfinished call log, say) fails the run; the process facts below still describe it.
+    try {
+      const evidence = readAgentTranscript(agent, dir, ws.env);
+      const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, doanLog: ws.doanLog, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites, canvasLog: ws.canvasLog });
+      read = { evidence, ctx };
+      checks = await runChecks(scenario, ctx);
+    } catch (error) {
+      checks = [{ id: "runner_error", pass: false, detail: (error as Error).stack ?? String(error) }];
+    }
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? join(ws.base, "bin/doan") : null, join(dir, "resolved-doan.txt")));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
-    if (setup.options.judge) {
+    if (setup.options.judge && read) {
+      const { evidence, ctx } = read;
       // An agent can leave a repo git cannot read (deleted .git, say); that is a judge_error, not a lost round.
       try {
         const { changed, diff } = judgeMaterial(ws, ctx);
@@ -92,12 +102,13 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
       copyRepo(ws.repo, join(dir, "repo"));
       if (ws.cwd !== ws.repo) copyRepo(ws.cwd, join(dir, "worktree"));
     } catch (error) { writeFileSync(join(dir, "repo-copy-error.txt"), `${(error as Error).stack}\n`); }
+    const inherited = agentEnvironment(process.env);
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
       scenario: scenario.id, shellCli: scenario.shellCli, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
-      // Configuration is inherited; session identities are excluded by agentEnvironment, and the user's own
+      // Configuration is inherited; session and Doan conversation identities are excluded by agentEnvironment, and the user's own
       // instruction files by isolateUserInstructions (`agentConfig`: what the agent got instead).
-      inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
+      inheritedConfig: { HOME: inherited.HOME ?? null, CLAUDE_CONFIG_DIR: inherited.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: inherited.CODEX_HOME ?? null },
       agentConfig: { CODEX_HOME: ws.env.CODEX_HOME ?? null, CLAUDE_CODE_DISABLE_CLAUDE_MDS: ws.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null },
       guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, cwd: ws.cwd, startedAt,
       durationSec: proc.durationSec, exitCode: proc.code, signal: proc.signal, timedOut: proc.timedOut, result: record.result,
@@ -210,6 +221,7 @@ async function main(): Promise<number> {
     if (options.selfTest) {
       for (const scenario of scenarios)
         for (const kind of ["pass", "fail"] as const) {
+          if (interrupted) break;
           const run = await fixtureRun(setup, scenario, kind);
           records.push(run.record);
           problems.push(...run.problems);
@@ -221,6 +233,7 @@ async function main(): Promise<number> {
         const mine: RunRecord[] = [];
         for (const scenario of scenarios)
           for (let n = 1; n <= options.repeat; n++) {
+            if (interrupted) break;
             // One broken run is recorded as a failure; the lane and the round go on.
             try {
               mine.push(await realRun(setup, scenario, agent, n));
@@ -232,6 +245,10 @@ async function main(): Promise<number> {
         return mine;
       }));
       records.push(...scenarios.flatMap(s => lanes.flat().filter(r => r.scenario === s.id)));
+    }
+    if (interrupted) {
+      console.error(`eval: ${interrupted}; the round has no results`);
+      return signalCode(interrupted);
     }
 
     writeFileSync(join(out, "results.json"), JSON.stringify({ round: options.round, selfTest: options.selfTest, meta, runs: records, problems }, null, 2) + "\n");
@@ -250,16 +267,21 @@ async function main(): Promise<number> {
   }
 }
 
-// Agents run in their own process groups, out of reach of the terminal's Ctrl-C.
+let interrupted: "SIGINT" | "SIGTERM" | null = null;
+const signalCode = (signal: "SIGINT" | "SIGTERM") => 128 + constants.signals[signal];
+
+// Agents run in their own process groups, out of reach of the terminal's Ctrl-C. A signal kills them and lets main()
+// unwind through its disposals and the real-state check (POSTMORTEM 2026-11-20); a second one exits at once.
 if (import.meta.main) {
   for (const signal of ["SIGINT", "SIGTERM"] as const)
     process.on(signal, () => {
+      if (interrupted) process.exit(signalCode(interrupted));
+      interrupted = signal;
       killRunning();
-      process.exit(130);
     });
 
   main().then(code => { process.exitCode = code; }, error => {
     console.error(`eval: ${(error as Error).message}`);
-    process.exitCode = 1;
+    process.exitCode = interrupted ? signalCode(interrupted) : 1;
   });
 }
