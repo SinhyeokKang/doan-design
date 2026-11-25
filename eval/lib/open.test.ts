@@ -167,3 +167,24 @@ test("the fake app takes a v4 frame verdict from the CLI's frame list, not from 
     assert.deepEqual([await frame("single"), await frame("bare"), await frame("templated"), await frame("commented")], ["found", "found", "missing", "missing"]);
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+// A fake that cannot read the list must not answer canvas_not_found, which would read as the agent's outcome.
+test("the fake app gives no v4 answer when it cannot read the canvas list", async () => {
+  const dir = mkdtempSync("/tmp/doan-open-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, path), '<section data-doan-frame="profile-form"></section>');
+  const broken = join(dir, "broken-doan");
+  writeFileSync(broken, "#!/bin/sh\nexit 3\n", { mode: 0o700 });
+  const app = await startFakeApp({ dir, root, selection: null, cli: broken });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const reply = await new Promise<string>(resolve => {
+      const socket = connect(runtime.socket);
+      let text = "";
+      socket.on("error", () => resolve(text)).on("data", bytes => { text += bytes; }).on("close", () => resolve(text));
+      socket.end(JSON.stringify({ v: 4, token: runtime.token, root, path, frame: "profile-form" }) + "\n");
+    });
+    assert.equal(reply, "");
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});

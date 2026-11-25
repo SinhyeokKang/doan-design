@@ -39,6 +39,10 @@ test("work checks accept missing files before creation and reject failed deliver
   rejected.response = { v: 3, ok: false, error: { code: "bad_token", message: "wrong" } };
   assert.deepEqual(failed([rejected, exchange("done", {})]), ["start_before_edit", "start_path"]);
 });
+test("a canvas started after the last done still needs a done after its edit", () => {
+  const second = ".doan/ds/button.html";
+  assert.deepEqual(failed([exchange("start", { [path]: hash("seed") }), exchange("done", { [path]: hash("final") }), exchange("start", { [path]: hash("final"), [second]: hash("seed") }, second)], [path, second]), ["done_at_end"]);
+});
 test("a done after the final edit passes even when a changed canvas was never started", () => {
   assert.deepEqual(failed([exchange("done", {})]), ["start_before_edit", "start_path"]);
   // A canvas the done did hash still has to match its final content.

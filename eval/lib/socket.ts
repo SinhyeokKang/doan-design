@@ -372,12 +372,14 @@ export function initializeRepo(root: string, changes: string[], manifest: string
 
 // The canvas's static frame ids as the CLI parses them for the app's canvas list, or null when the list does not have
 // the canvas. The app also lists frames a canvas script draws at runtime; the fake's canvases declare theirs in markup.
+// An unreadable list throws: answering canvas_not_found would charge the fake's failure to the agent.
 function listedFrames(cli: string, root: string, runtime: string, path: string): unknown[] | null {
   const listed = spawnSync(cli, ["ls", "--json", "--repo", root], { env: { ...process.env, DOAN_RUNTIME: runtime }, encoding: "utf8", timeout: 30_000 });
   let reply: unknown = null;
-  try { reply = JSON.parse(listed.stdout); } catch { /* not listed */ }
+  try { reply = JSON.parse(listed.stdout); } catch { /* reported below */ }
   const canvases = isObj(reply) && isObj(reply.result) ? reply.result.canvases : null;
-  const item: unknown = Array.isArray(canvases) ? canvases.find(entry => isObj(entry) && entry.path === path) : null;
+  if (listed.status !== 0 || !Array.isArray(canvases)) throw new Error(`the eval fake app cannot read the canvas list: exit ${listed.status} ${listed.stderr}`);
+  const item: unknown = canvases.find(entry => isObj(entry) && entry.path === path);
   return isObj(item) && Array.isArray(item.frames) ? item.frames.map(frame => isObj(frame) ? frame.id : null) : null;
 }
 

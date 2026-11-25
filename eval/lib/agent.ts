@@ -12,8 +12,8 @@ import { toolCalls, type ToolCalls } from "./transcript.ts";
 export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const child = { ...env };
   // A runner started inside a Doan conversation must not pass its identity: the CLI would refuse onboarding and remove
-  // and hold back work signals there. Its profile homes are Doan's sign-in for that conversation, not the user's.
-  const homes = env.DOAN_APP_CONVERSATION ? ["CLAUDE_CONFIG_DIR", "CODEX_HOME"] : [];
+  // and hold back work signals there. A Claude or Codex conversation's home is Doan's profile for it, not the user's.
+  const homes = env.DOAN_APP_CONVERSATION === "1" ? ["CLAUDE_CONFIG_DIR", "CODEX_HOME"] : [];
   for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "DOAN_HANDOFF", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", ...homes]) delete child[key];
   return child;
 }

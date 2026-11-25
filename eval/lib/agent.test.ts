@@ -69,7 +69,13 @@ test("a run past its time limit is killed with its children and settles once", a
     const result = await runProcess({ cmd: "sh", args: ["-c", `sleep 30 & echo $! > ${dir}/pid; sleep 30`], cwd: dir, env: process.env, timeoutSec: 1, stdoutPath: join(dir, "o"), stderrPath: join(dir, "e") });
     assert.equal(result.timedOut, true);
     assert.ok(Date.now() - started < 10_000);
-    if (existsSync(join(dir, "pid"))) assert.throws(() => process.kill(Number(readFileSync(join(dir, "pid"), "utf8")), 0), /ESRCH/);
+    if (existsSync(join(dir, "pid"))) {
+      // The killed sleep is reaped asynchronously, so its pid can answer for a moment after the settle.
+      const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+      const gone = () => { try { process.kill(pid, 0); return false; } catch { return true; } };
+      for (let i = 0; i < 50 && !gone(); i++) await sleep(100);
+      assert.ok(gone(), `background child ${pid} survived the group kill`);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -351,4 +357,6 @@ test("agents get no Doan conversation identity, and a conversation's profile hom
   assert.deepEqual(agentEnvironment({ PATH: "/bin", HOME: "/Users/u", DOAN_APP_CONVERSATION: "1", ...ids, ...homes }), { PATH: "/bin", HOME: "/Users/u" });
   // Outside a Doan conversation the homes are the user's own configuration (an Orca or shell profile, say).
   assert.deepEqual(agentEnvironment({ PATH: "/bin", ...ids, ...homes }), { PATH: "/bin", ...homes });
+  // The CLI counts only "1" as an app conversation (cli/internal/cli/run.go).
+  assert.deepEqual(agentEnvironment({ PATH: "/bin", DOAN_APP_CONVERSATION: "0", ...homes }), { PATH: "/bin", ...homes });
 });
