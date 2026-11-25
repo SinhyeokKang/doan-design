@@ -1,6 +1,6 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationEvent, PermissionOption, PermissionRequest, QuestionRequest } from "../main/conversation/types";
-import { foldConversation, mergeEvents } from "../main/conversation/state";
+import { foldConversation } from "../main/conversation/state";
 import { PROVIDER_NAMES } from "./agentAuthView";
 
 export type StripState =
@@ -23,7 +23,8 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
   const conversationId = events[0]?.conversationId ?? "";
   const fold = foldConversation(events, conversationId, false);
   if (fold.turnId === null) return { kind: "starting" };
-  const turn = mergeEvents(events, [], conversationId).filter(event => event.turnId === fold.turnId);
+  // Callers pass merged events (seq order, once each).
+  const turn = events.filter(event => event.turnId === fold.turnId);
   switch (fold.turn) {
     case "idle": return { kind: "done" };
     case "interrupted": return { kind: "interrupted", reason: fold.interruption! };
@@ -33,8 +34,13 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
     }
     case "starting": return { kind: "starting" };
   }
-  const ask = turn.find((event): event is ConversationEvent & (PermissionRequest | QuestionRequest) =>
-    event.type === "permission.request" ? fold.permissions[event.requestId] === "pending" : event.type === "question.request" && fold.questions[event.requestId] === "pending");
+  // Each request's latest event, oldest open first, as the fold keys them: a reused id shows its open request.
+  const requests = new Map<string, ConversationEvent & (PermissionRequest | QuestionRequest)>();
+  for (const event of turn) if (event.type === "permission.request" || event.type === "question.request") {
+    const key = `${event.type}:${event.requestId}`;
+    requests.delete(key); requests.set(key, event);
+  }
+  const ask = [...requests.values()].find(event => (event.type === "permission.request" ? fold.permissions : fold.questions)[event.requestId] === "pending");
   if (ask) return ask.type === "question.request" ? { kind: "question", requestId: ask.requestId, question: ask.questions[0]?.question ?? "" }
     : { kind: "permission", requestId: ask.requestId, summary: ask.summary, options: ask.options.map(o => ({ id: o.id, label: o.label, kind: o.kind, ...(o.detail ? { detail: o.detail } : {}) })) };
   let activity: string | null = null;
