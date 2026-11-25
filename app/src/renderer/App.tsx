@@ -728,9 +728,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // own effect gives it to the heading.
       if (sceneRef.current) { homeRun.current.takeFocus(); chipFocus.current = false; return; }
       // A Home send lands in the Overview's composer field.
-      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { hand(() => document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus()); return; } }
+      const field = ".workspace .ov-main .composer-input", chip = ".workspace .ov-main .wt-chip";
+      if (homeRun.current.takeFocus() === "composer" && document.querySelector(field)) { hand(() => document.querySelector<HTMLElement>(field)?.focus()); return; }
       // A worktree picked from the Overview's branch chip lands on the new Overview's chip.
-      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { hand(() => document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip")?.focus()); return; } }
+      if (chipFocus.current) { chipFocus.current = false; if (document.querySelector(chip)) { hand(() => document.querySelector<HTMLElement>(chip)?.focus()); return; } }
       // An entry to a waiting request focused its card in the same commit; child effects run first, so this default
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
