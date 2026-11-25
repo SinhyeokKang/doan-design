@@ -626,15 +626,42 @@ describe("selection", () => {
         }
       });
 
-      it("drops a waiting hand-off when the controller goes", () => {
+      it("ends a waiting hand-off once the bubble goes and App takes focus", () => {
         const { h, addButton, playButton } = setup();
+        const live = new Set<unknown>();
+        const add = h.host.addEventListener.bind(h.host), remove = h.host.removeEventListener.bind(h.host);
+        vi.spyOn(h.host, "addEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.add(listener); add(type, listener, options); });
+        vi.spyOn(h.host, "removeEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.delete(listener); remove(type, listener, options); });
+        try {
+          h.select(1, { target: frameTarget("intro") });
+          h.doc.activeElement = playButton();
+          behind(h);
+          h.select(2, { target: frameTarget("hero") });
+          expect(live.size).toBe(1);
+          h.doc.activeElement = addButton;
+          h.receive({ type: "clear", seq: 3 });
+          expect(live.size).toBe(0);
+        } finally { h.controller.dispose(); }
+      });
+
+      // Checked on the window's listeners: after dispose the bubble's marks are gone, so a left replay would focus nothing
+      // and could not tell.
+      it("drops a waiting hand-off when the controller goes", () => {
+        const { h, playButton } = setup();
+        const live = new Set<unknown>();
+        const add = h.host.addEventListener.bind(h.host), remove = h.host.removeEventListener.bind(h.host);
+        vi.spyOn(h.host, "addEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.add(listener); add(type, listener, options); });
+        vi.spyOn(h.host, "removeEventListener").mockImplementation((type, listener, options) => { if (type === "focus") live.delete(listener); remove(type, listener, options); });
+        const waiting = () => live.size;
         h.select(1, { target: frameTarget("intro") });
         h.doc.activeElement = playButton();
-        const activate = behind(h);
+        behind(h);
         h.select(2, { target: frameTarget("hero") });
+        expect(waiting()).toBe(1);
+        // Focus off the bubble, so no hand-off to App ends the wait first.
+        h.doc.activeElement = null;
         h.controller.dispose();
-        activate();
-        expect(addButton.focus).toHaveBeenCalledOnce();
+        expect(waiting()).toBe(0);
       });
     });
   });

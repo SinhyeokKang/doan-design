@@ -2277,6 +2277,8 @@ export class CanvasController {
     if (!shown) {
       // Gone for good (not a reload's wait): nothing to come back to.
       if (had === null) { if (this.reanchor === null) this.dropBubbleReturn(); return; }
+      // App takes the hand-off now; an earlier one to a bubble button is over.
+      this.bubbleActivation();
       (had === "play" ? this.bubblePlay : had === "inspect" ? this.bubbleInspect : this.bubbleAdd)?.onFocusLost();
       this.dropBubbleReturn();
       // Hidden while a reload looks for the same selection: focus may come back to this button.
