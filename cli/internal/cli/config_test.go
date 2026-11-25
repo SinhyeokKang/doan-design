@@ -328,7 +328,8 @@ func TestConfigRejectsWithheldServeNameThroughLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{".env-docs", ".env-docs/page.css", filepath.Join(realPath(t, root), ".env-docs"),
-		".env-root/docs", filepath.Join(alias, ".env-docs"), filepath.Join(alias, ".env-docs/page.css")} {
+		".env-root/docs", filepath.Join(alias, ".env-docs"), filepath.Join(alias, ".env-docs/page.css"),
+		filepath.Join(alias, ".env-root/docs")} {
 		t.Run(path, func(t *testing.T) {
 			before := readFile(t, root, ".doan/config.json")
 			failure := runJSON(t, root, 2, "config", "--add-serve", path)["error"].(map[string]any)
