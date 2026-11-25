@@ -292,14 +292,18 @@ label.doan-preference-row-label { cursor: pointer; }
 
 /* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling.
    The thumb is transparent at rest and shows while the pointer is over the scroller or keyboard focus is on or in it.
-   :focus-visible rather than :focus-within, because an open modal dialog or menu always holds focus. Only the colour
-   changes, so the gutter keeps its width and nothing shifts. */
+   :focus-visible rather than :focus-within, because an open modal dialog or menu always holds focus. A menu counts only
+   focus on its items: Radix focuses the menu itself on open, which Chromium marks :focus-visible even when the pointer
+   opened it. Only the colour changes, so the gutter keeps its width and nothing shifts. */
 .doan-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .doan-scroll:is(:hover, :focus-visible, :has(:focus-visible)) { scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 /* Menus use ::-webkit-scrollbar parts to inset both tracks from the rounded corners; the standard scrollbar-width and scrollbar-color would turn these parts off in Chromium. */
 .doan-menu::-webkit-scrollbar { width: var(--space-2); height: var(--space-2); }
-.doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: transparent; }
-.doan-menu:is(:hover, :focus-visible, :has(:focus-visible))::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); }
+/* The menu hands the thumb its colour as an inherited property: Electron 45 did not repaint a thumb whose own
+   .doan-menu:hover::-webkit-scrollbar-thumb rule began to match, but repaints it when the menu's own style changes. */
+:root { --menu-scrollbar-thumb: transparent; }
+.doan-menu:is(:hover, :has(:focus-visible)) { --menu-scrollbar-thumb: var(--scrollbar-thumb-quiet); }
+.doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--menu-scrollbar-thumb); }
 .doan-menu::-webkit-scrollbar-corner { background: transparent; }
 .doan-menu::-webkit-scrollbar-track { margin: var(--radius-container); }
 .doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }

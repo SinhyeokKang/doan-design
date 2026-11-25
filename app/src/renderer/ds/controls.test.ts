@@ -254,18 +254,22 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain(".doan-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }");
   expect(css).not.toMatch(/doan-menu[^{]*\{[^}]*scrollbar-(width|color)/);
   expect(css).toContain(".doan-menu::-webkit-scrollbar { width: var(--space-2); height: var(--space-2); }");
-  expect(css).toContain(".doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: transparent; }");
+  expect(css).toContain(".doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--menu-scrollbar-thumb); }");
   expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin: var(--radius-container); }");
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }');
 });
 
 // The thumb is transparent at rest and shows while the pointer is over the scroller or keyboard focus is on or in it.
 // :focus-visible, not :focus-within: an open modal dialog or menu always holds focus, so :focus-within would never hide it.
-// Only the colour changes, so the gutter keeps its width and nothing shifts when the thumb appears.
+// A menu counts only focus on its items: Radix focuses the menu itself on open, which Chromium marks :focus-visible
+// even when the pointer opened it. The menu passes the colour down as an inherited property, because Electron 45 did not
+// repaint a thumb whose own :hover rule changed. Only the colour changes, so the gutter keeps its width.
 test("scrollbar thumbs show only while the scroller is hovered or holds keyboard focus", () => {
   const css = read("./surfaces.css");
   expect(rule(css, ".doan-scroll:is(:hover, :focus-visible, :has(:focus-visible))")).toBe("scrollbar-color: var(--scrollbar-thumb-quiet) transparent;");
-  expect(rule(css, ".doan-menu:is(:hover, :focus-visible, :has(:focus-visible))::-webkit-scrollbar-thumb")).toBe("background: var(--scrollbar-thumb-quiet);");
+  expect(rule(css, ".doan-menu:is(:hover, :has(:focus-visible))")).toBe("--menu-scrollbar-thumb: var(--scrollbar-thumb-quiet);");
+  expect(css).toContain(":root { --menu-scrollbar-thumb: transparent; }");
+  expect(css).not.toMatch(/^\.doan-menu:[^{\n]*::-webkit-scrollbar/m);
   expect(css).not.toMatch(/doan-(scroll|menu)[^{]*:focus-within/);
   expect(css).not.toMatch(/doan-(scroll|menu)[^{,]*:(hover|focus-visible)[^{]*\{[^}]*(scrollbar-width|width|height)\s*:/);
 });
