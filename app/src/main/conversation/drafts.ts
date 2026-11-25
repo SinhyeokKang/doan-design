@@ -133,8 +133,8 @@ export class DraftStore {
       } else this.file.starts[key] = { ...where, text, anchors, attachments };
     }
     this.file.sending = {};
-    // add() keeps a queue within one message with its held send; an older build's file may not, and a draft past it
-    // would be unreadable at the start after this one, so an item that does not fit is dropped as a held one is.
+    // A send held behind its queue (handoffWait) or an older build's file can pass one message, which the start after this
+    // one could not read; so a queued item that does not fit is dropped, as a held send is.
     for (const [id, items] of left) for (const { text, anchors, attachments } of items) {
       const earlier = this.file.returned[id];
       if (fits(joined([...earlier ? [earlier] : [], { text, anchors, attachments }]))) this.merge(id, { text, anchors, attachments }, "restarted");
