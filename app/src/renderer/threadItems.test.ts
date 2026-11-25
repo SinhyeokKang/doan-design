@@ -772,3 +772,22 @@ describe("threadItems edit line counts", () => {
     expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }] });
   });
 });
+
+// The reveal relies on these: a finished reply never grows again, and a turn's end finishes every reply of it.
+describe("threadItems behavior the reveal relies on", () => {
+  test("a delta after message.done is dropped", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "message.delta", messageId: "m1", text: " More" })];
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ kind: "agent", text: "Done.", streaming: false });
+  });
+
+  test("a turn's end finishes both replies of the turn", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "First" }), ev("t1", { type: "activity", kind: "read", path: "a.md", summary: "a.md" }), ev("t1", { type: "message.delta", messageId: "m2", text: "Second" })];
+    expect(threadItems(events, ROOT, true).filter(i => i.kind === "agent").map(i => i.kind === "agent" && i.streaming)).toEqual([true, true]);
+    for (const end of [{ type: "turn.done" }, { type: "interrupted", reason: "user" }, { type: "turn.failed", code: "unknown" }]) {
+      const ended = threadItems([...events, ev("t1", end)], ROOT, true).filter(i => i.kind === "agent");
+      expect(ended.map(i => i.kind === "agent" && i.streaming)).toEqual([false, false]);
+    }
+  });
+});
