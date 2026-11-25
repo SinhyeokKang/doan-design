@@ -51,16 +51,18 @@ func trimASCII(s string) string {
 	}
 	return s[a:b]
 }
-func quoted(s string, i int) (string, int) {
+
+// quoted reads the string at i; bad reports one cut by a newline, which CSS makes a bad string.
+func quoted(s string, i int) (v string, end int, bad bool) {
 	q := s[i]
 	i++
 	var b strings.Builder
 	for i < len(s) {
 		if s[i] == q {
-			return b.String(), i + 1
+			return b.String(), i + 1, false
 		}
 		if s[i] == '\n' || s[i] == '\r' || s[i] == '\f' {
-			return b.String(), i
+			return b.String(), i, true
 		}
 		if s[i] == '\\' && i+1 < len(s) {
 			i++
@@ -72,7 +74,7 @@ func quoted(s string, i int) (string, int) {
 		b.WriteByte(s[i])
 		i++
 	}
-	return b.String(), i
+	return b.String(), i, false
 }
 
 // lexer yields one token at a time and scanners keep only the current statement's: a slice of every
@@ -104,9 +106,9 @@ func (l *lexer) next() (token, bool) {
 		}
 		start := i
 		if s[i] == '\'' || s[i] == '"' {
-			v, end := quoted(s, i)
+			v, end, bad := quoted(s, i)
 			l.i = end
-			if l.setParen > 0 && l.paren == l.setParen {
+			if !bad && l.setParen > 0 && l.paren == l.setParen {
 				return token{'u', v, start, end}, true
 			}
 			return token{'s', v, start, end}, true
@@ -124,7 +126,7 @@ func (l *lexer) next() (token, bool) {
 				}
 				var v string
 				if i < len(s) && (s[i] == '\'' || s[i] == '"') {
-					v, i = quoted(s, i)
+					v, i, _ = quoted(s, i)
 					for i < len(s) && s[i] != ')' {
 						i++
 					}
