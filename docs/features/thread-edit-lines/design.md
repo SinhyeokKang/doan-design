@@ -45,7 +45,7 @@
      - T0 관찰(Copilot):
        - 1.0.89: `edit`/`create` 도구다. pending `tool_call`과 completed `tool_call_update`가 같은 diff를 가진다. `oldText`/`newText`는 도구의 바꿀 문자열 조각이고(`"line 3: apple"` → `"line 3: banana"`), 새 파일은 `oldText: ""`다. 거부·실패는 pending에만 diff가 있고 `failed`로 끝난다.
        - 1.0.114: `apply_patch`다. pending `tool_call`에는 content가 없고, completed 갱신에만 diff가 있다. 수정은 hunk의 맥락을 포함한 앞뒤 조각이고, 새 파일은 `oldText: ""`와 전체 내용, 삭제는 전체 내용과 `newText: ""`다. 거부·실패는 diff 없이 `failed`로 끝난다. 두 파일 패치는 tool call 하나에 권한 요청이 두 번 왔다.
-       - 두 버전 모두 수정의 `oldText`/`newText`는 파일 전체가 아니라 같은 범위의 앞뒤다. 그래서 줄 단위로 비교한 숫자는 실제 변화와 같다.
+       - Copilot은 새 파일과 삭제에는 파일 전체를, 기존 파일 수정에는 같은 범위의 앞뒤 조각을 보낸다. 조각도 앞뒤가 같은 범위이므로 줄 단위로 비교한 숫자는 실제 변화와 같다. 줄 중간에서 시작하거나 끝나는 조각은 녹화되지 않았다(BACKLOG).
      - Copilot의 `rawInput` apply_patch 문자열은 적용 여부를 알려주지 않으므로 쓰지 않는다.
      - ACP 중 결과를 기록하는 provider는 Copilot뿐이다. Cursor와 Antigravity는 T0에서 범위 밖이 됐으므로(아래 'PoC 의존성'), 정규화기는 두 provider의 편집에 `activity.result`를 내지 않는다. Antigravity는 위 규칙대로 두면 `edit_file`에서는 pending의 제안 diff를 완료 때 세게 되는데, 그 숫자가 적용된 내용이라는 보장이 없다.
 3. renderer는 키(`callId`, Codex는 `callId`+`path`)로 결과를 같은 턴의 단계에 붙인다. 같은 키의 결과가 여러 번 오면 더한다. 키가 맞는 activity가 없거나 다른 턴의 activity와 맞는 결과는 무시한다. 같은 activity 행의 줄 수를 더해 머리 합계를 만든다.
@@ -134,16 +134,17 @@ T0 PoC를 2026-11-25에 마쳤다. 방법은 orch.md 결정 1이다. `.scratch/t
 |---|---|---|---|---|
 | Claude Code | 2.1.284, 2.1.332 | 통과 | edit, replaceall, write, overwrite, delete(Bash), deny, fail, parallel. MultiEdit는 도구가 없다 | `claude-edit-results.json` |
 | Codex | 0.158.0, 0.171.0 | 통과(update는 hunk, add·delete는 전체 내용) | edit, write, overwrite, delete, deny, fail, multipath | `codex-file-changes.json` |
-| Copilot | 1.0.89, 1.0.114 | 통과(조건부, 아래) | edit, write, overwrite, delete, deny, fail, multipath. 1.0.89의 delete·multipath는 셸 명령이었다 | `acp-copilot-edits.json` |
+| Copilot | 1.0.89, 1.0.114 | 통과 | edit, write, overwrite, delete, deny, fail, multipath. 1.0.89의 delete·multipath는 셸 명령이었다 | `acp-copilot-edits.json` |
 | Cursor | 2026.11.22-e9042b2 | 확인 못 함 → 범위 밖 | 없음 | 없음(`acp-cursor.json`은 그대로) |
 | Antigravity | ACP server 1.3.0 | 실패 → 범위 밖 | edit, write, overwrite, deny, fail. delete는 모델 용량 오류(503)로 턴이 끝났다 | `acp-antigravity-edits.json`(근거 보존용) |
 
 - 통과 기준과의 대조:
   - Claude Code: 모든 적용된 편집에서 user 프레임 `tool_use_result.structuredPatch`의 `+`/`-` 줄 수(새 파일은 `content` 줄 수)가 numstat과 같았다.
   - Codex: `update`의 `changes[].diff`는 hunk가 있는 unified diff이고 숫자가 numstat과 같았다. `add`·`delete`의 diff는 hunk가 아니라 전체 내용이고, 그 줄 수가 numstat과 같았다.
-  - Copilot(조건부): completed 갱신의 diff로 센 숫자는 모든 적용된 편집에서 numstat과 같았다. 다만 기준 문구("`oldText`/`newText`가 편집 전후 파일 내용과 같다")는 새 파일과 삭제에서만 성립한다. 수정에서는 같은 범위의 앞뒤 조각이다. 조각이 줄 중간에서 시작하거나 끝나는 편집은 녹화하지 못했다. 이 경우에도 숫자가 맞는지는 확인하지 않았다.
+  - ACP 기준: 완료까지 받은 갱신 중 하나에 `type: "diff"` content가 있고, 그 `oldText`/`newText`를 줄 단위로 비교한 `+`/`-` 줄 수가 실제 파일 변화와 같다. diff가 파일 전체일 필요는 없다(사용자 결정, Copilot을 범위에 남길 때).
+  - Copilot: completed 갱신의 diff로 센 숫자가 모든 적용된 편집에서 numstat과 같았다. 새 파일과 삭제의 diff는 파일 전체이고, 기존 파일 수정의 diff는 같은 범위의 앞뒤 조각이다. 조각이 줄 중간에서 시작하거나 끝나는 편집은 녹화하지 못했으므로, 그런 조각의 숫자는 확인되지 않았다(BACKLOG).
   - Cursor: 복제한 로그인으로 `authenticate`와 `session/new`까지는 됐다. 하지만 모든 턴이 "Upgrade your plan to continue"로 끝났다(기본 모델과 `composer-2.5[fast=true]`). 그래서 편집 프레임을 녹화하지 못했고, `fixtures/acp-cursor.json:180-187`의 이상한 `oldText`/`newText`가 실제 값인지도 확인하지 못했다.
-  - Antigravity: diff는 권한을 묻는 pending `tool_call`에만 온다. 그 `oldText`/`newText`는 파일 전체가 아니라 제안된 조각이다(`TargetContent`/`ReplacementContent`). 실패한 편집(fail)에도 같은 제안 diff가 온다. `create_file`(새 파일, 덮어쓰기)은 허용한 뒤 다른 `toolCallId`(`<sessionId>:1`)로 실행되고, 그 completed 갱신에는 diff가 없다. 원래 id는 파일이 써졌는데도 `failed`("Tool call was approved but never executed.")로 끝난다. 그래서 기준을 만족하지 못한다.
+  - Antigravity: diff는 권한을 묻는 pending `tool_call`에만 온다. 그 `oldText`/`newText`는 파일 전체가 아니라 제안된 조각이다(`TargetContent`/`ReplacementContent`). 실패한 편집(fail)에도 같은 제안 diff가 온다. `create_file`(새 파일, 덮어쓰기)은 허용한 뒤 다른 `toolCallId`(`<sessionId>:1`)로 실행되고, 그 completed 갱신에는 diff가 없다. 원래 id는 파일이 써졌는데도 `failed`("Tool call was approved but never executed.")로 끝난다. 적용된 편집의 diff가 완료까지 오지 않으므로 기준을 만족하지 못한다.
 - 로그인 복제(AGENTS.md 'Real agent sign-ins'):
   - Claude: 실제 HOME의 로그인은 로그아웃 상태였다. 그래서 사용자 승인을 받아 Doan 앱 Claude 프로필의 Keychain 항목을 읽기만 해서, 임시 `CLAUDE_CONFIG_DIR`의 임시 Keychain 항목으로 복제했다. Claude는 HOME의 로그인 키체인으로 이 항목을 읽으므로, HOME은 Doan처럼 실제 값을 유지해야 했다.
   - Codex: 실제 `~/.codex/auth.json`을 임시 `CODEX_HOME`에 복사하고 `cli_auth_credentials_store="file"`로 띄웠다. 처음 쓴 사본은 만료된 토큰이라 복제본에서 refresh가 일어났다. 사용자가 실제 HOME에서 다시 로그인한 뒤의 새 사본으로 전체 사례를 녹화했다.
