@@ -45,6 +45,17 @@ describe("Codex wire dispatcher", () => {
     h.rpc.expire(); expect(h.rpc.answer("string:8", "accept")).toBe(false);
     expect(h.writes.at(-1)).toMatchObject({ id: "8", error: { code: -32601 } });
   });
+  // app-server numbers its requests from 0 in every process, so a later server's first request repeats an earlier id.
+  it("keeps a permission's request id unique per turn while answering with the server's own id", () => {
+    const h = harness(); const ask = (turnId: string) => h.rpc.receive({ id: 0, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId, itemId: "c", command: "ls" } });
+    ask("t"); expect(h.events.at(-1)).toMatchObject({ type: "permission.request", requestId: "t:number:0" });
+    expect(h.rpc.answer("t:number:0", "accept")).toBe(true);
+    h.rpc.begin({ root: "/repo", sessionId: "s", turnId: "t2" });
+    ask("t2"); expect(h.events.at(-1)).toMatchObject({ type: "permission.request", requestId: "t2:number:0" });
+    expect(h.rpc.answer("t:number:0", "accept")).toBe(false);
+    expect(h.rpc.answer("t2:number:0", "decline")).toBe(true);
+    expect(h.writes).toEqual([{ id: 0, result: { decision: "accept" } }, { id: 0, result: { decision: "decline" } }]);
+  });
   it("isolates exact pending IDs and instances and settles promises once", async () => {
     const h = harness(), other = harness(); const p = h.rpc.request("test", {}, { requestId: 0, sessionId: "s", turnId: "t" });
     h.rpc.receive({ id: "0", result: "wrong type" }); other.rpc.receive({ id: 0, result: "wrong server" });

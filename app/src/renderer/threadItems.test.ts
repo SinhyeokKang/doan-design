@@ -440,6 +440,20 @@ describe("questions", () => {
     events.push(ev("t1", { type: "permission.resolved", requestId: "p1", optionId: "a" }));
     expect(pendingAsks(threadItems(events, ROOT, true)).map(ask => ask.requestId)).toEqual(["q1", "p2"]);
   });
+
+  // A new Codex app-server numbers its requests from 0 again, so a history can hold one id in two turns.
+  test("two turns' permission requests that share an id draw as two cards, each settled by its own turn", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const request = (turnId: string, summary: string) => ev(turnId, { type: "permission.request", requestId: "number:0", tool: "commandExecution", summary, options });
+    const events = [...turn("t1"), request("t1", "ls"), ev("t1", { type: "permission.resolved", requestId: "number:0", optionId: "a" }), ev("t1", { type: "turn.done" }),
+      ...turn("t2", "Again"), request("t2", "npm test")];
+    const items = threadItems(events, ROOT, true).filter(item => item.kind === "permission");
+    expect(items).toMatchObject([{ key: "pt1:number:0", summary: "ls", status: "answered" }, { key: "pt2:number:0", summary: "npm test", status: "pending" }]);
+    expect(pendingAsks(threadItems(events, ROOT, true))).toEqual([{ requestId: "number:0", key: "pt2:number:0" }]);
+    events.push(ev("t2", { type: "permission.resolved", requestId: "number:0", optionId: "expired" }));
+    expect(threadItems(events, ROOT, true).filter(item => item.kind === "permission")).toMatchObject([{ status: "answered" }, { status: "expired" }]);
+  });
 });
 
 // One card per path at the turn's end, in first-appearance order. The receiving conversation's first
