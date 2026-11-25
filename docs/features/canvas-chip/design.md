@@ -2,91 +2,138 @@
 
 ## 영향 범위
 
-- **app (renderer)**:
-  - `ShellSidebar.tsx`: 캔버스 행을 끌 수 있게 한다(`draggable`). 끌기 데이터는 Doan 전용 MIME(예: `application/x-doan-canvas`)에 `{root, path}`를 담는다.
-  - `canvasRowMenu.ts`: "Add to message" 항목과 그 가능 여부·이유를 더한다.
-  - 칩 필드(ProseMirror, ARCHITECTURE §7 'Chip field'):
-    - 캔버스 칩 노드를 더한다.
-    - 드롭 처리: 놓은 좌표의 위치(`posAtCoords`)에 칩을 넣는다. Doan 전용 MIME만 칩으로 다루고, 파일 드롭은 기존 첨부 경로로 간다.
-    - 복사·붙여넣기 규칙
-  - composer(캔버스 패널, Overview, Home의 docked composer):
-    - 캔버스 칩을 받을지 판정한다.
-    - Home의 프로젝트가 바뀌면 다른 프로젝트를 가리키는 칩을 이름으로 바꾼다.
-  - 보낸 말풍선: 캔버스 칩을 그리고, 누르면 연다. 연결 규칙은 에이전트 답의 다른 캔버스 칩(`replyChipTarget`)과 같은 방식으로 root의 목록에서 찾는다.
 - **app (main)**:
-  - `prompt.ts`: `validAnchor`가 캔버스 앵커를 받고, `turnPrompt`가 직렬화한다.
-  - 대화 이벤트(`user.message`의 `anchors`)에 캔버스 앵커가 들어간다(`types.ts`).
+  - `prompt.ts` `validAnchor`: `canvas` 키를 받는다. `turnPrompt`는 바꾸지 않는다. 지금도 `anchorData: anchors[n-1]`를 그대로 내보낸다.
+  - `ipc.ts` `conversationHandler`(start, send, queue): 보낼 때 root 목록에서 캔버스 앵커를 확인하고 경로를 바꾼다(아래 '보낼 때').
+  - `messageText.ts` `chipLabel`/`messageLine`: 캔버스 앵커의 이름. 제목, 알림, 큐 줄에 쓰이므로 main이 import할 수 있는 곳에 둔다.
+  - `types.ts`의 `Anchor`
+  - `drafts.ts`, `queue.ts`(`combineQueued`)는 앵커를 그대로 다루는지 테스트로 확인한다.
+- **app (renderer)**:
+  - `ShellSidebar.tsx`: 캔버스 행을 끌 수 있게 한다. 행 메뉴 트리거와 chevron은 `draggable={false}`이고, 페이지가 잠겨 있으면 끌 수 없다.
+  - `canvasRowMenu.ts`: "Add to message" 항목과 그 가능 여부·이유.
+  - 앵커 거울:
+    - `anchorField.ts`: `targetKey`가 캔버스를 키에 넣는다. 그래야 다른 캔버스 둘이 한 앵커로 합쳐지지 않고 32곳 수도 맞는다. `isAnchor`는 클립보드용 판정이다.
+    - `chipField.ts`: `ICONS`, `KIND_PREFIX`, drop 처리
+    - `fieldDecorations.ts`: 놓일 자리 표시
+  - 칩 필드의 범위 hook: 지금 `scope()`는 캔버스 하나이고, `null`이면 칩을 받지 않는다. 여기에 `root()`를 더한다. 클립보드 JSON에 `root`를 쓰고, `readFieldClipboard`가 칩마다 칩 또는 이름으로 바꾼다. `insertChip`은 칩 종류에 맞는 범위를 본다.
+  - Home composer(`HomeComposerView.tsx`, `homeConversations.ts`): 지금은 `text: string`만 가진다. 이것을 segments와 anchors로 바꾼다. 같이 바뀌는 것은 마지막 요청(`LastRequest`), 시작 초안(`ComposerDraft`), 돌려받은 시작 초안(지금 `plainText`로 평평하게 만든다), Edit on Home(`restoreRequest`), 비교 함수(`same`)다. Home 시작도 앵커를 싣는다(지금은 "Home starts carry no anchors").
+  - 보낸 칩: `SentChip`에 캔버스 칩 분기를 둔다. Overview와 Home 스레드에는 `onLocate`가 없으므로 open prop을 새로 준다. 프로토타입 창의 `prototype/requests.ts`(`prototype:reveal`의 `chip`)는 캔버스 앵커를 locate로 보내지 않고 메인 창 열기로 보낸다.
+  - App: 보이는 composer가 자기를 등록한다(아래 '메뉴와 놓기의 판정').
 - **CLI, 스킬, 가이드**: 바뀌지 않는다.
 
 ## 앵커 형식
 
-- 지금 앵커는 프레임, 요소, 지점이다(`targetAnchor`, `validAnchor`). 여기에 `{kind: "canvas", path, canvasId}`를 더한다.
-  - `path`: 저장소 상대 경로. `canvasKind`(`app/src/formats/canvasPath.ts`)가 받는 `.doan/canvases/` 또는 `.doan/ds/` 아래 `.html`이다.
-  - `canvasId`: 그 캔버스의 id. id가 없거나 겹치는 캔버스는 칩을 만들 수 없다. 사이드바 행이 그런 캔버스를 "run `doan check`"로 표시하므로 끌기도 막는다.
-- `{{n}}` 표시와 앵커 수 검증은 그대로다. 32곳 한도는 캔버스 앵커를 포함해 센다.
-- **포맷 영향**:
-  - 대화 이벤트 JSONL은 앱 안의 기기 로컬 형식이다(ARCHITECTURE §7 'Events', `types.ts`). 공유 JSON Schema(§11)는 아니다.
-  - 새 kind를 더해도 `v`는 올리지 않는다. 같은 판단을 thread-edit-lines의 `activity.result`에서도 했다.
-  - 대신 되돌림 비용이 있다. 이전 Doan은 캔버스 앵커가 든 메시지를 읽지 못할 수 있다. T1에서 이전 빌드의 읽기 동작(무시하는지, 대화 전체를 읽지 못하는지)을 확인하고, 그 결과를 design.md에 적는다. 대화 전체를 읽지 못하면 사용자에게 묻는다.
+- 지금 `Anchor`(`types.ts`)는 판별 필드가 없고, `{frame?, element?, point?}`처럼 키가 붙은 선택 객체들이다. `validAnchor`는 키 목록을 허용 목록으로 본다.
+- 캔버스 앵커는 `{canvas: {path, id}}`다. `id`는 필수다. 다른 곳의 캔버스 참조(`context.canvas`, `HandoffOrigin.canvas`, `conversation.bound`)와 같은 `{path, id}` 모양이다.
+- 검증은 `store.ts`의 `validCanvas`에 `canvasKind(path) !== null`(소문자 `.html`, `.doan/canvases/`나 `.doan/ds/`, 점 구간 없음)을 더한다. `canvas`가 `frame`, `element`, `point`와 함께 오면 거절한다.
+- 프롬프트에는 `name`을 더하지 않는다. 에이전트는 `path`에서 이름을 안다.
+- **되돌림 비용(사실)**:
+  - 대화 이벤트 JSONL은 기기 로컬 형식이고 공유 JSON Schema가 없다(§11, `schema/`에 없다). `validAnchor`만 손으로 검사한다.
+  - 이전 빌드의 `store.ts` `parse`는 모르는 앵커 키에서 "Invalid conversation event"를 내고, 그 대화 전체를 읽지 못한다. `appendAll`도 쓰기 전에 읽으므로 이어 쓸 수 없다.
+  - `service.list`는 그 대화만 읽을 수 없는 행으로 보여 주고, 다른 대화는 멀쩡하다. `drafts.ts`는 그 대화의 읽을 수 없는 항목을 디스크에 둔 채 뺀다.
+  - ARCHITECTURE §7이 `activity.result`, `canvas.drawn`, `model_unavailable`에서 이미 받아들인 규칙("shows as a read failure until Doan is upgraded again")과 같다. 승격 때 그 문단에 한 문장을 더한다.
 
-## 판정 규칙 (순수 함수)
+## 끌기
 
-- **`canvasChipTarget(drag, composer)`**: 놓기나 메뉴로 칩을 넣을 수 있는지와 그 이유를 돌려준다.
-  - 같은 root인지(캔버스 패널·Overview는 화면의 root, Home은 고른 프로젝트의 root)
-  - composer가 입력을 받는지
-  - 32곳 한도
-  - 캔버스 id가 유효하고 겹치지 않는지
+- **데이터는 메모리에만 둔다**: `dragstart`에서 `{root, path, id}`를 renderer 모듈의 "지금 사이드바 끌기"에 두고, `dragend`에서 지운다. `dataTransfer`에는 Doan 전용 MIME 표식만 넣고, `{root, path}`나 `text/plain`은 넣지 않는다.
+  - Chromium은 `dragover` 동안 MIME 종류만 보여 주고 `getData`는 빈 문자열이다. 메모리에 두면 끄는 동안에도 같은 root인지, Home과 맞는지, 한도에 닿았는지를 판정할 수 있다.
+  - 캔버스 iframe에 놓여도 절대 경로 root가 신뢰할 수 없는 캔버스 스크립트로 가지 않는다(SECURITY.md 'Scope').
+  - MIME 표식은 있는데 메모리에 끌기가 없으면(다른 창이나 다른 앱) 받지 않는다.
+  - `effectAllowed = "copy"`. `setDragImage`로 칩 모양의 미리보기를 쓴다.
+- **보드 막기**: 캔버스 끌기 중에는 보드 위에 투명한 막을 깐다(Hand 끌기의 막과 같다). 캔버스 iframe이 놓기를 받지 않게 하기 위해서다.
+- **칩 필드의 drop**:
+  - `prosemirror-view`는 편집 가능한 뷰의 `dragover`와 `dragenter`에서 늘 `preventDefault`를 부른다. 그래서 Chromium의 기본 drop caret이 그려지지 않는다. 또 지금 `chipField.ts`는 모든 `drop`을 막는다.
+  - 그래서 놓일 자리 표시를 직접 그린다. `posAtCoords` 자리의 widget decoration(`fieldDecorations.ts`)을 쓰거나 `prosemirror-dropcursor`를 쓴다. 후자는 새 의존성이므로 정확한 버전 고정과 의존성 검토가 필요하다. T1 PoC에서 고른다.
+  - `handleDOMEvents.dragover`가 받지 않는 경우 `dropEffect = "none"`을 둔다.
+  - 놓을 자리는 `unitFromPos`/`posFromUnit`으로 맞춘다. 목록 접두어나 filler 안에 놓이지 않게 하기 위해서다. 그다음 `placeCaret`과 기존 `insertChip`을 부른다. 그러면 한도와 IME 조합 처리를 그대로 쓴다.
+  - composer의 글 칸 밖(카드의 다른 부분)에 놓으면 caret, 없으면 끝에 넣는다. `useComposerDrop`(파일 드롭)은 Files가 아닌 끌기를 무시하므로 충돌하지 않는다. 다만 캔버스 끌기에는 파일 드롭 덮개를 띄우지 않는다.
+- **받지 않는 composer의 이유 줄**: 끄는 동안 받지 않는 composer 위에 중립 테두리와 이유 한 줄을 보여 준다. 모양은 드래프트에서 정한다.
+
+## 메뉴와 놓기의 판정
+
+- 보이는 composer가 App에 `{root, canTake(anchor): reason | null, insert(anchor)}`를 등록한다. `canTake`는 칩 필드의 판정(읽기 전용, IME, pick 중, 32곳 수: `distinctTargets`)을 쓴다. 그래서 메뉴와 놓기의 판정이 같다.
+- **`canvasChipTarget(row, screen, composer)`**: 위에 화면, root, 행에 대한 규칙을 더한다.
+  - root가 같은지. 다르면 같은 프로젝트의 다른 worktree인지 가려 그 브랜치를 말한다.
+  - id가 있고 비어 있지 않으며 그 root 목록에서 겹치지 않는지. `rowProblem`은 읽기 오류만 다루므로, 이 판정은 따로 둔다. `doan ls`가 `""`를 줄 수 있다(`trashBlock`).
+  - 행에 읽기 오류가 없는지
+  - root 목록을 읽는 중이거나 문제가 없는지
+  - composer가 없는 화면인지
   - 프로토타입 창이면 받지 않는다.
-- **끌기 데이터 읽기**: Doan 전용 MIME의 `{root, path}`를 검증한다. 다른 창이나 다른 앱에서 온 끌기, 형식이 틀린 데이터는 칩이 되지 않는다.
-- **Home 프로젝트 변경**: 다른 root를 가리키는 칩을 이름 텍스트로 바꾸는 변환.
-- **붙여넣기**: 같은 root면 칩, 아니면 이름. 32곳을 넘으면 이름.
-- **보낸 칩 열기**: root 목록에서 path와 canvasId로 찾는다. 결과는 열기, 지금 캔버스(아무것도 안 함), 없음("No longer in <project>"), id 중복(토스트), 목록을 아직 읽는 중이거나 문제가 있음(토스트)이다. 에이전트 답 칩의 `replyChipTarget` 규칙과 맞춘다.
-- **`validAnchor`의 캔버스 앵커**: path 형식, id 형식, 저장소 밖 경로 거절.
+- 메뉴는 Radix modal이라 `onSelect` 안에서 옮긴 포커스가 되돌아온다. 그래서 `onCloseAutoFocus`에서 `preventDefault`하고 composer로 옮긴다.
 
-## 동작 세부
+## 보낼 때 (main)
 
-- **끌기 시각**: 끄는 동안의 행 모습(드래그 이미지), composer의 놓일 자리 표시, 놓을 수 없는 composer의 모습은 드래프트가 정한다. macOS 관례대로 놓을 수 없는 곳에서는 `dropEffect = "none"`으로 커서가 바뀐다.
-- **Esc와 취소**: 끄는 중 Esc는 브라우저 기본대로 끌기를 취소한다. composer 밖에 놓으면 아무것도 하지 않는다.
-- **포커스**: 놓기나 메뉴 뒤 포커스는 그 composer 글 칸으로 간다. 메뉴로 넣을 때 캔버스 패널이 접혀 있으면 먼저 펼친다(지금 Add to message와 같다).
-- **트리 키보드와 충돌**: 사이드바 트리의 클릭, 키, typeahead는 그대로다. 행을 누르는 것과 끌기 시작은 포인터 이동 거리로 나뉜다(브라우저 기본). 끌기를 시작해도 행이 열리지 않는다.
-- **Home**: 칩을 넣은 뒤 프로젝트를 바꾸면, 다른 root를 가리키는 칩을 이름으로 바꾼다. 다시 원래 프로젝트로 돌아와도 칩으로 되돌아가지 않는다.
-- **프롬프트**: `turnPrompt`는 캔버스 앵커를 `{kind, path, canvasId, name}`처럼 데이터 블록에 넣는다. 에이전트가 "이 경로의 캔버스"라고 알 수 있으면 충분하다. 프롬프트 문장(OPEN_GUIDANCE 등)에 설명을 더할지는 T5의 eval 결과로 정한다.
+- `start`, `send`, `queue`에서 root가 정해진 뒤(보내기는 `target.root`), 캔버스 앵커마다 `project.canvases`에서 id로 하나를 찾는다.
+  - 찾으면 앵커의 `path`를 지금 경로로 바꾼다.
+  - 없거나 겹치면 그 칩을 이름 텍스트로 바꾸고 앵커에서 뺀다. `{{n}}` 번호를 다시 매긴다.
+- 이 확인은 `store.ts`나 `drafts.ts`의 검증에는 넣지 않는다. 캔버스를 지운 뒤에도 히스토리와 초안은 읽을 수 있어야 하기 때문이다.
+- 큐와 Send now는 실제로 나갈 때 같은 처리를 거친다.
+
+## 누르기
+
+- 보낸 칩과 composer 칩은 `replyChipTarget({canvas: anchor.canvas.id}, …)`를 그대로 쓴다. 결과는 다음과 같다.
+  - `"locate"`(지금 캔버스)는 Fit이 된다.
+  - 다른 캔버스는 deep link 열기다.
+  - missing은 누른 뒤에 "No longer in <project>"가 된다.
+  - 중복, 목록을 읽는 중, 문제는 토스트가 된다.
+- 프로토타입 창에서는 `prototype:reveal`에 새 종류를 두고, 메인 창에서 그 캔버스를 연다.
+
+## 순수 함수로 뺄 부분 (`/tdd` 대상)
+
+- `validAnchor`의 캔버스 앵커
+  - 받는 path: `.doan/canvases/`, `.doan/ds/`, 하위 폴더, 비ASCII 이름
+  - 거절: `..`, 절대 경로, `.HTML`, 점 구간, 길이 한도 초과, id 없음, 다른 키와 섞임
+- 앵커 거울
+  - `targetKey`: 캔버스 둘이 따로 센다.
+  - `chipLabel`/`messageLine`: 제목, 큐 줄, 알림
+  - `isAnchor`
+  - `combineQueued`의 번호 다시 매기기와 32곳
+  - `drafts.ts` 왕복
+  - `store.ts`가 캔버스 앵커가 든 `user.message`를 읽는다.
+- `canvasChipTarget`와 행의 id 판정
+- 클립보드 범위 변환: 칩마다 칩 또는 이름, 섞인 클립보드, 32곳 넘침
+- Home의 root 변경 변환과 그 알림 문구
+- 보낼 때의 경로 바꾸기와 이름 대체(`{{n}}` 다시 매기기)
+- 누르기 결과(`replyChipTarget` 재사용 확인)
 
 ## 형식, 규약, 결정에 미치는 영향
 
-- **형식**: 앱 로컬 대화 이벤트에 앵커 kind가 하나 는다(위 '앵커 형식'). 공유 JSON Schema, CLI 응답, `runtime.json`, 앱 소켓 메시지, `sessions.v1`은 바뀌지 않는다.
+- **형식**: 앱 로컬 대화 이벤트의 앵커에 키가 하나 는다(위 '되돌림 비용'). 공유 JSON Schema, CLI 응답, `runtime.json`, 앱 소켓 메시지, `sessions.v1`은 바뀌지 않는다.
 - **규약(ARCHITECTURE §1)**: 없다.
 - **결정**:
-  - PRODUCT §5 item 6의 "Home's and the Overview's composers take no chips; a person's chips point only into the open canvas"가 바뀐다. 사용자가 이 feature에서 정했다.
+  - PRODUCT §5 item 6의 칩 규칙이 바뀐다. 사용자가 이 feature에서 정했다.
+  - 캔버스 경로는 main이 root 목록으로 확인한 것만 앵커로 나간다. renderer의 경로는 main 목록의 키라는 원칙(Canvas row menu IPC)과 같다.
   - 서빙 범위, sandbox iframe, GitHub 토큰, git 명령과는 관계가 없다.
-  - 캔버스 파일은 main이 root 목록으로 확인한 경로만 앵커가 된다(Canvas row menu IPC와 같은 원칙: renderer의 경로는 main 목록의 키).
-- **보안**: 앵커의 path는 프롬프트에 신뢰하지 않는 데이터로 들어간다. `validAnchor`가 저장소 밖 경로, `..`, 절대 경로를 거절한다.
+- **보안**:
+  - 끌기 데이터는 iframe에 닿지 않는다.
+  - 앵커의 path는 프롬프트에 신뢰하지 않는 데이터로 들어간다.
 
 ## PoC (T1)
 
-- 사이드바 행의 HTML5 drag와 ProseMirror 칩 필드의 drop이 Electron 45에서 같은 창 안에서 동작하는지 확인한다. 확인할 항목은 다음과 같다.
-  - 놓은 좌표의 caret 위치
+- 같은 창 안에서 사이드바 행 drag가 칩 필드 drop으로 되는지 확인한다. Electron 45, `prosemirror-view` 1.43.0에서 다음을 본다.
+  - 놓일 자리 표시: decoration과 `prosemirror-dropcursor` 중 무엇을 쓸지
+  - `posAtCoords`와 `unitFromPos`로 맞춘 자리
   - 파일 드롭과의 구분
-  - 끄는 동안 composer의 표시
-  - 트리 행의 클릭과 키가 깨지지 않는지
-- 이전 Doan 빌드(직전 릴리스)가 캔버스 앵커가 든 대화를 읽을 때의 동작을 확인한다.
+  - 보드 위의 막
+  - 트리 행의 클릭, 키, typeahead
+- Playwright `_electron`의 drag가 창을 앞으로 가져오지 않고 이 흐름을 재현하는지도 확인한다. T6 runtime-test의 방식을 정하기 위해서다.
 
 ## postmortem에서 가져온 주의점
 
 - 2026-11-22 "Sent anchor chips inserted line breaks into copied text": 캔버스 칩도 보낸 말풍선에서 복사할 때 줄바꿈을 넣지 않는다.
-- 2026-11-08 "Look Up named a composer chip by its screen-reader text": 칩의 화면 읽기 이름과 보이는 이름을 섞지 않는다. Look Up, 복사, 붙여넣기는 보이는 이름을 쓴다.
-- 2026-11-03 "A canvas row menu closed by Esc dropped focus to the page body": "Add to message" 뒤 포커스는 composer로 간다. 메뉴를 Esc로 닫으면 지금처럼 행으로 돌아간다.
+- 2026-11-08 "Look Up named a composer chip by its screen-reader text": Look Up, 복사, 붙여넣기는 보이는 이름을 쓴다.
+- 2026-11-03 "A canvas row menu closed by Esc dropped focus to the page body": 메뉴를 Esc로 닫으면 행으로 돌아간다. "Add to message" 뒤에는 composer로 간다.
 
 ## 드래프트 요청
 
 `/design-draft canvas-chip`으로 새 드래프트를 그린다.
 
 - **프레임**:
-  - `chip`: composer 안의 캔버스 칩과 기존 프레임·요소 칩의 비교
-  - `drag`: 끄는 행, 놓일 자리 표시, 놓을 수 없는 composer
+  - `chip`: composer 안의 캔버스 칩, 기존 프레임·요소 칩과의 비교, `ds/` 칩
+  - `drag`: 칩 모양 드래그 이미지, 놓일 자리 표시, 받지 않는 composer의 테두리와 이유 줄
   - `menu`: 행 메뉴의 Add to message와 꺼진 상태
-  - `sent`: 보낸 말풍선의 칩과 없어진 캔버스
-  - `home`: Home의 프로젝트 불일치와 프로젝트 변경
+  - `sent`: 보낸 말풍선의 칩, 없는 캔버스를 눌렀을 때
+  - `home`: Home의 root 불일치, 프로젝트·worktree를 바꿀 때의 알림
   - `copy`: 문구
 - 문구는 `clarify` 프리셋으로 정한다.
 
