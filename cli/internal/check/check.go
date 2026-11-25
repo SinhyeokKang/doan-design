@@ -412,7 +412,7 @@ func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]
 			}
 			cssSeen[key] = true
 			f := Finding{Severity: "warning", Code: "ambiguous_custom_url", Path: file, Token: r.Custom, Value: r.Value,
-				Message: "Custom property " + r.Custom + " holds url(" + r.Value + "), which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
+				Message: "Custom property " + r.Custom + " holds the URL " + r.Value + ", which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
 			if !shared {
 				f.Canvas = c.ID
 			}
