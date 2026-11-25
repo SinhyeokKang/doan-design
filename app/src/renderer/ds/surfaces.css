@@ -119,6 +119,10 @@
 }
 /* The Radix wrapper box is the capsule's size and would take the press meant for the control under it. */
 [data-radix-popper-content-wrapper]:has(> .doan-tooltip) { pointer-events: none; }
+/* Drawn by its fill alone; an inset outline keeps its measured size. */
+@media (forced-colors: active) {
+  .doan-tooltip { outline: 1px solid CanvasText; outline-offset: -1px; }
+}
 
 /* A compact dialog is centred; larger ones hang 128px from the top, so the title stays put while content grows. */
 .doan-dialog {
