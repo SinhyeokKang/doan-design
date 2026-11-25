@@ -445,6 +445,58 @@ test("a canvas that leaves the list is forgotten before it is captured", async (
   expect(f.captures).toHaveLength(1);
 });
 
+// A job that finds nothing to capture when it starts made no attempt, so it is not a failure that sticks until the
+// canvas changes: the next get decides again.
+test.each<[string, (f: Fixture) => void, (f: Fixture) => void]>([
+  ["its width is gone", (f) => {
+    f.entries = [{ path: f.root, kind: "list", servedRev: 0, canvases: [row(".doan/canvases/a.html", null), row(".doan/canvases/b.html")] }];
+  }, (f) => {
+    f.entries = [{ path: f.root, kind: "list", servedRev: 0, canvases: [{ ...row(".doan/canvases/a.html"), rev: 1 }, row(".doan/canvases/b.html")] }];
+  }],
+  ["its file cannot be read", (f) => rmSync(join(f.root, ".doan/canvases/a.html")), (f) => {
+    writeFileSync(join(f.root, ".doan/canvases/a.html"), "<title>A2</title>");
+    f.entries = [{ path: f.root, kind: "list", servedRev: 0, canvases: [{ ...row(".doan/canvases/a.html"), rev: 1 }, row(".doan/canvases/b.html")] }];
+  }],
+])("a queued canvas whose capture could not start because %s is captured once it is back", async (_label, lose, restore) => {
+  const f = fixture();
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main");
+  await started(f, 1);
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
+  lose(f);
+  thumbnails.entriesChanged(f.entries);
+  f.release();
+  await vi.waitFor(() => expect([...f.changed].sort()).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]));
+  // The renderer asks again only when told: a card left waiting hears that its canvas changed.
+  restore(f);
+  thumbnails.entriesChanged(f.entries);
+  await vi.waitFor(() => expect(f.changed.filter((path) => path === ".doan/canvases/a.html")).toHaveLength(2));
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("a.html")).toBe(true);
+});
+
+// get() reads the cache before it queues; a removal in that gap must not leave a failure the re-added project inherits.
+test("a project removed while a get reads the cache is captured when it is added back", async () => {
+  const f = fixture([".doan/canvases/a.html"]);
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  const before = f.entries;
+  const asked = thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  f.entries = [];
+  const removal = thumbnails.removed([f.root], before);
+  thumbnails.entriesChanged(f.entries);
+  await asked;
+  await removal;
+  expect(f.captures).toEqual([]);
+  f.entries = before;
+  thumbnails.entriesChanged(f.entries);
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
+  await started(f, 1);
+});
+
 test("cleans orphaned cache and temp files once nothing is loading, keeping live and foreign files", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   mkdirSync(f.dir);

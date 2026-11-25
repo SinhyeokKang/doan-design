@@ -203,9 +203,13 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     const target = known.get(key);
     const row = target === undefined ? undefined : listedRow(deps.entries(), target);
     let png: Buffer | null = null;
+    // A job with nothing to capture when it starts (no width, no file, or forgotten while get read the cache) made no
+    // attempt, so it is not kept as failed: the next get decides again.
+    let attempted = false;
     if (target !== undefined && row?.width !== undefined) {
       const meta = await current(target);
       if (meta !== null) {
+        attempted = true;
         basis.set(key, meta);
         const captured = await deps.capturer.capture(row.url, row.width);
         png = captured;
@@ -226,7 +230,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     }
     const stale = queue.activeStale;
     running = false;
-    dispatch({ type: png === null ? "fail" : "done", key });
+    dispatch({ type: png === null && attempted ? "fail" : "done", key });
     if (target !== undefined && !stale && !disposed) deps.changed(target);
   };
 
@@ -239,7 +243,12 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const recheck = async (root: string, paths?: ReadonlySet<string>) => {
     for (const [key, target] of known) {
       const before = basis.get(key);
-      if (target.root !== root || before === undefined || (paths !== undefined && !paths.has(target.path))) continue;
+      if (target.root !== root || (paths !== undefined && !paths.has(target.path))) continue;
+      // Nothing captured to compare, and nothing queued: the renderer asks again only when told.
+      if (before === undefined) {
+        if (queue.active !== key && !queue.pending.some((job) => job.key === key)) deps.changed(target);
+        continue;
+      }
       const now = await current(target);
       if (basis.get(key) !== before) continue;
       if (now === null || thumbnailStale(before, now, deps.appVersion, now.tokens)) {

@@ -3,8 +3,9 @@
 
 export interface ReplyAnchor { canvas: string; kind: "frame" | "element"; id: string }
 
-// ARCHITECTURE §1 Conventions 2. Kept here because the copy in the restore code is not exported.
-const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// ARCHITECTURE §1 Conventions 2; store.ts validates stored canvas ids with it. Defined here because this module takes
+// no value imports.
+export const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // Matches `canvasMessage.ts` MAX_STRING and the picker, which drop a doan id over 200: a cut id could match another target.
 const MAX_ID = 200;
 const SCHEME = "doan:";

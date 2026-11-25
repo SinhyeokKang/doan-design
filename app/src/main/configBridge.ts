@@ -95,7 +95,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
   const root = (value: Record<string, unknown>): string | null =>
     typeof value.root === "string" && deps.epoch(value.root) !== null ? value.root : null;
 
-  const call = (target: string, args: string[]): Promise<ConfigReply> => {
+  // `ran` sees the reply of a run that happened, before an ended session discards it.
+  const call = (target: string, args: string[], ran?: (reply: ConfigReply) => void): Promise<ConfigReply> => {
     const epoch = deps.epoch(target);
     const generation = session;
     const current = () => generation === session && deps.epoch(target) === epoch;
@@ -107,6 +108,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
       const reply = configReply(target, await (env === undefined ? deps.run(target, args) : deps.run(target, args, env)));
+      ran?.(reply);
       if (generation !== session) return { kind: "unavailable" };
       if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;
@@ -162,9 +164,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
         const storage = (value as Record<string, unknown>).storage;
         if (target === null || (storage !== "repo" && storage !== "local")) return unavailable;
         if (gitInit && (storage !== "local" || (value as Record<string, unknown>).gitInit !== true)) return unavailable;
-        return call(target, ["--storage", storage, ...(gitInit ? ["--git-init"] : [])]).then(reply => {
+        return call(target, ["--storage", storage, ...(gitInit ? ["--git-init"] : [])], reply => {
           if (reply.kind === "config" || (gitInit && reply.kind === "error")) deps.storageWritten?.(target);
-          return reply;
         });
       }
       if (op === "clearTokenCss") {

@@ -223,11 +223,9 @@ func bootstrap(ctx Context, background bool, fail func(code, message string) *Er
 	}
 	for {
 		ctx.Sleep(bootstrapPoll)
-		next := ctx.Now().Add(activeTimeout)
-		if next.After(deadline) {
-			next = deadline
-		}
-		reply, failure, launchable = attempt(next)
+		// Not clipped to the cap: the app acts on any request it reads, so a cut-short read would report a failure for
+		// a canvas the app then opens.
+		reply, failure, launchable = attempt(ctx.Now().Add(activeTimeout))
 		if failure == nil {
 			return reply, nil
 		}

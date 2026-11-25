@@ -57,6 +57,12 @@ describe("DraftStore", () => {
     new DraftStore(dir).giveBack(A, { text: "one {{1}}", anchors: [anchor], attachments: [] }, "workspace_changed");
     expect(new DraftStore(dir).take(A)).toEqual({ text: "one {{1}}", anchors: [anchor], attachments: [], reason: "workspace_changed" });
   });
+  // The history and the drafts file read an attachment with one check, so a name the history keeps is never dropped here.
+  it("reads back an attachment whose name is longer than a message's text", () => {
+    const dir = directory(), long = { ...file, name: `${"n".repeat(32_769)}.png` };
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "x", anchors: [], attachments: [long], reason: "restarted" } } }));
+    expect(new DraftStore(dir).take(A)).toEqual({ text: "x", anchors: [], attachments: [long], reason: "restarted" });
+  });
   it("keeps a damaged file for diagnosis, refuses to queue and still returns drafts in memory", () => {
     const dir = directory(); writeFileSync(join(dir, "drafts.json"), "{broken");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

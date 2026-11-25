@@ -73,10 +73,13 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
   return { ...base, ...startedBy, phase, unseen, ...(since ? { waitingSince: since.at } : {}), lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
 }
-function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "permissions" | "questions">): boolean {
+// Only the folded turn can hold a pending request, and an earlier turn's request may share its id (a new Codex
+// app-server numbers its requests from 0 again).
+function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "turnId" | "permissions" | "questions">): boolean {
+  if (e.turnId !== open.turnId) return false;
   return (e.type === "permission.request" && open.permissions[e.requestId] === "pending") || (e.type === "question.request" && open.questions[e.requestId] === "pending");
 }
-function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
+function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "turnId" | "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
     // The newest unanswered request, whatever its kind; a question reads as its first question.
     const pending = [...events].reverse().find(e => pendingRequest(e, open));

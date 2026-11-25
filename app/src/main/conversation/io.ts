@@ -189,18 +189,26 @@ export function readInTranscript(appended: string, uuids: readonly string[]): st
   }
   return uuids.filter((uuid, index) => found.has(uuid) && uuids.indexOf(uuid) === index);
 }
-// The session's transcript under any project directory of the profile, as claudeSessionExists finds it; null when none.
-export function claudeTranscript(config: string, id: string): string | null {
+// The first <project>/<id>.jsonl under the profile's projects/ that `held` accepts; null when none. A plain file (.DS_Store)
+// or a name gone since the listing is no project; a link fails the whole lookup.
+export function claudeProjectFind(config: string, id: string, held: (path: string) => boolean): string | null {
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) return null;
   try {
     const base = join(config, "projects"), names = readdirSync(base); if (names.length > 4096) return null;
     for (const name of names) {
-      const dir = join(base, name); if (canonicalDirectory(dir) !== dir) return null;
+      const dir = join(base, name); let entry: Stats;
+      try { entry = lstatSync(dir); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+      if (canonicalDirectory(dir) !== dir) return null;
       const path = join(dir, `${id}.jsonl`);
-      try { if (lstatSync(path).isFile()) return path; } catch { /* Not in this project directory. */ }
+      if (held(path)) return path;
     }
   } catch { return null; }
   return null;
+}
+// The session's transcript under any project directory of the profile, as claudeSessionExists finds it; null when none.
+export function claudeTranscript(config: string, id: string): string | null {
+  return claudeProjectFind(config, id, path => { try { return lstatSync(path).isFile(); } catch { return false; } });
 }
 // The cwds a Claude session transcript's own lines name (each user, assistant and system line carries its sessionId and
 // cwd); broken lines and other sessions' lines are skipped.

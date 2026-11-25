@@ -166,7 +166,7 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 
 // custom is the custom property whose value holds href, or "".
 func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, kind refKind, href, custom string) (string, bool) {
-	h := trimURL(href)
+	h := canvas.TrimURL(href)
 	if kind == kindUse {
 		// refuseUses already refused every <use> that leaves the canvas, so none is resolved here and a
 		// fragment stays as written.
@@ -241,7 +241,7 @@ func (in *inliner) refuseUses(canvasPath string, src []byte) error {
 		return err
 	}
 	for _, r := range c.UseRefs {
-		in.refuse(canvasPath, trimURL(r), ReasonUseExternal)
+		in.refuse(canvasPath, canvas.TrimURL(r), ReasonUseExternal)
 	}
 	return nil
 }
