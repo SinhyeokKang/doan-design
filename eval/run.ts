@@ -14,6 +14,7 @@ import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand,
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
+import { fakeAppErrors } from "./lib/socket.ts";
 import { copyRepo, keepCodexSessions, keepOnboardingLog, outsideCodexSandbox, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
@@ -82,7 +83,7 @@ export async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent
     } catch (error) {
       checks = [{ id: "runner_error", pass: false, detail: (error as Error).stack ?? String(error) }];
     }
-    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? join(ws.base, "bin/doan") : null, join(dir, "resolved-doan.txt")));
+    checks.push(cliProvenance(resolutionPath, scenario.shellCli ? join(ws.base, "bin/doan") : null, join(dir, "resolved-doan.txt")), ...fakeAppErrors(ws.appErrorLog));
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     let judgement: Judgement | null | "skipped" = "skipped";
     if (setup.options.judge && read) {
@@ -116,7 +117,13 @@ export async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent
     console.log(`done  ${name}: ${record.result} (${proc.durationSec}s${proc.timedOut ? ", timed out" : ""})`);
     return record;
   } finally {
-    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally { await ws.dispose(); }
+    try { await ws.stopCanvasWatch(); keepEvidence(ws, dir); } finally {
+      // A workspace the agent left unremovable (a locked folder, say) must not replace the finished run's record.
+      try { await ws.dispose(); } catch (error) {
+        console.error(`error ${name}: ${ws.base} was not removed: ${(error as Error).message}`);
+        writeFileSync(join(dir, "workspace-cleanup-error.txt"), `${(error as Error).stack}\n`);
+      }
+    }
   }
 }
 
@@ -149,7 +156,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     runCommands(join(scenario.dir, "fixtures", `${kind}.commands.json`));
     await ws.stopCanvasWatch();
     const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, doanLog: ws.doanLog, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, prototypeLog: ws.prototypeLog, appWrites: ws.appWrites, canvasLog: ws.canvasLog });
-    const checks = await runChecks(scenario, ctx);
+    const checks = [...await runChecks(scenario, ctx), ...fakeAppErrors(ws.appErrorLog)];
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
     const { changed, diff } = judgeMaterial(ws, ctx);

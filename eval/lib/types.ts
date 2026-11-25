@@ -75,7 +75,7 @@ export interface CheckContext {
   handoff(): HandoffExchange[];
   // App-socket v6 exchanges, token removed, with canvas hashes at arrival.
   prototype(): PrototypeExchange[];
-  // Runs in the repo with the agent's environment and stdin from /dev/null.
+  // Runs in the repo with the agent's environment except PATH, which is the runner's, and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
   // Git in the repo (the separate Git dir if `git: false`) with hooks, fsmonitor and filters off: the agent's config
   // is untrusted, so checks read Git through this, never `run("git", …)`.

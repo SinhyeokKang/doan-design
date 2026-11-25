@@ -5,9 +5,10 @@ import { connect } from "node:net";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { noOpen, openCalls, openChecks } from "./open.ts";
-import { startFakeApp, validOpenRequest, validOpenResponse } from "./socket.ts";
+import { fakeAppErrors, startFakeApp, validOpenRequest, validOpenResponse } from "./socket.ts";
 import { toolCalls } from "./transcript.ts";
 import { contentHash } from "./work.ts";
+import { keepOnboardingLog } from "./workspace.ts";
 import type { CheckContext, OpenExchange } from "./types.ts";
 
 const path = ".doan/canvases/profile.html";
@@ -168,8 +169,9 @@ test("the fake app takes a v4 frame verdict from the CLI's frame list, not from 
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
-// A fake that cannot read the list must not answer canvas_not_found, which would read as the agent's outcome.
-test("the fake app gives no v4 answer when it cannot read the canvas list", async () => {
+// A fake that cannot read the list must not answer canvas_not_found, which would read as the agent's outcome; it records
+// its own failure, which fails the run as the harness's, and stays up for the agent's later calls.
+test("a fake app that cannot read the canvas list gives no v4 answer, records why and keeps answering", async () => {
   const dir = mkdtempSync("/tmp/doan-open-test-");
   const root = join(dir, "repo");
   mkdirSync(join(root, ".doan/canvases"), { recursive: true });
@@ -179,12 +181,25 @@ test("the fake app gives no v4 answer when it cannot read the canvas list", asyn
   const app = await startFakeApp({ dir, root, selection: null, cli: broken });
   try {
     const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
-    const reply = await new Promise<string>(resolve => {
+    const send = (request: object) => new Promise<string>(resolve => {
       const socket = connect(runtime.socket);
       let text = "";
       socket.on("error", () => resolve(text)).on("data", bytes => { text += bytes; }).on("close", () => resolve(text));
-      socket.end(JSON.stringify({ v: 4, token: runtime.token, root, path, frame: "profile-form" }) + "\n");
+      socket.end(JSON.stringify({ v: 4, token: runtime.token, root, path, ...request }) + "\n");
     });
-    assert.equal(reply, "");
+    assert.equal(await send({ frame: "profile-form" }), "");
+    assert.deepEqual(JSON.parse(await send({})), { v: 4, ok: true, opened: true, frame: "none" });
+    const lines = readFileSync(app.errorLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+    assert.equal(lines.length, 1);
+    assert.deepEqual(lines[0].request, { v: 4, root, path, frame: "profile-form" });
+    assert.match(lines[0].error, /cannot read the canvas list: exit 3/);
+    const [check, ...rest] = fakeAppErrors(app.errorLog);
+    assert.deepEqual([check?.id, check?.pass, rest.length], ["fake_app_error", false, 0]);
+    assert.match(check!.detail, /cannot read the canvas list/);
+    assert.deepEqual(fakeAppErrors(join(dir, "none.jsonl")), []);
+    const kept = join(dir, "kept");
+    mkdirSync(kept);
+    keepOnboardingLog({ onboardingLog: join(dir, "none.jsonl"), appErrorLog: app.errorLog }, kept);
+    assert.equal(readFileSync(join(kept, "app-errors.jsonl"), "utf8"), readFileSync(app.errorLog, "utf8"));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
