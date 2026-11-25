@@ -5,7 +5,7 @@
 - **app renderer**:
   - `handoffView.ts`: `handoffCardHead`가 문자열 하나를 낸다. 이것을 머리 행에 필요한 구조로 바꾼다.
   - `ConversationThread.tsx`: `HandoffCard`(`:621`)의 머리를 `CanvasCard`의 머리 행과 같은 마크업으로 그린다. 두 카드가 같은 머리 행 컴포넌트(또는 같은 클래스 묶음)를 쓴다.
-  - `styles.css`: `.handoff-card`·`.handoff-head`(`:1304-1312`)와 `.canvas-card`(`:1316-1326`)의 바탕, 모서리, 머리 행 규칙을 하나로 합친다. B를 고르면 두 카드의 바탕이 함께 바뀐다.
+  - `styles.css`: `.handoff-card`·`.handoff-head`(`:1304-1312`)와 `.canvas-card`(`:1316-1326`)의 바탕, 보더, 모서리, 머리 행 규칙을 하나로 합친다.
   - 캔버스 패널, Overview, 프로토타입 창이 같은 스레드 컴포넌트를 쓰므로 세 곳에 함께 적용된다.
 - **main, CLI, 스킬, 형식**: 바뀌지 않는다. 핸드오프 이벤트와 `origin`은 그대로다.
 - **`/agent-eval`**: 해당하지 않는다. 안내, CLI 출력, `doan check` 규칙, 스킬 stub이 바뀌지 않는다.
@@ -21,12 +21,22 @@
 - Open: 캔버스 카드와 같은 sm `trigger` 버튼이고, 목적지는 지금과 같다.
 - 접근성: 카드는 `role="group"`이다. 이름은 캔버스 카드처럼 "<이름>, <상태>"로 바꾸는 것이 후보다(예: "drafts.html, Handed off to this conversation"). Open의 이름은 "Open drafts.html" 같은 형식이다. 정확한 문구는 드래프트에서 정한다.
 
-## 바탕 (드래프트에서 결정)
+## 바탕과 크기 (사용자 결정)
 
-- (A) 두 카드 모두 지금의 `--surface-inset`, `--radius-row`, 테두리 없음.
-- (B) 두 카드 모두 흰 바탕(`--surface-panel`)에 테두리 또는 그림자. 어떤 토큰(`--border-standard`, `--shadow-*`)을 쓸지는 드래프트에서 측정해 정한다. 패널 바탕도 흰색이라, 그림자 없이 흰 바탕만으로는 카드가 보이지 않는다.
-- B에서 핸드오프 카드 본문의 inline code 바탕은 지금 `--surface-panel`(흰색)이다. 그래서 카드 바탕과 구분되도록 inset으로 바꿔야 한다.
+- 두 카드 모두 흰 바탕(`--surface-panel`)에 1 px 회색 보더(`--border-standard` 후보), 모서리는 `--radius-row`다. 그림자는 쓰지 않는다. 패널 바탕도 흰색이라 보더가 카드의 경계를 만든다.
+- 지금보다 크게 그린다. 이름은 body-sm보다 한 단계 큰 type role, 안쪽 여백도 넓힌다. 정확한 값은 드래프트에서 정한다.
+- 핸드오프 카드 본문의 inline code 바탕은 지금 `--surface-panel`(흰색)이다. 카드 바탕과 같아지므로 inset으로 바꾼다.
 - 가장자리 색 띠는 쓰지 않는다(DESIGN.md 규칙).
+
+## 메타 후보 (드래프트에 모두 그리고 사용자가 덜어낸다)
+
+모두 렌더러가 이미 가진 데이터이거나 이미 있는 장치로 얻는 값이다. 새 파일 읽기나 새 이벤트는 없다.
+
+- 캔버스 썸네일: Overview 대화 행이 쓰는 썸네일(PRODUCT §5 'Overview', ARCHITECTURE §3의 지연 캡처와 기기 로컬 캐시)을 쓴다. 캔버스 패널과 프로토타입 창에서 이 캐시를 읽을 수 있는지, 캡처를 새로 요청해야 하는지는 T2 전에 확인한다. 캡처 전에는 자리표시 모습이다.
+- 프레임 수와 앞쪽 프레임 제목: `CanvasRow.frames`(`app/src/main/view.ts:18`).
+- 마지막 수정 시각: `CanvasRow.mtimeMs`(`view.ts:16`), 상대 시각("2m ago")으로 보인다.
+- 폴더 경로: 파일 이름 앞의 디렉터리(`.doan/canvases/`가 아닌 경우에만 의미가 있다).
+- 핸드오프 카드만: 보낸 쪽 대화의 provider 로고와 제목, 핸드오프 시각(이벤트의 `at`). 보낸 쪽 대화 제목은 대화 목록에서 읽는다(지금 `conversationListed`로 존재만 확인한다).
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
@@ -38,17 +48,17 @@
 - 형식: 없다. 이벤트, 히스토리, IPC가 바뀌지 않는다.
 - ARCHITECTURE §1 'Conventions'와 `doan check`: 영향이 없다.
 - 구조적 결정: 영향이 없다.
-- PRODUCT §5 item 2 'Handoff'와 item 3 'Canvas cards'의 문구("handoff card, full width on the inset fill: “Handed off from <source file>” with Open …")를 새 모습으로 고쳐 쓴다(T5). B를 고르면 'Canvas cards'의 바탕 문구도 바뀐다.
+- PRODUCT §5 item 2 'Handoff'와 item 3 'Canvas cards'의 문구("handoff card, full width on the inset fill: “Handed off from <source file>” with Open …")를 새 모습으로 고쳐 쓴다(T5). 'Canvas cards'의 바탕과 메타 문구도 바뀐다.
 
 ## 드래프트 요청
 
-- 캔버스: `.doan/canvases/handoff-card-emphasis.html`, id `handoff-card-emphasis`, 폭은 기존 `canvas-handoff.html`과 같은 값을 쓴다. 기존 `canvas-handoff.html`과 `canvas-drawing-cards.html`은 고치지 않는다.
+- 캔버스: `.doan/canvases/handoff-card-emphasis.html`, id `handoff-card-emphasis`, 폭은 기존 `canvas-handoff.html`과 같은 값을 쓴다. `/design-sync`는 `handoff`, `canvas-cards`, `widths`를 비교한다. 기존 `canvas-handoff.html`과 `canvas-drawing-cards.html`은 고치지 않는다.
 - 프레임:
-  - `variant-a`: 바탕 A. 받는 쪽 핸드오프 카드(캔버스 원본, 이동 직후 포커스, 짧은 본문과 그 아래 사람의 말풍선, 원본이 사라진 경우, Overview 원본, Overview 원본이 지워진 경우)와 보내는 쪽 캔버스 카드 묶음(Drawn, Handed off, Didn’t hand off, No longer in), 그리고 같은 스레드의 "Stopped" 노티스를 함께 그려 노티스와의 차이를 보여준다.
-  - `variant-b`: 같은 내용을 바탕 B로 그린다.
-  - `widths`: 고른 바탕으로 280과 Overview 720을 그린다. 사용자가 고르기 전에는 A·B를 나란히 그린다.
-  - `copy`: 머리 상태 줄, 그룹 이름, Open 이름의 표.
-- 사용자가 고르면 고르지 않은 프레임은 지우고(draft follows decisions), `/design-sync`는 남은 프레임과 `widths`를 비교한다.
+  - `handoff`: 받는 쪽 핸드오프 카드. 캔버스 원본, 이동 직후 포커스, 짧은 본문과 그 아래 사람의 말풍선, 원본이 사라진 경우, Overview 원본, Overview 원본이 지워진 경우, 썸네일 캡처 전. 같은 스레드의 "Stopped" 노티스를 함께 그려 노티스와의 차이를 보여준다.
+  - `canvas-cards`: 보내는 쪽 캔버스 카드 묶음. Drawing, Drawn, Hands off when this turn ends, Handed off, Didn’t hand off, No longer in, 썸네일 캡처 전, 프레임 없음.
+  - `widths`: 280과 Overview 720.
+  - `copy`: 머리 상태 줄, 메타 줄, 그룹 이름, Open 이름의 표.
+- 메타 후보는 모두 그린다. 사용자가 덜어낸 뒤 남은 것만 드래프트와 문서에 남긴다(draft follows decisions).
 
 ## postmortem에서 가져온 주의점
 
