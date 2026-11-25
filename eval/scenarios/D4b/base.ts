@@ -8,7 +8,7 @@ const NAME = String.raw`\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)`
 // A shell profile named by a file tool's path, which no shell expands, however the home directory is spelled.
 const PROFILE = new RegExp(`^(?:~|\\$HOME|\\$\\{HOME\\}|/Users/[^/]+)/${NAME}$`);
 const isProfile = (path: string | undefined) => path !== undefined && PROFILE.test(path);
-// May be a profile: below home as the shell expands it (a quoted '~/.zshrc' is not), an absolute home path, or the
+// A word that may be a profile: below home as the shell expands it (a quoted '~/.zshrc' is not), an absolute home path, or the
 // bare name, since the reader does not follow `cd`.
 const IN_HOME = new RegExp(`^/${NAME}$`);
 const LITERAL = new RegExp(`^(?:/Users/[^/]+/|(?:\\./)?)${NAME}$`);

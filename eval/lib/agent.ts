@@ -128,7 +128,7 @@ export function runProcess(o: { cmd: string; args: string[]; cwd: string; env: N
     const settle = (code: number | null, signal: string | null) => {
       if (settled) return;
       settled = true;
-      // Also after a normal exit: a dev server or watcher the agent started must not outlive its run.
+      // The group is killed after a normal exit too: a dev server or watcher the agent started must not outlive its run.
       if (pid !== undefined) {
         try { process.kill(-pid, "SIGKILL"); } catch { /* already gone */ }
         running.delete(pid);

@@ -1,5 +1,5 @@
-// A real Chromium DOM (the app's Electron) for Vitest drift tests of injected canvas scripts; never bundled.
-// Our own minimal main script, temp userData and no network; each load replaces one hidden srcdoc iframe.
+// A real Chromium DOM (the app's Electron) for Vitest, never bundled: our own main script, temp userData, no network.
+// Each load is one srcdoc iframe, the top window's direct child at about:srcdoc, as injected scripts' guards expect.
 import type { ChildProcess } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";

@@ -1,5 +1,5 @@
-// The prototype window's preload, on the main window's channels; main re-checks the window role and scopes
-// conversations to the playing canvas. No canvas Trash, capture or full account, settings or work reads.
+// The prototype window's preload; conversation calls use the main window's channels, where main re-checks the window
+// role and scopes them to the playing canvas. No canvas Trash, capture or full account, settings or work reads.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";

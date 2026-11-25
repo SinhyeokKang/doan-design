@@ -55,8 +55,8 @@ export function labelsUpdated(ctx: Parameters<Checks>[0]): Check {
   return { id: "labels_updated", pass: expected !== undefined && isDeepStrictEqual(expected.nodes, actual?.nodes), detail: expected === undefined || actual === undefined ? "parse failed" : "" };
 }
 
-// Each frame needs an accepted update naming it while it held seed content. Every edit seen between consecutive
-// snapshots needs a new update since the last one, so re-entering a frame without one fails.
+// Each frame needs an accepted update naming it while it held seed content. Every edit seen between consecutive snapshots
+// needs an update naming that frame since the previous observed edit, so re-entering a frame without one fails.
 export function updateBeforeEachFrameEdit(ctx: Parameters<Checks>[0]): Check {
   const updates = ctx.work().filter(entry => entry.response.ok && entry.request.action === "update" && entry.request.path === path);
   const seed = ctx.seed(path), final = ctx.read(path);

@@ -53,8 +53,8 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
   return result.stdout;
 }
 
-// A new dir no Codex agent shell can write (workspace-write opens its folder, /tmp and $TMPDIR, not /var/tmp).
-// Covers every Codex home of a round; short because Codex binds ipc/ipc.sock in it.
+// A new dir no Codex agent shell can write (workspace-write opens its folder, /tmp and $TMPDIR, not /var/tmp); every Codex
+// home, a judge's too, since the lanes run side by side. Short because Codex binds ipc/ipc.sock in it.
 export function outsideCodexSandbox(prefix: string): string {
   return realpathSync(mkdtempSync(`/var/tmp/${prefix}`));
 }

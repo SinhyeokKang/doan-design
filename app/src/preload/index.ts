@@ -62,7 +62,7 @@ export type ConfigWrite =
   // gitInit: the person confirmed creating the Git repository Keep out of Git needs outside Git.
   | { root: string; op: "setStorage"; storage: "local"; gitInit: true };
 
-// Also asks for the current value, since the first event can precede the listener (an earlier event wins). Each
+// Subscribes, and asks for the current value since the first event can precede the listener (an earlier event wins). Each
 // preload keeps its own copy: a sandboxed preload cannot require a shared chunk.
 function subscribe<T>(event: string, initial: string, listener: (value: T) => void): () => void {
   let active = true, received = false;
@@ -115,21 +115,22 @@ const api = {
   },
   answerOpenRequest: (answer: OpenAnswer): Promise<void> => ipcRenderer.invoke("doan-open:answer", answer),
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
-  // model and effort only from this run's listConversationModels for that root and runtime; resume takes none of these.
-  // A moved or deleted attachment refuses the start: attachment_missing with its ids in `missing`.
+  // newDesign takes `text`. model and effort only from this run's listConversationModels for that root and runtime; resume
+  // takes no model, effort, fast, mode or attachments. A moved or deleted attachment: attachment_missing, ids in `missing`.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
-  // model/effort only when changed, no provider. Under a usage limit or schedule main queues it ({ scheduled }), refusing
-  // picker fields (ARCHITECTURE §7 'Usage-limit schedule'). canvas_not_found: canvas gone or its ID listed twice.
+  // model/effort/fast only when changed; no provider. canvas_not_found: canvas gone or ID listed twice. rate_limited may
+  // carry resetsAt. A limit or schedule queues it, refusing picker fields (ARCHITECTURE §7 'Usage-limit schedule').
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ScheduledSend | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   // A scheduled conversation's waiting messages in order, auto-scheduled ones included; empty when not scheduled.
   scheduledMessages: (request: { conversationId: string }): Promise<ScheduledItem[] | ConversationError> => ipcRenderer.invoke("conversation:scheduled", request),
-  // While working (else not_running) main holds the message and attachments; a failed or stopped turn or a restart
-  // hands the queue back as a draft (ARCHITECTURE §7 'Queue').
+  // While working (else not_running) main holds it (no model, effort, fast or mode); a failed or stopped turn, a refused queued send
+  // or a restart returns the queue as a draft (row returnedDraft, taken once by takeConversationDraft; ARCHITECTURE §7 'Queue').
   queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
-  // Stores a picker change made without a send ("default" as none); a running turn keeps its mode, a queue flushes
-  // in the stored one. bad_request: unknown id or legacy external conversation.
+  // Stores and announces a picker change made without a send ("default" as none); a running turn keeps its mode, a queue
+  // flushes in the stored one. bad_request: unknown id or legacy external conversation.
   setConversationPermissionMode: (request: { conversationId: string; permissionMode: PermissionModeId }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:setPermissionMode", request),
-  // stale: the item already went out, came back or was removed.
+  // stale: the item already went out, came back or was removed. A removal or draft take that cannot be saved answers an
+  // error and keeps what it would have taken.
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
   // Answers once the agent read it, now in the turn and out of the queue. stale: item gone or already going out;
   // not_running or attachment_missing leave it queued (ARCHITECTURE §7 'Queue').
@@ -224,8 +225,8 @@ const api = {
     ipcRenderer.on("conversation:boundary", receive);
     return () => ipcRenderer.removeListener("conversation:boundary", receive);
   },
-  // Main binds attempts and links to this window, and onAgentAuth delivers only newer revisions. A not_logged_in is
-  // coarse: recover from readiness.action. readAgentAuth is null when account storage is unreadable.
+  // Main binds attempts and links to this window; onAgentAuth delivers only newer revisions. null: storage unreadable.
+  // Recover a not_logged_in from readiness.action: a Codex re-sign-in's new connection cannot resume old conversations.
   readAgentAuth: (): Promise<AuthSnapshot | null> => ipcRenderer.invoke("agent-auth:read"),
   onAgentAuth(listener: (snapshot: AuthSnapshot) => void): () => void {
     let active = true, revision = -1;
@@ -384,8 +385,8 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
-  // a listed canvas row by root and path; main checks it against its own list and the disk, and judges
-  // busy again. Ask the plan when the Move to Trash dialog opens, then move on confirm.
+  // Move to Trash names a listed canvas row by root and path; main checks it against its list and the disk and judges
+  // busy again. Ask the plan when the dialog opens, then move on confirm.
   planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
   // Opens the save panel and runs `doan export`; resolves once the file is written or the export failed or was cancelled.

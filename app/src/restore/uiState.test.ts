@@ -209,7 +209,7 @@ test("drops home fields one by one and keeps the rest", () => {
   expect(parse({ screen: "home", home: { lastRoot: 1, lastProvider: null, models: [] } })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });
 
-// each provider's last mode; an id this build does not know reads as Default
+// Each provider's last mode; an id this build does not know reads as Default
 // for that entry only, and Default is the same as no entry.
 test("keeps each provider's last permission mode and reads an unknown one as Default", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, permissions: { claude: "bypass", codex: "plan", cursor: "acceptEdits" } } };
@@ -219,7 +219,7 @@ test("keeps each provider's last permission mode and reads an unknown one as Def
   for (const bad of [null, [], "plan", 1]) expect(parse({ screen: "home", home: { ...home, permissions: bad } })?.home).toEqual(home);
 });
 
-// each provider's Last used Fast. Read back like permissions, so a save does not drop it
+// Each provider's Last used Fast. Read back like permissions, so a save does not drop it
 // (POSTMORTEM 2026-11-01); a damaged entry is dropped alone.
 test("keeps each provider's Fast and drops a damaged entry alone", () => {
   const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, fast: { claude: true, codex: true } } };
@@ -453,7 +453,7 @@ test("a parsed rightPanel survives a second parse unchanged", () => {
   expect(parse(first)).toEqual(first);
 });
 
-// the Overview's Conversations panel keeps its own width, checked like the
+// The Overview's Conversations panel keeps its own width, checked like the
 // canvas panel's.
 test("reads the Overview panel's width apart from the canvas panel's; a malformed one is dropped", () => {
   expect(parse({ screen: "home", overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } })).toMatchObject({ overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } });
@@ -469,7 +469,7 @@ test("reads the Overview panel's width apart from the canvas panel's; a malforme
   expect(parse(first)).toEqual(first);
 });
 
-// the sidebar field carries its width and a hidden flag, each on its own.
+// The sidebar field carries its width and a hidden flag, each on its own.
 test("reads the sidebar's hidden flag beside its width; only true is kept", () => {
   expect(parse({ screen: "home", sidebar: { width: 260, hidden: true } })?.sidebar).toEqual({ width: 260, hidden: true });
   expect(parse({ screen: "home", sidebar: { hidden: true } })?.sidebar).toEqual({ hidden: true });

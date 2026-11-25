@@ -668,8 +668,8 @@ test("a wrapper option the shell may expand to nothing makes the read incomplete
   read('eval "doan design-skill $p"', [], true);
 });
 
-// A redirection and its target are not among a command's words (a quoted `>` is a word), and a backslash-newline
-// outside single quotes continues one command, which agents use for long doan calls.
+// The shell drops a backslash-newline outside single quotes, so a continued line is one command; agents write long
+// doan calls this way.
 test("a backslash-newline continues the command, outside single quotes", () => {
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   read("doan design-skill audit \\\n  --json", [["doan", "design-skill", "audit", "--json"]]);

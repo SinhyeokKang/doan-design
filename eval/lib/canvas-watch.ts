@@ -31,8 +31,8 @@ export async function watchCanvasDirs(repo: string, log: string): Promise<{ stop
   };
 }
 
-// Reports arrive late (even for writes before the watch), so only those between a start and an end marker file
-// are kept. Stops when stdin closes, also when the runner dies.
+// Reports arrive late (even for writes before the watch) but in order, so only those between a start and an end marker
+// file are kept. Stops when stdin closes, also when the runner dies.
 async function child(repo: string, log: string): Promise<void> {
   const record = (value: unknown) => appendFileSync(log, `${JSON.stringify(value)}\n`);
   let recording = false;

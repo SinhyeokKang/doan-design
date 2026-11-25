@@ -1,5 +1,5 @@
 // Keep aligned with docs/ARCHITECTURE.md §14 and .agents/skills/agent-eval/SKILL.md so rounds stay comparable.
-// node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge] | --self-test
+// node eval/run.ts [--scenarios W1,R2] [--agents claude,codex] [--repeat N] [--round <name>] [--no-judge] | --self-test [--scenarios <ids>]
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -162,7 +162,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
   }
 }
 
-// Also for a failed or broken run; a copy error must not hide the run's own error.
+// Evidence is kept for a failed or broken run too; a copy error must not hide the run's own error.
 function keepEvidence(ws: Workspace, dir: string): void {
   try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
   try { keepCodexSessions(ws, dir); } catch (error) { writeFileSync(join(dir, "codex-sessions-error.txt"), `${(error as Error).stack}\n`); }
@@ -245,7 +245,7 @@ async function main(): Promise<number> {
     return 0;
   } finally {
     if (cliDir) rmSync(cliDir, { recursive: true, force: true });
-    // Also on a failed round: a run must never have touched the user's own doan setup.
+    // Checked on a failed round too: a run must never have touched the user's own doan setup.
     await assertRealState(before);
   }
 }

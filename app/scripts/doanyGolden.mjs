@@ -17,6 +17,7 @@ const unbounded = draft.replace(BOUNDS, "tilt:[-Infinity,Infinity], liftScale:1}
 
 const FIELDS = ["time", "ready", "visible", "lookX", "lookY", "targetX", "targetY", "hat", "hatV", "jumpAt", "blinkAt", "nextBlink", "typingUntil", "last", "eye", "mode", "pointerUntil"];
 const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "energy", "eyeOpen", "lookX", "lookY"];
+// Same constants and encoding as Doany.test.tsx's recording context, which compares the idle trace call for call.
 const CONSTANTS = {
   VERTEX_SHADER: 1, FRAGMENT_SHADER: 2, COMPILE_STATUS: 3, LINK_STATUS: 4, ARRAY_BUFFER: 5, ELEMENT_ARRAY_BUFFER: 6, STATIC_DRAW: 7, FLOAT: 8,
   BLEND: 9, SRC_ALPHA: 10, ONE_MINUS_SRC_ALPHA: 11, TEXTURE_2D: 12, TEXTURE_WRAP_S: 13, TEXTURE_WRAP_T: 14, CLAMP_TO_EDGE: 15, TEXTURE_MIN_FILTER: 16,

@@ -38,7 +38,7 @@ test("a command that could not be read completely never reads a preset and fails
   assert.deepEqual(checks(within), { read_harden_or_clarify_or_onboard: true, preset_reads_allowed: false });
 });
 
-// Both start with a complete read of harden, which the allowed list accepts; only the part the reader lost can fail it.
+// Every command asks for harden, which the allowed list accepts, so only the part the reader lost can fail that list.
 test("a read that loses part of the run fails the allowed list even when what it kept is allowed", () => {
   const long = Array(257).fill("1").join(" ");
   for (const command of [

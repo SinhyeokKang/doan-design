@@ -33,8 +33,8 @@ const TRUE = /^(?:1|t|T|true|TRUE|True)$/;
 // A frame id checkFrame accepts: not empty, at most 200 characters, no control character.
 const frameAccepted = (frame: string | undefined) => frame === undefined || (frame !== "" && [...frame].length <= 200 && !/[\u0000-\u001f\u007f]/.test(frame));
 
-// Argument shapes these commands refuse with a usage error (a second --frame included), tied to the CLI by
-// transcript.test.ts. Unknown preset ids of the right shape are the preset checks' job.
+// Argument shapes the commands the checks read refuse with a usage error (a second --frame included), tied to the CLI
+// by transcript.test.ts. Unknown preset ids of the right shape are the preset checks' job.
 function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean {
   const all = (name: string) => flags.filter(flag => flag.name === name);
   const frames = all("frame").length;
@@ -180,8 +180,8 @@ function shellScript(argv: unknown): string | undefined {
   return /^(?:.*\/)?(?:sh|bash|zsh|dash)$/.test(argv[0]!) && /^-[a-z]*c$/.test(argv[1]!) ? argv[2] : undefined;
 }
 
-// Process records between a script's call and output (no call id) show what it ran, only if the output arrived, no
-// other call overlapped and all (at least one) are shell scripts. Otherwise the literals count as run.
+// Process records between a script's call and output (no call id) show what it ran, only if the output arrived, no record
+// arrived while another call was open and all (at least one) are shell scripts. Otherwise the literals count as run.
 function recordedExecs(transcript: string): Map<string, string[]> {
   const open = new Map<string, { ran: (string | undefined)[]; shared: boolean; script: boolean }>();
   const recorded = new Map<string, string[]>();
@@ -297,8 +297,8 @@ function execHeaderEnd(lines: string[], first: number): number {
   return first;
 }
 
-// Drops comments and heredoc bodies (data, not commands), so a `doan` line in a message runs nothing.
-// A body naming doan leaves a marker after its tag for the interpreter check, since a script there may run doan.
+// Drops comments and heredoc bodies (data). A body naming doan is marked only if it also starts a process or holds a
+// backtick: document-editing scripts merely mention doan, and only Perl and Ruby run a backtick string.
 function withoutHeredocsAndComments(command: string, calls: string[][][]): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
@@ -419,8 +419,8 @@ function closing(text: string, from: number, nesting = 0): number {
   return -1;
 }
 
-// Takes out outermost `$(…)` and backtick substitutions, each body running as its own command with unknown output.
-// Quoted or escaped ones stay literal, `$((…))` is arithmetic. `null`: unclosed or not followed.
+// Takes out outermost `$(…)` and backtick substitutions, each run as its own command with unknown output. Only single
+// quotes or an escape keep them literal; `$((…))` is arithmetic. `null`: unclosed or not followed.
 function substitutions(command: string): { text: string; bodies: string[] } | null {
   const bodies: string[] = [];
   let text = "", quote: string | null = null;
@@ -529,8 +529,8 @@ const MARK = "\u0001";
 // The shell takes a redirection before it reads the program, wherever it stands in the command.
 const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
-// Expands a raw token as the shell would. Unknown variables, substitutions and a bare `$name` holding whitespace
-// (zsh keeps it whole, bash splits) are unresolved. Home: unquoted `~`, unassigned `$HOME`, or a variable holding one.
+// Expands a token as the shell would; unknown variables, substitutions and a bare `$name` holding whitespace are
+// unresolved. Home: a leading unquoted `~`, unassigned `$HOME` outside '…', or a variable holding just one.
 function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
   const name = whole ? whole[1] ?? whole[2]! : undefined;
@@ -658,8 +658,8 @@ function seqList(token: string, bodies: string[], state: ReadState, functions: R
   return { words: values, unresolved: false, homePath: undefined, onlyHome: undefined };
 }
 
-// Runs token groups as the shell would, with one shell state for assignments, `for` loops, groups and functions.
-// Anything unfollowable or unresolved sets `state.incomplete` and yields no words.
+// Runs token groups as the shell would, with one shell state. What it cannot follow, or an unresolved program, doan
+// operand or loop list, sets `state.incomplete` and yields no words for it.
 function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[], functions: Map<string, ShellFunction>): ShellCommand[] {
   const out: ShellCommand[] = [];
   const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
