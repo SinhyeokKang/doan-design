@@ -42,10 +42,13 @@ function decode(bytes: Buffer): string | null { try { return UTF8.decode(bytes);
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
 // The login shell spells PATH from its own $HOME, which can be a link to the canonical HOME (POSTMORTEM 2026-10-21):
-// each absolute entry is compared by its real path, or by the HOME spelling when it does not resolve.
+// an absolute entry that resolves to ~/.local/bin's real path, or starts with the HOME spelling, is respelled from home.
 function canonicalPath(loginPath: string | null, home: string, spelled: string): string | null {
-  return loginPath === null ? null : loginPath.split(":").map(entry => !isAbsolute(entry) ? entry
-    : canonical(entry) ?? (entry === spelled || entry.startsWith(`${spelled}/`) ? home + entry.slice(spelled.length) : entry)).join(":");
+  if (loginPath === null) return null;
+  const localBin = `${home}/.local/bin`, realLocalBin = canonical(localBin);
+  return loginPath.split(":").map(entry => !isAbsolute(entry) ? entry
+    : realLocalBin !== null && canonical(entry) === realLocalBin ? localBin
+    : entry === spelled || entry.startsWith(`${spelled}/`) ? home + entry.slice(spelled.length) : entry).join(":");
 }
 function isDirectory(path: string): boolean { try { return statSync(path).isDirectory(); } catch { return false; } }
 function kindOf(path: string): Observation["kind"] | { error: string } {

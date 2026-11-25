@@ -531,6 +531,15 @@ describe("the /usr/local/bin link", () => {
     expect(actions(viaPath)["system-cli"]).toBeUndefined();
   });
 
+  it("is not asked for when ~/.local/bin itself is a link to another folder", async () => {
+    mkdirSync(join(temp, "dotfiles-bin")); mkdirSync(join(home, ".local"), { recursive: true });
+    symlinkSync(join(temp, "dotfiles-bin"), join(home, ".local/bin"));
+    const admin = shellAdmin();
+    const result = await runAgentSetup(options({ runAdmin: admin }));
+    expect(admin.calls).toEqual([]);
+    expect(actions(result)["system-cli"]).toBeUndefined();
+  });
+
   it("is created through the administrator shell when ~/.local/bin is not on PATH", async () => {
     const admin = shellAdmin();
     const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: admin }));

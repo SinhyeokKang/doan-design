@@ -245,10 +245,14 @@ export class AuthStorage {
     }
   }
   // A fenced agent may write a Doan-written profile file, so it can also create a folder there, which a rename onto
-  // the path or rmSync cannot replace. Only a real folder goes; rmSync never follows the links inside it.
+  // the path or rmSync cannot replace. It is renamed into the auth root, which no fenced process can write, before its
+  // tree is removed: a removal walking the profile path could follow a link the agent swaps in meanwhile.
   private clearFolder(path: string): void {
-    try { if (lstatSync(path).isDirectory()) rmSync(path, { recursive: true, force: true }); }
-    catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
+    const aside = join(this.root, `.planted-${randomUUID()}`);
+    try { if (!lstatSync(path).isDirectory()) return; renameSync(path, aside); }
+    catch (error) { if (absent(error)) return; throw new StorageError("delete_failed", message(error)); }
+    // The path is clear either way; a tree that cannot be removed stays under its .planted- name until removed by hand.
+    try { rmSync(aside, { recursive: true, force: true }); } catch { /* See above. */ }
   }
   private replaceWorking(path: string, bytes: Buffer): void { this.clearFolder(path); this.replace(path, bytes); }
   private removeWorking(path: string): void { this.clearFolder(path); this.remove(path); }
