@@ -121,6 +121,15 @@ test("pending records work while the connectors file is broken", () => {
   expect(store.blocked("codex", "doan-notion")).toBe(true);
 });
 
+test("an invalid entry in a batch is dropped alone; the valid entries are recorded and block", () => {
+  const store = new ConnectorStore(dir);
+  const bad = { provider: "codex" as const, name: "doan-plain", url: "http://example.com/mcp" };
+  expect(store.record([bad, notion])).toBe(true);
+  expect(JSON.parse(readFileSync(pendingFile(), "utf8"))).toEqual({ v: 1, logouts: [notion] });
+  expect(store.blocked("codex", "doan-notion")).toBe(true);
+  expect(store.blocked("codex", "doan-plain")).toBe(false);
+});
+
 test("an invalid pending record is refused", () => {
   const store = new ConnectorStore(dir);
   expect(store.record([{ provider: "codex", name: "notion", url: "https://mcp.notion.com/mcp" }])).toBe(false);

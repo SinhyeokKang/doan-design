@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MAX_SLUG } from "../mcpConnectors/names";
 import { fenceArgs, resolveFencePaths, SANDBOX_EXEC } from "./fence";
 import type { Provider } from "./types";
 
@@ -64,6 +65,11 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       `skills/${lock}`, lock + ".tmp", lock.replace("doan_", "other_"), lock.replace("eac6", "gac6"),
       lock.replace("eac6", "eac"), lock.replace("notion", "abcdefghijklmnopq"),
     ], { userData, profile })).toEqual([lock, "mcp-refresh-doan_127_0_0_1_0123456789abcdef.lock.lock"]);
+  });
+  it("allows the refresh lock of a connector name at the longest slug Doan makes, and no longer", () => {
+    const lock = (slug: string) => `mcp-refresh-doan_${slug}_0123456789abcdef.lock.lock`;
+    const longest = lock("a".repeat(MAX_SLUG)), dashed = lock(`a${"_".repeat(MAX_SLUG - 1)}`);
+    expect(written("claude", [longest, dashed, lock("a".repeat(MAX_SLUG + 1))])).toEqual([longest, dashed]);
   });
   // Codex in Full access: its stores and caches, runtime helpers under tmp/, temporary files it renames onto root files,
   // and the SQLite databases at the root, whatever their version suffix.
