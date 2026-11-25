@@ -366,6 +366,9 @@ html:not(.js) :is(.ov-sep:not(.doan-canvas-sep-root), .ov-title-wrap, .doan-canv
   overflow-wrap: anywhere;
 }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+@media (forced-colors: active) {
+  .doan-notice.doan-panel { outline: 1px solid CanvasText; outline-offset: -1px; }
+}
 
 /* ── Tooltip and key (ds/surfaces.css .doan-tooltip, ds/controls.css .doan-kbd) ─ */
 /* The page has no Radix: shell.js places the one tooltip over its tool, 4 above it as the app's
