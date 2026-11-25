@@ -31,7 +31,7 @@ export interface Thumbnails {
   // A closed window reports nothing more, so what it showed stops counting as visible.
   viewerClosed(viewer: WindowKind): void;
   // Every folder update: forgets canvases that left the list, re-checks a folder whose served files changed or only the
-  // rows whose revision moved, and cleans the cache once, the first time every root lists.
+  // rows whose revision moved, and cleans the cache once per start (`trim`, then `sweep`).
   entriesChanged(entries: readonly FolderEntry[]): void;
   // Removed projects lose their cache files; `before` is the list before removal.
   removed(roots: readonly string[], before: readonly FolderEntry[]): Promise<void>;
@@ -127,7 +127,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   // cannot finish while a write it overtook still makes files.
   const locks = new Map<string, Promise<void>>();
   let running = false;
-  let cleaned = false;
+  let trimmed = false;
+  let swept = false;
   let disposed = false;
   // Startup collection may overlap a cache write from an already-loaded root.
   const activeTemps = new Set<string>();
@@ -258,15 +259,52 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     }
   };
 
-  const collect = async (entries: readonly FolderEntry[]) => {
+  const listedKeys = (entries: readonly FolderEntry[]) =>
+    entries.flatMap((entry) => (entry.kind === "list" ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
+
+  // No root can reuse these: an inactive temp, or a key without both files, with unreadable meta or another app version.
+  // Checked inside the key's lock, so a write in progress is never seen half done.
+  const trim = async () => {
     let names: string[];
     try {
       names = await readdir(deps.dir);
     } catch {
       return;
     }
-    const live = entries.flatMap((entry) => (entry.kind === "list" ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
-    const garbage = [...thumbnailGarbage(names, live), ...names.filter(name => isTemp(name) && !activeTemps.has(join(deps.dir, name)))];
+    const temps = names.filter(name => isTemp(name) && !activeTemps.has(join(deps.dir, name)));
+    const keys = new Set(thumbnailGarbage(names, []).map((name) => name.slice(0, name.indexOf("."))));
+    const unusable = async (key: string) => {
+      try {
+        await stat(files(key).png);
+        const meta = parseMeta(await readFile(files(key).json, "utf8"));
+        return meta === null || meta.appVersion !== deps.appVersion;
+      } catch {
+        return true;
+      }
+    };
+    await Promise.all([
+      ...temps.map((name) => unlink(join(deps.dir, name)).catch(() => {})),
+      ...[...keys].map((key) => serial(key, async () => {
+        if (await unusable(key)) await Promise.all([files(key).png, files(key).json].map((file) => unlink(file).catch(() => {})));
+      })),
+    ]);
+  };
+
+  // Every root listed in `entries`; the list is read again after the directory, so a canvas listed meanwhile keeps its
+  // cache, and a root that stopped listing meanwhile puts the sweep off to a later update.
+  const sweep = async (entries: readonly FolderEntry[]) => {
+    let names: string[];
+    try {
+      names = await readdir(deps.dir);
+    } catch {
+      return;
+    }
+    const now = deps.entries();
+    if (!now.every((entry) => entry.kind === "list")) {
+      swept = false;
+      return;
+    }
+    const garbage = thumbnailGarbage(names, [...listedKeys(entries), ...listedKeys(now)]);
     await Promise.all(garbage.map((name) => unlink(join(deps.dir, name)).catch(() => {})));
   };
 
@@ -325,11 +363,15 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
       }
       for (const root of revs.keys()) if (!entries.some((entry) => entry.path === root)) revs.delete(root);
       for (const root of signatures.keys()) if (!entries.some((entry) => entry.path === root)) signatures.delete(root);
-      // Keys hash root and path, so a root that does not list yet hides which files are its own: collect waits for every
-      // root to list rather than delete a registered root's cache.
-      if (!cleaned && entries.every((entry) => entry.kind === "list")) {
-        cleaned = true;
-        void collect(entries);
+      // Once per start. Keys hash root and path, so a root that does not list yet hides which files are its own: what no
+      // root can reuse goes once nothing is loading, the rest once every root lists.
+      if (!trimmed && entries.every((entry) => entry.kind !== "loading")) {
+        trimmed = true;
+        void trim();
+      }
+      if (!swept && entries.every((entry) => entry.kind === "list")) {
+        swept = true;
+        void sweep(entries);
       }
     },
     async removed(roots, before) {
