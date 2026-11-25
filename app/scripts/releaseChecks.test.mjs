@@ -4,6 +4,7 @@ import {
   checkLatestMacYml,
   checkReleaseVersion,
   checkSignedEntitlements,
+  entitledHelpers,
   compareEntitlements,
   compareFuses,
   parseCodesignDetails,
@@ -197,6 +198,24 @@ describe("checkSignedEntitlements", () => {
   it("fails when codesign cannot read the binary", () => {
     expect(read("/tmp/doan: code object is not signed at all\n", 1)).toEqual([
       "codesign exited 1: /tmp/doan: code object is not signed at all",
+    ]);
+  });
+});
+
+describe("entitledHelpers", () => {
+  const spawnHelper = "/D.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper";
+
+  it("picks the Helper apps and every spawn-helper, wherever it sits", () => {
+    expect(entitledHelpers(["Doan Helper.app", "Doan Helper (GPU).app", "Electron Framework.framework"], ["/D.app/Contents/MacOS/Doan", spawnHelper])).toEqual([
+      { name: "Helper apps", paths: ["Doan Helper.app", "Doan Helper (GPU).app"] },
+      { name: "spawn-helper", paths: [spawnHelper] },
+    ]);
+  });
+
+  it("reports an empty group for a package without them", () => {
+    expect(entitledHelpers(["Electron Framework.framework"], ["/D.app/Contents/MacOS/Doan"])).toEqual([
+      { name: "Helper apps", paths: [] },
+      { name: "spawn-helper", paths: [] },
     ]);
   });
 });
