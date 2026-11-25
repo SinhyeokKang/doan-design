@@ -385,7 +385,7 @@ test("a recorded pasted text reaches the mounted sent bubble with its lines, too
   const record = { name: "pasted-text-2026-11-24T08-20-00-000Z.txt", kind: "file" as const, size: 1000, path: "/u/pasted-text-2026-11-24T08-20-00-000Z.txt", lines: 24, excerpt: "Checkout spec" };
   const items = threadItems([{ v: 1, conversationId: "c", seq: 1, turnId: "t", at: "2026-11-24T00:00:00Z", type: "user.message", text: "Go", anchors: [], attachments: [record] }], ROOT, false);
   const props: import("./ConversationThread").ConversationThreadProps = {
-    conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1,
+    conversationId: "c", items, provider: "claude", project: "acme", visibility: fakeCalls(), liveAfter: 1, now: 0,
     canvasListed: () => true, onAnswer: vi.fn(), onStop: vi.fn(), onEditAndResend: vi.fn(), onSignIn: vi.fn(), onRetry: vi.fn(), onOpenCanvas: vi.fn(), onOpenLink: vi.fn(), onCopy: vi.fn(async () => true),
   };
   type Element = { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };

@@ -63,7 +63,9 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+// The window's one thumbnail hub, which every viewer of a root shares.
+const HUB = vi.hoisted(() => ({ hub: "window" }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => HUB, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
@@ -131,7 +133,7 @@ const lastOpen = () => harness.controller!.openCanvas!.mock.lastCall as [string,
 const back = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar")!.props as { back: boolean }).back;
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: { path: D, id: "drafts" } }, target: { conversationId: "c2", canvas: { path: C, id: "checkout" } } };
 const handoff = (n: ConversationHandoffNotice = notice) => { listeners.handoff!(n as never); render(); };
-type Panel = { arrival: { focus: string } | null; project: string };
+type Panel = { arrival: { focus: string } | null; project: string; thumbnailHub?: unknown };
 const panel = () => find<Panel>(CanvasConversation)[0]?.props;
 
 async function overview(list = listA()) {
@@ -146,6 +148,18 @@ function showCanvas(row: CanvasRow) {
   render();
 }
 async function onDrafts(list = listA()) { await overview(list); showCanvas(drafts); await flushAll(); }
+
+// The receiving card and the canvas cards show their canvases' images from the window's hub, as the Overview's list does.
+test("the canvas panel's thread and the Overview's get the window's thumbnail hub", async () => {
+  await overview();
+  expect(overviewProps()!.thumbnailHub).toBe(HUB);
+  showCanvas(drafts); await flushAll();
+  handoff();
+  harness.controller!.destination!.mockReturnValue({ root: "/w/a", canvas: C });
+  showCanvas(checkout);
+  lastOpen()[3].opened(); render();
+  expect(panel()!.thumbnailHub).toBe(HUB);
+});
 
 test("on the source canvas the handoff moves through Quick Open's path: one visit, the panel on the card", async () => {
   await onDrafts();
@@ -388,7 +402,7 @@ test("a single handoff still waiting turns into its toast when a summary arrives
 // A project conversation's handoff: its source page is the root's Overview showing the source conversation
 // (PRODUCT §5 item 2 'Handoff').
 const { ProjectOverview } = await import("./ProjectOverview");
-type OverviewProps = { root: string; composerLink: { current: unknown }; run: { view(root: string): { kind: string; conversationId?: string }; select(root: string, id: string | null): void; setDrafts(update: (drafts: Map<string, unknown>) => Map<string, unknown>): void } };
+type OverviewProps = { root: string; thumbnailHub?: unknown; composerLink: { current: unknown }; run: { view(root: string): { kind: string; conversationId?: string }; select(root: string, id: string | null): void; setDrafts(update: (drafts: Map<string, unknown>) => Map<string, unknown>): void } };
 const overviewProps = () => find<OverviewProps>(ProjectOverview)[0]?.props;
 const projectConversation = (conversationId: string, minute: number) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: `2026-11-01T00:0${minute}:00.000Z`, preview: "" });

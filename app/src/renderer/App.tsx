@@ -97,7 +97,7 @@ import type { CanvasPress } from "./ComposerParts";
 import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
-import { useThumbnails } from "./thumbnails";
+import { useThumbnailHub, useThumbnails } from "./thumbnails";
 import { canvasConversationRows, type CanvasConversationRow } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
@@ -2583,7 +2583,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
-  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
+  // Every viewer of a root in this window (the Overview list, the canvas panel's thread cards) shares its images.
+  const thumbnailHub = useThumbnailHub(window.doan);
+  const thumbs = useThumbnails(thumbnailHub, overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
   const overviewShown = overview ? overviewRun.current!.view(overview.path) : null;
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel
@@ -2749,7 +2751,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
-      onReplyChip={link => replyChip(overview.path, link)}
+      onReplyChip={link => replyChip(overview.path, link)} thumbnailHub={thumbnailHub}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -2775,7 +2777,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} />}
+          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

@@ -89,7 +89,7 @@ let nativeListeners: Set<(visible: boolean) => void>;
 const visibility = { onWindowVisible: (listener: (visible: boolean) => void) => { nativeListeners.add(listener); return () => { nativeListeners.delete(listener); }; } };
 const nativeVisible = (visible: boolean) => { for (const listener of [...nativeListeners]) listener(visible); };
 const props = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn, visibility,
+  items, conversationId: "c1", provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, turn, visibility, now: 0,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const at = (status: TurnStatus, turnId = "t1"): ThreadTurn => ({ turnId, status, at: AT });

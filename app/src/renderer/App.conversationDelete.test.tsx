@@ -66,7 +66,7 @@ vi.mock("./CanvasController", async original => ({
 }));
 const focused = vi.hoisted(() => ({ calls: [] as unknown[] }));
 vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { focused.calls.push(field); } }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

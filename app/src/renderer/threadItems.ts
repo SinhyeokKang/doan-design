@@ -40,7 +40,8 @@ export type ThreadItem =
   | { kind: "canvasCard"; key: string; canvas: Canvas; drawing: boolean; drawn: boolean; handoff?: CardHandoff }
   // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
   // read for a preset line or {{n}} markers.
-  | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string }
+  // at: the message's time, the handoff's time the card's meta shows.
+  | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string; at: string }
   // After a /compact or /clear turn that ran (draft provider-commands frame boundaries).
   | { kind: "boundary"; key: string; label: string };
 
@@ -218,7 +219,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "user.message": {
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
-        if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }, event.turnId); continue; }
+        if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text, at: event.at }, event.turnId); continue; }
         const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) });
         const { preset, skills, body } = splitRequest(event.text, attachments.length);
         const first = !opened.has(event.turnId);

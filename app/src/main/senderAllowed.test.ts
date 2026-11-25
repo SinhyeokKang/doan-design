@@ -174,6 +174,16 @@ describe("prototype window", () => {
     expect(senderAllowed(channel, "main")).toBe(true);
     expect(senderAllowed(channel, "prototype")).toBe(true);
   });
+  // Thread cards in either window show thumbnails; main answers the prototype window for its playing root only
+  // (prototype/thumbnailScope.ts).
+  test.each(["thumbnails:get", "thumbnails:visible"])("%s is open to both windows", channel => {
+    expect(senderAllowed(channel, "main")).toBe(true);
+    expect(senderAllowed(channel, "prototype")).toBe(true);
+    for (const kind of ["settings", "capture", "thumbnail", "", null, undefined]) expect(senderAllowed(channel, kind)).toBe(false);
+  });
+  test("thumbnails:changed is an event main sends, never a request", () => {
+    for (const kind of ["main", "prototype"]) expect(senderAllowed("thumbnails:changed", kind)).toBe(false);
+  });
   test("account, settings, terminal work, capture and the main window's own requests stay closed to it", () => {
     for (const channel of [
       "agent-auth:read", "agent-auth:sign-in", "agent-auth:sign-out", "preferences:read", "preferences:write", "work:get", "conversation-work:get",

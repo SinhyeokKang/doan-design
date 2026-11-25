@@ -9,6 +9,7 @@ import { liveReset, localClock, waitsForReset } from "./limitReset";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { ThumbnailHub } from "./thumbnails";
 import type { HomeMemory } from "../restore/uiState";
 import { requestTitleText } from "../main/conversation/requestLines";
 import { messageLine } from "../main/conversation/messageText";
@@ -88,6 +89,8 @@ export interface ProjectOverviewProps {
   composerLink?: MutableRefObject<DockedFieldLink | null>;
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // The window's thumbnails, for the thread's canvas cards; the Overview's list shares them.
+  thumbnailHub?: ThumbnailHub;
   onRetryList(): void;
   // The failed list's Retry while it reads again (HomeRun listRetry).
   listRetry?: ListRetry;
@@ -430,7 +433,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})} />
         : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}

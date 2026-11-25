@@ -621,12 +621,12 @@ describe("threadItems canvas cards", () => {
     expect(cards(items).map(card => card.handoff?.outcome)).toEqual(["cancelled", "missed"]);
   });
 
-  test("the receiving conversation's first message is the handoff card with its text as written", () => {
+  test("the receiving conversation's first message is the handoff card with its text as written and its time", () => {
     seq = 0;
     const origin = { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } };
     const text = "/Polish\nThe person wrote “{{1}}” as a placeholder.";
     const items = threadItems([...turn("t1", text, { origin }), ev("t1", { type: "turn.done" }), ...turn("t2", "Use {{1}}")], ROOT, true);
-    expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text });
+    expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text, at: "2026-11-01T00:00:00Z" });
     // A later message of the person's is a bubble as before.
     expect(items.at(-1)).toMatchObject({ kind: "user" });
   });

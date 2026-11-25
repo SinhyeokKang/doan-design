@@ -5,17 +5,21 @@ import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, Steps, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
+import type { ThumbnailState } from "./thumbnails";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+  items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, patch)} /></TooltipProvider>);
+const threadHtml = html;
+// A card drawn alone, outside a thread: no rows, no images.
+const NO_CONTEXT: CardContext = { rows: [], thumbnails: new Map(), now: 0, root: "" };
 // A sent chip inside its detail tooltip.
 const sentChip = (args: Parameters<typeof SentChip>[0]) => (SentChip(args) as ReactElement<{ children: ReactElement<{ onClick(): void; "aria-describedby"?: string }> }>).props.children;
 const agent = (text: string, streaming = false): ThreadItem => ({ kind: "agent", key: "m1", messageId: "m1", text, streaming });
@@ -583,22 +587,44 @@ describe("a message Send now has in flight", () => {
   });
 });
 
-// The confirmed draft's canvas cards (.doan/canvases/canvas-drawing-cards.html frames running, asking, ended, many) and the
-// receiving conversation's handoff card (canvas-handoff.html frame handoff-card).
+// Canvas cards and the receiving conversation's handoff card: one surface and one head row for both.
 describe("canvas cards and the handoff card", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
   type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
+  type Handoff = Extract<ThreadItem, { kind: "handoffCard" }>;
   const card = (patch: Partial<Card> = {}): Card => ({ kind: "canvasCard", key: `ct1:${CHECKOUT.path}`, canvas: CHECKOUT, drawing: false, drawn: true, ...patch });
+  // Local times, as the tooltip reads them.
+  const NOW = new Date(2026, 10, 25, 14, 4).getTime();
+  const at = (minute: number) => new Date(2026, 10, 25, 14, minute);
+  const handoff = (patch: Partial<Handoff> = {}): Handoff => ({ kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.", at: at(-1).toISOString(), ...patch });
+  const row = (canvas: { path: string; id: string }, patch: Partial<CanvasRow> = {}): CanvasRow => ({ path: canvas.path, id: canvas.id, url: "", width: 390, mtimeMs: at(2).getTime(), frames: [{ id: "a" }, { id: "b" }, { id: "c" }], ...patch });
+  const ROWS = [row(CHECKOUT), row(DRAFTS)];
+  // What a thread hands its cards: the root's rows, its images by path and the minute's time.
+  const context = (states: [string, ThumbnailState][] = [], rows = ROWS): CardContext => ({ rows, thumbnails: new Map(states), now: NOW, root: "/w/doan-design" });
+  const drawn = (element: ReactElement) => renderToStaticMarkup(<TooltipProvider>{element}</TooltipProvider>);
+  const canvasCard = (entry: Card, ctx: CardContext, listed = true) => drawn(<CanvasCard entry={entry} context={ctx} project="doan-design" provider="claude" canvasListed={() => listed} onOpen={() => {}} />);
+  const handoffCard = (entry: Handoff, ctx: CardContext, listed = true) => drawn(<HandoffCard entry={entry} context={ctx} project="doan-design" canvasListed={() => listed} onOpen={() => {}} />);
   const running = { turn: { turnId: "t1", status: { kind: "general" as const }, at: "2026-11-16T00:00:00.000Z" } };
   // A card's Open names the canvas it opens; several cards would otherwise read as the same "Open".
   const OPEN = (label: string) => `<button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="${label}">Open</button>`;
-  const cardMarkup = (name: string, status: string, icon: string, open = "") => new RegExp(`<div class="canvas-card" role="group" aria-label="${name}, ${status}"><span class="cc-icon">${icon}</span><span class="cc-text"><span class="cc-title"><svg[^>]*lucide-panels-top-left[^>]*cc-kind[^>]*aria-hidden="true"[^>]*>.*?</svg><span class="cc-name">${name}</span></span><span class="cc-status">${status}</span></span>${open}</div>`);
-  const SPINNER = '<span class="doan-spinner" aria-hidden="true"></span>';
   const svg = (icon: string) => `<svg[^>]*lucide-${icon}[^>]*aria-hidden="true"[^>]*>.*?</svg>`;
+  // The banner is decorative: hidden from screen readers, with the sidebar's canvas icon until an image shows.
+  const EMPTY_BANNER = `<div class="cc-banner empty"[^>]*aria-hidden="true"[^>]*><svg[^>]*lucide-panels-top-left[^>]*>.*?</svg></div>`;
+  const head = (name: string, status: string, icon: string, open: string, meta: string, kind = "panels-top-left") =>
+    `<div class="card-head"><span class="cc-icon">${icon}</span><span class="cc-text"><span class="cc-title"><svg[^>]*lucide-${kind}[^>]*cc-kind[^>]*aria-hidden="true"[^>]*>.*?</svg><span class="cc-name">${name}</span></span><span class="cc-status">${status}</span>${meta}</span>${open}</div>`;
+  const cardMarkup = (name: string, status: string, icon: string, open = "", meta = "", banner = EMPTY_BANNER) =>
+    new RegExp(`<div class="card-surface canvas-card" role="group" aria-label="${name}, ${status}"><div class="card-layout">${banner}${head(name, status, icon, open, meta)}</div></div>`);
+  const SPINNER = '<span class="doan-spinner" aria-hidden="true"></span>';
+  // A Drawing card keeps its meta line, empty or not, so it is as tall as Drawn.
+  const NO_META = '<span class="cc-meta"></span>';
+  const SEP = '<span class="sep" aria-hidden="true">·</span>';
+  // The absolute time is the shared tooltip's (no native title); its words are canvasCardMeta's, pinned in canvasCardText.test.ts.
+  const time = (lead: string, at: Date, text: string) => `<span>${lead} <time dateTime="${at.toISOString()}" data-state="closed" data-slot="tooltip-trigger">${text}</time></span>`;
+  const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => threadHtml(items, { now: NOW, ...patch });
 
   test("Drawing: a labelled group with the hidden spinner, the canvas icon, the name over its status, and Open", () => {
-    expect(html([card({ drawing: true })], running)).toMatch(cardMarkup("checkout-flow.html", "Drawing", SPINNER, OPEN("Open checkout-flow.html")));
-    expect(html([card({ drawing: true, handoff: { outcome: "pending" } })], running)).toMatch(cardMarkup("checkout-flow.html", "Hands off when this turn ends", SPINNER, OPEN("Open checkout-flow.html")));
+    expect(html([card({ drawing: true })], running)).toMatch(cardMarkup("checkout-flow.html", "Drawing", SPINNER, OPEN("Open checkout-flow.html"), NO_META));
+    expect(html([card({ drawing: true, handoff: { outcome: "pending" } })], running)).toMatch(cardMarkup("checkout-flow.html", "Hands off when this turn ends", SPINNER, OPEN("Open checkout-flow.html"), NO_META));
   });
 
   test("the spinner stops once the indicator goes: a Stop main has taken, or no running turn", () => {
@@ -621,9 +647,58 @@ describe("canvas cards and the handoff card", () => {
     expect(html([card({ handoff: { outcome: "missed" } })])).toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. The agent didn’t ask to.", svg("ban"), OPEN("Open checkout-flow.html")));
   });
 
-  test("a canvas gone since: the status gains the tail and Open goes", () => {
-    expect(html([card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })], { canvasListed: () => false }))
-      .toMatch(cardMarkup("checkout-flow.html", "Handed off · No longer in doan-design", svg("forward")));
+  test("a canvas gone since: the status gains the tail, Open goes, and neither a cached image nor meta shows", () => {
+    const gone = canvasCard(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } }), context([[CHECKOUT.path, { kind: "ready", url: "blob:old" }]]), false);
+    expect(gone).toMatch(cardMarkup("checkout-flow.html", "Handed off · No longer in doan-design", svg("forward")));
+    expect(gone).not.toContain("blob:old");
+  });
+
+  // The meta says what the canvas is now: its row, found as canvasListed finds it (sameCanvas), and the root's thumbnail.
+  test("a listed canvas: its image in the banner, then the frame count and the modified time with the absolute time as its tooltip", () => {
+    const out = canvasCard(card(), context([[CHECKOUT.path, { kind: "ready", url: "blob:1" }]]));
+    const banner = `<div class="cc-banner" data-path="${CHECKOUT.path}" aria-hidden="true"><img src="blob:1" alt=""/></div>`;
+    expect(out).toMatch(cardMarkup("checkout-flow.html", "Drawn", svg("check"), OPEN("Open checkout-flow.html"),
+      `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`, banner));
+  });
+
+  test("a renamed canvas keeps its meta: the row is found by ID, not by path", () => {
+    const renamed = row(CHECKOUT, { path: ".doan/canvases/checkout-v2.html", frames: [{ id: "a" }] });
+    expect(html([card()], { canvasRows: [renamed], canvasListed: canvas => sameCanvas(canvas, renamed) })).toContain("<span>1 frame</span>");
+  });
+
+  test("the banner waits with the faint canvas icon before a capture, after a failed one and while the card draws", () => {
+    for (const state of [undefined, { kind: "pending" as const }, { kind: "failed" as const }]) {
+      const out = canvasCard(card(), context(state ? [[CHECKOUT.path, state]] : []));
+      expect(out).toMatch(new RegExp(`<div class="cc-banner empty" data-path="${CHECKOUT.path}" aria-hidden="true">${svg("panels-top-left")}</div>`));
+    }
+    // Drawing: no image and no frame count yet; the modified time stays.
+    const drawing = canvasCard(card({ drawing: true }), context([[CHECKOUT.path, { kind: "ready", url: "blob:1" }]]));
+    expect(drawing).not.toContain("blob:1");
+    expect(drawing).toMatch(new RegExp(`<span class="cc-meta">${time("Edited", at(2), "2m ago")}</span>`));
+  });
+
+  test("a canvas outside .doan/canvases/ names its folder first; no frames and no modified time leave what is known", () => {
+    const BUTTON = { path: ".doan/ds/button.html", id: "button" };
+    const out = html([card({ canvas: BUTTON })], { canvasRows: [row(BUTTON)] });
+    // The folder is its own item, which can shrink and cut with an ellipsis (its full path in the tooltip while cut).
+    expect(out).toMatch(new RegExp(`<span class="cc-meta"><span class="cc-folder" data-state="closed" data-slot="tooltip-trigger">.doan/ds</span>${SEP}<span>3 frames</span>${SEP}${time("Edited", at(2), "2m ago")}</span>`));
+    const { mtimeMs: _, ...bare } = row(CHECKOUT, { frames: [] });
+    expect(html([card()], { canvasRows: [bare] })).toContain('<span class="cc-meta"><span>No frames</span></span>');
+  });
+
+  // A deep folder at the panel's 280 minimum is wider than the text column: it must shrink and cut, not run under Open.
+  test("the folder item can shrink below its text and cuts with an ellipsis", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const rule = /\.conversation-thread \.card-head \.cc-meta \.cc-folder \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/min-width: 0;/);
+    expect(rule).toMatch(/overflow: hidden;/);
+    expect(rule).toMatch(/text-overflow: ellipsis;/);
+  });
+
+  test("the group's name is the file and the status only; the meta never enters it", () => {
+    const out = html([card()], { canvasRows: ROWS });
+    expect(out).toContain('aria-label="checkout-flow.html, Drawn"');
+    expect(out).not.toMatch(/aria-label="[^"]*frames/);
   });
 
   // A request names a path alone, and the hosts judge and open a canvas by ID once its row has one (sameCanvas): the
@@ -633,9 +708,9 @@ describe("canvas cards and the handoff card", () => {
     const listed = (canvas: { path: string; id?: string }) => rows.some(row => sameCanvas(canvas, row));
     const refused = card({ canvas: { path: CHECKOUT.path }, drawn: false, handoff: { outcome: "refused", reason: "not_new" } });
     expect(html([refused], { canvasRows: rows, canvasListed: listed }))
-      .toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. It existed before this turn started.", svg("ban"), OPEN("Open checkout-flow.html")));
+      .toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. It existed before this turn started.", svg("ban"), OPEN("Open checkout-flow.html"), "", EMPTY_BANNER));
     const opened: unknown[] = [];
-    const element = CanvasCard({ entry: refused, rows, project: "p", provider: "claude", canvasListed: listed, onOpen: (canvas, id) => opened.push([canvas, id]) });
+    const element = CanvasCard({ entry: refused, context: { ...NO_CONTEXT, rows }, project: "p", provider: "claude", canvasListed: listed, onOpen: (canvas, id) => opened.push([canvas, id]) });
     (findButton(element)!.props as { onClick(): void }).onClick();
     expect(opened).toEqual([[CHECKOUT, undefined]]);
     // Without a row of that path it stays as named and reads as gone.
@@ -643,14 +718,14 @@ describe("canvas cards and the handoff card", () => {
   });
 
   test("without onOpenHandoff no card offers Open", () => {
-    const { onOpenHandoff: _, ...without } = props([card()]);
+    const { onOpenHandoff: _, ...without } = props([card()], { now: NOW });
     expect(renderToStaticMarkup(<TooltipProvider><ConversationThread {...without} /></TooltipProvider>)).not.toContain("cc-open");
   });
 
   test("a turn's cards stack in one group with the draft's gap, each its own thread item keyed by turn and path", () => {
     const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
     const out = html([agent("Done."), card(), card({ key: `ct1:${PAYMENT.path}`, canvas: PAYMENT })]);
-    expect(out).toMatch(new RegExp(`<div class="thread-item"><div class="canvas-cards"><div class="thread-item" data-item="ct1:${CHECKOUT.path}"><div class="canvas-card"[^]*?</div></div><div class="thread-item" data-item="ct1:${PAYMENT.path}"><div class="canvas-card"[^]*?</div></div></div></div>`));
+    expect(out).toMatch(new RegExp(`<div class="thread-item"><div class="canvas-cards"><div class="thread-item" data-item="ct1:${CHECKOUT.path}"><div class="card-surface canvas-card"[^]*?</div></div></div></div><div class="thread-item" data-item="ct1:${PAYMENT.path}"><div class="card-surface canvas-card"[^]*?</div></div></div></div></div></div>`));
     expect(out.match(/class="canvas-cards"/g)).toHaveLength(1);
     // Cards split by another item make two stacks.
     expect(html([card(), agent("Then."), card({ key: `ct2:${PAYMENT.path}`, canvas: PAYMENT })]).match(/class="canvas-cards"/g)).toHaveLength(2);
@@ -684,37 +759,50 @@ describe("canvas cards and the handoff card", () => {
     expect(html([agent("Working."), stopped, ...drawing.map(item => ({ ...item, drawing: false }))], stopping)).toContain('<div class="sr-only" role="status">Stopped. 2 new canvases</div>');
   });
 
-  test("the handoff card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
-    const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
-    const out = html([handoff]);
-    expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md selectable"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
+  // The receiving card: the canvas card's surface and head row, naming the source in bold, then the earlier agent's text.
+  const handoffMarkup = (name: string, status: string, open: string, meta: string, banner: string, kind = "panels-top-left") =>
+    new RegExp(`<div class="card-surface handoff-card" role="group" aria-label="${name}, ${status}" tabindex="-1"><div class="card-layout">${banner}${head(name, status, svg("forward"), open, meta, kind)}<div class="handoff-body md selectable">`);
+
+  test("the handoff card: a labelled focusable group, the source's banner and head row, its meta and the text as agent Markdown, a {{1}} kept as typed", () => {
+    const out = html([handoff({ text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." })], { canvasRows: ROWS });
+    const meta = `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Handed off", at(-1), "5m ago")}</span>`;
+    // The handoff's time stands in for the modified time.
+    expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation", OPEN("Open drafts.html"), meta, EMPTY_BANNER));
+    const banner = `<div class="cc-banner" data-path="${DRAFTS.path}" aria-hidden="true"><img src="blob:2" alt=""/></div>`;
+    expect(handoffCard(handoff(), context([[DRAFTS.path, { kind: "ready", url: "blob:2" }]]))).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation", OPEN("Open drafts.html"), meta, banner));
+    expect(out).toMatch(/<div class="handoff-body md selectable"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div><\/div><\/div>/);
     expect(out).not.toContain("bubble");
-    expect(html([handoff], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
+    expect(out).not.toContain("Edited");
   });
-  test("the handoff card's text is selectable like the reply it stands for", () => {
-    const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**." };
-    expect(html([handoff])).toContain('<div class="md selectable">');
+
+  test("the handoff card's source gone: the tail, no Open, the faint icon and no frame count; the handoff's time stays", () => {
+    const out = handoffCard(handoff(), context([[DRAFTS.path, { kind: "ready", url: "blob:2" }]]), false);
+    expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation · No longer in doan-design", "",
+      `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`, EMPTY_BANNER));
+    expect(out).not.toContain("blob:2");
   });
+
   test("Open on a handed-off card opens the target conversation, on any other the canvas alone, on the handoff card the source conversation", () => {
     const opened: unknown[] = [];
     const onOpen = (canvas: unknown, id?: string) => opened.push([canvas, id]);
-    const cardOf = (entry: Card) => CanvasCard({ entry, rows: [], project: "p", provider: "claude", canvasListed: () => true, onOpen });
-    const handoffEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen });
+    const cardOf = (entry: Card) => CanvasCard({ entry, context: NO_CONTEXT, project: "p", provider: "claude", canvasListed: () => true, onOpen });
+    const handoffEl = HandoffCard({ entry: handoff({ text: "x" }), context: NO_CONTEXT, project: "p", canvasListed: () => true, onOpen });
     for (const element of [cardOf(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })), cardOf(card({ handoff: { outcome: "missed" } })), cardOf(card()), handoffEl]) {
       (findButton(element)!.props as { onClick(): void }).onClick();
     }
     expect(opened).toEqual([[CHECKOUT, "c2"], [CHECKOUT, undefined], [CHECKOUT, undefined], [DRAFTS, "c0"]]);
   });
   // A project conversation's handoff: the source is the root's Overview, and Open shows the source conversation there.
-  test("a handoff card from the Overview names the Overview; Open shows the source conversation there; a deleted source has no Open", () => {
-    const fromOverview: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0" }, text: "Pick up **Payment**." };
+  test("a handoff card from the Overview names the Overview with its icon and no banner; Open shows the source conversation there; a deleted source has no Open", () => {
+    const fromOverview = handoff({ origin: { kind: "handoff", conversationId: "c0" } });
     const opened: string[] = [];
     const listed = (id: string) => id === "c0";
+    const meta = `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`;
     expect(html([fromOverview], { conversationListed: listed, onOpenOverview: id => opened.push(id) }))
-      .toMatch(/<span id="[^"]+">Handed off from Overview<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div>/);
+      .toMatch(handoffMarkup("Overview", "Handed off to this conversation", OPEN("Open the source conversation in the Overview"), meta, "", "layout-grid"));
     expect(html([fromOverview], { conversationListed: () => false, onOpenOverview: id => opened.push(id) }))
-      .toMatch(/<span id="[^"]+">Handed off from Overview · Conversation deleted<\/span><\/div>/);
-    const element = HandoffCard({ entry: fromOverview as Extract<ThreadItem, { kind: "handoffCard" }>, headId: "h", project: "p", canvasListed: () => false, conversationListed: listed, onOpenOverview: id => opened.push(id) });
+      .toMatch(handoffMarkup("Overview", "Handed off to this conversation · Conversation deleted", "", meta, "", "layout-grid"));
+    const element = HandoffCard({ entry: fromOverview, context: NO_CONTEXT, project: "p", canvasListed: () => false, conversationListed: listed, onOpenOverview: id => opened.push(id) });
     (findButton(element)!.props as { onClick(): void }).onClick();
     expect(opened).toEqual(["c0"]);
   });
@@ -730,7 +818,7 @@ function findButton(node: unknown): ReactElement | null {
 // A turn the handoff card started was not the person's
 // message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
 describe("the end of a handoff card's turn", () => {
-  const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue." };
+  const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
   const failed = (code: "process_exited" | "not_logged_in", key = "e3"): ThreadItem => ({ kind: "end", key, seq: 3, end: { kind: "failed", code } });
   test("offers no Edit and resend, keeps the notice and Sign in again", () => {
     const out = html([card, failed("process_exited")]);

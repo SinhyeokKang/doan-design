@@ -64,7 +64,7 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

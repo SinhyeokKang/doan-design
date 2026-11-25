@@ -21,6 +21,7 @@ import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../ma
 import type {
   ExportTarget, FramesMessage, GotoMessage, PanelRequest, PrototypeComposerSettings, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RevealPayload, RunMessage,
 } from "../main/prototype/ipc";
+import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { ComposerChoice } from "../renderer/rememberChoice";
@@ -36,7 +37,8 @@ export type SharedWithMain =
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "addPastedText" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
   | "onConversationEvent" | "onConversationStage" | "onConversationBoundary" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
-  | "deleteConversation" | "readAgentUsage" | "onAgentUsage" | "clockHour12";
+  | "deleteConversation" | "readAgentUsage" | "onAgentUsage" | "clockHour12"
+  | "getThumbnail" | "setThumbnailVisibility" | "onThumbnailChanged";
 
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
   const receive = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -193,6 +195,10 @@ const api = {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
     get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
   },
+  // Thread cards' thumbnails; main answers and sends changes for the playing root only.
+  getThumbnail: (root: string, path: string, visible: boolean): Promise<ThumbnailReply> => ipcRenderer.invoke("thumbnails:get", { root, path, visible }),
+  setThumbnailVisibility: (root: string, path: string, visible: boolean): Promise<void> => ipcRenderer.invoke("thumbnails:visible", { root, path, visible }),
+  onThumbnailChanged: (listener: (target: ThumbnailTarget) => void): (() => void) => listen("thumbnails:changed", listener),
   // A dropped or pasted item's disk path; null for a file the page made itself.
   droppedPath(file: File): string | null {
     const path = webUtils.getPathForFile(file);

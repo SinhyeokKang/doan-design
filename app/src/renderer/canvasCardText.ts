@@ -1,7 +1,11 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { Canvas } from "../main/conversation/types";
+import { CANVAS_DIRS } from "../formats/canvasPath";
+import type { CanvasRow } from "../main/view";
 import { startErrorView } from "./homeComposer";
-import type { ThreadItem } from "./threadItems";
+import { shortAgo } from "./overviewConversation";
+import { rootRelative, type ThreadItem } from "./threadItems";
+import { thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 
 // A canvas card's copy (draft .doan/canvases/canvas-drawing-cards.html): the head names the file and the status never
 // repeats it. Its Open opens the new conversation of a started handoff and the canvas itself otherwise, as Quick Open does.
@@ -58,6 +62,58 @@ export function canvasCardText(card: CanvasCard, ctx: { project: string; provide
       return gone("ban", status, reason === "same_canvas" ? null : own);
     }
   }
+}
+
+// A <time> after its lead word: `text` in shortAgo's words, `title` the local time for the tooltip.
+export interface CardTime { lead: "Edited" | "Handed off"; text: string; dateTime: string; title: string }
+export interface CanvasCardMeta {
+  // "none": no image may show, a cached one included.
+  thumb: ThumbnailView | { kind: "none" };
+  frames: string | null;
+  edited: CardTime | null;
+  // Only for a canvas outside .doan/canvases/.
+  folder: string | null;
+  handedOff: CardTime | null;
+}
+
+const two = (n: number) => String(n).padStart(2, "0");
+function cardTime(lead: CardTime["lead"], time: number, now: number): CardTime | null {
+  const date = new Date(time);
+  if (Number.isNaN(date.getTime())) return null;
+  const dateTime = date.toISOString(), short = shortAgo(dateTime, now);
+  if (!short) return null;
+  // shortAgo's "now", counts ("2m", "1d") and dates ("Nov 20") each read differently after the lead.
+  const text = short.text === "now" ? "just now" : /^\d+[mhd]$/.test(short.text) ? `${short.text} ago` : short.text;
+  return { lead, text, dateTime, title: `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}` };
+}
+
+function frameCount(row: CanvasRow): string | null {
+  // An unreadable canvas arrives with an empty list beside its error.
+  if (row.error || !row.frames) return null;
+  const n = row.frames.length, count = n.toLocaleString("en-US");
+  if (row.framesTruncated) return `${count}+ frames`;
+  return n === 0 ? "No frames" : `${count} ${n === 1 ? "frame" : "frames"}`;
+}
+
+function folderOf(path: string, root: string): string | null {
+  const relative = rootRelative(path, root);
+  if (relative.startsWith(`${CANVAS_DIRS.canvases}/`)) return null;
+  return relative.slice(0, Math.max(0, relative.lastIndexOf("/"))) || null;
+}
+
+// row: undefined once the canvas is gone, and for an Overview source. drawing: the image and frame count wait.
+// handedOffAt: the handoff card's message time, shown in place of the modified time.
+export function canvasCardMeta(row: CanvasRow | undefined, thumbnail: ThumbnailState | undefined, now: number, root: string,
+  { drawing = false, handedOffAt }: { drawing?: boolean; handedOffAt?: string } = {}): CanvasCardMeta {
+  const handedOff = handedOffAt === undefined ? null : cardTime("Handed off", Date.parse(handedOffAt), now);
+  if (!row) return { thumb: { kind: "none" }, frames: null, edited: null, folder: null, handedOff };
+  return {
+    thumb: drawing ? { kind: "none" } : thumbnailView(row, thumbnail),
+    frames: drawing ? null : frameCount(row),
+    edited: handedOffAt !== undefined || row.mtimeMs === undefined ? null : cardTime("Edited", row.mtimeMs, now),
+    folder: folderOf(row.path, root),
+    handedOff,
+  };
 }
 
 // A name cut in the middle to `keep` characters around an ellipsis: its start, and its end with the extension, which is

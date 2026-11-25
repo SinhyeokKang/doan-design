@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { canvasKind } from "../formats/canvasPath";
 import { thumbnailGarbage, thumbnailKey, thumbnailStale, tokenSignature, type ThumbnailMeta, type TokenFile } from "./thumbnailCache";
 import { initialThumbnailQueue, thumbnailQueue, type ThumbnailQueueEvent } from "./thumbnailQueue";
+import type { WindowKind } from "./senderAllowed";
 import type { Capturer } from "./thumbnailWindow";
 import type { CanvasRow, FolderEntry } from "./view";
 
@@ -25,8 +26,11 @@ export interface ThumbnailDeps {
 }
 
 export interface Thumbnails {
-  get(root: string, path: string, visible: boolean): Promise<ThumbnailReply>;
-  visible(root: string, path: string, visible: boolean): void;
+  // `viewer` is the window asking; a canvas counts as visible while any window shows it.
+  get(root: string, path: string, visible: boolean, viewer: WindowKind): Promise<ThumbnailReply>;
+  visible(root: string, path: string, visible: boolean, viewer: WindowKind): void;
+  // A closed window reports nothing more, so what it showed stops counting as visible.
+  viewerClosed(viewer: WindowKind): void;
   // Every folder update: forgets canvases that left the list, re-checks a
   // folder whose served files changed or only the canvases whose row revision
   // moved, and cleans the cache once at start.
@@ -112,8 +116,14 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   const known = new Map<string, ThumbnailTarget>();
   // What the cache file, or the attempt now running or last failed, describes.
   const basis = new Map<string, ThumbnailMeta>();
-  // A visibility update can arrive while get is awaiting the cache.
-  const visibility = new Map<string, boolean>();
+  // The windows showing each key. A visibility update can arrive while get is awaiting the cache.
+  const visibility = new Map<string, Set<WindowKind>>();
+  const see = (key: string, viewer: WindowKind, visible: boolean): boolean => {
+    const viewers = visibility.get(key) ?? new Set<WindowKind>();
+    if (visible) viewers.add(viewer); else viewers.delete(viewer);
+    if (viewers.size > 0) visibility.set(key, viewers); else visibility.delete(key);
+    return viewers.size > 0;
+  };
   // Per root, the servedRev and row revisions of the last update.
   const revs = new Map<string, { served: number; rows: Map<string, number | undefined> }>();
   // One served signature per folder and served revision.
@@ -258,16 +268,16 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
   };
 
   return {
-    async get(root, path, visible) {
+    async get(root, path, visible, viewer) {
       const target = { root, path };
       const row = listedRow(deps.entries(), target);
       if (row?.width === undefined) return { kind: "unavailable" };
       const key = thumbnailKey(root, path);
       known.set(key, target);
-      visibility.set(key, visible);
+      const shown = see(key, viewer, visible);
       if (queue.failed.includes(key)) return { kind: "unavailable" };
       if ((queue.active === key && !queue.activeStale) || queue.pending.some((job) => job.key === key)) {
-        dispatch({ type: "visible", key, visible });
+        dispatch({ type: "visible", key, visible: shown });
         return { kind: "pending" };
       }
       const [now, cached] = await Promise.all([current(target), readCache(key)]);
@@ -276,14 +286,16 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
         basis.set(key, cached.meta);
         return { kind: "ready", png: cached.png };
       }
-      dispatch({ type: "request", key, visible: visibility.get(key) ?? false });
+      dispatch({ type: "request", key, visible: visibility.has(key) });
       return { kind: "pending" };
     },
-    visible(root, path, visible) {
+    visible(root, path, visible, viewer) {
       const key = thumbnailKey(root, path);
       if (!known.has(key) || listedRow(deps.entries(), { root, path }) === undefined) return;
-      visibility.set(key, visible);
-      dispatch({ type: "visible", key, visible });
+      dispatch({ type: "visible", key, visible: see(key, viewer, visible) });
+    },
+    viewerClosed(viewer) {
+      for (const [key, viewers] of [...visibility]) if (viewers.has(viewer) && !see(key, viewer, false)) dispatch({ type: "visible", key, visible: false });
     },
     entriesChanged(entries) {
       for (const [key, target] of known) {

@@ -136,13 +136,13 @@ const asBytes = (reply: ThumbnailReply) => (reply.kind === "ready" ? { kind: rep
 test("a first get queues a capture, caches PNG and meta, and tells the renderer", async () => {
   const f = fixture();
   const thumbnails = make(f.deps);
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html"]));
   expect(f.captures).toEqual(["http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html"]);
   const key = thumbnailKey(f.root, ".doan/canvases/a.html");
   expect(readFileSync(join(f.dir, `${key}.png`))).toEqual(PNG("a.html"));
   expect(JSON.parse(readFileSync(join(f.dir, `${key}.json`), "utf8"))).toEqual({ mtimeMs: expect.any(Number), size: "<title>.doan/canvases/a.html</title>".length, appVersion: "1.0.0", tokens: expect.stringMatching(/^[0-9a-f]{64}$/) });
-  expect(asBytes(await thumbnails.get(f.root, ".doan/canvases/a.html", true))).toEqual(ready(PNG("a.html")));
+  expect(asBytes(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main"))).toEqual(ready(PNG("a.html")));
   expect(f.captures).toHaveLength(1);
 });
 
@@ -151,7 +151,7 @@ test("a canvas without width, not listed, or in a folder that is not listed is u
   f.entries = [{ path: f.root, kind: "list", servedRev: 0, canvases: [row(".doan/canvases/a.html", null)] }, { path: "/loading", kind: "loading" }];
   const thumbnails = make(f.deps);
   for (const [root, path] of [[f.root, ".doan/canvases/a.html"], [f.root, ".doan/canvases/b.html"], ["/loading", ".doan/canvases/a.html"], ["/other", ".doan/canvases/a.html"]] as const) {
-    expect(await thumbnails.get(root, path, true)).toEqual({ kind: "unavailable" });
+    expect(await thumbnails.get(root, path, true, "main")).toEqual({ kind: "unavailable" });
   }
   expect(f.captures).toEqual([]);
 });
@@ -161,19 +161,19 @@ test("a failed capture is unavailable until the canvas changes", async () => {
   f.result = () => null;
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html"]));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "unavailable" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "unavailable" });
   expect(existsSync(f.dir)).toBe(false);
   // A served change that leaves this canvas alone keeps the failure.
   thumbnails.entriesChanged(bump(f));
   await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "unavailable" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "unavailable" });
   f.result = (url) => PNG(url);
   touch(join(f.root, ".doan/canvases/a.html"), "<title>A2</title>");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html", ".doan/canvases/a.html"]));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
   await vi.waitFor(() => expect(f.captures).toHaveLength(2));
 });
 
@@ -181,9 +181,9 @@ test("one capture at a time, visible requests first", async () => {
   const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
   f.hold = true;
   const thumbnails = make(f.deps);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", false);
-  await thumbnails.get(f.root, ".doan/canvases/b.html", false);
-  await thumbnails.get(f.root, ".doan/canvases/c.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/b.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", true, "main");
   await started(f, 1);
   expect(f.captures.map((url) => url.split("/").at(-1))).toEqual(["a.html"]);
   f.release();
@@ -199,8 +199,8 @@ test("a later visible get moves a queued canvas ahead", async () => {
   const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
   f.hold = true;
   const thumbnails = make(f.deps);
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]) await thumbnails.get(f.root, path, false);
-  expect(await thumbnails.get(f.root, ".doan/canvases/c.html", true)).toEqual({ kind: "pending" });
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]) await thumbnails.get(f.root, path, false, "main");
+  expect(await thumbnails.get(f.root, ".doan/canvases/c.html", true, "main")).toEqual({ kind: "pending" });
   await started(f, 1);
   f.release();
   await started(f, 2);
@@ -215,9 +215,9 @@ test("pausing lets the running capture finish and starts nothing until resumed",
   const f = fixture();
   f.hold = true;
   const thumbnails = make(f.deps);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   thumbnails.pause();
-  await thumbnails.get(f.root, ".doan/canvases/b.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main");
   await started(f, 1);
   f.release();
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html"]));
@@ -234,12 +234,12 @@ test("a capture of a canvas edited while it ran is not cached, and a fresh one f
   f.hold = true;
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await started(f, 1);
   touch(join(f.root, ".doan/canvases/a.html"), "<title>edited</title>");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html"]));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
   f.release(PNG("old"));
   await started(f, 2);
   const key = thumbnailKey(f.root, ".doan/canvases/a.html");
@@ -253,21 +253,21 @@ test("a token CSS change makes every thumbnail of the folder stale; a canvas-onl
   const f = fixture();
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true);
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) expect((await thumbnails.get(f.root, path, true)).kind).toBe("ready");
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) expect((await thumbnails.get(f.root, path, true, "main")).kind).toBe("ready");
   f.changed.length = 0;
   touch(join(f.root, ".doan/canvases/b.html"), "<title>B2</title>");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/b.html"]));
-  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
-  expect(await thumbnails.get(f.root, ".doan/canvases/b.html", true)).toEqual({ kind: "pending" });
+  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
+  expect(await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main")).toEqual({ kind: "pending" });
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/b.html", ".doan/canvases/b.html"]));
   f.changed.length = 0;
   touch(join(f.root, "styles/tokens.css"), "a{color:red}");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed.sort()).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 function bumpRow(f: Fixture, path: string): FolderEntry[] {
@@ -283,7 +283,7 @@ test("a row revision without a served bump re-checks only that canvas", async ()
   const f = fixture();
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true);
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
   f.changed.length = 0;
   // a.html changes on disk too, but nothing reported it: it is not re-checked.
@@ -294,7 +294,7 @@ test("a row revision without a served bump re-checks only that canvas", async ()
   await vi.waitFor(() => expect(f.captures).toHaveLength(2));
   await sleep(100);
   expect(f.changed).toEqual([".doan/canvases/b.html"]);
-  expect(await thumbnails.get(f.root, ".doan/canvases/b.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main")).toEqual({ kind: "pending" });
   await vi.waitFor(() => expect(f.captures).toHaveLength(3));
   expect(f.captures.at(-1)).toMatch(/\.doan\/canvases\/b\.html$/);
 });
@@ -303,28 +303,28 @@ test("a row revision on a canvas whose file did not change keeps its thumbnail",
   const f = fixture();
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1));
   thumbnails.entriesChanged(bumpRow(f, ".doan/canvases/a.html"));
   await sleep(100);
   expect(f.changed).toHaveLength(1);
-  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
 });
 
 test("a token CSS edit or an app update while the app was closed is caught at the next get", async () => {
   const f = fixture();
   const first = make(f.deps);
-  await first.get(f.root, ".doan/canvases/a.html", true);
+  await first.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1));
   first.dispose();
-  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
   touch(join(f.root, "styles/tokens.css"), "a{color:blue}");
-  expect(await make({ ...f.deps, capturer: { capture: () => new Promise(() => {}), close: () => {} } }).get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await make({ ...f.deps, capturer: { capture: () => new Promise(() => {}), close: () => {} } }).get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
   const second = make(f.deps);
-  await second.get(f.root, ".doan/canvases/a.html", true);
+  await second.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
-  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
-  expect(await make({ ...f.deps, appVersion: "1.0.1", capturer: { capture: () => new Promise(() => {}), close: () => {} } }).get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
+  expect(await make({ ...f.deps, appVersion: "1.0.1", capturer: { capture: () => new Promise(() => {}), close: () => {} } }).get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 test("a change inside a served directory or to a non-canvas file under .doan/canvases/ makes every thumbnail of the folder stale", async () => {
@@ -336,11 +336,11 @@ test("a change inside a served directory or to a non-canvas file under .doan/can
   f.deps.scope = () => [".doan/assets", ".doan/canvases", "styles"];
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true);
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
   for (const [file, content] of [["styles/img/logo.svg", "<svg>2</svg>"], [".doan/assets/mock.css", "b{color:red}"]] as const) {
-    for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true);
-    await vi.waitFor(async () => expect((await thumbnails.get(f.root, ".doan/canvases/b.html", true)).kind).toBe("ready"));
+    for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html"]) await thumbnails.get(f.root, path, true, "main");
+    await vi.waitFor(async () => expect((await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main")).kind).toBe("ready"));
     f.changed.length = 0;
     touch(join(f.root, file), content);
     thumbnails.entriesChanged(bump(f));
@@ -354,37 +354,37 @@ test("a design-system canvas edit leaves the other thumbnails of the folder read
   const f = fixture([".doan/canvases/a.html", ".doan/ds/b.html"]);
   f.deps.scope = () => [".doan/canvases", ".doan/ds", "styles/tokens.css"];
   const first = make(f.deps);
-  for (const path of [".doan/canvases/a.html", ".doan/ds/b.html"]) await first.get(f.root, path, true);
+  for (const path of [".doan/canvases/a.html", ".doan/ds/b.html"]) await first.get(f.root, path, true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
   first.dispose();
   touch(join(f.root, ".doan/ds/b.html"), "<title>B2</title>");
   const second = make({ ...f.deps, capturer: { capture: () => new Promise(() => {}), close: () => {} } });
-  expect((await second.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
-  expect(await second.get(f.root, ".doan/ds/b.html", true)).toEqual({ kind: "pending" });
+  expect((await second.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
+  expect(await second.get(f.root, ".doan/ds/b.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 test("a served directory edited while the app was closed is caught at the next get", async () => {
   const f = fixture();
   f.deps.scope = () => [".doan/assets", ".doan/canvases", "styles"];
-  await make(f.deps).get(f.root, ".doan/canvases/a.html", true);
+  await make(f.deps).get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1));
-  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await make(f.deps).get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
   touch(join(f.root, "styles/tokens.css"), "a{color:green}");
-  expect(await make(f.deps).get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await make(f.deps).get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 test("the served files are read once per served revision, not per get", async () => {
   const f = fixture();
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1));
   // Not yet reported by the watcher: the revision's signature still stands.
   touch(join(f.root, "styles/tokens.css"), "a{color:teal}");
-  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toHaveLength(2));
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 // Walking 2001 entries can outlast waitFor's default 1 s under load. Each test waits at most twice,
@@ -398,23 +398,23 @@ test("past the walk limit every served revision counts as changed", async () => 
   f.deps.scope = () => [".doan/assets", ".doan/canvases", "styles"];
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1), WALK_WAIT);
-  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toHaveLength(2), WALK_WAIT);
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 });
 
 const countsAsChangedPastLimit = async (f: ReturnType<typeof fixture>) => {
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged(f.entries);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1), WALK_WAIT);
-  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect((await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).kind).toBe("ready");
   thumbnails.entriesChanged(bump(f));
   await vi.waitFor(() => expect(f.changed).toHaveLength(2), WALK_WAIT);
-  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  expect(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main")).toEqual({ kind: "pending" });
 };
 
 test("the walk limit counts empty directories", async () => {
@@ -435,8 +435,8 @@ test("a canvas that leaves the list is forgotten before it is captured", async (
   const f = fixture();
   f.hold = true;
   const thumbnails = make(f.deps);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
-  await thumbnails.get(f.root, ".doan/canvases/b.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main");
   f.entries = [{ path: f.root, kind: "list", servedRev: 1, canvases: [row(".doan/canvases/a.html")] }];
   thumbnails.entriesChanged(f.entries);
   await started(f, 1);
@@ -468,10 +468,10 @@ test("cleans orphaned cache and temp files once nothing is loading, keeping live
 test("removing a project deletes its cache files and drops its running capture", async () => {
   const f = fixture();
   const thumbnails = make(f.deps);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(f.changed).toHaveLength(1));
   f.hold = true;
-  await thumbnails.get(f.root, ".doan/canvases/b.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", true, "main");
   await started(f, 2);
   const before = f.entries;
   f.entries = [];
@@ -488,7 +488,7 @@ test("a project removed while its cache write runs leaves no files behind", asyn
   const f = fixture([".doan/canvases/a.html"]);
   const thumbnails = make(f.deps);
   mkdirGate.dir = f.dir;
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(mkdirGate.held).toBe(true));
   const before = f.entries;
   f.entries = [];
@@ -513,12 +513,12 @@ test("visibility changes during cache reads determine the next capture", async (
   const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
   f.hold = true;
   const thumbnails = make(f.deps);
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await started(f, 1);
-  const b = thumbnails.get(f.root, ".doan/canvases/b.html", true);
-  const c = thumbnails.get(f.root, ".doan/canvases/c.html", false);
-  thumbnails.visible(f.root, ".doan/canvases/b.html", false);
-  thumbnails.visible(f.root, ".doan/canvases/c.html", true);
+  const b = thumbnails.get(f.root, ".doan/canvases/b.html", true, "main");
+  const c = thumbnails.get(f.root, ".doan/canvases/c.html", false, "main");
+  thumbnails.visible(f.root, ".doan/canvases/b.html", false, "main");
+  thumbnails.visible(f.root, ".doan/canvases/c.html", true, "main");
   await Promise.all([b, c]);
   f.release();
   await started(f, 2);
@@ -529,14 +529,47 @@ test("visibility updates demote queued cards without scheduling new captures", a
   const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
   f.hold = true;
   const thumbnails = make(f.deps);
-  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]) await thumbnails.get(f.root, path, true);
+  for (const path of [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]) await thumbnails.get(f.root, path, true, "main");
   await started(f, 1);
-  thumbnails.visible(f.root, ".doan/canvases/b.html", false);
-  thumbnails.visible("/other", ".doan/canvases/b.html", true);
-  thumbnails.visible(f.root, ".doan/canvases/missing.html", true);
+  thumbnails.visible(f.root, ".doan/canvases/b.html", false, "main");
+  thumbnails.visible("/other", ".doan/canvases/b.html", true, "main");
+  thumbnails.visible(f.root, ".doan/canvases/missing.html", true, "main");
   f.release();
   await started(f, 2);
   expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});
+
+// The main window and the prototype window can both show a canvas's card: one window's card leaving the screen does
+// not demote a canvas the other window still shows.
+test("a canvas stays visible while any window shows it", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await started(f, 1);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", true, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", false, "prototype");
+  thumbnails.visible(f.root, ".doan/canvases/c.html", false, "prototype");
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});
+
+// A window that closes reports nothing more; what it showed stops counting as visible.
+test("a closed window's visibility no longer counts", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await started(f, 1);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", false, "main");
+  thumbnails.visible(f.root, ".doan/canvases/c.html", true, "prototype");
+  thumbnails.viewerClosed("prototype");
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("b.html")).toBe(true);
 });
 
 test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
@@ -547,7 +580,7 @@ test("startup collection leaves an active temporary write intact while removing 
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "loading" }]);
   writeGate.dir = f.dir;
-  await thumbnails.get(f.root, ".doan/canvases/a.html", true);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
   await vi.waitFor(() => expect(writeGate.temp.startsWith(f.dir)).toBe(true));
   const temp = writeGate.temp;
   expect(existsSync(temp)).toBe(true);
@@ -556,7 +589,7 @@ test("startup collection leaves an active temporary write intact while removing 
   writeGate.dir = "";
   writeGate.release();
   await vi.waitFor(() => expect(f.changed).toEqual([".doan/canvases/a.html"]));
-  expect(asBytes(await thumbnails.get(f.root, ".doan/canvases/a.html", true))).toEqual(ready(PNG("a.html")));
+  expect(asBytes(await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main"))).toEqual(ready(PNG("a.html")));
   expect(existsSync(temp)).toBe(false);
   expect(readdirSync(f.dir).some(name => name.endsWith(".tmp"))).toBe(false);
 });

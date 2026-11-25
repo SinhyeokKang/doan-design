@@ -93,6 +93,7 @@ beforeEach(() => {
     setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
     readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), rememberedConversation: vi.fn(async () => null), conversationListed: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
+    getThumbnail: vi.fn(async () => ({ kind: "pending" })), setThumbnailVisibility: vi.fn(async () => {}), onThumbnailChanged: vi.fn(() => () => {}),
     ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationBoundary", "onConversationListChanged", "onConversationHandoff", "onAgentAuth"].map(name => [name, vi.fn(() => () => {})])),
   };
   keydowns = [];

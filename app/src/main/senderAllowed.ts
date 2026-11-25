@@ -68,13 +68,15 @@ const mainOnly = new Set([
 ]);
 
 // The panel's composer: preset reads, its own attachments (no capture: the window has no board), agent reply links and
-// the context ring drawer's usage read (entries carry no account identity, usageTypes.ts). The main window's own set
-// is not widened for it.
+// the context ring drawer's usage read (entries carry no account identity, usageTypes.ts), and its thread cards'
+// thumbnails. The main window's own set is not widened for it.
 const prototypeComposer = [
   "design-skills:list", "design-skills:get",
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:add-pasted-text", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
   "shell:openLink",
   "agent-usage:read",
+  // Main answers the playing root only (prototype/thumbnailScope.ts).
+  "thumbnails:get", "thumbnails:visible",
 ];
 
 const prototypeOnly: ReadonlySet<string> = new Set([...PROTOTYPE_WINDOW_REQUESTS, ...prototypeComposer]);

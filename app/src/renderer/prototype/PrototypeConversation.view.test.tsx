@@ -78,6 +78,7 @@ beforeEach(() => {
     onConversationEvent: off(), onConversationStage: off(), onConversationBoundary: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onAgentUsage: off(), readAgentUsage: vi.fn(async () => []), onWindowVisible: off(),
     listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), conversationListed: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
+    getThumbnail: vi.fn(async () => ({ kind: "pending" })), setThumbnailVisibility: vi.fn(async () => {}), onThumbnailChanged: off(),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
     setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
     conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), listConversationSkills: vi.fn(async () => ({ skills: [] })),

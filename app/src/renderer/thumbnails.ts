@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
+import type { DoanApi } from "../preload";
 
 // Keyed by canvas path. A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
@@ -18,14 +19,16 @@ export function applyVisibility(current: ReadonlySet<string>, changes: readonly 
   return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
 }
 
-// Thumbnails for the canvases one root's Overview lists. Nothing is asked before the first
-// visibility report, so main's queue starts with a row on screen; a pending
-// reply is followed by `onThumbnailChanged`, and so is a stale image.
+// One root's thumbnails for all its viewers. Nothing is asked before the first visibility report; an image stays while
+// any viewer lists its canvas, and main hears a canvas leave the screen only when no viewer shows it.
 export class ThumbnailRequests {
   private items = new Map<string, ThumbnailState>();
+  private rowsBy = new Map<string, readonly CanvasRow[]>();
+  private visibleBy = new Map<string, ReadonlySet<string>>();
+  // Every viewer's rows and visible paths together.
   private rows: readonly CanvasRow[] = [];
-  private asked = new Set<string>();
   private visible = new Set<string>();
+  private asked = new Set<string>();
   // Only the newest request for a listed path may land: an older reply, or one
   // for a path removed since (or removed and made again), is dropped.
   private requests = new Map<string, number>();
@@ -34,22 +37,56 @@ export class ThumbnailRequests {
 
   constructor(private readonly root: string, private readonly get: (root: string, path: string, onScreen: boolean) => Promise<ThumbnailReply>, private readonly publish: (items: ReadonlyMap<string, ThumbnailState>) => void, private readonly visibility: (root: string, path: string, visible: boolean) => void) {}
 
-  setRows(rows: readonly CanvasRow[]): void {
-    this.rows = rows;
-    const listed = new Set(rows.map(row => row.path));
+  setRows(rows: readonly CanvasRow[], viewer = ""): void {
+    this.rowsBy.set(viewer, rows);
+    this.listRows();
+  }
+
+  onVisible(paths: readonly string[], viewer = ""): void {
+    this.visibleBy.set(viewer, new Set(paths));
+    this.showVisible();
+  }
+
+  release(viewer: string): void {
+    this.rowsBy.delete(viewer);
+    this.visibleBy.delete(viewer);
+    this.listRows();
+    this.showVisible();
+  }
+
+  changed(path: string): void {
+    if (this.rows.some(row => row.path === path && row.width !== undefined)) this.ask(path, this.visible.has(path));
+  }
+
+  dispose(): void {
+    this.visibleBy.clear();
+    this.showVisible();
+    this.disposed = true;
+    for (const item of this.items.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url);
+    this.items.clear();
+  }
+
+  private listRows(): void {
+    const byPath = new Map<string, CanvasRow>();
+    for (const rows of this.rowsBy.values()) for (const row of rows) if (!byPath.has(row.path)) byPath.set(row.path, row);
+    this.rows = [...byPath.values()];
     let changed = false;
     for (const path of new Set([...this.items.keys(), ...this.asked, ...this.visible])) {
-      if (listed.has(path)) continue;
+      if (byPath.has(path)) continue;
+      // Main keeps a mark until told otherwise, and a canvas it thinks visible is captured first.
+      if (this.asked.has(path) && this.visible.has(path)) this.visibility(this.root, path, false);
       const item = this.items.get(path);
       if (item?.kind === "ready") URL.revokeObjectURL(item.url);
       changed = this.items.delete(path) || changed;
       this.asked.delete(path); this.visible.delete(path); this.requests.delete(path);
+      for (const [viewer, visible] of this.visibleBy) if (visible.has(path)) this.visibleBy.set(viewer, new Set([...visible].filter(other => other !== path)));
     }
     if (changed) this.publish(new Map(this.items));
   }
 
-  onVisible(paths: readonly string[]): void {
-    const next = new Set(paths);
+  private showVisible(): void {
+    const next = new Set<string>();
+    for (const paths of this.visibleBy.values()) for (const path of paths) next.add(path);
     for (const path of this.asked) {
       if (this.visible.has(path) !== next.has(path)) this.visibility(this.root, path, next.has(path));
     }
@@ -58,17 +95,6 @@ export class ThumbnailRequests {
     const capturable = this.rows.filter(row => row.width !== undefined).map(row => row.path);
     for (const path of capturable) if (next.has(path) && !this.asked.has(path)) this.ask(path, true);
     for (const path of capturable) if (!this.asked.has(path)) this.ask(path, false);
-  }
-
-  changed(path: string): void {
-    if (this.rows.some(row => row.path === path && row.width !== undefined)) this.ask(path, this.visible.has(path));
-  }
-
-  dispose(): void {
-    this.onVisible([]);
-    this.disposed = true;
-    for (const item of this.items.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url);
-    this.items.clear();
   }
 
   private ask(path: string, onScreen: boolean): void {
@@ -95,20 +121,104 @@ export class ThumbnailRequests {
   }
 }
 
-export function useThumbnails(root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
-  const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(new Map());
-  const requests = useRef<ThumbnailRequests | null>(null);
+// `window.doan`, or the same members of `window.doanPrototype`, whose main answers its playing root only.
+export type ThumbnailCalls = Pick<DoanApi, "getThumbnail" | "setThumbnailVisibility" | "onThumbnailChanged">;
+
+// One viewer's hold on a root's shared requests; calls after release do nothing.
+export interface ThumbnailLease {
+  setRows(rows: readonly CanvasRow[]): void;
+  onVisible(paths: readonly string[]): void;
+  release(): void;
+}
+
+interface SharedRoot {
+  requests: ThumbnailRequests;
+  items: ReadonlyMap<string, ThumbnailState>;
+  listeners: Map<string, (items: ReadonlyMap<string, ThumbnailState>) => void>;
+  stop(): void;
+  // The last viewer left within LEAVE_MS: the root waits to be disposed, and the next viewer takes that viewer's place.
+  leaving: { viewer: string; timer: ReturnType<typeof setTimeout> } | null;
+}
+
+// How long a root no viewer holds keeps its images: a thread remounts for each conversation it shows and takes the root
+// again only once that conversation's history is read, so the images and main's marks carry over the switch.
+export const LEAVE_MS = 2_000;
+
+// A window's thumbnails: one ThumbnailRequests per root for every viewer of that root, made on the first acquire and
+// disposed (its Blob URLs revoked) LEAVE_MS after the last viewer released it, unless a viewer took it meanwhile.
+export class ThumbnailHub {
+  private roots = new Map<string, SharedRoot>();
+  private viewers = 0;
+
+  constructor(private readonly calls: ThumbnailCalls) {}
+
+  acquire(root: string, listener: (items: ReadonlyMap<string, ThumbnailState>) => void): ThumbnailLease {
+    const existing = this.roots.get(root);
+    const shared = existing ?? this.share(root);
+    // Its rows and visible paths stay until this viewer reports its own, so nothing is dropped and asked again.
+    const viewer = shared.leaving?.viewer ?? String(++this.viewers);
+    if (shared.leaving) clearTimeout(shared.leaving.timer);
+    shared.leaving = null;
+    shared.listeners.set(viewer, listener);
+    if (existing) listener(shared.items);
+    let live = true;
+    return {
+      setRows: rows => { if (live) shared.requests.setRows(rows, viewer); },
+      onVisible: paths => { if (live) shared.requests.onVisible(paths, viewer); },
+      release: () => {
+        if (!live) return;
+        live = false;
+        shared.listeners.delete(viewer);
+        if (shared.listeners.size > 0) { shared.requests.release(viewer); return; }
+        shared.leaving = { viewer, timer: setTimeout(() => {
+          shared.leaving = null;
+          this.roots.delete(root);
+          shared.stop();
+          shared.requests.dispose();
+        }, LEAVE_MS) };
+      },
+    };
+  }
+
+  // The root's images now, for a viewer's first render; none for a root no viewer holds.
+  items(root: string): ReadonlyMap<string, ThumbnailState> {
+    return this.roots.get(root)?.items ?? NO_ITEMS;
+  }
+
+  private share(root: string): SharedRoot {
+    const listeners = new Map<string, (items: ReadonlyMap<string, ThumbnailState>) => void>();
+    const requests = new ThumbnailRequests(root, (at, path, onScreen) => this.calls.getThumbnail(at, path, onScreen), items => {
+      shared.items = items;
+      for (const listener of listeners.values()) listener(items);
+    }, (at, path, visible) => {
+      void this.calls.setThumbnailVisibility(at, path, visible).catch((error: unknown) => console.error("thumbnails:visible failed", error));
+    });
+    const shared: SharedRoot = { requests, items: new Map(), listeners, leaving: null, stop: this.calls.onThumbnailChanged(target => { if (target.root === root) requests.changed(target.path); }) };
+    this.roots.set(root, shared);
+    return shared;
+  }
+}
+
+const NO_ITEMS: ReadonlyMap<string, ThumbnailState> = new Map();
+
+// One hub per window, for every viewer in it.
+export function useThumbnailHub(calls: ThumbnailCalls): ThumbnailHub {
+  const [hub] = useState(() => new ThumbnailHub(calls));
+  return hub;
+}
+
+// One viewer's thumbnails of a root: the root's shared images and this viewer's own visibility reports.
+export function useThumbnails(hub: ThumbnailHub, root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
+  const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(() => root === null ? new Map() : hub.items(root));
+  const lease = useRef<ThumbnailLease | null>(null);
   useEffect(() => {
     if (root === null) return;
-    const current = new ThumbnailRequests(root, (at, path, onScreen) => window.doan.getThumbnail(at, path, onScreen), setThumbnails, (at, path, visible) => {
-      void window.doan.setThumbnailVisibility(at, path, visible).catch((error: unknown) => console.error("thumbnails:visible failed", error));
-    });
-    requests.current = current;
-    const stop = window.doan.onThumbnailChanged(target => { if (target.root === root) current.changed(target.path); });
-    return () => { stop(); current.dispose(); requests.current = null; setThumbnails(new Map()); };
-  }, [root]);
-  // After the effect above, so a new root's requests get its rows.
-  useEffect(() => { requests.current?.setRows(rows); }, [root, rows]);
-  const onVisible = useCallback((paths: readonly string[]) => requests.current?.onVisible(paths), []);
+    const current = hub.acquire(root, setThumbnails);
+    lease.current = current;
+    return () => { current.release(); lease.current = null; setThumbnails(new Map()); };
+  }, [hub, root]);
+  // After the effect above, so a new root's lease gets its rows.
+  useEffect(() => { lease.current?.setRows(rows); }, [hub, root, rows]);
+  const onVisible = useCallback((paths: readonly string[]) => lease.current?.onVisible(paths), []);
   return { thumbnails, onVisible };
 }

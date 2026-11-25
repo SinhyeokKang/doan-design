@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, LayoutGrid, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas, EditLines } from "../main/conversation/types";
 import { editHeadName, editLinesLabel } from "./editLinesLabel";
@@ -14,7 +14,8 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { retryButton } from "./ListRetryButton";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
-import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
+import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText, trailingCards, type CanvasCardMeta } from "./canvasCardText";
+import { sameCanvas } from "./canvasConversationRows";
 import { canvasLabel, canvasStem } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
@@ -22,7 +23,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { NameTip } from "./NameTip";
 import { CommandCardNotice } from "./ComposerParts";
 import type { CommandCard, CommandCardTarget } from "./commandView";
-import { handoffCardHead } from "./handoffView";
+import { handoffCardView } from "./handoffView";
+import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbnails";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
@@ -102,8 +104,13 @@ export interface ConversationThreadProps {
   // `frames` while the canvas has a layout and follows `locateDisabled`; every other chip names its canvas.
   openCanvasId?: string | null;
   openCanvasPath?: string;
-  // The canvas rows of the conversation's root, which name another canvas's chips and that canvas.
+  // The canvas rows of the conversation's root, which name another canvas's chips and that canvas, and give the canvas
+  // and handoff cards their meta.
   canvasRows?: readonly CanvasRow[];
+  // The host's clock; the cards' times follow it once a minute.
+  now: number;
+  // The window's hub and the conversation's root, for the cards' images; without it the banners stay empty.
+  thumbnails?: { hub: ThumbnailHub; root: string };
   // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
   turn?: ThreadTurn | null;
   // Background work the done turn turnId left running (the list's `background`), and the line's Stop: it settles true
@@ -557,18 +564,52 @@ export function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[
 }
 
 const CARD_ICONS = { check: Check, forward: Forward, ban: Ban } as const;
-// A canvas of a turn (draft canvas-drawing-cards.html): the state icon, the canvas icon and name over the status, and
-// Open. The status changes in place (the card's key holds), so focus on Open stays. No live region: the thread's status
-// line says the new canvases once the turn ends.
-export function CanvasCard({ entry, rows, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; rows: readonly CanvasRow[]; project: string; provider: Provider;
+// What a thread hands each card: the root's rows, its images by path, and the time, which the thread moves once a minute.
+export interface CardContext { rows: readonly CanvasRow[]; thumbnails: ReadonlyMap<string, ThumbnailState>; now: number; root: string }
+// A card's canvas row, found as the hosts' canvasListed finds it (sameCanvas, so a renamed canvas keeps it); none once
+// that canvas reads as gone, so its image and meta go with its Open.
+function cardRow(canvas: Canvas, rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean): CanvasRow | undefined {
+  return listed(canvas) ? rows.find(row => sameCanvas(canvas, row)) : undefined;
+}
+// The canvas a canvas card's status and meta follow: a started handoff's target, else its own (with the row's ID).
+function cardCanvas(entry: Extract<ThreadItem, { kind: "canvasCard" }>, rows: readonly CanvasRow[]): Canvas {
+  return entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : withRowId(entry.canvas, rows);
+}
+// The canvas's image across the card (aria-hidden: decoration). Without one, the sidebar's canvas icon, faint, at the
+// same height. data-path names the canvas whose visibility the thread reports.
+function CardBanner({ thumb, path }: { thumb: CanvasCardMeta["thumb"]; path: string | undefined }) {
+  if (thumb.kind === "ready") return <div className="cc-banner" data-path={path} aria-hidden="true"><img src={thumb.url} alt="" /></div>;
+  return <div className="cc-banner empty" data-path={path} aria-hidden="true"><PanelsTopLeft aria-hidden="true" /></div>;
+}
+// The meta line: folder · frames · the modified or handoff time. A drawing card keeps the line, empty or not, so it is as
+// tall as once drawn.
+function CardMeta({ meta, keep }: { meta: CanvasCardMeta; keep: boolean }) {
+  const time = meta.edited ?? meta.handedOff;
+  // A deep folder can be wider than the column: it shrinks and cuts, its full path in the tooltip while cut.
+  const parts = [...(meta.folder === null ? [] : [<NameTip text={meta.folder}><span className="cc-folder">{meta.folder}</span></NameTip>]),
+    ...(meta.frames === null ? [] : [<span>{meta.frames}</span>]),
+    ...(time ? [<span>{`${time.lead} `}<Tooltip><TooltipTrigger asChild><time dateTime={time.dateTime}>{time.text}</time></TooltipTrigger><TooltipContent>{time.title}</TooltipContent></Tooltip></span>] : [])];
+  if (parts.length === 0 && !keep) return null;
+  return <span className="cc-meta">{parts.map((part, i) => <Fragment key={i}>{i > 0 && <span className="sep" aria-hidden="true">·</span>}{part}</Fragment>)}</span>;
+}
+// A canvas of a turn. The status changes in place (the card's key holds), so focus on Open stays. No live region: the
+// thread's status line says the new canvases once the turn ends.
+export function CanvasCard({ entry, context, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; context: CardContext; project: string; provider: Provider;
   canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
-  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, rows) }, { project, provider, listed: canvasListed }), open = view.open;
+  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, context.rows) }, { project, provider, listed: canvasListed }), open = view.open;
   const Icon = view.icon === "spinner" ? null : CARD_ICONS[view.icon];
-  return <div className="canvas-card" role="group" aria-label={view.label}>
-    <span className="cc-icon">{Icon ? <Icon aria-hidden="true" /> : <span className="doan-spinner" aria-hidden="true" />}</span>
-    <span className="cc-text"><CardName name={view.name} /><span className="cc-status">{view.status}</span></span>
-    {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
-  </div>;
+  // entry.drawing is the turn running, true for an existing canvas's request too; only a spinning card draws.
+  const drawing = view.icon === "spinner";
+  const row = cardRow(cardCanvas(entry, context.rows), context.rows, canvasListed);
+  const meta = canvasCardMeta(row, row && context.thumbnails.get(row.path), context.now, context.root, { drawing });
+  return <div className="card-surface canvas-card" role="group" aria-label={view.label}><div className="card-layout">
+    <CardBanner thumb={meta.thumb} path={row?.path} />
+    <div className="card-head">
+      <span className="cc-icon">{Icon ? <Icon aria-hidden="true" /> : <span className="doan-spinner" aria-hidden="true" />}</span>
+      <span className="cc-text"><CardName name={view.name} kind="canvas" /><span className="cc-status">{view.status}</span><CardMeta meta={meta} keep={drawing} /></span>
+      {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
+    </div>
+  </div></div>;
 }
 // A handoff request names a path alone, while listing and Open find a canvas by its ID once its row has one
 // (sameCanvas), so an existing canvas would read as gone: the root's one row with that path lends its ID.
@@ -599,7 +640,7 @@ function fitKeep(name: string, width: number, measure: (text: string) => number)
 // The card's name never wraps: a long one is cut in the middle, keeping its extension, with the full name in the tooltip
 // (the card's and Open's accessible names already hold it). The title row's width is set by the card's grid column,
 // not by the name, so measuring it never loops.
-function CardName({ name }: { name: string }) {
+function CardName({ name, kind }: { name: string; kind: "canvas" | "overview" }) {
   const title = useRef<HTMLSpanElement | null>(null);
   const [keep, setKeep] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -618,23 +659,86 @@ function CardName({ name }: { name: string }) {
   const shown = keep === null ? name : middleCut(name, keep);
   // Only a cut name has a tooltip. The name is no control, so changing its wrapper moves no focus.
   const label = <span className="cc-name">{shown}</span>;
-  return <span className="cc-title" ref={title}><PanelsTopLeft className="cc-kind" aria-hidden="true" />
+  const Kind = kind === "canvas" ? PanelsTopLeft : LayoutGrid;
+  return <span className="cc-title" ref={title}><Kind className="cc-kind" aria-hidden="true" />
     {shown === name ? label : <Tooltip><TooltipTrigger asChild>{label}</TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>}</span>;
 }
-// The receiving conversation's first message (draft frame handoff-card): the earlier agent's text as its Markdown, apart
-// from the person's bubble. The card takes focus after a move, so it is a labelled group. Its source is a canvas, or
-// for a project conversation's handoff the root's Overview, whose Open shows the source conversation there.
-export function HandoffCard({ entry, headId, project, canvasListed, conversationListed, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; headId: string; project: string;
+// The receiving conversation's first message: the canvas card's surface and head row naming the source in bold, then the
+// earlier agent's text as its Markdown, apart from the person's bubble. The card takes focus after a move, so it is a
+// labelled group. Its source is a canvas, or for a project conversation's handoff the root's Overview (no banner), whose
+// Open shows the source conversation there.
+export function HandoffCard({ entry, context, project, canvasListed, conversationListed, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; context: CardContext; project: string;
   canvasListed(canvas: Canvas): boolean; conversationListed?: ((conversationId: string) => boolean) | undefined;
   onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined; onOpenOverview?: ((conversationId: string) => void) | undefined }) {
   const source = entry.origin.canvas, conversationId = entry.origin.conversationId;
   const listed = source ? canvasListed(source) : conversationListed?.(conversationId) ?? true;
+  const view = handoffCardView(entry.origin, project, listed);
   const open = !listed ? null : source ? onOpen && (() => onOpen(source, conversationId)) : onOpenOverview && (() => onOpenOverview(conversationId));
-  return <div className="handoff-card" role="group" aria-labelledby={headId} tabIndex={-1}>
-    <div className="handoff-head"><Forward aria-hidden="true" /><span id={headId}>{handoffCardHead(entry.origin, project, listed)}</span>
-      {open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={open}>Open</button>}</div>
-    <AgentMessage text={entry.text} streaming={false} className="md selectable" />
-  </div>;
+  const row = source && cardRow(source, context.rows, canvasListed);
+  const meta = canvasCardMeta(row, row && context.thumbnails.get(row.path), context.now, context.root, { handedOffAt: entry.at });
+  return <div className="card-surface handoff-card" role="group" aria-label={view.label} tabIndex={-1}><div className="card-layout">
+    {source && <CardBanner thumb={meta.thumb} path={row?.path} />}
+    <div className="card-head">
+      <span className="cc-icon"><Forward aria-hidden="true" /></span>
+      <span className="cc-text"><CardName name={view.name} kind={view.kind} /><span className="cc-status">{view.status}</span><CardMeta meta={meta} keep={false} /></span>
+      {open && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={view.openLabel} onClick={open}>Open</button>}
+    </div>
+    <AgentMessage text={entry.text} streaming={false} className="handoff-body md selectable" />
+  </div></div>;
+}
+
+// The thread's one viewer of its root's images: it asks for the canvases its cards show and reports which banners are on
+// screen. A component of its own, so the thread body keeps no thumbnail hooks; its images go back up through onImages.
+function CardThumbnails({ hub, root, banners, scroller, onImages }: { hub: ThumbnailHub; root: string; banners: readonly CardBanner[];
+  scroller: { readonly current: HTMLElement | null }; onImages(images: ReadonlyMap<string, ThumbnailState>): void }) {
+  const rows = [...new Map(banners.map(banner => [banner.row.path, banner.row])).values()];
+  // A row's width decides whether it can be captured, so it is part of what is asked.
+  const key = rows.map(row => `${row.path}\t${row.width ?? ""}`).join("\n");
+  const held = useRef({ key, rows });
+  if (held.current.key !== key) held.current = { key, rows };
+  const { thumbnails, onVisible } = useThumbnails(hub, root, held.current.rows);
+  useEffect(() => { onImages(thumbnails); }, [thumbnails, onImages]);
+  const watched = bannerWatchKey(banners);
+  useEffect(() => {
+    const field = scroller.current;
+    if (!field || watched === "") return;
+    return watchBanners(field, onVisible);
+  }, [watched, scroller, onVisible]);
+  return null;
+}
+export interface CardBanner { key: string; row: CanvasRow }
+// When the watcher starts over: by card, since a later card of a canvas already shown has its own banner, and by path,
+// since a renamed canvas keeps its card and the observer reports only changes of intersection.
+export function bannerWatchKey(banners: readonly CardBanner[]): string {
+  return banners.map(banner => `${banner.key}\t${banner.row.path}`).join("\n");
+}
+// The banners the thread's cards draw with a listed canvas's row, by card key. A card still drawing shows no image, so
+// its canvas, mid-write, is not asked for.
+export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean,
+  drawing: (item: Extract<ThreadItem, { kind: "canvasCard" }>) => boolean): CardBanner[] {
+  return items.flatMap(item => {
+    const canvas = item.kind === "canvasCard" ? drawing(item) ? undefined : cardCanvas(item, rows) : item.kind === "handoffCard" ? item.origin.canvas : undefined;
+    const row = canvas && cardRow(canvas, rows, listed);
+    return row ? [{ key: item.key, row }] : [];
+  });
+}
+// Reports the paths with a banner on screen in `field`, again whenever that set changes, and [] once stopped. Several
+// cards can show one canvas, so a path stays visible while any of its banners is.
+export function watchBanners(field: HTMLElement, report: (paths: readonly string[]) => void, Observer: typeof IntersectionObserver = IntersectionObserver): () => void {
+  const shown = new Map<Element, string>();
+  let reported = "";
+  const observer = new Observer(changes => {
+    for (const change of changes) {
+      if (change.isIntersecting) shown.set(change.target, (change.target as HTMLElement).dataset.path ?? "");
+      else shown.delete(change.target);
+    }
+    const paths = [...new Set(shown.values())].sort();
+    if (paths.join("\n") === reported) return;
+    reported = paths.join("\n");
+    report(paths);
+  }, { root: field });
+  for (const banner of field.querySelectorAll<HTMLElement>(".cc-banner[data-path]")) observer.observe(banner);
+  return () => { observer.disconnect(); report([]); };
 }
 
 // The last turn's end, which offers the end actions. resend: that turn began with the person's message; a turn the
@@ -697,6 +801,8 @@ export function TurnIndicator({ text, at, provider, visibility }: { text: string
     <span className="ti-text ti-shimmer">{text}</span><span className="ti-time" aria-hidden="true">{elapsedText(Date.now() - Date.parse(at))}</span></div>;
 }
 const NO_TURN: TurnStatus = { kind: "none" };
+const NO_IMAGES: ReadonlyMap<string, ThumbnailState> = new Map();
+const NO_ROWS: readonly CanvasRow[] = [];
 // The thread's items with each run of canvas cards together; every other item alone.
 function stacks(items: readonly ThreadItem[]): ThreadItem[][] {
   const runs: ThreadItem[][] = [];
@@ -738,6 +844,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
+  // From the hub at once: a thread remounted for another conversation draws its banners with the images already there.
+  const [images, setImages] = useState<ReadonlyMap<string, ThumbnailState>>(() => props.thumbnails?.hub.items(props.thumbnails.root) ?? NO_IMAGES);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
@@ -918,6 +1026,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const openHandoff = (canvas: Canvas, conversationId?: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
   const openOverview = (conversationId: string) => latest.current.onOpenOverview?.(conversationId);
   const conversationListed = (conversationId: string) => latest.current.conversationListed?.(conversationId) ?? true;
+  // The cards' times move once a minute, not with each tick of the host's clock.
+  const minute = Math.floor(props.now / 60_000) * 60_000;
+  const rows = props.canvasRows ?? NO_ROWS;
+  const cardContext: CardContext = { rows, thumbnails: images, now: minute, root: props.thumbnails?.root ?? "" };
+  // What a card's meta reads from outside its data: its row, its image and the minute.
+  const metaDeps = (canvas: Canvas | undefined) => {
+    const row = canvas && cardRow(canvas, rows, props.canvasListed);
+    return [row ?? null, row ? images.get(row.path) ?? null : null, minute];
+  };
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
       case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null];
@@ -926,12 +1043,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
       case "canvasCard": {
-        const canvas = entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : withRowId(entry.canvas, props.canvasRows ?? []);
-        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
+        const canvas = cardCanvas(entry, rows);
+        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff, ...metaDeps(canvas)];
       }
       case "handoffCard": {
         const source = entry.origin.canvas;
-        return source ? [props.project, props.canvasListed(source), !!props.onOpenHandoff] : [props.conversationListed?.(entry.origin.conversationId) ?? true, !!props.onOpenOverview];
+        return source ? [props.project, props.canvasListed(source), !!props.onOpenHandoff, ...metaDeps(source)] : [props.project, props.conversationListed?.(entry.origin.conversationId) ?? true, !!props.onOpenOverview, minute];
       }
       case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId, props.openCanvasPath];
       default: return [];
@@ -990,8 +1107,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           </span>}
         </div>;
       }
-      case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
-      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} conversationListed={conversationListed}
+      case "canvasCard": return <CanvasCard entry={entry} context={cardContext} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "handoffCard": return <HandoffCard entry={entry} context={cardContext} project={props.project} canvasListed={listed} conversationListed={conversationListed}
         onOpen={props.onOpenHandoff && openHandoff} onOpenOverview={props.onOpenOverview && openOverview} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
@@ -1005,6 +1122,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
+    {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(drawn, rows, props.canvasListed, card => canvasCardText(card, { project: props.project, provider, listed: props.canvasListed }).icon === "spinner")} scroller={scroller} onImages={setImages} />}
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />

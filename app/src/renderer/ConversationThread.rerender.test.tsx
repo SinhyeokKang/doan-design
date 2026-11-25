@@ -46,7 +46,7 @@ const rows = (checkoutStem: string): CanvasRow[] => [
 ];
 const items: ThreadItem[] = [{ kind: "agent", key: "m1", messageId: "m1", text: "[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)", streaming: false }];
 const base: ConversationThreadProps = {
-  conversationId: "c1", items, provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+  conversationId: "c1", items, provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
   onAnswer: () => {}, onStop: () => {}, onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {},
   onCopy: async () => true, onReplyChip: async () => null, openCanvasId: "drafts",
 };

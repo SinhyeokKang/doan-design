@@ -123,7 +123,7 @@ const mocks = await vi.hoisted(async () => {
     discardRootStarts: vi.fn(),
     discardCanvasStarts: vi.fn(),
     createUiStateStore: vi.fn(),
-    thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
+    thumbnails: { get: vi.fn(), visible: vi.fn(), viewerClosed: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
     readFolder: vi.fn(),
     nativeTheme: { themeSource: "system" },
@@ -1771,7 +1771,7 @@ describe("thumbnails", () => {
     const contents = window().webContents;
     mocks.thumbnails.get.mockResolvedValue({ kind: "pending" });
     expect(await invoke("thumbnails:get", contents, null, { root: "/repo", path: ".doan/canvases/a.html", visible: true })).toEqual({ kind: "pending" });
-    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", true);
+    expect(mocks.thumbnails.get).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", true, "main");
     mocks.thumbnails.get.mockClear();
     const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
     for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
@@ -1786,7 +1786,7 @@ describe("thumbnails", () => {
     const contents = window().webContents;
     const good = { root: "/repo", path: ".doan/canvases/a.html", visible: false };
     await invoke("thumbnails:visible", contents, null, good);
-    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", false);
+    expect(mocks.thumbnails.visible).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/a.html", false, "main");
     mocks.thumbnails.visible.mockClear();
     for (const bad of [null, "x", { root: "/repo", path: ".doan/canvases/a.html" }, { ...good, visible: 1 }, { ...good, root: 3 }, { ...good, path: null }, { ...good, more: 1 }]) {
       await invoke("thumbnails:visible", contents, null, bad);

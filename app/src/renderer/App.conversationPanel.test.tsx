@@ -65,7 +65,7 @@ vi.mock("./CanvasController", async original => ({
 }));
 // The rows the Overview asks thumbnails for, and the fields given focus.
 const probe = vi.hoisted(() => ({ thumbRows: [] as unknown[], focused: [] as unknown[], fields: {} as Record<string, unknown> }));
-vi.mock("./thumbnails", () => ({ useThumbnails: (_root: unknown, rows: unknown[]) => { probe.thumbRows = rows; return { thumbnails: new Map(), onVisible: vi.fn() }; } }));
+vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: (_hub: unknown, _root: unknown, rows: unknown[]) => { probe.thumbRows = rows; return { thumbnails: new Map(), onVisible: vi.fn() }; } }));
 vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { if (field) probe.focused.push(field); } }));
 
 const { App, TopBar } = await import("./App");
