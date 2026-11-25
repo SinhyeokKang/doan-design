@@ -982,3 +982,13 @@ describe("a sent list", () => {
     expect(bubble(user("- a"))).not.toMatch(/<button/);
   });
 });
+
+// Forced colours replace every background with Canvas and drop shadows, so a shape drawn only by its fill reads as
+// plain text and a floating button sits on the reply with no edge. Pure CSS that jsdom cannot emulate, so this pins
+// the rules; the look is checked in the real app with emulated forced colours.
+test("under forced colours the sent bubble, fill-only blocks and Jump to latest keep a visible edge", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const block = css.match(/@media \(forced-colors: active\) \{\n  \.conversation-thread [\s\S]*?\n\}/)?.[0] ?? "";
+  expect(block).toContain(".conversation-thread :is(.bubble, .md-code, .md blockquote, .md-table, .msg-files .attach-chip) { border: 1px solid CanvasText; }");
+  expect(block).toContain(".conversation-thread .jump-latest { border: 1px solid ButtonText; }");
+});
