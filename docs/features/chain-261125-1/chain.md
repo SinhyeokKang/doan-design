@@ -46,7 +46,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | handoff-card-emphasis | conductor `term_5911532b-fa28-4a97-bd15-c7f419c527c7` · `/Users/sinhyeok/orca/workspaces/doan-design/handoff-card-emphasis-orch` (`feat/handoff-card-emphasis`) | 2026-11-25 17:08 | PR #392 · 머지 `9d4559e59` | 완료 |
-| thread-motion | conductor `term_0da4a947-4c8e-433a-8f57-9544d7871f42` · `/Users/sinhyeok/orca/workspaces/doan-design/thread-motion-orch` (`feat/thread-motion`) | 2026-11-25 | — | 진행 중 |
+| thread-motion | conductor `term_0da4a947-4c8e-433a-8f57-9544d7871f42` · `/Users/sinhyeok/orca/workspaces/doan-design/thread-motion-orch` (`feat/thread-motion`) | 2026-11-25 | PR #393 · 머지 `a1095a45c` | 완료 |
 
 ## 인계 기록
 
@@ -77,3 +77,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - 확인되지 않은 관찰: 사라진 것으로 표시된 캔버스를 곧바로 같은 내용으로 다시 쓰면 30초 안에 카드가 "Drawn"으로 돌아오지 않았다(두 번). 나중에 다른 내용으로 다시 쓴 경우에는 3초 안에 돌아왔다. probe 탓인지 확인하지 못했다.
 - 2026-11-25 lead: 메타 줄 감김 건은 사용자가 한 줄 고정으로 정했다. 메타를 한 줄에 두고, 폭이 모자라면 폴더부터 말줄임한다. 구현은 링크 2가 머지된 뒤 `fix/card-meta-one-line` 브랜치에서 `/deliver` conductor로 한다(사용자 결정). 링크 2와 같은 `styles.css`, `ConversationThread.tsx`를 바꾸기 때문이다. BACKLOG 'Known defects'에 적어 두었다.
 - 2026-11-25 lead: 사용자 지시. 링크 2를 머지하면 곧바로 메타 한 줄 고정 `/deliver` conductor를 띄우고, 그 conductor를 기다리는 동안 lead가 링크 2의 미검증 항목을 develop에서 확인한다.
+- 2026-11-25 lead: 링크 2 thread-motion PR #393을 develop에 머지했다(`a1095a45c`). develop과의 충돌(BACKLOG)은 conductor가 머지로 풀었고 gate가 통과했다. conductor worktree를 지웠고, 브랜치 `feat/thread-motion`과 `SinhyeokKang/tm-b1`~`b3`는 남겼다.
+  - 미검증 항목(PR #393 'Unverified'): 실제 스크롤바 드래그와 트랙패드 관성, 대기 중인 질문 카드로 스크롤한 뒤 따라가기 해제, Home에서 보낸 새 대화의 첫 메시지 진입, 다크 모드와 forced colors, 120Hz 디스플레이의 프레임 비용.
+  - 실제 Codex 턴은 임시 `Codex Auth` Keychain 항목을 써서 확인 요청이 떴다. 사용자 요청에 따라 앞으로 실제 provider probe는 임시 홈에 버리는 기본 keychain을 쓴다.
+  - 메타 한 줄 고정 `/deliver` conductor를 띄웠다: `term_c4d58d73-f9fd-47e7-83d9-241f22b5e62d`, worktree `/Users/sinhyeok/orca/workspaces/doan-design/card-meta-one-line`, 브랜치 `fix/card-meta-one-line`(`a1095a45c`에서 갈라짐).
