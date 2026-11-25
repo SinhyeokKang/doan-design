@@ -21,7 +21,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./compon
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
-import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
+import { canvasKey, type CanvasRun, type CanvasTarget, type CanvasView, type ResumeReply } from "./canvasRun";
+import { useActivationFocus } from "./activationFocus";
 import { focusFieldEnd } from "./chipField";
 import { CommandCardNotice, focusPicker, SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { commandTurnLabel, firstTitleMessage, threadCommands, type CommandCardTarget } from "./commandView";
@@ -276,10 +277,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
-  // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
+  // Arrivals and replies can land with the window behind, so their focus is made again on activation (POSTMORTEM
+  // 2026-11-17), and only while the same canvas shows the same conversation.
+  const handFocus = useActivationFocus();
+  const shownNow = () => { const target = run.target(); return target ? `${canvasKey(target)}\n${run.showing()?.conversationId ?? ""}` : null; };
   const editAndResend = (id: string) => {
     const shown = run.showing();
-    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) handFocus(() => { if (run.stillShowing(shown)) focusField(); }); });
   };
 
   // The composer's agent, model and effort, as the Overview's: a new conversation picks as Home does; an existing one
@@ -359,6 +363,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   useEffect(() => {
     const arrival = props.arrival;
     if (!arrival || arrival.seq === arrived.current || view.kind === "wait") return;
+    // The item that takes focus, else the composer.
+    let item: string | null = null;
     if (arrival.focus === "permission" && conversationId) {
       if (!Array.isArray(items)) return;
       const ask = scrollTarget(items, asking);
@@ -367,7 +373,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       props.onArrived(arrival.seq);
       if (ask.kind === "item") {
         handle.current?.scrollToItem(ask.key);
-        if (handle.current?.focusItem(ask.key)) return;
+        item = ask.key;
       }
     } else if (arrival.focus === "handoff" && arrival.handoff) {
       // After a handoff's move: the receiving thread's card, once its history draws. The render that brings the arrival
@@ -381,10 +387,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const card = conversationId === to.conversationId && Array.isArray(items) ? items.find(item => item.kind === "handoffCard") : undefined;
       if (card) {
         handle.current?.scrollToItem(card.key);
-        if (handle.current?.focusItem(card.key)) return;
+        item = card.key;
       }
     } else { arrived.current = arrival.seq; props.onArrived(arrival.seq); }
-    focusField();
+    const shown = shownNow();
+    handFocus(() => {
+      if (shownNow() !== shown) return;
+      if (item === null || !handle.current?.focusItem(item)) focusField();
+    });
   }, [props.arrival?.seq, view.kind, conversationId, Array.isArray(items) ? items.length : -1, asking]);
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.

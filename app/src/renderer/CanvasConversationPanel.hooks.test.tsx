@@ -200,7 +200,7 @@ test("a handoff arrival waits for the receiving canvas and conversation, then is
   const list = [row("c-src", DRAFTS), row("c-recv", CANVAS)] as never[];
   const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: DRAFTS } };
   (window as unknown as { doan: Record<string, unknown> }).doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-recv" ? { events: [card], lastSeq: 1, turn: "idle" } : { events: [], lastSeq: 0, turn: "idle" });
-  vi.stubGlobal("document", { querySelector: () => null });
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: DRAFTS });
@@ -460,7 +460,7 @@ test("a handoff arrival with the window in the background focuses the card again
     });
     const ref = threadRef(render(panel));
     expect(ref).toBeDefined();
-    const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
+    const handle = { scrollToItem: vi.fn(), focusItem: vi.fn((_key: string) => true) };
     ref!.current = handle;
     arrival = { focus: "handoff", seq: 7, handoff: { root: ROOT, canvas: CANVAS, conversationId: "c-recv" } };
     render(panel);

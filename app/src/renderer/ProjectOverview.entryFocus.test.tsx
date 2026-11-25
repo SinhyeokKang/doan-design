@@ -53,7 +53,7 @@ const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve();
 
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  vi.stubGlobal("document", { querySelector: () => null });
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 

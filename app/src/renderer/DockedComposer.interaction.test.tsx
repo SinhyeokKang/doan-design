@@ -40,6 +40,8 @@ beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = [];
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
   vi.stubGlobal("getComputedStyle", () => ({ lineHeight: "20px" }));
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -623,6 +625,7 @@ test("a repeated Send now refusal changes the composer's status text each time",
 function pressDocument() {
   const listeners: ((event: { target: unknown }) => void)[] = [];
   vi.stubGlobal("document", {
+    hasFocus: () => true, querySelectorAll: () => [],
     addEventListener: (type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { if (type === "pointerdown" && capture) listeners.push(listener); },
     removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { const at = listeners.indexOf(listener); if (at >= 0) listeners.splice(at, 1); },
   });
@@ -1304,7 +1307,7 @@ test("the same run mode text is announced again for another conversation", () =>
 
 const textPaste = (text = "Spec\r\n" + "x".repeat(1000), types = ["text/plain"]) => ({ preventDefault: vi.fn(), clipboardData: { files: [], types, getData: (type: string) => type === "text/plain" ? text : "chip" } });
 function mountedPaste(patch: Partial<DockedComposerProps> = {}, drafts: [string, DockedDraft][] = []) {
-  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   const result = setup(patch, drafts);
   result.render();
   for (const effect of hooks.effects) effect();

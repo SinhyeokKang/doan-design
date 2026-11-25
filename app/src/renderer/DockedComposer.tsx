@@ -326,6 +326,9 @@ export function DockedComposer(props: DockedComposerProps) {
     const target = focusAfter(after, { pending: [] });
     if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
+  // A send's reply can come after the person switched away, so its focus is made again on activation (POSTMORTEM
+  // 2026-11-17), and only while the same draft shows.
+  const focusSent = (at: string) => handFocus(() => { if (at === shown.current) focus({ kind: "sent" }); });
   const pickedSkill = useRef(false);
   const chooseRow = (id: string, kind: PresetRow["kind"], fromSlash: boolean) => {
     if (kind === "preset") { choosePreset(id, fromSlash); return; }
@@ -442,7 +445,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const left = command ? { ...EMPTY_DRAFT, preset: sent.preset, attachments: sent.attachments } : EMPTY_DRAFT;
       const settled = { ...left, shape: composerShape("capsule", { empty: true, chips: chipCount(left, pinned), overflows: false }) };
       props.onDrafts(drafts => settleSent(drafts, at, sent, settled, outcome.conversationId ? `conversation:${outcome.conversationId}` : undefined));
-      if (at === shown.current) focus({ kind: "sent" });
+      focusSent(at);
       return outcome;
     }
     if (outcome.error === "attachment_missing") {
@@ -460,7 +463,7 @@ export function DockedComposer(props: DockedComposerProps) {
       const code = outcome.error;
       if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent, code }));
     }
-    if (at === shown.current) focus({ kind: "sent" });
+    focusSent(at);
     return outcome;
   };
   // Each card is a new object (commandCard, a copy of STALE_MODE_CARD), so the same refusal again is said again.
