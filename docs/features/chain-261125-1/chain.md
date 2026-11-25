@@ -46,7 +46,7 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | handoff-card-emphasis | conductor `term_5911532b-fa28-4a97-bd15-c7f419c527c7` · `/Users/sinhyeok/orca/workspaces/doan-design/handoff-card-emphasis-orch` (`feat/handoff-card-emphasis`) | 2026-11-25 17:08 | PR #392 · 머지 `9d4559e59` | 완료 |
-| thread-motion | — | — | — | 대기 |
+| thread-motion | conductor `term_0da4a947-4c8e-433a-8f57-9544d7871f42` · `/Users/sinhyeok/orca/workspaces/doan-design/thread-motion-orch` (`feat/thread-motion`) | 2026-11-25 | — | 진행 중 |
 
 ## 인계 기록
 
@@ -72,3 +72,8 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - `ConversationThread`는 `now`(필수)와 `thumbnails?: { hub, root }`를 받는다. `CardThumbnails`가 IntersectionObserver로 배너를 본다. 썸네일 hub는 뷰어가 없는 root의 이미지를 `LEAVE_MS`(2초) 동안 유지한다. 스레드를 다시 마운트하거나 늦추는 모션은 이 창을 고려해야 한다.
   - T2 결정 지점: 새 채널이나 캡처 경로는 필요 없었다. 기존 `thumbnails:changed`를 프로토타입 창에도 보내는 것은 conductor가 승인 범위 안으로 판단했다.
   - 실제 앱에서 확인하지 못한 항목(BACKLOG 'Not verified in the real app'): 캡처 실패 뒤 배너, 짧은 경로 폴더 메타, "No frames", 사라진 캔버스의 캔버스 카드, "Hands off when this turn ends" 카드, 347 프로토타입 창 패널, Open hover·pressed, reduced motion.
+- 2026-11-25 lead: 링크 1(#392)의 미검증 항목 8개를 develop(`2c28aed0c`)에서 격리된 실제 앱으로 확인했다. 8개 모두 통과했다(`CHECKS COMPLETE: 8/8 PASS`, real-state unchanged): 캡처 실패 배너, 짧은 폴더 메타, "No frames", 사라진 캔버스 카드, "Hands off when this turn ends" 카드(main이 보낸 대화 이벤트로 재현), 347 프로토타입 창 패널, Open hover·pressed, reduced motion. BACKLOG에는 남은 범위(수정 시각이 없는 행의 "No frames", main이 실제로 돌리는 턴의 대기 카드, Open 키보드 포커스)만 남겼다. 증거: main checkout의 `.scratch/runtime-test/lead-hce/`.
+  - 사용자에게 올린 것: 347에서 메타 줄이 두 줄로 감기면 카드 높이가 달라지고(211 대 195), 시간 문구가 바뀌면 높이가 다시 바뀐다. PRODUCT §5의 "Neither meta nor the image changes a card's height"와 어긋난다.
+  - 확인되지 않은 관찰: 사라진 것으로 표시된 캔버스를 곧바로 같은 내용으로 다시 쓰면 30초 안에 카드가 "Drawn"으로 돌아오지 않았다(두 번). 나중에 다른 내용으로 다시 쓴 경우에는 3초 안에 돌아왔다. probe 탓인지 확인하지 못했다.
+- 2026-11-25 lead: 메타 줄 감김 건은 사용자가 한 줄 고정으로 정했다. 메타를 한 줄에 두고, 폭이 모자라면 폴더부터 말줄임한다. 구현은 링크 2가 머지된 뒤 `fix/card-meta-one-line` 브랜치에서 `/deliver` conductor로 한다(사용자 결정). 링크 2와 같은 `styles.css`, `ConversationThread.tsx`를 바꾸기 때문이다. BACKLOG 'Known defects'에 적어 두었다.
+- 2026-11-25 lead: 사용자 지시. 링크 2를 머지하면 곧바로 메타 한 줄 고정 `/deliver` conductor를 띄우고, 그 conductor를 기다리는 동안 lead가 링크 2의 미검증 항목을 develop에서 확인한다.
