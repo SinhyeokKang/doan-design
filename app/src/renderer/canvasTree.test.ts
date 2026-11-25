@@ -19,7 +19,7 @@ test("frameLabel numbers from 1 and prefers a trimmed title over the id", () => 
   expect(frameLabel({ id: "card-declined", title: "   " }, 0).name).toBe("card-declined");
 });
 
-// PRODUCT §5 item 2 'Play': a frame is named by its title, else its id; every screen uses this rule.
+// PRODUCT §5 item 2 'Prototype window': a frame is named by its title, else its id; every screen uses this rule.
 test("frameName is the trimmed title, else the id; frameTitle is the trimmed title or nothing", () => {
   expect(frameName({ id: "pay", title: " Pay " })).toBe("Pay");
   for (const title of [undefined, "", "   "]) {

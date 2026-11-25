@@ -15,7 +15,7 @@ export function canvasStem(path: string): string {
   return stem === "" ? fileName : stem;
 }
 
-// A frame is named by its title, else its id (PRODUCT §5 item 2 'Play'); a blank title is no title. Every frame name the
+// A frame is named by its title, else its id (PRODUCT §5 item 2 'Prototype window'); a blank title is no title. Every frame name the
 // app shows goes through these two.
 export function frameTitle(title: string | undefined): string | undefined {
   return title?.trim() || undefined;
