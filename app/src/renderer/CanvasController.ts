@@ -1636,6 +1636,8 @@ export class CanvasController {
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     // Another document, even the canvas's own location.reload() in the same iframe, ends the replaced one's pick
     // channel; the pick itself goes on below unless the page is another canvas.
+    // Not loading: the canvas replaced its own document, so load() reset nothing.
+    const replaced = message.document !== undefined && message.document !== this.pickDocument && this.pickDocument !== null && !this.loading;
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
@@ -1653,6 +1655,13 @@ export class CanvasController {
     const previousPicking = this.state.picking;
     const previousCapturing = this.state.capturing;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
+    // Its new script counts both channels from 0 and has no selection, so the selection is found again as after a reload.
+    if (replaced && !newDocument) {
+      this.resetChannels();
+      this.drawMarks();
+      this.applySelectionEffect({ kind: "reload" });
+      if (this.reanchor !== null) this.sendCommand({ type: "select-anchor", ...this.reanchor });
+    }
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
     this.setFrameHeight(layoutHeight(this.lastHref, this.frameHeight, message));
@@ -1671,12 +1680,7 @@ export class CanvasController {
     if (newDocument) {
       this.clearJump();
       this.jumpTo = null;
-      this.seq = 0;
-      this.pickFrameCommand = null;
-      this.hoverSeq = 0;
-      this.refindSeq = null;
-      this.hoverRect = null;
-      this.treeHover = null;
+      this.resetChannels();
       this.applySelectionEffect({ kind: "otherCanvas" });
       // Another page is another canvas, so the pick and capture mode end.
       this.resetPickChannel();
@@ -1731,6 +1735,15 @@ export class CanvasController {
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
     if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || linked || beforeSelection !== this.state.selection || previousPicking !== this.state.picking || previousCapturing !== this.state.capturing) this.publish();
+  }
+
+  private resetChannels(): void {
+    this.seq = 0;
+    this.pickFrameCommand = null;
+    this.hoverSeq = 0;
+    this.refindSeq = null;
+    this.hoverRect = null;
+    this.treeHover = null;
   }
 
   // A new document has no hand, ⌥ or ⌘ of its own; Hand keeps the layer up through the canvas's own reload.

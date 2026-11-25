@@ -1502,6 +1502,9 @@ describe("a canvas replacing its own document at the same URL", () => {
       h.layout({ document: "doc2" });
       expect(posted(h).slice(before).filter(m => m.type === "select-anchor")).toEqual([{ type: "select-anchor", doanId: "cta", selector: '[data-doan-id="cta"]', seq: 1 }]);
       expect(h.markOf("selected")?.hidden).toBe(true);
+      // Hover marks wait for the reanchor, as after an app reload.
+      h.select(1, { answer: "select-anchor" });
+      expect(h.markOf("selected")?.hidden).toBe(false);
       h.receive({ type: "hover", seq: 0, rect: h.target.rect });
       expect(h.markOf("hover")?.hidden).toBe(false);
       h.select(2, { target: { ...h.target, tag: "button" } });
