@@ -407,3 +407,16 @@ test("a root removed before the startup read gets none of the read's sidebar mem
   expect(savedState()?.expanded[OTHER]).toBeUndefined();
   expect(savedState()?.shellProjects?.[KEY]?.roots).not.toContain(OTHER);
 });
+
+// Main replaces ui-state.json on each save, so a hidden root's memory must outlive the hide (ARCHITECTURE §7
+// 'Auto-registered roots in the shell': per-root memory reads the unfiltered list).
+test("hiding an auto-registered worktree keeps its per-root memory; leaving the list forgets it", async () => {
+  await start([main(), other(), wt()], { screen: "home", expanded: { [W]: [".doan/canvases"] }, lastByRoot: {}, conversationByRoot: { [W]: "c-w" } });
+  expect(savedState()?.expanded[W]).toEqual([".doan/canvases"]);
+  folders([main(), other(), hiddenW()]);
+  expect(savedState()?.expanded[W]).toEqual([".doan/canvases"]);
+  expect(savedState()?.conversationByRoot?.[W]).toBe("c-w");
+  folders([main(), other()]);
+  expect(savedState()?.expanded[W]).toBeUndefined();
+  expect(savedState()?.conversationByRoot?.[W]).toBeUndefined();
+});

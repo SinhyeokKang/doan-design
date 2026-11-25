@@ -604,7 +604,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         rerootSeq.current += 1;
         setReroot({ ...focus, seq: rerootSeq.current });
       }
-      const removed = entriesRef.current.filter(entry => !next.some(row => row.path === entry.path)).map(entry => entry.path);
+      // From main's whole list: a hidden auto-registered worktree is still registered and keeps its memory.
+      const removed = allEntriesRef.current.filter(entry => !all.some(row => row.path === entry.path)).map(entry => entry.path);
       if (removed.length) {
         setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
         setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
