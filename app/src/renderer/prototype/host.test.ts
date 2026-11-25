@@ -195,4 +195,26 @@ describe("forwardedMessage", () => {
       { gen: 3 },
     ]) expect(forwardedMessage(event(data), run), JSON.stringify(data).slice(0, 80)).toBeNull();
   });
+
+  // An array's named own properties pass the shape check, which reads only indices, so the forwarded copy is rebuilt.
+  test("forwards only the checked fields, not a named property riding on a list", () => {
+    const pad = () => Object.assign([] as unknown[], { pad: "x".repeat(1_000_000) });
+    const frame = { id: "a", size: "390x844", number: 1 };
+    const lists = (frames: unknown[], gotos: unknown[]) => ({ frames, gotos });
+    for (const parts of [
+      lists(Object.assign(pad(), [frame]), []),
+      lists([frame], pad()),
+      lists([frame], [{ value: "a", frames: Object.assign(pad(), ["a"]) }]),
+    ]) {
+      for (const data of [{ gen: 3, state: "ready", size: "390x844", ...parts }, { gen: 3, state: "missing", ...parts }, { gen: 3, ...parts }]) {
+        const forward = forwardedMessage(event(data), run);
+        expect(forward).not.toBeNull();
+        const message = forward!.message as { frames: unknown[]; gotos: { frames: unknown[] }[] };
+        expect(JSON.stringify(Object.keys(message.frames))).not.toContain("pad");
+        expect(JSON.stringify(Object.keys(message.gotos))).not.toContain("pad");
+        for (const goto of message.gotos) expect(Object.keys(goto.frames)).not.toContain("pad");
+        expect(forward!.message).toEqual(structuredClone({ ...data, frames: [...parts.frames], gotos: parts.gotos.map(goto => ({ ...(goto as object), frames: [...(goto as { frames: unknown[] }).frames] })) }));
+      }
+    }
+  });
 });
