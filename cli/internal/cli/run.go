@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 	"github.com/SinhyeokKang/doan-design/cli/internal/check"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
 )
@@ -75,7 +74,6 @@ type Flags struct {
 }
 
 var Version = "dev"
-var kebabID = canvas.IDPattern
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>] [--storage local|repo] [--git-init]
