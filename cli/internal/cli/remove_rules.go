@@ -30,7 +30,7 @@ func removeFailure(code, message string) *Error {
 		// Unlike notOpenSteps, adding the folder only to remove it is no recovery.
 		"project_not_open": {
 			"Tell the user Doan does not have the folder at the path in the message open; nothing was removed",
-			"If they say Doan already has a project with this name, ask them to compare its path (Project Settings shows it) with the path in the message: a different path is another checkout or worktree, which they remove with Remove from Doan in the app",
+			"If they say Doan already has a project with this name, ask them to compare its path (Project Settings shows it) with the path in the message: a different path is another checkout or worktree; if they want that one out of Doan, they use Remove from Doan in the app",
 		},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
