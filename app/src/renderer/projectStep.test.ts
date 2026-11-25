@@ -9,7 +9,7 @@ const ok = (operation: OnboardingOperation): OnboardingResponse => ({ v: 2, ok: 
 const refused = (code: string): OnboardingResponse => ({ v: 2, ok: false, error: { code, message: `m:${code}` } } as OnboardingResponse);
 const inspection = (candidates: [string, string[]?][], clone?: string) => ({ inspectionId: `i-${Math.random()}`, candidates: candidates.map(([path, changes]) => ({ path, changes: (changes ?? []) as never })), ...(clone ? { clone: { destination: clone, changes: [] } } : {}) });
 
-function harness(projects: string[] = [], home: string | null = "/Users/ada", mains: string[] = []) {
+function harness(projects: string[] = [], home: string | null = "/Users/ada", mains: string[] = [], auto: string[] = []) {
   let listener: ((state: OnboardingState) => void) | null = null;
   const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [], complete: [] };
   const next = (name: string) => queue[name]!.shift() ?? refused("bad_request");
@@ -27,7 +27,7 @@ function harness(projects: string[] = [], home: string | null = "/Users/ada", ma
   };
   let ids = 0, revision = 0;
   const completed = vi.fn();
-  const session = new ProjectStepSession({ api, sessionId: "s1", projects: () => projects, homeDirectory: () => home, mainCheckout: path => mains.includes(path), requestId: () => `req-${++ids}`, changed: () => {}, completed });
+  const session = new ProjectStepSession({ api, sessionId: "s1", projects: () => projects, homeDirectory: () => home, mainCheckout: path => mains.includes(path), autoRegistered: () => auto, requestId: () => `req-${++ids}`, changed: () => {}, completed });
   session.start();
   return {
     session, api, queue, completed,
@@ -1173,6 +1173,21 @@ test("defaultProjectParent: the last registered project's parent, else HOME, els
   expect(defaultProjectParent([], null)).toBe("/");
   expect(defaultProjectParent([], "/")).toBe("/");
   expect(defaultProjectParent(["/studio"], "/Users/ada")).toBe("/");
+});
+
+// PRODUCT §5 item 1: an auto-registered worktree never adds a project, so it never names the default location.
+test("an auto-registered worktree listed last does not move New folder's or the clone's default location", async () => {
+  const auto = "/Users/ada/code/studio/.claude/worktrees/fix";
+  const h = harness(["/Users/ada/code/studio", auto], "/Users/ada", [], [auto]);
+  await h.session.newFolder();
+  expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code", expect.any(String));
+  h.session.setUrl("https://github.com/acme/tokens");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })), ok(op("project_inspect", { inspection: inspection([], "/Users/ada/code/tokens") })));
+  await h.session.findRepository();
+  expect(h.api.inspectOnboardingProject.mock.calls[1]![0]).toMatchObject({ destination: "/Users/ada/code/tokens" });
+  const only = harness([auto], "/Users/ada", [], [auto]);
+  await only.session.newFolder();
+  expect(only.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada", expect.any(String));
 });
 
 test("a clone planned beside a project at the root of the disk is not named with a doubled slash", async () => {

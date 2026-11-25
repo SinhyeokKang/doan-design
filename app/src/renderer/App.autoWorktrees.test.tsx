@@ -73,6 +73,7 @@ const { Home } = await import("./Home");
 const { ProblemOverlay } = await import("./ProblemOverlay");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
+const { AddProjectsPage } = await import("./AddProjectsPage");
 
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
@@ -435,4 +436,14 @@ test("a project folded by its chevron stays folded through a move inside it and 
   expect(sidebar().projects[KEY]?.collapsed).toBe(true);
   folders([other()]);
   expect(sidebar().projects[KEY]?.collapsed).toBe(true);
+});
+
+// PRODUCT §5 item 0 'New folder': the default location is the last registered project's parent, and an
+// auto-registered worktree never adds a project.
+test("the Add Projects page learns which listed roots are auto-registered", async () => {
+  await start();
+  listeners.openAddProjects!(); render();
+  const props = all(tree).find(element => element.type === AddProjectsPage)!.props as { projects: string[]; autoRegistered: string[] };
+  expect(props.projects).toEqual([MAIN, OTHER, W]);
+  expect(props.autoRegistered).toEqual([W]);
 });

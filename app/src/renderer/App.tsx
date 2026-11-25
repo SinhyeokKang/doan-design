@@ -978,6 +978,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const entry = entries.find(entry => entry.path === loadedRoot);
   const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
   const names = projectNames(entries.map(entry => entry.path));
+  const autoRoots = entries.flatMap(entry => entry.autoRegistered ? [entry.path] : []);
   // Home conversations are decided by HomeRun; App wires its navigation, toasts and dialogs.
   const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
@@ -2660,7 +2661,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => void action(name, root, notice)}
     onRemove={() => void removeProject([projectSettings.root])} />}
-  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${overlaid ? " overlaid" : ""}${strip ? " with-strip" : ""}`}
     style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }}
@@ -2743,7 +2744,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <PrototypePlaying onChange={setPlaying} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
-  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} autoRegistered={autoRoots} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
       setWizard(null);
