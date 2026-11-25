@@ -285,15 +285,18 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const focusWasInside = useRef(false);
   const active = document.activeElement;
   focusWasInside.current = active === null || active === document.body || (!!content.current && content.current.contains(active));
+  // A state can arrive with the window in the background, so the title takes focus again on activation while it is still the scene's.
+  const handFocus = useActivationFocus();
+  const currentScene = useRef(sceneKey); currentScene.current = sceneKey;
   useLayoutEffect(() => {
     setDetails(false);
-    if (sceneKey !== null && focusWasInside.current) heading.current?.focus({ preventScroll: true });
-  }, [sceneKey]);
+    if (sceneKey === null || !focusWasInside.current) return;
+    handFocus(() => { if (currentScene.current === sceneKey) heading.current?.focus({ preventScroll: true }); });
+  }, [sceneKey, handFocus]);
 
   // A pointer Reload replaces the iframe, so focus that was in the frame falls to the page; the new run takes it back once ready unless
   // the person moved it. A failure or lost state forgets the press.
   const visibleGen = layers.visible;
-  const handFocus = useActivationFocus();
   useEffect(() => {
     const pressed = reloadFocus.current;
     if (pressed === null || phase === null || phase === "loading") return;
@@ -340,7 +343,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const before = run.before;
     run.before = null;
     const active = document.activeElement;
-    if (before !== null && (active === null || active === document.body) && before.isConnected) before.focus({ preventScroll: true });
+    if (before !== null && (active === null || active === document.body) && before.isConnected) handFocus(() => { if (before.isConnected) before.focus({ preventScroll: true }); });
   };
   const showExportToast = (text: string, label?: string, action?: () => void) => {
     exportToastShown.current = text;
@@ -387,8 +390,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   useEffect(() => {
     if (!deleteLanding.current || deleting !== null) return;
     deleteLanding.current = false;
-    deleteReturn.current?.focus();
+    const to = deleteReturn.current;
     deleteReturn.current = null;
+    if (to !== null) handFocus(() => { if (to.isConnected) to.focus(); });
   });
   const openDelete = (target: DeleteTarget, trigger: HTMLElement | null) => {
     if (deleting !== null) return false;
