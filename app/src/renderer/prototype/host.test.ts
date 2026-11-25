@@ -144,9 +144,9 @@ describe("forwardedMessage", () => {
   const event = (data: unknown, over: Record<string, unknown> = {}) => ({ source: own, origin: "null", data, ...over });
 
   test("forwards a result and a frame list from the current iframe at the opaque origin for the current gen", () => {
-    const ready = { gen: 3, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [], gotos: [] };
     expect(forwardedMessage(event(ready), run)).toEqual({ kind: "result", message: ready });
-    const list = { gen: 3, frames: [{ id: "a", size: "1x1" }] };
+    const list = { gen: 3, frames: [{ id: "a", size: "1x1", number: 1 }], gotos: [{ value: "a", frames: ["a"] }] };
     expect(forwardedMessage(event(list), run)).toEqual({ kind: "frames", message: list });
   });
 
@@ -169,12 +169,30 @@ describe("forwardedMessage", () => {
   });
 
   test("drops another window's, another origin's, an old gen's or a non-object message", () => {
-    const ready = { gen: 3, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [], gotos: [] };
     expect(forwardedMessage(event(ready, { source: other }), run)).toBeNull();
     expect(forwardedMessage(event(ready, { source: null }), run)).toBeNull();
     expect(forwardedMessage(event(ready, { origin: "http://127.0.0.1:4000" }), run)).toBeNull();
     expect(forwardedMessage(event({ ...ready, gen: 2 }), run)).toBeNull();
     for (const data of [null, "ready", [3], 3]) expect(forwardedMessage(event(data), run)).toBeNull();
     expect(forwardedMessage(event(ready), null)).toBeNull();
+  });
+
+  // A canvas can post anything structured clone carries under the current gen; IPC would copy it whole into main.
+  test("drops a result or frame list that is not the prototype script's shape, an oversized one too", () => {
+    const frame = { id: "a", size: "390x844", number: 1 };
+    const ready = { gen: 3, state: "ready", size: "390x844", frames: [frame], gotos: [] };
+    for (const data of [
+      { ...ready, pad: "x".repeat(1_000_000) },
+      { ...ready, frames: [{ ...frame, title: "x".repeat(201) }] },
+      { ...ready, frames: Array.from({ length: 1001 }, (_, i) => ({ id: `f${i}`, size: "1x1", number: i + 1 })) },
+      { ...ready, gotos: [{ value: "a", frames: ["a"], pad: 1 }] },
+      { gen: 3, state: "ready", size: "390x844", frames: [] },
+      { gen: 3, state: "missing", frames: "a", gotos: [] },
+      { gen: 3, state: "timeout", extra: 1 },
+      { gen: 3, frames: [frame], gotos: [], pad: "x" },
+      { gen: 3, frames: [frame] },
+      { gen: 3 },
+    ]) expect(forwardedMessage(event(data), run), JSON.stringify(data).slice(0, 80)).toBeNull();
   });
 });

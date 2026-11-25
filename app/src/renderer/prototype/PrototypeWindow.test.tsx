@@ -160,13 +160,13 @@ describe("forwarded reports", () => {
     const own = {}, stale = {};
     const s = show(view());
     s.frames!.set(1, { contentWindow: own } as never);
-    const ready = { gen: 1, state: "ready", size: "390x844", frames: [] };
+    const ready = { gen: 1, state: "ready", size: "390x844", frames: [], gotos: [] };
     for (const listener of messages) listener({ source: stale, origin: "null", data: ready });
     expect(api.reportResult).not.toHaveBeenCalled();
     for (const listener of messages) listener({ source: own, origin: "null", data: ready });
     expect(api.reportResult).toHaveBeenCalledExactlyOnceWith(ready);
-    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [] } });
-    expect(api.reportFrames).toHaveBeenCalledExactlyOnceWith({ gen: 1, frames: [] });
+    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [], gotos: [] } });
+    expect(api.reportFrames).toHaveBeenCalledExactlyOnceWith({ gen: 1, frames: [], gotos: [] });
   });
 
   test("a ready run still sends its late drawer list; a run that left the screen is not heard", () => {
@@ -174,7 +174,7 @@ describe("forwarded reports", () => {
     const s = show(view());
     s.frames!.set(1, { contentWindow: own } as never);
     show(view({ phase: "ready" }));
-    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [] } });
+    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [], gotos: [] } });
     expect(api.reportFrames).toHaveBeenCalledOnce();
     show(view({ gen: 2, phase: "read-failed" }));
     expect(messages).toHaveLength(0);
