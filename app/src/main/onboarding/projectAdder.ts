@@ -49,7 +49,6 @@ export interface ProjectSession {
 
 // Folder work that ends this fast answers its final state; anything slower answers running and is read with status.
 const QUICK_REPLY_MS = 1000;
-// Bounded like agent-auth's quit (QUIT_WAIT_MS): a clone's group is stopped within about 2.5 s.
 // The most a clone can need: whether the repository brings its own setup is known only after the clone. A clone is a
 // new repository, so kept out of Git it always needs the exclude entry.
 const CLONE_CHANGES: Record<OnboardingStorage, OnboardingChange[]> = {
@@ -105,6 +104,7 @@ export class ProjectAdder {
       if (tracked.done) work.push(tracked.done);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Bounded like agent-auth's quit: a clone's group is stopped within about 2.5 s.
     await Promise.race([Promise.allSettled(work), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
