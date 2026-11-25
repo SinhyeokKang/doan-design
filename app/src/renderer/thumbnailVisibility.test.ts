@@ -73,3 +73,26 @@ test("a viewer's visibility counts on main's queue until that viewer reports it 
   requests.onVisible([], "panel");
   expect(queue.pending).toEqual([{ key: "c", visible: false }, { key: "b", visible: false }]);
 });
+
+// Main keeps a reported mark until it hears otherwise, and a canvas it still thinks visible jumps the capture queue.
+test("a viewer that alone listed a visible path sends false to main on release", () => {
+  const reports: [string, boolean][] = [];
+  const requests = new ThumbnailRequests("/repo", () => new Promise(() => {}), () => {}, (_root, path, visible) => { reports.push([path, visible]); });
+  const [a, c] = ["a", "c"].map(path => ({ path, id: path, width: 800, url: path }));
+  requests.setRows([a!], "overview");
+  requests.setRows([c!], "panel");
+  requests.onVisible(["a"], "overview");
+  requests.onVisible(["c"], "panel");
+  requests.release("panel");
+  expect(reports).toEqual([["c", true], ["c", false]]);
+});
+
+test("a visible path dropped from the rows sends false to main", () => {
+  const reports: [string, boolean][] = [];
+  const requests = new ThumbnailRequests("/repo", () => new Promise(() => {}), () => {}, (_root, path, visible) => { reports.push([path, visible]); });
+  const [a, b] = ["a", "b"].map(path => ({ path, id: path, width: 800, url: path }));
+  requests.setRows([a!, b!]);
+  requests.onVisible(["a", "b"]);
+  requests.setRows([a!]);
+  expect(reports).toEqual([["b", false]]);
+});

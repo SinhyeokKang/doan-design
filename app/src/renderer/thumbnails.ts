@@ -73,6 +73,8 @@ export class ThumbnailRequests {
     let changed = false;
     for (const path of new Set([...this.items.keys(), ...this.asked, ...this.visible])) {
       if (byPath.has(path)) continue;
+      // Main keeps a mark until told otherwise, and a canvas it thinks visible is captured first.
+      if (this.asked.has(path) && this.visible.has(path)) this.visibility(this.root, path, false);
       const item = this.items.get(path);
       if (item?.kind === "ready") URL.revokeObjectURL(item.url);
       changed = this.items.delete(path) || changed;
