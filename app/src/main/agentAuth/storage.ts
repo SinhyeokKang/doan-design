@@ -100,7 +100,7 @@ export class AuthStorage {
     const files = await this.loadVault(provider) ?? {};
     for (const rel of rels) {
       const path = this.working(provider, rel);
-      if (files[rel]) this.replace(path, files[rel]); else this.remove(path);
+      if (files[rel]) this.replaceWorking(path, files[rel]); else this.removeWorking(path);
     }
   }
   // Returns whether the provider's copy differed from the vault (a refresh, a new login or a logout).
@@ -127,11 +127,11 @@ export class AuthStorage {
     const path = this.working(provider, rel, profile);
     if (typeof text !== "string") return this.mergeSetting(path, text);
     const bytes = Buffer.from(text);
-    // The provider process can leave a FIFO, a link or a huge file here, none of which is the text Doan owns: the
-    // rename replaces each of them without opening or following it.
+    // The provider process can leave a FIFO, a link, a huge file or a folder here, none of which is the text Doan owns:
+    // each is replaced without opening or following it.
     try { if (readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT).equals(bytes)) return; }
     catch (error) { if (!absent(error) && !notRegular(error)) throw new StorageError("unreadable", message(error)); }
-    this.replace(path, bytes);
+    this.replaceWorking(path, bytes);
   }
   // Claude Code saves this file too, so Doan renames its merge only over the file it just re-verified (swapFile); a missing
   // file is created exclusively with link(2), and a link is the person's and never replaced or written through.
@@ -192,7 +192,7 @@ export class AuthStorage {
   // A profile file no one but an agent would write and a later provider process loads (Codex's .env): unlinked, a link
   // without following it; anything rmSync cannot unlink (a directory) fails the start.
   removePlanted(provider: Provider, rel: string, profile: string = provider): void { this.remove(this.working(provider, rel, profile)); }
-  scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
+  scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.removeWorking(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
     for (const rel of rels) {
@@ -244,6 +244,14 @@ export class AuthStorage {
       throw new StorageError("write_failed", message(error));
     }
   }
+  // A fenced agent may write a Doan-written profile file, so it can also create a folder there, which a rename onto
+  // the path or rmSync cannot replace. Only a real folder goes; rmSync never follows the links inside it.
+  private clearFolder(path: string): void {
+    try { if (lstatSync(path).isDirectory()) rmSync(path, { recursive: true, force: true }); }
+    catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
+  }
+  private replaceWorking(path: string, bytes: Buffer): void { this.clearFolder(path); this.replace(path, bytes); }
+  private removeWorking(path: string): void { this.clearFolder(path); this.remove(path); }
   private remove(path: string): void {
     try { rmSync(path); } catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
   }

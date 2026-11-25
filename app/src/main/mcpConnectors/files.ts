@@ -94,7 +94,7 @@ export function patchConnectors(file: ConnectorsFile, patch: ConnectorsPatch): C
   return { ...file, everConnected: providers.length ? { ...rest, [target]: providers } : rest };
 }
 
-function validLogout(value: unknown): value is PendingLogout {
+export function validLogout(value: unknown): value is PendingLogout {
   return record(value) && exactKeys(value, ["provider", "name", "url"]) && provider(value.provider) && name(value.name) &&
     typeof value.url === "string" && parseConnectorUrl(value.url).ok && value.url === value.url.trim();
 }
