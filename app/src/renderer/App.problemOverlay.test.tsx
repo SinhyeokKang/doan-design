@@ -415,6 +415,50 @@ test("entering a workspace with the window in the background focuses its sidebar
   expect(focused).toEqual(["row", "row"]);
 });
 
+// POSTMORTEM 2026-11-20: the replay focuses only while the scene it was made for still shows. A move that hands no focus
+// of its own (the Settings page; an entry that leaves focus in a conversation card) keeps the earlier replay pending.
+test("a Home entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("homeComposer");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once the Settings page shows", () => {
+  render(); folders([listed("/w/a")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview();
+  listeners.openSettingsPage!({} as never); render();
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
+});
+
+test("a workspace entry made in the background focuses nothing on activation once another project is loaded", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/a");
+  // The next entry finds focus already in a conversation card and hands none of its own.
+  dom(element("card", ["workspace", "conversation-thread"]), { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  toOverview("/w/c");
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).not.toContain("row");
+});
+
 test("Remove from Doan on the overlay asks first, then goes Home from the Overview and from the canvas page", async () => {
   for (const onCanvas of [false, true]) {
     reset(); render(); folders([listed("/w/a"), listed("/w/c")]);
