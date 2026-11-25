@@ -97,7 +97,7 @@ import type { CanvasPress } from "./ComposerParts";
 import { BuddyIntro, Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
-import { useThumbnails } from "./thumbnails";
+import { useThumbnailHub, useThumbnails } from "./thumbnails";
 import { canvasConversationRows, type CanvasConversationRow } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
@@ -2583,7 +2583,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
     : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], clock, run.seenPending());
-  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
+  // Every viewer of a root in this window (the Overview list, the canvas panel's thread cards) shares its images.
+  const thumbnailHub = useThumbnailHub(window.doan);
+  const thumbs = useThumbnails(thumbnailHub, overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.kind === "canvas" && item.row ? [item.row] : []));
   const overviewShown = overview ? overviewRun.current!.view(overview.path) : null;
   // Fast turned itself off: that provider's Last used follows, and the conversation's own switch
   // held in a composer goes, so the next turn is not asked for Fast again. Only here, as events arrive: this channel

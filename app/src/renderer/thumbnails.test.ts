@@ -212,7 +212,7 @@ test("thumbnail hub: each root has its own requests, and a change reaches only i
   expect(h.asks.map(ask => ask.root)).toEqual(["/code/one", "/code/two", "/code/two"]);
   await h.asks[0]!.reply(h.ready);
   expect(seen.get("one")?.get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
-  expect(seen.get("two")?.has(a.path)).toBe(false);
+  expect(seen.get("two")?.get(a.path)).toBeUndefined();
   one.release();
   expect(h.revoked).toHaveBeenCalledExactlyOnceWith("blob:1");
   two.release();

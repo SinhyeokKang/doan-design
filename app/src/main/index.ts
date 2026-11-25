@@ -110,6 +110,7 @@ import {
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
+import { prototypeThumbnailRoot } from "./prototype/thumbnailScope";
 import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
 import { createPrototypeShowing } from "./prototype/showing";
 import { createTargetRelay } from "./prototype/targetRelay";
@@ -374,6 +375,7 @@ const prototype = createPrototypeWindow({
   mainWindow: () => win,
   closed: (contents, replaced) => {
     prototypeAttachmentsClosed(`prototype:${contents}`);
+    thumbnails?.viewerClosed("prototype");
     if (replaced) return;
     prototypeShowing.closed();
     prototypeResume = null;
@@ -977,7 +979,10 @@ async function start(): Promise<void> {
   const thumbs = createThumbnails({
     dir: join(userData, "thumbnails"), appVersion: app.getVersion(),
     entries: () => ready.entries(), scope: (root) => ready.scope(root),
-    capturer: createWindowCapturer(), changed: (target) => send("thumbnails:changed", target),
+    capturer: createWindowCapturer(), changed: (target) => {
+      send("thumbnails:changed", target);
+      if (prototypeThumbnailRoot(target.root, prototype.controller.playing())) prototype.send("thumbnails:changed", target);
+    },
   });
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
@@ -1614,18 +1619,23 @@ async function start(): Promise<void> {
     if (value !== undefined) return false;
     try { await electronShell.openExternal(NOTIFICATION_SETTINGS_URL); return true; } catch { return false; }
   });
-  // A saved root and a listed canvas only; main reads the bytes from its cache.
-  handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+  // A saved root and a listed canvas only; main reads the bytes from its cache. The prototype window asks for its
+  // playing root only.
+  handle("thumbnails:get", { kind: "unavailable" }, (_event, value: unknown, kind): Promise<ThumbnailReply> | ThumbnailReply => {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return { kind: "unavailable" };
-    return thumbs.get(value.root, value.path, value.visible);
+    if (kind === "prototype" && !prototypeThumbnailRoot(value.root, prototype.controller.playing())) return { kind: "unavailable" };
+    return thumbs.get(value.root, value.path, value.visible, kind);
   });
-  handle("thumbnails:visible", undefined, (event, value: unknown) => {
-    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
+  // A prototype window that left a root still withdraws its own marks there: that changes only its share of the
+  // visibility and answers nothing.
+  handle("thumbnails:visible", undefined, (_event, value: unknown, kind) => {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
       !("root" in value) || typeof value.root !== "string" || !("path" in value) || typeof value.path !== "string" ||
       !("visible" in value) || typeof value.visible !== "boolean") return;
-    thumbs.visible(value.root, value.path, value.visible);
+    if (kind === "prototype" && value.visible && !prototypeThumbnailRoot(value.root, prototype.controller.playing())) return;
+    thumbs.visible(value.root, value.path, value.visible, kind);
   });
   handle("menu:state", undefined, (event, value: unknown) => {
     const next = parseMenuInputs(value);
