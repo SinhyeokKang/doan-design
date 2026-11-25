@@ -219,6 +219,20 @@ describe("revealBoundary", () => {
     expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
   });
 
+  test("a chip link right after a CJK letter, or with parentheses in its label, is held once its ]( has arrived", () => {
+    for (const [text, at] of [["请看[支付页面](doan:canvas/pay.html#fr", 2], ["次は[決済画面](doan:canvas/pay.html#", 2], ["See [Payment (new)](doan:canvas/p.html#f", 4]] as const) {
+      expect(revealBoundary(text, 0, text.length, false)).toBe(at);
+    }
+    // Before ]( arrives, a label after a CJK letter is held too; after a Latin letter it is not.
+    expect(revealBoundary("请看[支付", 0, 5, false)).toBe(2);
+    expect(revealBoundary("a[i", 0, 3, false)).toBe(3);
+  });
+
+  test("a cut inside punctuation never leaves an opening mark alone: it takes the word the mark opens", () => {
+    const cases = [["Make it **really** blue", 9, "Make it **really** "], ["Done!!! (soon) ok", 9, "Done!!! (soon) "], ["Say 'hi' now", 5, "Say 'hi' "], ["Then `code` here", 6, "Then `code` "]] as const;
+    for (const [text, to, shown] of cases) expect(text.slice(0, revealBoundary(text, 0, to, false))).toBe(shown);
+  });
+
   test("a bracket that cannot start a link does not hold", () => {
     for (const text of ["Values in [0, 1) are valid, and this sentence keeps going", "Use `arr[` to read the item and keep going", "The array is a[i and more words"]) {
       expect(revealBoundary(text, 0, text.length, false)).toBe(text.length);
