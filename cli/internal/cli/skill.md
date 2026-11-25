@@ -51,7 +51,7 @@ If a pasted instruction's root differs from your working directory, ask the user
 - `doan active --json`: read the current `selection` in Doan: `{repo, selection?}`, with `selection` `{canvas: {path, id?}, frame?: {id, title?}, element?: {doanId?, selector, html, truncated?, text?}}`.
   - Without `selection`, nothing in this repository is selected; ask the user which canvas, frame, or element they mean.
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which `ls` cannot see.
-  - On `project_not_open`, ask the user to add this project in Doan (File > Add Projects…), or work in the worktree that is open in Doan.
+  - On `project_not_open`, follow `error.nextSteps`: Doan may have another checkout or worktree of this project open, not the path in the message.
   - On `app_not_running`, ask the user to open Doan. If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions. If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About.
 - `doan work start <canvas path> --json`: signal work on a canvas path (it may not exist yet). Returns `{delivered, others?}`; `others`: other sessions on this file.
 - `doan work update <canvas path> [--frame <id>] [--note <text>] --json`: as `start`, plus the edited frame and a one-line note (≤120 chars); omitting one clears it.
