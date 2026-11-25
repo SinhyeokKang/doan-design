@@ -80,7 +80,7 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 
 /* ── New, not in code: thread motion ──
    Constants the implementation takes from here (component constants, no token covers them):
-   MAX_LAG_MS 250 (the oldest hidden character is never older), FINISH_MS 150 (message.done finishes the tail),
+   MAX_LAG_MS 400 (the oldest hidden character is never older; the person chose a calmer pace than the 250 first drawn), FINISH_MS 150 (message.done finishes the tail),
    TAU_MS 40 (exponential follow: pos += (target − pos)·(1 − e^(−dt/τ)), within 0.5 px of a 100 px jump in about
    220 ms, the time-settle of the app's dialog rise). Durations and easings below are the app's motion tokens. */
 .motion-panel{display:flex;flex-direction:column;width:347px;height:460px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
@@ -100,21 +100,16 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 .motion-col p{color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
 .lag-meter{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);font-variant-numeric:tabular-nums}
 
-/* Entry A: rises 12 px and fades in (the dialog rise). */
-@keyframes enter-a{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.enter-a{animation:enter-a var(--time-settle) var(--ease-enter) both}
-/* Entry C: grows from 0.98 in place and fades in. */
-@keyframes enter-c{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
-.enter-c{animation:enter-c var(--time-panel-enter) var(--ease-enter) both;transform-origin:100% 100%}
+/* Entry (chosen: A): rises 16 px (space-4) and fades in over 260 ms with ease-enter: a little longer and slower than
+   the dialogs' 12 px over 220 ms, at the person's choice. 260 ms is a component constant (no token has it). */
+@keyframes enter-a{from{opacity:0;transform:translateY(var(--space-4))}to{opacity:1;transform:none}}
+.enter-a{animation:enter-a 260ms var(--ease-enter) both}
 /* Entry under reduced motion (every option): the fade stays, the movement goes (DESIGN.md 'Motion'). */
 @keyframes enter-fade{from{opacity:0}to{opacity:1}}
 .enter-fade{animation:enter-fade var(--time-state) var(--ease-state) both}
-/* Reveal B: each newly shown run of words fades from faint to full. */
-@keyframes word-in{from{opacity:.25}to{opacity:1}}
-.word-in{animation:word-in var(--time-state) var(--ease-state) both}
-/* Reveal C: each block rises 6 px as it appears. */
-@keyframes block-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.block-in{animation:block-in var(--time-settle) var(--ease-enter) both}
+/* Reveal B: each newly shown run of words goes from transparent to full over time-settle with an ease-out (the board's
+   script sets the opacity per frame; the implementation can use a keyframe whose delay is the run's negative age, so a
+   re-render never restarts it). */
 </style></head><body>
 <svg class="sprite" aria-hidden="true">
 <symbol id="i-canvas" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></g></symbol>
@@ -126,24 +121,24 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 <symbol id="i-new" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g></symbol>
 <symbol id="i-hide" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></g></symbol>
 </svg>
-<header class="intro"><span class="doan-chip">thread-motion · draft · 3 frames · choose entry and reveal</span>
+<header class="intro"><span class="doan-chip">thread-motion · draft · 3 frames · entry A, reveal B</span>
 <h1>The thread moves smoothly: a sent message enters, a reply unfolds, the view follows.</h1>
-<p>Scope: <code>docs/features/thread-motion/</code> (spec ‘확정한 결정’ and ‘완료 조건’, design ‘진입 모션’, ‘출력 점진 표시’, ‘스크롤 따라가기’ and ‘드래프트 요청’). All motion is new, not in code. Every tile replays on its own (a click on the board selects instead of pressing); in Play prototype the buttons work too. Choose one entry (A, B or C) in <code>entry</code> and one reveal (A, B or C) in <code>stream</code>; the rest is removed once chosen. <code>/design-sync</code> will compare the entry animation by computed style; the reveal and the follow are compared by their constants (in this file’s style comment and script) and a recording.</p>
-<p>Fixed by the feature documents: every message this window sends enters (direct, Send now, a queue going out, a new conversation’s first); the reveal never lets the oldest hidden character get older than 250 ms, finishes the tail in 150 ms on <code>message.done</code>, and shows everything at once on Stop, failure, turn end, an item after the reply, a selection or a window coming back; while the reply grows the view stays pinned to the bottom every frame, and only a jump (an entering message, a new item) is followed with an exponential ease (τ 40 ms, about 220 ms); a person’s wheel, scrollbar drag or scroll key stops following. Under reduced motion the entry only fades, the reply shows as it arrives and the view jumps.</p>
+<p>Scope: <code>docs/features/thread-motion/</code> (spec ‘확정한 결정’ and ‘완료 조건’, design ‘진입 모션’, ‘출력 점진 표시’, ‘스크롤 따라가기’ and ‘드래프트 요청’). All motion is new, not in code. Every tile replays on its own (a click on the board selects instead of pressing); in Play prototype the buttons work too. Chosen (2026-11-25): entry A, the rise (16 px over 260 ms); reveal B, words that fade in, at a 400 ms lag cap. Compared and dropped: a flight from the composer, settling in place, paced words without a fade, and whole blocks. <code>stream</code> keeps today’s chunked jumps beside B for comparison; it is not compared by <code>/design-sync</code>. <code>/design-sync</code> will compare the entry animation by computed style; the reveal and the follow are compared by their constants (in this file’s style comment and script) and a recording.</p>
+<p>Fixed by the feature documents: every message this window sends enters (direct, Send now, a queue going out, a new conversation’s first); the reveal never lets the oldest hidden character get older than 400 ms, finishes the tail in 150 ms on <code>message.done</code>, and shows everything at once on Stop, failure, turn end, an item after the reply, a selection or a window coming back; while the reply grows the view stays pinned to the bottom every frame, and only a jump (an entering message, a new item) is followed with an exponential ease (τ 40 ms, about 220 ms); a person’s wheel, scrollbar drag or scroll key stops following. Under reduced motion the entry only fades, the reply shows as it arrives and the view jumps.</p>
 <h2>Copied from shipped screens</h2>
-<ul><li>The panel’s thread, bubble and agent text as restated in <code>canvas-drawing-cards.html</code> (shipped). The composer is a simplified stand-in, only to show where entry B starts; it is not compared. Durations and easings are the app’s motion tokens (DESIGN.md ‘Motion’: the dialog rises 12 px over 220 ms).</li></ul>
+<ul><li>The panel’s thread, bubble and agent text as restated in <code>canvas-drawing-cards.html</code> (shipped). The composer is a simplified stand-in, not compared. Durations and easings are the app’s motion tokens (DESIGN.md ‘Motion’: the dialog rises 12 px over 220 ms).</li></ul>
 <h2>References</h2>
 <ul><li>None outside Doan: the motion follows the app’s own dialog rise and the animate preset (doan design-skill animate).</li></ul>
 </header>
-<section class="specimen"><div class="caption"><span>01</span><h2>Entry · a sent message comes into the thread <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Each option keeps the bubble’s final size and moves only transform and opacity, so the thread’s height and the scroll math never change. The view follows the jump with the exponential ease. The turn indicator, queue pills and suggestions appear without motion.</p></div>
-<div class="tiles" data-doan-frame="entry" data-doan-prototype="1376x640" data-doan-title="Entry · a sent message comes into the thread"><div class="motion-col"><h3>A · Rise</h3><p>The bubble rises 12 px and fades in over 220 ms (time-settle, ease-enter), as the app’s dialogs open.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a" data-count="2">Send two queued</button></div><div class="motion-panel" id="entry-a"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div><div class="motion-col"><h3>B · From the composer</h3><p>The bubble flies from the composer’s text to its place in the thread (FLIP, 220 ms). Closest to “the message goes into the thread”; needs the composer’s position passed to the thread (PoC first).</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="b" data-target="entry-b">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="b" data-target="entry-b" data-count="2">Send two queued</button></div><div class="motion-panel" id="entry-b"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div><div class="motion-col"><h3>C · Settle in place</h3><p>The bubble appears where it lands, growing from 98 % and fading in over 180 ms. The quietest.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="c" data-target="entry-c">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="c" data-target="entry-c" data-count="2">Send two queued</button></div><div class="motion-panel" id="entry-c"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div></div></section>
+<section class="specimen"><div class="caption"><span>01</span><h2>Entry · a sent message comes into the thread <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Chosen: A, the rise (2026-11-25). Flight from the composer and settle in place were compared and dropped. The bubble keeps its final size and moves only transform and opacity, so the thread’s height and the scroll math never change. The view follows the jump with the exponential ease. The turn indicator, queue pills and suggestions appear without motion.</p></div>
+<div class="tiles" data-doan-frame="entry" data-doan-prototype="1376x640" data-doan-title="Entry · a sent message comes into the thread"><div class="motion-col"><h3>A · Rise (chosen)</h3><p>The bubble rises 16 px and fades in over 260 ms (ease-enter): the dialogs’ rise, a little longer and slower.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="a" data-target="entry-a" data-count="2">Send two queued</button></div><div class="motion-panel" id="entry-a"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div></div></section>
 <section class="specimen"><div class="caption"><span>02</span><h2>Reveal · a streamed reply unfolds <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The same reply arrives in uneven chunks (a burst of three lines, a code block, small pieces). Stop shows the rest at once; the end finishes the tail in 150 ms. A “2 steps” row lands after the reply to show a jump being eased and the reply flushed first.</p></div>
-<div class="tiles" data-doan-frame="stream" data-doan-prototype="1376x1240" data-doan-title="Reveal · a streamed reply unfolds"><div class="motion-col"><h3>Today · as shipped</h3><p>Each provider chunk shows whole in the next frame and the view jumps to the bottom: lines pop in and the thread moves in steps.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="now" data-target="stream-now">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-now">Stop</button><span class="lag-meter" data-lag="stream-now"></span></div><div class="motion-panel" id="stream-now"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>A · Words at a paced rate</h3><p>Words appear at an adaptive rate that keeps the oldest hidden character under 250 ms old; code unfolds line by line; the view stays pinned to the bottom every frame.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="a" data-target="stream-a">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-a">Stop</button><span class="lag-meter" data-lag="stream-a"></span></div><div class="motion-panel" id="stream-a"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>B · Words with a fade</h3><p>A, and each newly shown run of words fades in from faint over 150 ms (time-state).</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="b" data-target="stream-b">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-b">Stop</button><span class="lag-meter" data-lag="stream-b"></span></div><div class="motion-panel" id="stream-b"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>C · Blocks</h3><p>Whole paragraphs or code lines appear as they complete, each rising 6 px; the view eases to each new block.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="c" data-target="stream-c">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-c">Stop</button><span class="lag-meter" data-lag="stream-c"></span></div><div class="motion-panel" id="stream-c"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
+<div class="tiles" data-doan-frame="stream" data-doan-prototype="1376x1240" data-doan-title="Reveal · a streamed reply unfolds"><div class="motion-col"><h3>Today · as shipped</h3><p>Each provider chunk shows whole in the next frame and the view jumps to the bottom: lines pop in and the thread moves in steps.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="now" data-target="stream-now">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-now">Stop</button><span class="lag-meter" data-lag="stream-now"></span></div><div class="motion-panel" id="stream-now"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div><div class="motion-col"><h3>B · Words that fade in (chosen)</h3><p>A, and each newly shown run of words goes from transparent to full over 220 ms (time-settle, ease-out), so the last words of the line trail in softly while the text before them stays solid. Code fades in line by line the same way. The oldest hidden character is never older than 400 ms.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="b" data-target="stream-b">Play the reply</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stop="stream-b">Stop</button><span class="lag-meter" data-lag="stream-b"></span></div><div class="motion-panel" id="stream-b"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
 <section class="specimen"><div class="caption"><span>03</span><h2>Reduced motion · the fade stays, the movement goes <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Under <code>prefers-reduced-motion: reduce</code>: a sent message only fades in (150 ms), the reply shows each chunk as it arrives, and the view jumps to the bottom. Drawn here whatever the viewer’s setting.</p></div>
 <div class="tiles" data-doan-frame="reduced" data-doan-prototype="1376x600" data-doan-title="Reduced motion · the fade stays, the movement goes"><div class="motion-col"><h3>Every option</h3><p>Send, then play the reply.</p><div class="board-controls"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-entry="fade" data-target="reduced-panel">Send a message</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-stream="reduced" data-target="reduced-stream">Play the reply</button></div><div class="motion-panel" id="reduced-panel"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div><div class="stand-composer" data-composer><span class="typed"></span><button type="button" class="doan-icon-button" data-ui-variant="accent" data-ui-size="sm" aria-label="Send"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div><div class="motion-col"><h3>The reply</h3><p>Each chunk shows as it arrives; the view jumps.</p><div class="motion-panel" id="reduced-stream"><div class="conversation-thread"><div class="thread-scroll"><div class="thread"><div class="thread-item"><div class="msg-user"><div class="bubble">Add an empty state to the payment frame</div></div></div><div class="thread-item"><div class="msg-agent md"><p>I added the empty state with the illustration and a primary action.</p></div></div></div></div></div></div></div></div></section>
 <script>// Board only: replays the motion options. The implementation's constants are the ones named here.
 (() => {
-  const MAX_LAG_MS = 250, FINISH_MS = 150, TAU_MS = 40;
+  const MAX_LAG_MS = 400, FINISH_MS = 150, TAU_MS = 40;
   const SENT = ["Make the empty state's action say “Add a card”", "Also keep the 12 px side margin"];
   // The reply as chunks (text, delay before it in ms): a three-line burst, a code block, small pieces.
   const REPLY = [
@@ -187,18 +182,10 @@ body{padding:var(--space-8);background:var(--surface-inset)}
     const p = parts(id), f = follower(p.scroller);
     for (let i = 0; i < count; i++) {
       const text = SENT[i % SENT.length];
-      if (p.composer && variant === "b") { p.composer.textContent = text; await new Promise(r => setTimeout(r, 350)); }
-      const from = p.composer ? p.composer.getBoundingClientRect() : null;
       if (p.composer) p.composer.textContent = "";
       const item = bubble(text); p.thread.appendChild(item);
       const b = item.querySelector(".bubble");
-      if (variant === "b" && from) {
-        const to = b.getBoundingClientRect();
-        b.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)`, opacity: 0.6 }, { transform: "none", opacity: 1 }],
-          { duration: 220, easing: getComputedStyle(document.documentElement).getPropertyValue("--ease-enter").trim() || "ease-out" });
-      } else {
-        b.classList.add(variant === "fade" ? "enter-fade" : variant === "c" ? "enter-c" : "enter-a");
-      }
+      b.classList.add(variant === "fade" ? "enter-fade" : "enter-a");
       if (variant === "fade") f.jump(); else f.ease();
     }
   };
@@ -216,26 +203,42 @@ body{padding:var(--space-8);background:var(--surface-inset)}
     const blocks = (text) => text.split(/\n\n/);
     // Render `shown` characters of `received`: paragraphs and one code fence, revealed line by line inside it.
     let rendered = 0;
-    const render = (n, fadeNew) => {
+    // B: each newly shown run of words keeps its own start time and goes from transparent to full over FADE_MS
+    // (time-settle 220 ms, ease-out), so the last few words of the line trail in softly while the rest stays solid.
+    const FADE_MS = 220, segs = [];
+    const fill = (el, text, start, now) => {
+      if (!(variant === "b")) { el.textContent = text; return; }
+      let at = 0;
+      for (const s of segs) {
+        const age = now - s.at; if (age >= FADE_MS) continue;
+        const a = Math.max(s.from - start, 0), b = Math.min(s.to - start, text.length);
+        if (b <= a || a < at) continue;
+        if (a > at) el.appendChild(document.createTextNode(text.slice(at, a)));
+        const span = document.createElement("span");
+        const t = age / FADE_MS; span.style.opacity = String(1 - Math.pow(1 - t, 3));
+        span.textContent = text.slice(a, b); el.appendChild(span); at = b;
+      }
+      if (at < text.length) el.appendChild(document.createTextNode(text.slice(at)));
+    };
+    const render = (n, now) => {
       const text = received.slice(0, n);
       const prevLen = rendered; rendered = n;
+      if (variant === "b" && n > prevLen) segs.push({ from: prevLen, to: n, at: now });
       body.textContent = "";
       let at = 0;
       for (const raw of blocks(text)) {
         if (!raw) { at += 2; continue; }
         const fence = raw.startsWith("```");
         const el = document.createElement(fence ? "pre" : "p");
-        const content = fence ? raw.replace(/^```\n?/, "").replace(/\n?```$/, "") : raw;
-        if (fadeNew && at + raw.length > prevLen && !fence) {
-          const keep = Math.max(0, prevLen - at);
-          el.appendChild(document.createTextNode(content.slice(0, keep)));
-          const span = document.createElement("span"); span.className = "word-in"; span.textContent = content.slice(keep); el.appendChild(span);
-        } else el.textContent = content;
+        const lead = fence ? (raw.match(/^```\n?/) || [""])[0].length : 0;
+        const content = fence ? raw.slice(lead).replace(/\n?```$/, "") : raw;
+        fill(el, content, at + lead, now);
         if (variant === "c" && at >= prevLen) el.classList.add("block-in");
         body.appendChild(el);
         at += raw.length + 2;
       }
     };
+    const fading = (now) => variant === "b" && segs.some(s => now - s.at < FADE_MS);
     const wordEnd = (from) => { const i = received.slice(from).search(/[\s]/); return i < 0 ? received.length : from + i + 1; };
     const step = (now) => {
       const dt = last ? Math.min(now - last, 1000) : 16; last = now;
@@ -256,13 +259,15 @@ body{padding:var(--space-8);background:var(--surface-inset)}
         if (overdue.length) want = Math.max(want, Math.max(...overdue) - shown);
         if (want > 0) shown = Math.min(received.length, wordEnd(shown + want - 1));
       }
-      if (shown !== rendered) {
-        render(shown, variant === "b");
+      if (shown !== rendered || fading(now)) {
+        const grew = shown !== rendered;
+        render(shown, now);
+        if (!grew) { raf = requestAnimationFrame(step); return; }
         if (variant === "now") f.jump(); else if (variant === "c") f.ease(); else if (variant === "reduced") f.jump();
       }
       const oldest = arrivals.find(a => a.end > shown);
       if (meter) meter.textContent = oldest ? `oldest hidden ${Math.round(now - oldest.at)} ms` : "";
-      if (done && shown >= received.length) {
+      if (done && shown >= received.length && !fading(now)) {
         raf = 0; f.pin(false);
         const row = document.createElement("div"); row.className = "thread-item";
         row.innerHTML = '<div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>2 steps</span><svg class="chev" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button></div>';
@@ -301,13 +306,13 @@ body{padding:var(--space-8);background:var(--surface-inset)}
     setInterval(() => { const p = parts(id); if (n++ % 3 === 0) reset(p); enter(variant, id, 1); }, 3000);
     setTimeout(() => enter(variant, id, 1), 600);
   };
-  ["a", "b", "c"].forEach(v => loopEntry(v, "entry-" + v));
+  loopEntry("a", "entry-a");
   loopEntry("fade", "reduced-panel");
   const loopStream = (variant, id) => {
     const run = () => { play(variant, id, () => setTimeout(run, 2500)); };
     setTimeout(run, 400);
   };
-  ["now", "a", "b", "c"].forEach(v => loopStream(v, "stream-" + v));
+  ["now", "b"].forEach(v => loopStream(v, "stream-" + v));
   loopStream("reduced", "reduced-stream");
 })();
 </script>
