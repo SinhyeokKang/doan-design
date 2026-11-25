@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { checkLatestMacYml, compareEntitlements, compareFuses, parseCodesignDetails, parseSpctl } from "./releaseChecks.mjs";
+import { checkLatestMacYml, checkSignedEntitlements, compareFuses, parseCodesignDetails, parseSpctl } from "./releaseChecks.mjs";
 
 const committedEntitlements = readFileSync(new URL("../resources/entitlements.mac.plist", import.meta.url), "utf8");
 const committedFuses = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).build.electronFuses;
@@ -88,10 +88,10 @@ function checkApp(label, app) {
     join(app, "Contents", "Resources", "bin", "doan"),
   ];
   for (const path of entitled) {
-    const signed = run("codesign", ["-d", "--entitlements", "-", "--xml", path]).output;
-    const extra = compareEntitlements(committedEntitlements, signed.slice(signed.indexOf("<?xml")));
+    const signed = existsSync(path) ? run("codesign", ["-d", "--entitlements", "-", "--xml", path]) : null;
+    const problems = checkSignedEntitlements(committedEntitlements, signed);
     const name = path === app ? "Doan.app" : path.slice(app.length + 1);
-    check(`${label} entitlements ${name}`, extra.length === 0, extra.join(", "));
+    check(`${label} entitlements ${name}`, problems.length === 0, problems.join(", "));
   }
 
   const fuses = compareFuses(committedFuses, readFileSync(join(app, "Contents", "Frameworks", "Electron Framework.framework", "Electron Framework")));

@@ -89,6 +89,15 @@ export function compareEntitlements(committedPlist, signedXml) {
   return [...new Set(plistKeys(signedXml))].filter((key) => !allowed.has(key));
 }
 
+// `signed` is `codesign -d --entitlements - --xml`'s result, or null when the path does not exist. Output without XML
+// means no entitlements only after codesign succeeded.
+export function checkSignedEntitlements(committedPlist, signed) {
+  if (signed === null) return ["not found"];
+  if (signed.status !== 0) return [`codesign exited ${signed.status}: ${signed.output.trim()}`];
+  const xml = signed.output.indexOf("<?xml");
+  return xml === -1 ? [] : compareEntitlements(committedPlist, signed.output.slice(xml));
+}
+
 // electron-builder's `electronFuses` keys in fuse wire order (@electron/fuses FuseV1Options).
 const FUSES = [
   "runAsNode",
