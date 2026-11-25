@@ -507,11 +507,11 @@ test("cleans orphaned cache and temp files once nothing is loading, keeping live
   thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "loading" }]);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(readdirSync(f.dir)).toHaveLength(6);
-  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "notFound" }]);
+  thumbnails.entriesChanged(f.entries);
   await vi.waitFor(() => expect(readdirSync(f.dir).sort()).toEqual([`${live}.json`, `${live}.png`, "notes.txt"].sort()));
   // Once per start: a later orphan waits for the next start.
   writeFileSync(join(f.dir, `${orphan}.png`), "x");
-  thumbnails.entriesChanged(f.entries);
+  thumbnails.entriesChanged([...f.entries]);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(readdirSync(f.dir)).toContain(`${orphan}.png`);
 });
@@ -621,6 +621,21 @@ test("a closed window's visibility no longer counts", async () => {
   f.release();
   await started(f, 2);
   expect(f.captures.at(-1)?.endsWith("b.html")).toBe(true);
+});
+
+// A registered root that does not list yet (gone, CLI failure, uninitialized) still owns its cache: its keys are not
+// knowable until it lists, so the startup collection waits for every root to list.
+test.each(["notFound", "cliError", "uninitialized"] as const)("startup collection keeps the cache of a registered %s root", async (kind) => {
+  const f = fixture([".doan/canvases/a.html"]);
+  mkdirSync(f.dir);
+  const live = thumbnailKey(f.root, ".doan/canvases/a.html");
+  const unread = thumbnailKey("/unread", ".doan/canvases/a.html");
+  for (const name of [`${live}.png`, `${unread}.png`, `${unread}.json`]) writeFileSync(join(f.dir, name), "x");
+  const thumbnails = make(f.deps);
+  const problem: FolderEntry = kind === "cliError" ? { path: "/unread", kind, reason: "x" } : { path: "/unread", kind };
+  thumbnails.entriesChanged([...f.entries, problem]);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(readdirSync(f.dir).sort()).toEqual([`${live}.png`, `${unread}.json`, `${unread}.png`].sort());
 });
 
 test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
