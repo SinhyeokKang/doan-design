@@ -66,8 +66,8 @@
 
 /* A disabled row keeps its place. The keyboard ring is drawn inward because the scrolling list would clip it. */
 .doan-menu-item:is([data-highlighted], [data-state="open"]) { background: var(--affordance-floating-hover); }
-/* A listbox row has no data-highlighted: it fills on focus, or on hover only while focus is outside the list,
-   so one row at a time is filled. */
+/* A listbox row has no data-highlighted: it fills on focus (which hover moves once focus is in the list), or on hover
+   only while focus is outside the list, so one row at a time is filled. */
 .doan-menu-item[role="option"][tabindex]:focus,
 [role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
 .doan-menu-item[data-disabled], .doan-menu-item[data-disabled] .sub { color: var(--text-disabled); }

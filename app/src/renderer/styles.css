@@ -84,7 +84,8 @@ code, kbd { font-family: var(--type-family); }
 .measure-line.h { height: 1px; margin-top: -0.5px; background: var(--border-measure); }
 .measure-line.v { width: 1px; margin-left: -0.5px; background: var(--border-measure); }
 .measure-line.h.dashed { height: 0; background: none; border-top: 1px dashed var(--border-measure); }
-/* A right border draws the same line as a left one, which ds/checks.ts edgeStripes reserves for neutral dividers. */
+/* On a zero-width box a right border draws the same line as a left one, which ds/checks.ts edgeStripes reserves for
+   neutral dividers. */
 .measure-line.v.dashed { width: 0; background: none; border-right: 1px dashed var(--border-measure); }
 /* The label sits 6px from its line, centred, and is never moved out of the way. */
 .measure-label { position: absolute; padding: 0 var(--space-1); background: var(--affordance-measure); color: var(--text-on-measure); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: var(--radius-inline); white-space: nowrap; }
@@ -136,8 +137,8 @@ code, kbd { font-family: var(--type-family); }
 
 .right-stack > .right:only-child { flex: 1; border-bottom: 0; }
 
-/* The first run is a modal dialog without tabular figures. The app behind is hidden by opacity, which also hides
-   explicitly visible descendants and keeps layout, so the sidebar material shows through (not on opaque Welcome). */
+/* The first run is a modal dialog without tabular figures, which widen the stepper's "1". Opacity hides the app behind,
+   visible descendants too, and keeps layout, so the sidebar material shows through (not on opaque Welcome). */
 #root:has(> .ob-overlay[open]) > :not(.ob-overlay) { opacity: 0; }
 .ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
 .ob-overlay::backdrop { background: transparent; }
@@ -260,7 +261,8 @@ code, kbd { font-family: var(--type-family); }
 .buddy-card img { width: 196px; height: 196px; border-radius: var(--radius-chip); object-fit: cover; margin-bottom: var(--space-2); }
 .buddy-card strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-semibold); }
 .buddy-card span { min-height: calc(var(--type-caption-line-height) * 2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-standard); }
-/* The radio stays in the tab order for arrows and Space; the card shows its state and focus outside the accent ring. */
+/* The radio stays in the tab order for arrows and Space; the card shows its state, and its focus ring sits outside
+   the accent ring. */
 .buddy-card input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .buddy-card:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .buddy-card[data-o="0"] { transform: none; z-index: 5; }
@@ -298,7 +300,7 @@ code, kbd { font-family: var(--type-family); }
 .buddy-step-notice { margin: var(--space-5) auto 0; max-width: 512px; }
 .buddy-step-notice-top { margin: 0 auto var(--space-5); }
 .buddy-notice .doan-button, .buddy-step-notice .doan-button { margin-left: auto; flex: none; }
-/* Settings lists one row per buddy. The radio group sits inside the settings group, so rows draw the divider. */
+/* The radio group sits inside the settings group, so the buddy rows draw the divider. */
 .buddy-rows > * + * { border-block-start: 1px solid var(--border-standard); }
 .buddy-row { position: relative; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 var(--space-3); cursor: pointer; }
 .buddy-row img { width: var(--size-control-lg); height: var(--size-control-lg); border-radius: var(--radius-chip); object-fit: cover; }
@@ -416,8 +418,8 @@ code, kbd { font-family: var(--type-family); }
 .qo-search > svg { position: absolute; left: var(--space-3); top: 50%; width: var(--size-icon); height: var(--size-icon); transform: translateY(-50%); color: var(--text-metadata); }
 .qo-search .doan-input { padding-left: calc(var(--space-3) + var(--size-icon) + var(--space-2)); }
 .qo-tabs.group-tabs.shell-modes { margin: var(--space-2) 0 0; }
-/* Fixed height so the dialog keeps its size, limited to the room under the field and tabs so it never scrolls.
-   Clip only the block axis, or the list's negative margin loses 4px of its scrollbar. */
+/* `.qo-list`'s 128px is .doan-dialog's top inset; with 16px below, the field, tabs, gaps, padding and border, the dialog
+   never scrolls. Clip only the block axis, or the list's negative margin loses 4px of its scrollbar. */
 .qo-height { position: relative; overflow-x: visible; overflow-y: clip; margin-top: var(--space-2); }
 .qo-height::after { content: ""; position: absolute; inset: 0 0 auto; height: var(--space-2); background: linear-gradient(to bottom, var(--surface-panel), transparent); pointer-events: none; }
 .qo-list {
@@ -645,8 +647,8 @@ body:has(.shell-top) { background: transparent; }
 .composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); }
 /* A contenteditable has no placeholder: ChipField marks an empty field, and aria-placeholder is drawn over it. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
-/* Hanging indent: padding sets the body start, negative text-indent returns the marker. The inline-block marker keeps
-   row height; letter-spacing, not padding, makes its gap so the body-start caret stays outside. Depth spaces: width 0. */
+/* Composer field lists: the inline-block marker keeps row height and needs text-indent 0, or "-" leaves its box. Its gap is
+   letter-spacing, as padding would trap the body-start caret. fieldDecorations.ts word-spaces depth spaces to width 0. */
 .composer-input > div { margin: 0; }
 .composer-input > .field-item { padding-inline-start: calc((attr(data-depth type(<number>), 0) + 1) * var(--space-5) + max(var(--space-3), attr(data-mark type(<length>), 0px))); text-indent: calc(-1 * max(var(--space-3), attr(data-mark type(<length>), 0px))); }
 .field-mark { display: inline-block; position: relative; text-indent: 0; font-variant-numeric: normal; letter-spacing: calc(var(--type-label-letter-spacing) + (max(var(--space-3), attr(data-mark type(<length>), 0px)) - attr(data-mark type(<length>), 0px)) / attr(data-chars type(<number>), 1)); }
@@ -657,7 +659,7 @@ body:has(.shell-top) { background: transparent; }
 .field-depth { tab-size: 0; }
 /* ProseMirror's rule for the image after a line-ending chip, which gives the caret a place. */
 .composer-input img.ProseMirror-separator { display: inline !important; border: none !important; margin: 0 !important; }
-/* A sent list's markers span the typed text; "- " and "* " stay unpainted under a drawn bullet, numbers painted.
+/* A sent list's marker and depth spaces are spans over the typed text; "- " and "* " stay unpainted under a drawn bullet.
    A marker wider than the column widens only its own span. */
 .list-mark { display: inline-block; position: relative; min-width: var(--space-3); margin-inline-start: var(--space-5); font-variant-numeric: normal; }
 .list-mark[data-kind="ul"] { color: transparent; }
@@ -1492,16 +1494,16 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* A composer chip locates too; a gone target gets the metadata line under its composer or message. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-/* At most 180px: only the label ellipsizes (its 1em minimum grows the chip if needed), the suffix is capped at
-   100cqw of .msg-agent. Must follow `.anchor-chip span:not(.sr-only)`, or nowrap collapses its leading space. */
+/* The label ellipsizes first; the chip passes 180px only to keep " · <canvas>", itself capped by .msg-agent's 100cqw.
+   Must follow `.anchor-chip span:not(.sr-only)`, or nowrap collapses the suffix's leading space. */
 .conversation-thread .msg-agent { container-type: inline-size; }
 .anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }
 .anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .conversation-thread .thread-item > .copy-failed { margin: var(--space-1h) 0 0; }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
-/* .moving is set for 220ms after the working frame changes: screen-px pan and zoom must not lag. 4.8s is two periods of
-   the notice dot's 2.4s. .still: the conversation waits for an answer. */
+/* .moving enables the slide only for 220ms after the working frame changes, as screen-px pan and zoom must not lag.
+   4.8s is two periods of the 2.4s glow. .still: the conversation waits for an answer. */
 .mark.jump-highlight.working { z-index: -1; animation: doan-work-glow 2.4s var(--ease-state) infinite; }
 .mark.jump-highlight.working::before { background: linear-gradient(135deg, var(--affordance-accent) 0%, var(--indigo-600) 25%, var(--affordance-accent) 50%, var(--indigo-600) 75%, var(--affordance-accent) 100%); background-size: 200% 200%; animation: doan-work-travel 4.8s linear infinite; }
 /* Under no-preference only: a reduced-motion override would need the slide's own specificity to win. */
@@ -1526,7 +1528,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    usage ring rules are bound to .usage. */
 .docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }
 .context-ring { position: relative; display: block; flex: none; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; background: transparent; color: inherit; cursor: default; }
-/* Invisible 24px hit box that meets neighbours without overlap and moves no layout box. */
+/* A 24px hit box, 4px out on every side: the ring's --space-half start margin plus the tray gap keeps it off the
+   last picker. */
 .context-ring::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); border-radius: var(--radius-control); }
 @media (hover: hover) and (pointer: fine) { .context-ring:hover::before { background: var(--affordance-backdrop-hover); } }
 .context-ring:is(:active, [aria-expanded="true"])::before { background: var(--affordance-backdrop-pressed); }
@@ -1610,7 +1613,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* The canvas reads the dot colour from this computed colour. */
 .doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
 .doan-canvas-top { position: absolute; z-index: 3; top: calc(var(--space-5) + var(--space-2)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
-/* The column sets notice width and pointer (screens set only margins), so scrolling over a gap still pans and zooms. */
+/* The column, not a screen, sets notice width and pointer (screens set only margins). A scroll over a notice still
+   bubbles to the area and pans and zooms the board. */
 .doan-canvas-top > * { pointer-events: auto; }
 .doan-canvas-top > .doan-agent { align-self: center; }
 /* Canvas-local, not a shared primitive. The wording gives way first; the button keeps its size. All top capsules share
@@ -1858,5 +1862,5 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Deliberately display: none while open, not visually hidden, so it has no Tab stop or box. Focus returns after
    `hidden` is removed, once main's view has closed the panel. */
 .pw-conv[hidden] { display: none; }
-/* Looks like a frame chip and is as tall as a chip in the field. */
+/* As tall as a chip in the field, with the frame chip's look. */
 .composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-body-sm-letter-spacing); margin-inline: 0; }
