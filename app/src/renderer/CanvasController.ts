@@ -1423,9 +1423,11 @@ export class CanvasController {
     if (this.altHeld) this.drawMarks();
   };
 
+  // stopDrag drops the drag before the lost capture reaches layerUp, so the canvas's drag is released here.
   private releaseInput(): void {
     this.spaceHeld = false;
     this.stopCaptureDrag();
+    if (this.drag?.mode === "asking" || this.drag?.mode === "text") this.post({ type: "text-release", epoch: this.textEpoch });
     this.finishDrag();
   }
 

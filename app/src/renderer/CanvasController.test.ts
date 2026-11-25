@@ -6790,6 +6790,30 @@ describe("hand text drag", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // ⌘Tab mid-drag: the window's blur ends the drag, and the lost capture that follows finds no drag to release.
+  it("the app losing focus mid-drag releases the canvas's drag, so the keys and the wheel work after coming back", async () => {
+    const h = harness();
+    try {
+      hand(h);
+      pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      hit(h, lastProbe(h, "text-press"), true);
+      pointer(h, "pointermove", { clientX: 160, clientY: 100 });
+      await range(h, { dragging: true, text: undefined });
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      pointer(h, "lostpointercapture");
+      expect(ofType(h, "text-release")).toEqual([{ type: "text-release", epoch: expect.any(Number) }]);
+      // The canvas answers the release with the range it ended on.
+      await range(h);
+      expect(painted(h)).toHaveLength(1);
+      (h.doc as { hasFocus: () => boolean }).hasFocus = () => true;
+      h.controller.wheel({ dx: 10, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      expect(ofType(h, "text-point")).toEqual([]);
+      key(h, "keydown", "KeyV");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
   it("a range the canvas posts in Hand with no Hand press of its own is not taken", async () => {
     const h = harness();
     try {
