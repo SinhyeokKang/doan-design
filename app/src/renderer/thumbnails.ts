@@ -19,10 +19,8 @@ export function applyVisibility(current: ReadonlySet<string>, changes: readonly 
   return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
 }
 
-// Thumbnails for the canvases one root's viewers list (the Overview list, a canvas panel's thread cards). Nothing is
-// asked before the first visibility report, so main's queue starts with a row on screen; a pending reply is followed by
-// `onThumbnailChanged`, and so is a stale image. Each viewer sets its own rows and visible set: an image stays while any
-// viewer lists its canvas, and main hears a canvas leave the screen only when no viewer shows it.
+// One root's thumbnails for all its viewers. Nothing is asked before the first visibility report; an image stays while
+// any viewer lists its canvas, and main hears a canvas leave the screen only when no viewer shows it.
 export class ThumbnailRequests {
   private items = new Map<string, ThumbnailState>();
   private rowsBy = new Map<string, readonly CanvasRow[]>();
