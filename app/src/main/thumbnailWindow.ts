@@ -1,7 +1,6 @@
 import { BrowserWindow, webFrameMain, type FrameCreatedDetails } from "electron";
 
-// Measured: `show: false` captured every case `offscreen` did, with
-// less memory, so the window is an ordinary hidden one.
+// An ordinary hidden window (`show: false`), not `offscreen`: it captures the same cases with less memory.
 export const THUMBNAIL_WIDTH = 480;
 // The iframe's `load` + 500 ms, or what is painted at 8 s when `load` never
 // ends. Only the whole-job limit is a failure.
@@ -21,8 +20,8 @@ export function hostPage(width: number, height: number): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-// Resolves to the iframe's rectangle once it settled. A new iframe each time:
-// a reused one can keep the previous document's state (POSTMORTEM "fresh-iframe").
+// Resolves to the iframe's rectangle once it settled. A new iframe each time: a reused one can keep the previous
+// document's state.
 export function frameScript(url: string): string {
   return `new Promise((resolve) => {
   const frame = document.createElement("iframe");
@@ -57,10 +56,8 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
 
   const open = (): BrowserWindow => {
     if (window && !window.isDestroyed()) return window;
-    // No preload, so the page has no IPC to send; the default session keeps
-    // the app's permission and download refusals, and the app-wide
-    // `web-contents-created` handlers gate its navigation like the app
-    // window's (index.ts).
+    // No preload, so the page has no IPC; the default session keeps the app's permission and download refusals, and the
+    // app-wide `web-contents-created` handlers gate its navigation.
     const created = new BrowserWindow({
       show: false,
       title: CAPTURE_WINDOW_TITLE,

@@ -18,19 +18,8 @@ export interface MenuEnabled {
   toggleSidebar: boolean;
 }
 
-// Design 'Menus and per-screen enablement'. `workspace` is a workspace with no
-// canvas open. An open modal disables main-window actions so the window
-// cannot act behind it.
-// `addProjects` is the Add Projects page: Add Projects… opens its Choose folder, so only in its choose phase (`choose`).
-// `settings` is the Settings page: Settings… there focuses its category title again, Add Projects… moves to Add Projects.
-// `locked`: a page phase nothing may leave — Add Projects' selecting and cloning,
-// Settings' writes and confirmations. Settings… is a page move, so a lock or a modal
-// disables it too.
-// `overview`: the workspace shows a project's Overview, not a problem screen.
-// `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the same availability as
-// the canvas toolbar's Picker.
-// `prototypeFocused`: the prototype window has focus. Every item that acts on the main window's canvas, conversation,
-// view or navigation goes off, so it cannot change the main window behind it; the app-level items stay.
+// An open modal disables main-window actions so the window cannot act behind it; a `locked` page phase nothing may
+// leave disables Settings… too. `prototypeFocused`: only app-level items stay, so nothing changes the main window behind it.
 export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; prototypeFocused?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
   if (context.prototypeFocused === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false };

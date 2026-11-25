@@ -6,9 +6,8 @@ import type { LiveTurn } from "./conversationWork";
 import { openBlockedMessage } from "./deepLinks";
 import type { FolderEntry, GitInfo } from "./view";
 
-// `doan remove` (app-socket v7), main's judgment once schema, token and the registered root passed: readiness, first
-// run, the main window's dialog and locked pages, then any running conversation in the group. Nothing is asked of the
-// renderer, so a refusal can never land after the removal.
+// `doan remove` once schema, token and the registered root passed: readiness, first run, the main window's dialog and
+// locked pages, then any running conversation in the group. Nothing is asked of the renderer.
 
 const COMMON = "/w/app/.git";
 const git = (branch: string, worktrees: string[] = ["/w/app", "/w/app-fix", "/w/.wt/app-auto"]): GitInfo => ({ common: COMMON, main: "/w/app", branch, worktrees });
@@ -102,8 +101,8 @@ describe("refusals change nothing", () => {
     expect(cliRemoveDecision(input({ liveTurns: new Map([["done", turn("/w/app", false)], ["elsewhere", turn("/w/other")]]) })).kind).toBe("remove");
   });
 
-  // A start or send main has not accepted yet, or one waiting for its previous turn, has no running turn in liveTurns
-  // but runs for the person (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  // A start or send main has not accepted yet, or one waiting for its previous turn, has no turn in liveTurns but runs
+  // for the person.
   test("a conversation not accepted yet in any root of the group refuses; one in another project does not", () => {
     const running = { code: "conversation_running", message: "A conversation is running in this project in Doan." };
     expect(refusal({ pendingRoots: new Set(["/w/app"]) }).error).toEqual(running);
@@ -118,7 +117,7 @@ describe("refusals change nothing", () => {
   });
 
   // What the person must finish comes before loading: the renderer reports ready only after first run and the buddy
-  // screen, and a locked Add Projects page is itself reading the root it sets up (found by the runtime probe).
+  // screen, and a locked Add Projects page is itself reading the root it sets up.
   test("the checks run in order: registration, first run, dialog, locked page, loading, conversations", () => {
     const all: Partial<CliRemoveInput> = { ready: false, firstRun: true, menu: { screen: "settings", modal: true, locked: true }, liveTurns: new Map([["c", turn("/w/app")]]) };
     expect(refusal({ ...all, root: "/w/nowhere" }).error.code).toBe("project_not_open");

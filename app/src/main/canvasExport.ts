@@ -6,23 +6,10 @@ import type { ExportTarget } from "./prototype/ipc";
 import type { WindowKind } from "./senderAllowed";
 import type { FolderEntry } from "./view";
 
-// Export (`canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
-// names a listed row only; main picks the file through the panel and keeps the path it wrote.
+// The renderer names a listed row only; main picks the file through the save panel and keeps the path it wrote.
 
-// What the renderer needs for its toasts, nothing more (the CLI's absolute output path stays in main):
-// - `exported`: `external` is how many internet URLs the file still loads; `reveal` is an opaque id for
-//   `canvas:revealExport` (Show in Finder), valid only for a file main itself just wrote. A prototype export adds
-//   `linkedFrames`, how many frames of the start frame's link group the file holds besides it.
-// - `failed` `refused`: `count` references Doan can't include, `first` the first one as the CLI wrote it (no absolute
-//   path). `unreadable`: refused with no reference (the canvas doesn't parse or has no valid
-//   `doan:width`). `tooLarge`: over 50 MiB, `largest` the biggest asset's repo-relative path when the CLI named one.
-//   `insideDoan`: the chosen folder is inside a `.doan` directory. `failed`: anything else (no CLI, a crash, a timeout,
-//   output that is not an envelope, a write failure).
-//   A prototype export (`--frame <id> --prototype`) adds `notFound`: the file holds no such frame, or two (the window may
-//   play one a script adds), and `notMarked`: the file's frame has no valid prototype mark.
-// - `refused`: `notListed` for a root or row main does not list; `exporting` while an export of the same canvas runs (or,
-//   in the prototype window, any export of that window); `changed` when the prototype window's frame at the click is no
-//   longer the one playing.
+// Only what the renderer's toasts need; the CLI's absolute output path stays in main. `reveal` is valid only for a
+// file main itself just wrote; `first` and `largest` are repo-relative as the CLI wrote them.
 export type ExportReply =
   | { kind: "cancelled" }
   | { kind: "exported"; external: number; linkedFrames?: number; reveal: string }
@@ -49,8 +36,8 @@ export function prototypeExportName(path: string, frame: string): string {
   return `${name.replace(/[/:\u0000-\u001f\u007f]/g, "-")}.html`;
 }
 
-// The CLI lists references (export_refused) and assets (export_too_large) one per line as `- <item>: <detail>`, the
-// detail never containing ": " (contract with `cli/internal/cli/export.go`). Other lines are prose.
+// The CLI lists items one per line as `- <item>: <detail>`, the detail never containing ": " (contract with
+// `cli/internal/cli/export.go`). Other lines are prose.
 function listed(message: string): string[] {
   return message.split("\n").filter(line => line.startsWith("- ")).map(line => {
     const item = line.slice(2), cut = item.lastIndexOf(": ");
@@ -62,9 +49,8 @@ function listed(message: string): string[] {
 // disk `.DOAN` is the same directory.
 const insideDoan = (output: string) => posix.dirname(output).split("/").some(segment => segment.toLowerCase() === ".doan");
 
-// One `doan export` run read as the renderer's outcome. `output` is the file main asked the CLI to write. `prototype`:
-// the run had `--prototype`, so only a result that says so is the file asked for. Its `linkedFrames` only words the
-// toast: the file is written either way, so a value that is not a count reads as none.
+// `prototype`: the run had `--prototype`, so only a result that says so is the file asked for. A `linkedFrames` that is
+// not a count reads as none: the file is written either way.
 export function interpretExport(run: CliRun, output: string, prototype = false): ExportOutcome {
   let value: unknown;
   try { value = JSON.parse(run.stdout); } catch { return { kind: "failed", reason: "failed" }; }
@@ -101,7 +87,6 @@ export interface CanvasExportDeps {
   // Never sent for a cancelled panel or a refused request.
   running(root: string, path: string): void;
   run(root: string, path: string, output: string): Promise<CliRun>;
-  // Electron's shell.showItemInFolder.
   reveal(path: string): void;
 }
 
@@ -154,7 +139,7 @@ export function createCanvasExport(deps: CanvasExportDeps): CanvasExport {
   const flow = exportFlow(deps.choose, deps.reveal);
   return {
     async export(value) {
-      // Checks 1 and 2 of Move to Trash: a registered root whose list holds this exact canvas path.
+      // Move to Trash's checks: a registered root whose list holds this exact canvas path.
       const request = trashRequest(value);
       if (request === null) return EXPORT_REFUSED;
       const target = trashTarget(deps.entries(), request);

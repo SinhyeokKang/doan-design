@@ -82,8 +82,8 @@ test("a dead renderer of a window already replaced does not touch the new one", 
   expect(closed).toHaveBeenCalledTimes(1);
 });
 
-// A Play can land between a window's `close` and `closed` (the page's unload is a renderer round trip). The new window
-// keeps its run, and the old one's own drafts still go: nothing else ever releases them (POSTMORTEM 2026-11-14).
+// A Play can land between a window's `close` and `closed`. The new window keeps its run, and the old one's own drafts
+// still go: nothing else ever releases them.
 test("a Play between the old window's close and closed keeps the new window and still releases the old window's drafts", async () => {
   const { prototype, closed, window } = await opened();
   window.emit("close");

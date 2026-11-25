@@ -175,9 +175,7 @@ describe("save", () => {
     expect(readdirSync(join(path, ".."))).toEqual(["ui-state.json"]);
   });
 
-  // Before the fix the rename was async, and a quit flush that came while it
-  // ran was overwritten by it. The commit is now one synchronous step after
-  // the superseded check, so the flush comes either before it (and wins) or,
+  // The commit is one synchronous step after the superseded check, so a quit flush comes either before it (and wins) or,
   // as here, right after it.
   test("a rename the debounced write already issued does not land over a later flushSync", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });

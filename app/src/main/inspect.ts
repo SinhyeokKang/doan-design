@@ -1,15 +1,5 @@
-// Pure inspector logic over CDP `CSS.getMatchedStylesForNode` and
-// `CSS.getComputedStyleForNode` output. CDP finds the
-// matched rules and orders them; what it leaves to us is importance, the
-// shorthand part behind each longhand, var() and token chains, inheritance,
-// and the display form. Electron-free so it is tested with recorded output.
-//
-// Known gaps, shared with the script method the PoC measured: the `inherit`
-// keyword (reported as unknown), variables invalid at computed-value time
-// (unknown), var() resolved with the selected element's custom properties
-// even for an inherited declaration, logical properties read as horizontal-tb
-// left-to-right, and `:not(:hover)` counted as a hover state. An author
-// declaration through a property not mapped here is unknown, never default.
+// Inspector logic over CDP's matched and computed styles: CDP orders the rules; importance, shorthand parts, var() and
+// token chains, inheritance and display are ours. Known gaps (`inherit`, invalid var(), logical props) read as unknown.
 
 export type InspectGroup = "layout" | "box" | "typography" | "colors" | "radius" | "shadow";
 export type InspectState = "token" | "hardcoded" | "unknown" | "default";
@@ -38,8 +28,7 @@ export interface InspectRow {
 }
 
 // not-shown: the window does not show the requested canvas document (a switch or reload raced the request).
-// not-found: the shown document has no node for the selector. unavailable: the debugger is not attached, a command
-// failed, or the read ran out of time.
+// not-found: no node for the selector. unavailable: no debugger, a failed command, or out of time.
 export type InspectFailure = "not-shown" | "not-found" | "unavailable";
 export type InspectResult = { ok: true; rows: InspectRow[] } | { ok: false; reason: InspectFailure };
 
@@ -153,9 +142,8 @@ function clean(value: string): string {
   return value.replace(/\s*!\s*important\s*$/i, "").trim();
 }
 
-// The winning declaration for `prop` inside one style block. CDP lists the
-// authored declarations (with `text`) followed by their expanded longhands; a
-// block with no `text` at all (user-agent, attribute styles) lists only longhands.
+// The winning declaration for `prop` in one style block. CDP lists the authored declarations (with `text`) and then
+// their expanded longhands; a block with no `text` at all (user-agent, attribute styles) lists only longhands.
 function blockDeclaration(style: CdpStyle | undefined, prop: string): Declaration | null {
   if (!style) return null;
   const live = style.cssProperties.filter((p) => p.disabled !== true && p.parsedOk !== false);
@@ -204,9 +192,8 @@ function selectorOf(match: CdpRuleMatch): string {
   return picked.length > 0 ? picked.join(", ") : text;
 }
 
-// Candidates in CDP's ascending cascade order: rules (user-agent first, layers
-// already ordered), attribute styles just above the user-agent rules, then the
-// style attribute.
+// CDP's ascending cascade order: rules (user-agent first, layers already ordered), attribute styles just above the
+// user-agent rules, then the style attribute.
 function candidates(level: { inlineStyle?: CdpStyle; attributesStyle?: CdpStyle; matchedCSSRules?: CdpRuleMatch[] }, prop: string): Candidate[] {
   const out: Candidate[] = [];
   const rules = level.matchedCSSRules ?? [];
@@ -245,8 +232,6 @@ function cascadeWinner(list: Candidate[]): Candidate | null {
 function levelOf(matched: MatchedStyles, level: number) {
   return level === 0 ? matched : matched.inherited?.[level - 1];
 }
-
-// ---- values -------------------------------------------------------------
 
 function closeParen(value: string, open: number): number {
   let depth = 0;
@@ -501,8 +486,6 @@ export function longhandSource(input: InspectInput, prop: string): LonghandSourc
   return found;
 }
 
-// ---- rows ---------------------------------------------------------------
-
 export function colorHex(value: string): string {
   const match = /^rgba?\(\s*([^)]*)\)$/i.exec(value.trim());
   if (!match) return value;
@@ -526,9 +509,8 @@ export function collapseBox(values: readonly string[]): string {
   return `${top} ${right} ${bottom} ${left}`;
 }
 
-// One inspector value or token name is at most 500
-// UTF-16 units. Values come straight from the canvas's CSS through CDP, so
-// main cuts them before they cross IPC.
+// Values come straight from the canvas's CSS through CDP, so main cuts each value or token name to 500 UTF-16 units
+// before they cross IPC.
 const VALUE_LIMIT = 500;
 
 function cap(text: string): string {

@@ -1,10 +1,5 @@
-// The single prototype window (PrototypeHost for prototype/controller.ts). It lives outside the main window's
-// lifecycle: main-screen moves and hiding the main window never reach it, ⌘W and the native close close only it, and
-// Quit destroys it.
-//
-// It runs in its own memory-only session, so a hung canvas renderer killed on a timeout is never shared with the
-// main window's canvas or the host page. Its debugger only injects the prototype script; it never feeds
-// DocumentBindings or the read proof, so viewing a prototype never marks a canvas read.
+// Lives outside the main window's lifecycle, in its own memory-only session, so a hung canvas renderer killed on a
+// timeout is never shared. Its debugger only injects the prototype script, so viewing a prototype marks nothing read.
 import { app, BrowserWindow, Menu, screen, session, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type Session } from "electron";
 import { fileURLToPath } from "node:url";
 import type { BuddyId } from "../renderer/buddies";
@@ -29,9 +24,8 @@ export interface PrototypeWindowDeps {
   entries(): readonly FolderEntry[];
   // The main window, for the display a new window opens on and to keep its renderer out of a kill.
   mainWindow(): BrowserWindow | undefined;
-  // The prototype window closed for any reason; `contents` is its webContents id, which named it as a sender.
-  // replaced: a Play between its `close` and `closed` already made the next window, so only what this window alone
-  // held (its drafts' attachments) goes; the shared state belongs to the new window.
+  // `contents` named it as a sender. replaced: a Play between its `close` and `closed` already made the next window, so
+  // only what this window alone held (its drafts' attachments) goes.
   closed(contents: number, replaced: boolean): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
@@ -39,8 +33,7 @@ export interface PrototypeWindowDeps {
   reread(root: string): void;
   // The prototype window gained or lost focus: menu items of the main window go off while it has it.
   focusChanged?(focused: boolean): void;
-  // The whole app is hidden (⌘H). `doan open --prototype` can play while it is, and a window's show alone was not
-  // seen to bring a hidden app back.
+  // `doan open --prototype` can play while the app is hidden, and a window's show alone may not bring it back.
   appHidden?(): boolean;
   // The saved buddy, in the page's query as the main window's, so the panel's first paint has its accent.
   buddy(): BuddyId;
@@ -95,9 +88,8 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     return PROTOTYPE_PARTITION;
   };
 
-  // The window's debugger auto-attaches each canvas iframe paused, adds the armed run's script before any of the
-  // document's own scripts and always resumes it. Nothing here is awaited by a run: a hung canvas process can block
-  // these commands forever, and the host renderer's own timer ends that run.
+  // Each canvas iframe is auto-attached paused, gets the armed run's script before its own and is always resumed.
+  // Nothing here is awaited by a run: a hung canvas process can block these commands forever.
   function injectRuns(target: BrowserWindow): void {
     const dbg = target.webContents.debugger;
     try { dbg.attach("1.3"); } catch (error) {
@@ -111,7 +103,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       void (async () => {
         try {
           if (params.targetInfo?.type === "iframe" && run !== null) {
-            // Without Page.enable the added script never ran.
+            // Without Page.enable the added script does not run.
             await dbg.sendCommand("Page.enable", {}, child);
             await dbg.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: prototypeScriptSource(run.frame, run.gen, run.url) }, child);
           }

@@ -59,9 +59,8 @@ interface Fixture {
   entries: FolderEntry[];
   captures: string[];
   changed: string[];
-  // Captures wait here when set; release() lets the oldest one finish, and
-  // fails when none is waiting, so a release is never lost to a capture that
-  // has not started yet.
+  // Captures wait here when set; release() lets the oldest finish and fails when none is waiting, so a release is never
+  // lost to a capture that has not started yet.
   hold: boolean;
   release(result?: Buffer | null): void;
   result: (url: string) => Buffer | null;

@@ -3,9 +3,8 @@ import type { OnboardingResponse, OpenResponse, PrototypeResponse, RemoveRespons
 import { answerLine } from "./runtime";
 import type { FolderState } from "./folderState";
 
-// App conversations get their own app-socket credential (ARCHITECTURE §4 'App-socket credentials'): it answers what a
-// conversation's agent needs (v1 active, v3 work, v4 open, v5 handoff, v6 prototype) and never onboarding (v2) or a
-// project removal (v7), which stay with the terminal's full token.
+// App conversations' credential (ARCHITECTURE §4 'App-socket credentials') answers v1 and v3–v6, never onboarding (v2)
+// or a project removal (v7), which stay with the terminal's full token.
 const token = "f".repeat(64), conversation = "c".repeat(64), root = "/repo", path = ".doan/canvases/a.html";
 const state = () => ({
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(), workOthers: vi.fn(() => []),

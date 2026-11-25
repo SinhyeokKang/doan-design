@@ -1,9 +1,8 @@
 import { USAGE_CHANNELS } from "./agentAuth/usageIpc";
 import type { UsageEntry } from "./agentAuth/usageTypes";
 
-// Usage is read while either window can show it: the main window's header, or the context ring's drawer in either
-// window's composer, so closing the main window does not stop the prototype window's drawer from reading.
-// prototypeShown is the prototype window's own visible(), which already folds in a hidden app.
+// Usage is read while either window can show it, so closing the main window does not stop the prototype window's
+// drawer. prototypeShown is its own visible(), which already folds in a hidden app.
 export function usageVisible({ mainShown, appHidden, prototypeShown }: { mainShown: boolean; appHidden: boolean; prototypeShown: boolean }): boolean {
   return (mainShown && !appHidden) || prototypeShown;
 }

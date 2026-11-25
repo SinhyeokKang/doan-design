@@ -84,7 +84,7 @@ test("answerRequest leaves out a selection from another open project", () => {
   expect(answerRequest(request(), TOKEN, { ...state, selection: () => null })).toEqual({ v: 1, ok: true, result: {} });
 });
 
-// Real socket and files: the guarantees are checked as observed state, not as constants (POSTMORTEM 2026-10-21).
+// Real socket and files: the guarantees are checked as observed state, not as constants.
 let userData: string | undefined;
 let runtime: Runtime | undefined;
 afterEach(async () => {

@@ -2,13 +2,8 @@ import { constants } from "node:fs";
 import { lstat, open, realpath, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 
-// A project's former shared canvas read state, `<root>/.doan/seen/`: one `<canvas-id>.json` per canvas holding the HTML
-// last shown on the canvas page, and `_project.json`, which said the project had read-state records at all. The read
-// state now lives on this device only (canvasSeen.ts); this folder is read once per root, when its records become the
-// root's local record, and is never written or deleted. Only TS reads them, so these tests are their schema.
-//
-// `{"v":1,"html":"sha256:<hex>"}` is the last content shown; `{"v":1,"unseen":"migrated"}` is a canvas that was unseen
-// when an older Doan's device-local record was converted, whose content was never recorded. The marker is `{"v":1}`.
+// A project's former shared read state, read once per root into its local record and never written or deleted. Only
+// TS reads it: `{"v":1,"html":"sha256:<hex>"}`, `{"v":1,"unseen":"migrated"}`, and the `_project.json` marker `{"v":1}`.
 
 export const SEEN_DIR = ".doan/seen";
 export const MARKER = "_project.json";

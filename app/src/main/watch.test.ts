@@ -17,9 +17,8 @@ import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
 import { classifyDesignChange } from "./designChange";
 import { createRefresher, watchFolder, type Change, type FolderWatch } from "./watch";
 
-// Pass-through spy, so a test can see which paths got a watcher of their own;
-// it also counts raw events, so a test can wait until they stop, and can drop
-// events, so a test can stand in for one that FSEvents never delivered.
+// Pass-through spy: shows which paths got a watcher of their own, counts raw events so a test can wait until they
+// stop, and can drop events to stand in for one FSEvents never delivered.
 const raw = vi.hoisted(() => ({ events: 0, drop: undefined as ((path: string, filename: string | null) => boolean) | undefined }));
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
@@ -45,9 +44,8 @@ afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-// Waits until neither a raw event nor a call has arrived for 300 ms (bounded).
-// A fixed sleep let a late FSEvents batch from setup slip into the next step,
-// and a raw event shows up before the debounced call it causes.
+// Waits until neither a raw event nor a call has arrived for 300 ms (bounded): a late FSEvents batch from setup can
+// slip into the next step, and a raw event shows up before the debounced call it causes.
 async function settle(calls: () => number): Promise<void> {
   const activity = () => raw.events + calls();
   const deadline = Date.now() + 3_000;
@@ -173,7 +171,7 @@ describe("watchFolder re-reads within a second", () => {
   });
 });
 
-// `doan ls` no longer reads `.doan/comments/`; a repo may still hold one from before comments were removed.
+// `doan ls` does not read `.doan/comments/`; a repo may still hold one from before comments were removed.
 describe("watchFolder ignores a leftover .doan/comments/", () => {
   test("gives it no watcher, and a file in it changing re-reads nothing", async () => {
     const root = repo();
@@ -234,8 +232,8 @@ async function watchScope(root: string, scope: string[]): Promise<Recorder> {
     },
     reset: () => (calls = []),
   };
-  // Quiet alone let a late FSEvents batch from setup reach a loaded shard's
-  // first assertion; a marker written after setup arrives after that batch.
+  // Quiet alone can let a late FSEvents batch from setup reach a loaded shard's first assertion; a marker written after
+  // setup arrives after that batch.
   await drainSetup(root, () => calls.length, recorder.reset);
   return recorder;
 }
@@ -252,17 +250,15 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
   w.reset();
   change();
   expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
-  // Wait for the expected flags, not only for a quiet spell: when fseventsd is backlogged one
-  // burst can arrive in batches more than 300 ms apart, and the refresher's later run still
-  // carries the flag. Settling afterwards keeps an unexpected late flag a failure.
+  // Wait for the expected flags, not only a quiet spell: a backlogged fseventsd can split one burst more than 300 ms
+  // apart. Settling afterwards keeps an unexpected late flag a failure.
   await vi.waitFor(() => expect(w.merged()).toEqual(expected), { timeout: 5_000, interval: 20 });
   await settle(() => w.calls().length);
   expect(w.merged()).toEqual(expected);
 }
 
-// Waits until FSEvents has delivered everything the repository's setup caused, by writing a marker after it and
-// waiting for the root watcher to see the marker: one stream delivers events in order, and a quiet interval cannot
-// tell a backlogged fseventsd from a finished one. The marker itself reaches no watcher's listener.
+// Waits for a marker written after the setup to reach the root watcher: one stream delivers events in order, and a
+// quiet interval cannot tell a backlogged fseventsd from a finished one. The marker reaches no watcher's listener.
 async function drainSetup(root: string, calls: () => number, reset: () => void): Promise<void> {
   const prefix = `.drain-${count++}-`;
   let seen = false;
@@ -382,8 +378,8 @@ describe("watchFolder classifies changes", () => {
     expect(classifyDesignChange(names ?? null)).toEqual({ bumpServed: false, revPaths: [".doan/canvases/a.html", ".doan/ds/a.html"] });
   });
 
-  // POSTMORTEM: a new watch target gets a delete-and-recreate test. The `.doan`
-  // watcher sees `ds` itself go and come back, so every open canvas reloads.
+  // A new watch target gets a delete-and-recreate test. The `.doan` watcher sees `ds` itself go and come back, so every
+  // open canvas reloads.
   test(".doan/ds/ deleted and created again is a served change, and is watched again", async () => {
     const root = repo({ ds: true });
     const w = await watchScope(root, [".doan/canvases", ".doan/ds"]);
@@ -770,9 +766,8 @@ test("canvas assets reload after creation, editing and directory replacement", a
   await expectChange(w, () => writeFileSync(join(assets, "style.css"), "c{}"), SERVED);
 });
 
-// libuv recreates its shared FSEvents stream from "now" whenever a watcher opens or
-// closes, so `.doan`'s own event for the replaced directory can be lost while the
-// re-arm runs. The replacement alone has to count as the directory coming and going.
+// libuv recreates its shared FSEvents stream from "now" whenever a watcher opens or closes, so `.doan`'s own event for
+// the replaced directory can be lost during the re-arm; the replacement alone must count.
 test("a replaced canvas assets directory reloads even when .doan's event for it is lost", async () => {
   const root = repo();
   const assets = join(root, ".doan/assets");

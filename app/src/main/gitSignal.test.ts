@@ -10,8 +10,6 @@ const file = (text: string, size = text.length, mtimeMs = 1000): GitFileRead => 
 const signal = (files: { head?: string | null; fetchHead?: GitFileRead | null; origHead?: GitFileRead | null }) =>
   parseGitSignal({ head: files.head ?? null, fetchHead: files.fetchHead ?? null, origHead: files.origHead ?? null });
 
-// --- resolveGitDir ---
-
 test("a .git directory is the gitdir", () => {
   expect(resolveGitDir({ kind: "directory", path: "/repo/.git" })).toBe("/repo/.git");
 });
@@ -29,7 +27,7 @@ test("a .git file that is not a gitdir link, or no .git at all, has no gitdir", 
   expect(resolveGitDir({ kind: "none" })).toBeNull();
 });
 
-// --- gitDirOf: the nearest .git at or above the root, below HOME (Go gitLocation) ---
+// gitDirOf: the nearest .git at or above the root, below HOME (Go gitLocation).
 
 test("the nearest .git at or above the root names the gitdir, and nothing at or above HOME counts", () => {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "doan-gitdir-")));
@@ -54,8 +52,6 @@ test("the nearest .git at or above the root names the gitdir, and nothing at or 
   expect(gitDirOf(join(base, "other/sub"), home)).toBe(join(base, "other/.git"));
   expect(gitDirOf(join(base, "elsewhere"), home)).toBeNull();
 });
-
-// --- parseGitSignal ---
 
 test("a normal checkout's signal follows the branch name", () => {
   const main = signal({ head: "ref: refs/heads/main\n" });
@@ -118,8 +114,6 @@ test("a branch switch or a checkout of a commit changes the signal", () => {
   expect(signal({ head: "ref: refs/heads/other\n" })).not.toBe(main);
   expect(signal({ head: `${SHA1}\n` })).not.toBe(main);
 });
-
-// --- settlePending ---
 
 const T = 100_000;
 const entry = (at: number, value: string): GitSignalEntry => ({ at, signal: value });

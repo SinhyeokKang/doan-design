@@ -8,9 +8,8 @@ import type { WindowKind } from "./senderAllowed";
 import type { Capturer } from "./thumbnailWindow";
 import type { CanvasRow, FolderEntry } from "./view";
 
-// `pending` is answered later with `thumbnails:changed`; `unavailable` is a
-// canvas that cannot be captured now (no `doan:width`, not listed, or a failed
-// capture until the canvas changes).
+// `pending` is answered later with `thumbnails:changed`; `unavailable`: no `doan:width`, not listed, or a failed capture
+// until the canvas changes.
 export type ThumbnailReply = { kind: "ready"; png: Uint8Array } | { kind: "pending" } | { kind: "unavailable" };
 export interface ThumbnailTarget { root: string; path: string }
 
@@ -31,9 +30,8 @@ export interface Thumbnails {
   visible(root: string, path: string, visible: boolean, viewer: WindowKind): void;
   // A closed window reports nothing more, so what it showed stops counting as visible.
   viewerClosed(viewer: WindowKind): void;
-  // Every folder update: forgets canvases that left the list, re-checks a
-  // folder whose served files changed or only the canvases whose row revision
-  // moved, and cleans the cache once at start.
+  // Every folder update: forgets canvases that left the list, re-checks a folder whose served files changed or only the
+  // rows whose revision moved, and cleans the cache once at start.
   entriesChanged(entries: readonly FolderEntry[]): void;
   // Removed projects lose their cache files; `before` is the list before removal.
   removed(roots: readonly string[], before: readonly FolderEntry[]): Promise<void>;
@@ -44,19 +42,16 @@ export interface Thumbnails {
 
 const isTemp = (name: string) => name.endsWith(".tmp");
 
-// Entries (directories and files alike) visited for one folder's served
-// signature. A folder serving more stops the walk there and counts as changed at every served revision, so its
-// thumbnails are taken again rather than shown stale.
+// Entries visited for one folder's served signature. A folder serving more counts as changed at every served
+// revision, so its thumbnails are taken again rather than shown stale.
 export const SERVED_WALK_LIMIT = 2000;
 
 // Canvases are tracked by their own mtime and size; every other served file
 // can restyle all of them.
 const isCanvas = (path: string) => canvasKind(path) !== null;
 
-// Every non-canvas file the folder serves, or null once the walk has visited
-// SERVED_WALK_LIMIT entries, canvases and empty directories included.
-// Symlinked files count; symlinked directories are not entered, so a link
-// cycle cannot run the walk forever.
+// Every non-canvas file the folder serves, or null past SERVED_WALK_LIMIT entries. Symlinked directories are not
+// entered, so a link cycle cannot run the walk forever.
 async function servedFiles(root: string, scope: readonly string[]): Promise<TokenFile[] | null> {
   const files = new Map<string, TokenFile>();
   let visited = 0;
@@ -164,9 +159,8 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     if (queue.active !== null && !running && !disposed) void run(queue.active);
   };
 
-  // Token CSS and every other served file restyle the folder's canvases
-  // while the canvas files stay put. The watcher bumps `servedRev` for each
-  // served change, so the walk runs once per revision, not per get.
+  // Token CSS and other served files restyle the folder's canvases while the canvas files stay put; the watcher bumps
+  // `servedRev` for each served change, so the walk runs once per revision.
   const tokens = (root: string): Promise<string> => {
     const entry = deps.entries().find((candidate) => candidate.path === root);
     const rev = entry?.kind === "list" ? entry.servedRev : undefined;

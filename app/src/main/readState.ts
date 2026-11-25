@@ -3,14 +3,8 @@ import { GRACE_MS, settlePending, type GitSignalEntry, type Pending } from "./gi
 import { validCanvasId, type SeenSnapshot } from "./seenRecords";
 import type { CanvasRow, FolderEntry, ReadStateProblem } from "./view";
 
-// The canvas read state as the window shows it: each listed canvas's verdict (canvasSeen.ts) from its HTML fingerprint
-// and this device's record of the root, the record written when the canvas page shows a canvas, and the failures the
-// window tells with a Retry toast. Electron-free; index.ts wires the window, the watcher and the document bindings.
-//
-// Nothing under the root is ever written. A root's former shared records (`.doan/seen/`) are read once, into its local
-// record. The first listing after start or registration is the baseline: what it lists counts as seen. A canvas ID that
-// appears later waits GRACE_MS; it lights as new unless the git signal moved around its appearance (a pull, a branch
-// switch: git brought it) or the canvas page showed it meanwhile.
+// Each listed canvas's verdict from its fingerprint and this device's record; nothing under the root is ever written.
+// The first listing is the baseline; a later ID waits GRACE_MS and lights as new unless git or the canvas page explain it.
 
 export interface ReadStateDeps {
   local: LocalSeen;
@@ -110,9 +104,8 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     return next;
   };
 
-  // What the window shows for a row: the dot's verdict, and a failure only on a canvas still unseen. A save failure
-  // describes the content that was shown: it stays while the canvas stays shown (nothing was saved since, even if the
-  // file moved on); after that, once the file holds other content, the dot is a change again.
+  // A save failure describes the content that was shown: it stays while the canvas stays shown; after that, once the
+  // file holds other content, the dot is a change again.
   const marks = (run: Run, root: string, path: string): { unseen?: "new" | "changed"; saveFailed?: "save" | "id" } => {
     const state = run.rows.get(path);
     const unseen = state?.verdict === "new" || state?.verdict === "changed" ? state.verdict : undefined;
@@ -172,9 +165,8 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     const stored = deps.local.root(root);
     let record: RootRecord = stored ?? { canvases: {} };
     if (!record.migrated) {
-      // Once per root. A root this device knew under an older Doan carries its shared records and that memory over; any
-      // other (a new worktree, another machine, a moved-aside or later canvas-seen.json) is a first registration and
-      // its `.doan/seen/` is never read.
+      // Once per root. Only a root this device knew under an older Doan carries its shared records over; any other is a
+      // first registration and its `.doan/seen/` is never read.
       const v2 = record.v2;
       if (v2) {
         const snapshot = await deps.read(root, uniqueIds(rows));

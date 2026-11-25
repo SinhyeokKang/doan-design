@@ -67,7 +67,7 @@ type Listener = () => void;
 type MutationRecordLike = { type: "childList" } | { type: "attributes"; attributeName: string };
 type ObserveOptions = { childList?: boolean; subtree?: boolean; attributes?: boolean; attributeFilter?: string[] };
 
-// The late-frame wait after the `load` handlers (the spec's 2 s).
+// The late-frame wait after the `load` handlers (2 s).
 const LATE_FRAME_WAIT = 2000;
 
 function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; readyState?: string } = {}) {
@@ -642,8 +642,7 @@ const noWaitSource = (target: string, gen: number) => {
 
 type Report = { gen: number; state?: string; frames: unknown[]; gotos: { value: string; frames: string[] }[]; goto?: string | null };
 
-// Real-DOM blocks allow 60 s a test: each helper step is bounded at 15 s, so a step that hangs fails by its own name
-// before the test limit.
+// Each helper step is bounded at 15 s, so a step that hangs fails by its own name before the 60 s test limit.
 describe("in a real DOM", { timeout: 60_000 }, () => {
   let dom: ElectronDom;
   beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);

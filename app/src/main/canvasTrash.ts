@@ -7,9 +7,8 @@ import type { Canvas } from "./conversation/types";
 import type { FolderEntry } from "./view";
 import type { WorkItem } from "./workState";
 
-// Move to Trash: `canvas:trashPlan` and `canvas:trash`. The renderer's root and path are only keys
-// into main's own folder list, as for thumbnails (ARCHITECTURE §7 'Main boundary'); every file touched is the listed
-// row's path under the registered root.
+// The renderer's root and path are only keys into main's own folder list (ARCHITECTURE §7 'Main boundary'); every file
+// touched is the listed row's path under the registered root.
 
 export interface TrashRequest { root: string; path: string }
 export interface TrashTarget { root: string; path: string; id?: string }
@@ -38,11 +37,8 @@ export function trashTarget(entries: readonly FolderEntry[], request: TrashReque
   return { root: entry.path, path: row.path, ...(id ? { id } : {}) };
 }
 
-// Check 5, main's own grounds (the renderer's trashBlock is display only). `conversations` and `starting` are this
-// root's: the conversation list and the canvases of starts not accepted yet, which no list names
-// (ConversationService.startingCanvases). A canvas a project conversation is drawing is not held, as a handoff's target
-// is not: neither has a conversation of its own yet. Worktrees share ids and paths, so nothing of another root counts
-// (POSTMORTEM 2026-11-01).
+// Check 5, main's own grounds (the renderer's trashBlock is display only), over this root's conversations and starts
+// not accepted yet. Worktrees share ids and paths, so nothing of another root counts.
 export function trashBusy(
   target: Pick<TrashTarget, "root" | "path" | "id">,
   conversations: readonly ConversationSummary[],
@@ -51,21 +47,16 @@ export function trashBusy(
 ): boolean {
   const canvas: Canvas = target.id ? { path: target.path, id: target.id } : { path: target.path };
   if (starting.some(start => sameCanvas(start, canvas))) return true;
-  // Running, waiting for an answer or `working` (preparing, a queue about to go out): the renderer's trashBlock reads the
-  // same set, so an enabled item is not refused as busy for a conversation state alone.
-  // Every conversation of the canvas counts: several run side by side.
+  // Running, waiting for an answer or `working`: the renderer's trashBlock reads the same set, so an enabled item is not
+  // refused as busy for a conversation state alone. Every conversation of the canvas counts.
   if (conversations.some(c => c.canvas !== undefined && sameCanvas(c.canvas, canvas) && (c.working || c.phase !== "ended"))) return true;
   return work.some(item => item.root === target.root && item.path === target.path);
 }
 
 const code = (error: unknown): unknown => typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
 
-// Checks 3 and 4, against the disk now: the list may be older than a link someone put in since. No segment from
-// `.doan` down is a symbolic link, the canvas is a regular file, and its real path is inside the real root by path
-// segment (ARCHITECTURE §13 'Paths inside the repo').
-// A segment can still turn into a link between this check and `shell.trashItem`, which takes only a path (unlike the
-// server's O_NOFOLLOW_ANY open, serve/server.ts openNoFollow; POSTMORTEM 2026-10-27 "Session history and append
-// followed replaceable filesystem paths"). Accepted: one person-confirmed action on a row the person chose.
+// Checks 3 and 4, on the disk now (ARCHITECTURE §13 'Paths inside the repo'). A segment can still become a link before
+// `shell.trashItem`, which takes only a path; accepted for one person-confirmed action on a row the person chose.
 export async function checkCanvasFile(root: string, path: string): Promise<"ok" | TrashRefusal> {
   const segments = path.split("/");
   try {
@@ -86,7 +77,6 @@ export interface CanvasTrashDeps {
   entries(): readonly FolderEntry[];
   // Check 5 for the listed row; it may throw (an unreadable conversation index), which refuses as failed.
   busy(target: TrashTarget): boolean;
-  // Electron's shell.trashItem.
   trashItem(path: string): Promise<void>;
   // The canvas went: what it leaves behind goes with it (its starts a quit stopped, drafts.ts discardCanvasStarts).
   trashed(root: string, canvas: Canvas): void;

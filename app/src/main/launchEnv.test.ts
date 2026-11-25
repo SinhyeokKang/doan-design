@@ -55,9 +55,8 @@ describe("main's own TLS trusts the NODE_EXTRA_CA_CERTS file", () => {
   let dir = "", ca = "", server: Server, url = "";
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), "doan-ca-"));
-    // Extensions, digest and curve encoding are spelled out, because LibreSSL (macOS's /usr/bin/openssl, the CI
-    // runner's) defaults differ from OpenSSL 3's in ways Node refuses: no CA:TRUE on a `req -x509` certificate (Node
-    // takes only a CA as a trust anchor), SHA-1 signatures and explicit EC parameters.
+    // Extensions, digest and curve encoding are spelled out: LibreSSL (macOS's /usr/bin/openssl) defaults differ from
+    // OpenSSL 3's in ways Node refuses (no CA:TRUE on `req -x509`, SHA-1 signatures, explicit EC parameters).
     const openssl = (...args: string[]) => execFileSync("openssl", args, { stdio: "ignore" });
     const key = ["-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-pkeyopt", "ec_param_enc:named_curve", "-nodes", "-sha256"];
     for (const name of ["corp", "other"]) {

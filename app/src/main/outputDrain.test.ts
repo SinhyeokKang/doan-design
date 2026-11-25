@@ -171,7 +171,7 @@ it("classifies clone stderr delivered after git exits and stops the group before
   await nextTurn();
   expect(run.signals).toContain("SIGTERM");
   run.gone();
-  // Group observation now precedes the last stderr callback.
+  // Group observation precedes the last stderr callback.
   await vi.advanceTimersByTimeAsync(100);
   await nextTurn();
   run.child.stderr.end("fatal: Repository not found\n");

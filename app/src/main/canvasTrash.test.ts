@@ -81,8 +81,8 @@ describe("trashBusy", () => {
     expect(trashBusy({ root: "/repo", path: target.path }, [summary({ phase: "running", canvas: { path: target.path } })], [])).toBe(true);
   });
 
-  // The first conversation of a canvas is in no list until main accepts it, yet it is preparing (PRODUCT §5 'Canvas
-  // row menu'): main's starts not accepted yet count, matched as the list's conversations are.
+  // The first conversation of a canvas is in no list until main accepts it, yet it is preparing: main's starts not
+  // accepted yet count, matched as the list's conversations are.
   test("a start not accepted yet blocks on its own canvas only, matched by id when either side has one", () => {
     expect(trashBusy(target, [], [], [{ path: target.path, id: "a" }])).toBe(true);
     expect(trashBusy(target, [], [], [{ path: ".doan/canvases/old.html", id: "a" }])).toBe(true);

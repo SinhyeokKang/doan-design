@@ -8,9 +8,8 @@ import { answerLine, type RuntimeState } from "./runtime";
 import type { FolderState } from "./folderState";
 import type { CanvasRow, FolderEntry } from "./view";
 
-// App-socket v6 (`doan open --prototype`), main's half. answerLine checks schema, token and registered root in the
-// v3–v5 order; answerCliPlay (what index.ts gives as playPrototype) then judges readiness, first run and the list, and
-// plays through the prototype controller.
+// answerLine checks schema, token and registered root in the v3–v5 order; answerCliPlay then judges readiness, first
+// run and the list, and plays through the prototype controller.
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request: PrototypeRequest = { v: 6, token, root, path, frame: "checkout", mark: "390x844" };
 const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v6/request");

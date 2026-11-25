@@ -1,14 +1,9 @@
 import type { FolderState } from "./folderState";
 
-// Rules for worktrees the app registers on its own when a terminal agent's `doan work start` comes from an
-// unregistered worktree of a saved repository (ARCHITECTURE §4 'Auto-registration'). The I/O lives in folderStore, shell and
-// runtime; these decide.
+// Rules for worktrees the app registers on its own (ARCHITECTURE §4 'Auto-registration'); the I/O is the caller's.
 
-// `view` is `doan ls --json --repo <request root>`. `git.worktrees` lists where this doan root sits in each worktree
-// of the repository (cli/internal/repo/git.go), so a registered root in it means "same repository, same relative
-// path, another worktree"; another doan root of the same checkout has no registered root there. The request root
-// must be the listing's root as a string: a token holder can send any absolute path, and the app never re-derives a
-// root (POSTMORTEM 2026-10-22), so a symlink alias or a subfolder is never stored.
+// A registered root in `view.git.worktrees` means "same repository, same relative path, another worktree". The request
+// root must equal the listing's root as a string: the app never re-derives a root a token holder sends.
 export function autoRegisterRoot(view: FolderState, request: { root: string }, registered: readonly string[]): boolean {
   if (view.kind !== "list" || view.root !== request.root || registered.includes(request.root)) return false;
   return view.git?.worktrees.some((root) => registered.includes(root)) ?? false;
@@ -31,8 +26,7 @@ export function autoAfterAdd(auto: readonly string[], root: string): string[] {
   return auto.filter((entry) => entry !== root);
 }
 
-// The marks worth keeping on disk. `list` is null when folders.json could not be read: an empty fallback list is no
-// ground for deleting marks (POSTMORTEM 2026-10-26).
+// `list` is null when folders.json could not be read: an empty fallback list is no ground for deleting marks.
 export function storedAuto(auto: readonly string[], list: readonly string[] | null): string[] {
   return list === null ? [...auto] : auto.filter((root) => list.includes(root));
 }

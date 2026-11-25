@@ -11,10 +11,9 @@ export interface FolderStore {
   // memory either way, and the app keeps running on that list.
   add(path: string): Promise<Error | null>;
   remove(path: string): Promise<Error | null>;
-  // Auto-registered roots (ARCHITECTURE §7 `auto-folders.json`), in list order. Kept in `auto-folders.json` beside folders.json,
-  // which stays a plain string array so an older app still reads the list.
+  // Auto-registered roots, in list order, kept in `auto-folders.json` so folders.json stays a plain string array an older
+  // app still reads.
   auto(): string[];
-  // Adds the root marked as auto-registered.
   adopt(path: string): Promise<Error | null>;
   // Clears the mark, if any: the human added the root by hand.
   claim(path: string): Promise<Error | null>;
@@ -23,21 +22,16 @@ export interface FolderStore {
   spellings(): ReadonlyMap<string, string>;
 }
 
-// Moves the memory kept under each alias (a saved spelling) to its real path in the stores keyed by root, before
-// folders.json changes; true only when every store holds it under the real path (index.ts: canvas-seen.json, then
-// ui-state.json).
+// Moves the memory kept under each alias to its real path in the stores keyed by root, before folders.json changes;
+// true only when every store holds it under the real path.
 export type RootMigration = (aliases: ReadonlyMap<string, string>) => Promise<boolean>;
 
 export async function readFoldersFile(file: string): Promise<string[]> {
   return await readFoldersFileForPruning(file) ?? [];
 }
 
-// A run starts only on a root that is its own real path (prepare.ts, ARCHITECTURE §7 'Identity and admission'), and
-// registration already stores real paths, so a root saved through a symlink (by hand, a script or an older app) is
-// read as its real path; two spellings of one folder become one entry in the first one's place. A root that cannot be
-// resolved now (missing, unreadable) keeps its saved spelling, so it still shows as missing instead of leaving the
-// list. The promise realpath returns the on-disk spelling. Each spelling is resolved once, however many of the two
-// files hold it.
+// A run starts only on a root that is its own real path (ARCHITECTURE §7 'Identity and admission'), so a root saved
+// through a symlink is read as its real path; one that cannot be resolved now keeps its spelling, so it shows as missing.
 async function realRoots(spellings: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(spellings)];
   const real = await Promise.all(unique.map(path => realpath(path).catch(() => path)));
@@ -91,9 +85,8 @@ async function readMarks(file: string): Promise<string[]> {
   }
 }
 
-// The marks once the list is read as real paths. A mark saved through a symlink still marks its root, also when only
-// the list was rewritten before a stop (folders.json goes first). Two list spellings of one folder that collapse keep it
-// hand-added when either was hand-added, as a manual add clears the mark.
+// A mark saved through a symlink still marks its root. Two list spellings of one folder that collapse keep it
+// hand-added when either was, as a manual add clears the mark.
 function realMarks(list: readonly string[], marks: readonly string[], real: ReadonlyMap<string, string>): string[] {
   const to = (path: string) => real.get(path) ?? path;
   const spellings = new Map<string, string[]>();
@@ -104,17 +97,12 @@ function realMarks(list: readonly string[], marks: readonly string[], real: Read
   });
 }
 
-// One ordered startup step (ARCHITECTURE §7 'Root spellings'): when a saved root or mark reads as another real path,
-// `migrate` moves the memory kept under the alias, then auto-folders.json drops the marks a hand-added spelling clears
-// (only when there are any), then folders.json is written with the real paths, then the normalised auto-folders.json.
-// A stop or a failure at any point leaves files a later launch reads the same way and retries; after a failure this
-// run uses what the files on disk give, so nothing keyed by the saved spellings is dropped. A list that could not be
-// read is never rewritten.
+// One ordered startup step (ARCHITECTURE §7 'Root spellings'). A stop or failure at any point leaves files a later
+// launch reads the same way and retries; a list that could not be read is never rewritten.
 export async function openFolderStore(file: string, migrate: RootMigration = async () => true): Promise<FolderStore> {
   const autoFile = join(dirname(file), "auto-folders.json");
   const saved = await readSavedList(file);
-  // Marks are pruned by the list only when folders.json was read (POSTMORTEM 2026-10-26); otherwise the empty
-  // fallback list would erase them.
+  // Marks are pruned by the list only when folders.json was read; otherwise the empty fallback list would erase them.
   const prunable = saved !== null;
   const savedMarks = await readMarks(autoFile);
   let folders = saved ?? [];
@@ -168,10 +156,8 @@ export async function openFolderStore(file: string, migrate: RootMigration = asy
     await writeFoldersFile(autoFile, next);
     writtenMarks = text;
   };
-  // Each write is a snapshot, in this order: the marks without pruning, folders.json, then the pruned marks. A stop
-  // between files then leaves only a mark folders.json does not list, which is ignored: never an auto-registered
-  // root without its mark (it would stay hand-added for good), nor a removed one's mark on a root still listed. When
-  // the marks cannot be saved, folders.json is not written either.
+  // Each write is a snapshot in this order: unpruned marks, folders.json, pruned marks; a stop between files leaves only
+  // an ignored mark. When the marks cannot be saved, folders.json is not written either.
   const save = (nextFolders: string[], nextMarks: string[]): Promise<Error | null> => {
     folders = nextFolders;
     const kept = storedAuto(nextMarks, prunable ? nextFolders : null);

@@ -3,9 +3,8 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 
-// A canvas's content fingerprint: `sha256:<hex>` of its raw HTML bytes, the same string the local server records for
-// the bytes it sent (`ResponseRecord.hash`), so a shown document and a file on disk compare as strings. Nothing is
-// normalised: a line-ending or BOM change is a change.
+// `sha256:<hex>` of the raw HTML bytes, the same string the local server records for the bytes it sent, so a shown
+// document and a file on disk compare as strings. Nothing is normalised: a line-ending or BOM change is a change.
 export const fingerprintOf = (bytes: Uint8Array): string => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
 export interface Fingerprints {

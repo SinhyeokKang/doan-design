@@ -7,8 +7,8 @@ import type { UpdateSnapshot, UpdateState } from "./update/types";
 
 export * from "./aboutView";
 
-// Settings > About (PRODUCT §5 item 0 'About'): what main reads and the text Copy details puts on the clipboard; the
-// rows the page shows are in aboutView.ts. Main builds that text so the renderer never names a clipboard string.
+// What main reads for Settings > About and the Copy details text; main builds that text so the renderer never names
+// a clipboard string. The page's rows are in aboutView.ts.
 
 const UNREAD = "Couldn’t read the version";
 
@@ -44,7 +44,7 @@ function updateStateText(state: UpdateState, blocked: boolean): string {
 export function aboutText(read: AboutRead, update: UpdateSnapshot): string {
   const lines = [`Doan ${read.version}`, updateLine(update)];
   lines.push(read.cli.version === null ? `doan command: ${UNREAD} (${read.cli.path})` : `doan command ${read.cli.version} (${read.cli.path})`);
-  // The notice sits in the doan command row, so it follows that line; Copy details is how a keyboard copies its paths.
+  // The notice follows the doan command line; Copy details is how a keyboard copies its paths.
   const notice = aboutNotice(read.setup.items, read.setup.home);
   if (notice) {
     lines.push(notice.title);

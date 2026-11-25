@@ -116,9 +116,8 @@ describe("a draft attachment belongs to the window that holds it", () => {
   });
 });
 
-// A start, send or queue carries a window's draft attachments: only its own, and once main accepted the request the ids
-// are the conversation's (the queue, a send under way), never the window's draft again until a window takes a
-// returned draft. Through the real conversation handler and store.
+// A start, send or queue carries only its own window's draft attachments; once main accepted it the ids are the
+// conversation's, never the window's draft again until a window takes a returned draft.
 describe("attachments in a conversation request", () => {
   async function conversation() {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };

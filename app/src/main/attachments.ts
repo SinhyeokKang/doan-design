@@ -3,9 +3,8 @@ import { randomUUID } from "node:crypto";
 import { basename, dirname, extname, isAbsolute, join, relative, sep } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
 
-// Attachments are local paths the agent reads with its own tools (Orca 1.4.243
-// `out/shared/agent-session-attachments.js`: "agents receive only host paths"). Path-less images, pasted text and canvas
-// captures are written by doan under <userData>/attachments/<id>/.
+// Attachments are local paths the agent reads with its own tools. Path-less images, pasted text and canvas captures
+// are written under <userData>/attachments/<id>/.
 export const MAX_ATTACHMENTS = 10;
 // The paste cap is Orca's; local files are not capped, but no image above it is decoded for a thumbnail.
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
@@ -21,10 +20,8 @@ export type AttachmentResult = { ok: true; attachment: AttachmentInfo } | { ok: 
 export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { ok: false; error: "bad_request" } | { ok: false; error: "attachment_missing"; missing: string[]; replaced?: string[] };
 // Electron's nativeImage behind a seam: it decodes only bytes that passed the size and signature checks, never a path.
 export interface ImageCodec { thumbnail(bytes: Uint8Array): Uint8Array | null; reencode(bytes: Uint8Array): Uint8Array | null }
-// dev and ino: the file or folder checked when it was added; a recheck reads nothing from any other file.
-// input: the path as it was given; a recheck resolves it again, so a link that now leads elsewhere is refused.
-// dir: only a paste's own directory under userData, the one thing main ever deletes; a person's folder never has it.
-// sent: a conversation already holds this file, so forgetting it never deletes a paste (Edit on Home brings it back).
+// dev/ino: the entry checked when added; input: the path as given, resolved again on a recheck so a moved link is
+// refused; dir: a paste's own directory, the one thing main deletes; sent: a conversation holds it, so never deleted.
 type Entry = AttachmentRecord & { id: string; pasted: boolean; input: string; dir?: string; dev: number; ino: number; sent?: true };
 type Checked = AttachmentRecord & { dev: number; ino: number; bytes?: Uint8Array };
 export type RecheckResult = { id: string; ok: true; attachment: AttachmentInfo } | { id: string; ok: false; error: AttachmentError };
@@ -39,10 +36,8 @@ export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image
   return null;
 }
 interface Opened { size: number; dev: number; ino: number; directory: boolean; head: Uint8Array; bytes?: Uint8Array }
-// Opens a canonical path without following a link (O_NONBLOCK keeps a FIFO from blocking main) and reads only once
-// the opened file is a regular file and, on a recheck, the same one. whole: also the bytes of an image within the cap,
-// for its thumbnail, from the same descriptor. A folder is only identified: nothing in it is listed or read, so the
-// caller compares its identity. A recheck of a folder reads nothing from whatever took its place.
+// Opens without following a link (O_NONBLOCK keeps a FIFO from blocking main) and reads only a regular file that, on
+// a recheck, is the same one. A folder is only identified: nothing in it is listed or read.
 function readChecked(path: string, expected: { kind: AttachmentRecord["kind"]; dev: number; ino: number } | null, whole: boolean): Opened {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
   try {
@@ -296,10 +291,8 @@ export class AttachmentStore {
       return { id, ok: true, attachment: this.info(current, undefined) };
     });
   }
-  // expected: a recheck, which compares the fresh canonical path with the stored one before opening anything, so a
-  // path swapped to a link elsewhere is refused without reading the other file. A recheck answers only the same kind:
-  // a folder that became a file, or a file that became a folder, is missing; another folder in a folder's place is
-  // replaced.
+  // expected: a recheck, which compares the fresh canonical path before opening anything, so a path swapped to a link is
+  // refused unread. A folder that became a file, or the reverse, is missing; another folder in its place is replaced.
   private check(path: string, expected: Entry | null): Checked | { error: AttachmentError } {
     let real: string | undefined, opened: Opened;
     try {

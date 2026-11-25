@@ -812,7 +812,7 @@ describe("design skills", () => {
 });
 
 describe("the GitHub star card", () => {
-  // A copy that updates gets an enabled store: 'app updates' > 'in a copy that updates' below.
+  // A copy that updates gets an enabled store ('app updates' below).
   test("a development launch makes a store that neither counts nor asks", () => {
     expect(mocks.createStarPrompt.mock.calls[0]![0]).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: false });
   });
@@ -924,9 +924,8 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
 });
 
-// ARCHITECTURE §7 'Settings IPC' 'Storage writes' (POSTMORTEM 2026-11-03 'Locate on the Project Settings page…'): a
-// setup kept out of Git writes the shared exclude file, so every worktree of the project is read again, as after a
-// Project Settings write.
+// ARCHITECTURE §7 'Settings IPC': a setup kept out of Git writes the shared exclude file, so every worktree of the
+// project is read again, as after a Project Settings write.
 test("a local setup reads every worktree of its project again; a setup in Git or a failed one does not", async () => {
   const A = "/w/studio", B = "/w/studio-b";
   const git = { common: `${A}/.git`, main: A, worktrees: [A, B] };
@@ -972,7 +971,7 @@ test("wires packaged CLI selection with the runtime environment", () => {
 });
 
 // First run is open from a launch without a v1 completion record until the session reports completion, from the
-// window or the CLI. Nothing else opens or closes it (POSTMORTEM "The setup menu discarded an open wizard session").
+// window or the CLI. Nothing else opens or closes it.
 async function completeFirstRun(): Promise<void> {
   mocks.readCompletion.mockReturnValue(COMPLETE);
   const contents = window().webContents;
@@ -1222,7 +1221,7 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(true);
     expect(menuEnabled("Pick from Canvas")).toBe(false);
     expect(submenu("Edit").some(item => item.label === "Add Selection to Conversation")).toBe(false);
-    // `selection` is no longer a menu input, so a state carrying it is refused.
+    // `selection` is not a menu input, so a state carrying it is refused.
     for (const bad of [{ ...ready, pickerAvailable: 1 }, { ...ready, selection: true }, { ...ready, unknown: true }]) {
       await invoke("menu:state", contents, null, bad);
       expect(menuEnabled("Pick from Canvas")).toBe(false);
@@ -1452,7 +1451,7 @@ describe("removing from the CLI", () => {
     expect(mocks.discardRootStarts).not.toHaveBeenCalled();
   });
 
-  // A start or send main has not accepted yet runs for the person (PRODUCT §5 item 10, POSTMORTEM 2026-11-17).
+  // A start or send main has not accepted yet runs for the person (PRODUCT §5 item 10).
   test("a conversation not accepted yet in another worktree of the group refuses and changes nothing", async () => {
     const service = mocks.conversationService as unknown as { pendingRoots(): ReadonlySet<string> };
     vi.spyOn(service, "pendingRoots").mockReturnValue(new Set([APP]));
@@ -1543,9 +1542,8 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
   });
 
-  // PRODUCT §5 item 3 'Problem states': a Config error's Show in Finder selects the file the CLI named as the one to
-  // fix, which Finder would otherwise hide inside `.doan/`, and which may be a parent folder's. The renderer still
-  // passes the root only; main picks the target from the entry it holds.
+  // PRODUCT §5 item 3 'Problem states': Show in Finder selects the config the CLI named, which may be a parent folder's.
+  // The renderer still passes the root only; main picks the target from the entry it holds.
   test("reveal selects the config the CLI named for a Config error project, else the root", async () => {
     const contents = window().webContents;
     const base = mkdtempSync(join(tmpdir(), "doan-reveal-"));
@@ -1933,9 +1931,8 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
 });
 
-// Saved roots are real paths, so the home folder they are shortened against and compared with (no repository at HOME
-// or above it) is read through a symlink, here macOS's /var → /private/var. HOME is the link before this launch reads
-// it, so a site that kept the spelled HOME would see the link.
+// Saved roots are real paths, so HOME is read through a symlink (macOS's /var → /private/var). HOME is the link
+// before this launch reads it, so a site that kept the spelled HOME would see the link.
 test("the home path, the shell's home and the project flow's home are HOME's real path", async () => {
   const real = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-home-"))), link = `${real}-link`;
   symlinkSync(real, link);
@@ -2015,8 +2012,8 @@ describe("canvas trash and export", () => {
   });
 });
 
-// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
-// (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
+// Main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks; the root is part of
+// the identity.
 describe("canvas trash on main's grounds", () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
   afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -2077,7 +2074,7 @@ describe("canvas trash on main's grounds", () => {
   });
 
   // PRODUCT §5 'Canvas row menu': a conversation still being prepared counts, and the first one of a canvas is listed
-  // only once main accepts it (POSTMORTEM 2026-11-17 'A quit before main accepted a send…').
+  // only once main accepts it.
   test("refuses as busy for a start on this canvas main has not accepted yet, asking only this root", async () => {
     service();
     const s = mocks.conversationService as unknown as { startingCanvases(root: string): { path: string; id?: string }[] };
@@ -2236,8 +2233,8 @@ describe("main-window setup and settings", () => {
     expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
   });
 
-  // The Project step's screen can go (the page left, first run closed) while the window stays: a Create that returns
-  // after its request was cancelled makes nothing (spec: the step that asked is gone).
+  // The Project step's screen can go while the window stays: a Create that returns after its request was cancelled
+  // makes nothing.
   test("New folder: a request cancelled while its panel is open makes nothing, and a live one still creates", async () => {
     const contents = window().webContents;
     const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
@@ -2263,9 +2260,8 @@ describe("main-window setup and settings", () => {
     expect(stillWanted).toBe(true);
   });
 
-  // A reloaded or crashed renderer cannot cancel its own request (its step never disposed): main drops the window's
-  // pending requests then, whatever the original event's frame still reports, and a request from the new renderer
-  // is not removed when the old one answers.
+  // A reloaded or crashed renderer cannot cancel its own request: main drops the window's pending requests then, and a
+  // request from the new renderer is not removed when the old one answers.
   test.each(["did-navigate", "render-process-gone"])("New folder: a %s with the panel open makes nothing on the late Create, and leaves the new renderer's request", async (event) => {
     const contents = window().webContents;
     const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
@@ -2326,9 +2322,8 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
-// conversation:delete answers busy while quitting as while working, so the
-// renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
-// stopped (the service stays quitting), so main never takes it back.
+// conversation:delete answers busy while quitting, so the renderer learns of the quit from main and its refusal toast
+// can stay quiet. An aborted quit leaves the conversations stopped, so main never takes it back.
 test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
@@ -2752,8 +2747,8 @@ describe("settings page", () => {
     expect(mocks.runConfig).toHaveBeenLastCalledWith(expect.any(String), ROOT, ["--storage", "local", "--git-init"], expect.objectContaining({ PATH: "" }));
   });
 
-  // ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode belongs to every worktree of the project, so writing it
-  // in worktree A reads B again, and opening the page reads its group again for a mode changed outside Doan.
+  // ARCHITECTURE §7 'Settings IPC': the mode belongs to every worktree of the project, so writing it in A reads B again,
+  // and opening the page reads its group again for a mode changed outside Doan.
   test("a mode written in one worktree reads every worktree of its project again", async () => {
     const git = { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT, `${ROOT}-b`, `${ROOT}-c`] };
     const entries = [{ ...LIST, git }, { path: `${ROOT}-b`, kind: "list", canvases: [], servedRev: 0, git }, { path: `${ROOT}-c`, kind: "uninitialized" }, { path: "/elsewhere", kind: "list", canvases: [], servedRev: 0 }];
@@ -3576,8 +3571,7 @@ describe("app updates", () => {
       expect(mocks.clipboard.writeText.mock.calls.at(-1)?.[0]).toMatch(/^Doan 9\.8\.7\nUpdates: 0\.2\.0 ready, last checked \d{4}-\d\d-\d\dT[\d:.]+Z\n/);
     });
 
-    // Install happens only after the conversations are saved and the debounced state is flushed (POSTMORTEM
-    // 2026-10-25 'A crash during quit teardown lost the debounced ui-state').
+    // Install happens only after the conversations are saved and the debounced state is flushed.
     test("Restart to Update quits through main's own quit and installs only after the flush", async () => {
       readyUpdate();
       expect(await invoke("update:install", window().webContents, null)).toEqual({ kind: "allowed" });

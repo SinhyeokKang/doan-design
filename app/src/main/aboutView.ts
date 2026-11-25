@@ -3,10 +3,10 @@ import { PROVIDERS, type Provider, type ToolFacts } from "./agentAuth/types";
 import type { SetupItem } from "./agentSetup/notice";
 import { MINIMUM_VERSIONS } from "./conversation/minimumVersions";
 
-// Settings > About's shapes and rows (PRODUCT §5 item 0 'About'). The renderer imports this module, so it must not
-// import main readers: they reach the ajv validators, whose eval the renderer's CSP forbids (rendererImports.test.ts).
+// The renderer imports this module, so it must not import main readers: they reach the ajv validators, whose eval the
+// renderer's CSP forbids (rendererImports.test.ts).
 
-// `version` null: the CLI's version could not be read. A development build may report `dev` and a bare `doan`.
+// `version` null: the CLI's version could not be read. A development build may report `dev`.
 export interface AboutCli { path: string; version: string | null }
 // The installed version is About's alone; agent-auth DTOs never carry it.
 export interface AboutTool { provider: Provider; cli: ToolFacts["cli"]; installed: string | null; support: ToolFacts["version"] }
@@ -31,7 +31,6 @@ function needs(provider: Provider): string {
 }
 
 function toolStatus(tool: AboutTool): { status: string | null; tone: AboutTone; error: string | null } {
-  // Doan's own download: no CLI and no installed version of its own.
   if (tool.provider === "antigravity") return { status: "Downloaded by Doan", tone: "neutral", error: null };
   if (tool.cli === "missing") return { status: "Not installed", tone: "neutral", error: null };
   switch (tool.support) {

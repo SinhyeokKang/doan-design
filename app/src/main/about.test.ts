@@ -5,7 +5,6 @@ import type { UpdateSnapshot } from "./update/types";
 
 const listed = (version: string): CliRun => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version, presets: [] } }) });
 const PATH = "/Applications/Doan.app/Contents/Resources/bin/doan";
-// The draft's About window (doan-settings `about`).
 const READ: AboutRead = {
   version: "0.1.0",
   cli: { path: PATH, version: "0.1.0" },
@@ -19,7 +18,6 @@ const READ: AboutRead = {
   ],
 };
 
-// Checked at 14:41 UTC on 8 Nov 2026 and up to date.
 const CHECKED = Date.UTC(2026, 10, 8, 14, 41);
 const UPDATE: UpdateSnapshot = { version: "0.1.0", state: { kind: "upToDate", manual: false }, eligibility: { kind: "enabled" }, gate: { kind: "allowed" }, autoCheck: true, lastCheckedAt: CHECKED };
 

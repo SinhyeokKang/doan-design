@@ -24,9 +24,8 @@ export interface AddFlowDeps {
   store(paths: readonly string[]): Promise<string[]>;
 }
 
-// lstat: a `.git` file (linked worktree, submodule) counts as much as a directory.
-// null when the entry could not be checked (EACCES, EIO, ...): that says
-// nothing about whether it is there.
+// lstat: a `.git` file (linked worktree, submodule) counts too. null when the entry could not be checked (EACCES,
+// EIO): that says nothing about whether it is there.
 export async function hasGitEntry(dir: string): Promise<boolean | null> {
   try {
     await lstat(join(dir, ".git"));
@@ -37,10 +36,8 @@ export async function hasGitEntry(dir: string): Promise<boolean | null> {
   }
 }
 
-// Immediate child directories only, hidden ones and symlinks left out (a link
-// could point anywhere, including back up), first 200 by name. null when the
-// folder could not be listed, or nothing was found and some child could not be
-// checked: either way "no repos here" would be a guess.
+// Immediate child directories only, without hidden ones and symlinks (a link could point back up), first 200 by name.
+// null when unlistable, or nothing found and some child unchecked: "no repos here" would be a guess.
 export async function gitChildren(dir: string): Promise<string[] | null> {
   let entries;
   try {

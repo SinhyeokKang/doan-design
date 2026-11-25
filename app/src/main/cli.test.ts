@@ -174,8 +174,8 @@ describe("the CLI's git environment", () => {
   test("names the login shell's PATH and the inherited DEVELOPER_DIR, and only what is known", () => {
     expect(cliEnv("/login/bin:/usr/bin", { PATH: "/app/bin", DEVELOPER_DIR: "/Dev" })).toEqual({ PATH: "/login/bin:/usr/bin", DEVELOPER_DIR: "/Dev" });
     expect(cliEnv("/login/bin", { PATH: "/app/bin" })).toEqual({ PATH: "/login/bin" });
-    // A login shell that could not be read names no git, as clone finds none then: the CLI answers git_missing rather
-    // than run a git from the app's own PATH (PRODUCT §3 'Launch environment').
+    // A login shell that could not be read names no git: the CLI answers git_missing rather than run a git from the app's
+    // own PATH (PRODUCT §3 'Launch environment').
     expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "" })).toEqual({ PATH: "" });
     expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "/Dev" })).toEqual({ PATH: "", DEVELOPER_DIR: "/Dev" });
   });
@@ -252,16 +252,15 @@ test("runInit settles timeout and spawn errors", async () => {
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });
 
-// The real CLI's refusal of a local setup outside Git reads as the draft's sentence in the Set Up dialog.
+// The real CLI's refusal of a local setup outside Git reads as the Set Up dialog's sentence.
 test("a local setup outside Git is refused by the real CLI with the draft's words", async () => {
   const outcome = initOutcome(await runInit(cli, dir(), null, "local"));
   expect(outcome).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
   expect(initMessage(outcome)).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
 });
 
-// The real CLI creates the repository with --git-init: switching a project outside Git to Keep out of Git creates it,
-// and switching back keeps both that repository and Doan's .gitattributes line, as every switch keeps the line.
-// git runs under a temporary HOME so the developer's own Git configuration plays no part.
+// Switching a project outside Git to Keep out of Git creates the repository, and switching back keeps it and Doan's
+// .gitattributes line. git runs under a temporary HOME so the developer's own Git configuration plays no part.
 test("Include in Git, then Keep out of Git, then Include in Git keeps .gitattributes and the new .git", async () => {
   const root = dir();
   const home = process.env.HOME;
@@ -335,7 +334,7 @@ describe("runDesignSkill", () => {
   });
 });
 
-// `doan export` with its own timeout; a fake stands in because the CLI command was not yet implemented when this test was added.
+// `doan export` with its own timeout.
 describe("runExport", () => {
   test("passes the listed path, the chosen file with --force, the root and --json, and the CLI cannot read stdin", async () => {
     const out = join(dir(), "args");
