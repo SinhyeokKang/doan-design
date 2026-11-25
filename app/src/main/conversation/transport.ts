@@ -37,14 +37,14 @@ function withRunning(state: TransportState, id: string): TransportState {
 }
 // Claude Code's reasons Fast cannot serve that hold on: the turn turns Fast off. Any other reason
 // is recorded without one and leaves Fast on.
-const CONTINUING: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
+export const CLAUDE_FAST_REASONS: Readonly<Record<string, FastUnusedReason>> = { free: "plan", extra_usage_disabled: "extra_usage", model_not_allowed: "model", preference: "policy" };
 // A Claude result of a turn that asked for Fast and ran without it; null when it did not ask, ran with Fast, or the
 // result carries no state (an older CLI).
 export function claudeFastOutcome(result: unknown, requested: boolean): FastUnused | null {
   if (!requested || !object(result)) return null;
   if (result.fast_mode_state === "cooldown") return { type: "fast.unused", reason: "cooldown" };
   if (result.fast_mode_state !== "off") return null;
-  const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CONTINUING, result.fast_mode_disabled_reason) ? CONTINUING[result.fast_mode_disabled_reason] : undefined;
+  const reason = typeof result.fast_mode_disabled_reason === "string" && Object.hasOwn(CLAUDE_FAST_REASONS, result.fast_mode_disabled_reason) ? CLAUDE_FAST_REASONS[result.fast_mode_disabled_reason] : undefined;
   return reason ? { type: "fast.unused", reason, turnedOff: true } : { type: "fast.unused" };
 }
 // The turn's context value goes out in the terminal's own batch, right before it, so frames after the terminal cannot
