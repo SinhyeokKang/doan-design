@@ -2716,7 +2716,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   return <TooltipProvider>
   {screen === "home" && <Home header={topBar(true)} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
-    memory={composerMemory} working={run.workingRoots()} restore={run.restore} start={(request, last) => run.start(request, last)} addProjects={openAddProjects}
+    memory={composerMemory} working={run.workingRoots()} restore={run.restore} start={(request, last) => run.start(request, last).then(outcome => {
+      // The new conversation's first message enters the Overview's thread.
+      if ("ok" in outcome && outcome.conversationId) overviewRun.current?.store.markSent(outcome.conversationId, request.text, 0);
+      return outcome;
+    })} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}

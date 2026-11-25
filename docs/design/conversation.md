@@ -172,7 +172,7 @@ Reference: `.doan/canvases/turn-activity.html` (frames `states` (1)–(12), `wid
 | Element | Measured contract | Reason |
 |---|---|---|
 | Place | The thread's last item, in the reply's place: after the last item at the thread's item gap (20 in the panel, 24 in the Overview), after a Send now sending message, and under the hand-off line. Absent while a permission card (measured) or a question card waits | PRODUCT §5 item 3 'Turn indicator'. |
-| Line | `.ti-reply`: flex, centred, gap 8, `--text-subtle`; one line in the reply's type, body-sm 14/20 (−0.035 px) in the panel and 16/24 in the Overview, so it is 20 / 24 high in every state: a stage change pushed after the read kept the item 20 high and the scroll height unchanged | The scroll follows `[items]` only, so a stage change must not move the thread. |
+| Line | `.ti-reply`: flex, centred, gap 8, `--text-subtle`; one line in the reply's type, body-sm 14/20 (−0.035 px) in the panel and 16/24 in the Overview, so it is 20 / 24 high in every state: a stage change pushed after the read kept the item 20 high and the scroll height unchanged | The follow watches the thread's height (a ResizeObserver, 'Thread motion'), so a stage change that changed the line's height would move a followed thread. |
 | Logo | The provider logo, 16 × 16 (`.logo`) | |
 | Words | `.ti-text ti-shimmer`: `--text-metadata` (rgb(95,95,95)) words drawn by a text-clipped gradient (transparent colour and fill): stops at 42.5 / 47.5 / 52.5 / 57.5 % with the white band `color-mix(in oklch, --text-metadata, --surface-panel 55%)`, size 200 % × 100 %, `ti-shimmer` 2 s linear infinite (background position 100 % → −100 %, read moving in the app). A long path ends in an ellipsis (clipped at 347 and 280; whole at 720) | Dark words under a strong white sweep, no accent. |
 | Time | `.ti-time`: `flex: none`, `--text-metadata`, tabular figures, `aria-hidden`; never sweeps. `0s`, `59s`, `1m 0s`, `59m 59s`, `1h 0m 0s` (`1h 4m 12s` measured), 0s for an unreadable or future start | The stage gives way first; the time keeps its width as it counts. |
@@ -196,6 +196,46 @@ Context, not deviations: the Overview column is 720 centred in a wider window (5
 ### Regression pointers
 
 `ConversationThread.turn.test.tsx` (markup, place, accessibility, reduced motion), `turnStatus.test.ts` (states, words, elapsed format), `App.turnStage.test.tsx` (stage wiring). Sizes, colours and the sweep are `.scratch/` probes only.
+
+## Thread motion
+
+Reference: `.doan/canvases/thread-motion.html` (frames `entry`, `stream`, `scroll`, `reduced`). Measured on 2026-11-25 in an isolated app at 1238 × 780 (canvas panel 347, the Overview, the prototype window at 1100 × 780). Replies were a fake stream: main sent live `conversation:event`s to every window, and main's send, queue, Send now and interrupt handlers were replaced by ones the probe answered as main does. One real Codex turn (a new canvas conversation, a 2,624-character reply) checked the reveal at a real provider's pace. The entry is compared by computed style; the reveal and the follow by their constants against the draft's style comment and script, by per-frame samples and by recordings.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Entry | `.msg-user.thread-enter`: `animation: thread-enter` 0.4 s (`--time-thread-enter`) `cubic-bezier(0.23, 1, 0.32, 1)` (`--ease-enter`) `both`; keyframes offset 0 `opacity: 0`, `transform: translateY(16px)` (`--space-4`), offset 1 `opacity: 1`, `transform: none`, the draft's `enter-a`. Transform and opacity only, so the thread's height and its follow never move with it | The person chose rise A. |
+| Entry under reduced motion | `thread-enter-fade` 0.15 s (`--time-state`) `ease` (`--ease-state`) `both`, opacity only, the draft's `enter-fade` | DESIGN.md 'Motion'. |
+| Which messages enter | A message this window sent: a direct send (panel, Overview, prototype window), Send now, a queue going out after the turn (one combined message), a new conversation's first message (real Codex turn). The history, a terminal's message and a handoff card do not. A Sending message that the history's message replaces keeps one entry: the new element goes on with a negative `animation-delay` (−22 ms measured in the Overview) | Local send marks in the store, spent once the thread drew the history's message. |
+| Reveal | Word by word (`Intl.Segmenter`, whole lines in code blocks, a table row by row once its header and delimiter arrived, an unfinished trailing link held). The oldest hidden character shows within `MAX_LAG_MS` 400; `message.done` finishes the rest within `FINISH_MS` 150; both are the draft's constants. A reply that arrives while the thread is open reveals from its start; a remount (panel folded and unfolded, a conversation switched away and back) starts at the text it has | The person chose reveal B at a 400 ms cap. |
+| Fade | Each run of words shown in one frame fades from transparent over 400 ms (`--time-thread-enter`) with the draft's cubic ease-out, 1 − (1 − t)³, drawn as inline opacity from the run's age, so a render for any other reason never restarts it. 108–147 fading spans at most in the 10,000-character reply | |
+| Shown whole at once | Any item after the reply (a permission card: the reply's text and the card's offset unchanged afterwards), a notice under the thread, a failure, an interrupt, a Stop (`stopping`), a selection inside the reply (which keeps the selection), a window shown again after being hidden | Text growing above a card would push its buttons away, and a render each frame would undo a selection. |
+| Follow | One rAF loop and a ResizeObserver on the content and the scroller. While a reply reveals the view is at the bottom every frame (0.5 px at most at the next frame's start, in the panel, the Overview, the prototype window and the real Codex turn); a one-time growth (a new item, a sent message) eases with `followStep`, τ 40 ms, the draft's `TAU_MS` (recorded 711 → 728 → 748 → 756 → 759 → 761 → 762 → 763 in the prototype window) | |
+| The person's scroll | A wheel up, a press on the scroller itself (its scrollbar) or a scroll key outside a field stops the follow at once and later growth shows Jump to latest (only growth: a row folding or a viewport resize does not); back near the bottom after the wheel's 100 ms hold it follows again; Jump to latest eases to the bottom through the same follow. A scroll to a waiting permission or question card (`scrollToItem`) holds until the card stops waiting; a scroll to any other card (a handoff card) is a plain scroll | The person's reading place wins over new output. |
+| Scroll anchoring | `overflow-anchor: none` on `.thread-scroll` | Chromium's anchoring moved the followed view by itself when a reply showed whole above a new card, which read as the person's scroll and stopped the follow. |
+| Reduced motion | The reply shows each chunk as it arrives (no fading spans), the view jumps to the bottom | DESIGN.md 'Motion'. |
+| Frame cost | The 10,000-character reply (three code blocks, a 14-row table) re-rendered whole each frame at 347, timed per frame as every rAF callback plus a forced style and layout (paint excluded): at load average 3.4–3.5, p95 6.3–6.4 ms and max 6.9–8.2 ms in all four runs (40-character chunks every 30 ms and 400-character chunks every 250 ms, two each), rAF interval p95 17.5–17.6 ms, no long animation frame | The budget is p95 ≤ 16 ms and max ≤ 50 ms, so the reply is not split into memoized blocks. Runs at load average 9–28 exceeded it only while the rAF interval itself was 33–83 ms. |
+| Real provider pace | Codex sent 565 deltas of 4 characters (p50; p95 9) about 1 ms apart in bursts with gaps up to 329 ms. The last fading run ended 250 ms after the last character showed, and the last character showed 78 ms after `message.done` | A line's end is faint for less than the 400 ms fade. |
+
+### Documented differences from the draft
+
+- **Entry element.** The rise is on `.msg-user` (the bubble with its files, Sending line and chip note), where the draft animates `.bubble` alone: a message's files belong to it and rise with it.
+- **Keyframes.** The stylesheet writes only `from`; the computed keyframes are the draft's two.
+- **Reveal pace.** A linear catch-up to the oldest hidden character's deadline, where the draft's board loop takes an exponential share of the hidden text each frame plus an overdue flush per chunk. The 400 ms bound is the same; at a real provider's pace the two cannot be told apart in the recording.
+- **Fade.** Inline opacity per frame, not a keyframe with a negative delay: React reuses a span for another run as runs end, and a running animation would carry the earlier run's start.
+- **Turn end without `message.done`.** A reply ended by `turn.done` alone finishes over `FINISH_MS` (150 ms) instead of at once: the thread sees only that the reply stopped streaming, as after `message.done`. A failure, an interrupt and a Stop show it at once (an end item follows, or `stopping`).
+- **Holds.** Trailing unfinished links, tables before their delimiter row and unfinished code lines are held while streaming without the 400 ms cap; the draft's reply has none of them.
+
+### Not verified
+
+- A real scrollbar drag and real trackpad momentum: the probe pressed on the scroller and scrolled it (overlay scroll bars cannot be grabbed), and sent wheel events.
+- A scroll to a waiting question card holding the follow until released: pinned by `followResize` tests; the probe saw the Overview's and the prototype window's scroll to a permission card hold the follow, not the release.
+- Home's new conversation first message (the canvas panel's was a real turn; Home's mark is the same call after `run.start`), dark mode and forced colours.
+
+### Regression pointers
+
+`ConversationThread.motion.test.tsx` (entry targets and carry-over, CSS, reveal frames, fade, Copy, follow decisions), `threadMotion.test.ts` (pure steps), `conversationStore.sends.test.ts` (local send marks). Timing, recordings and the real turn are `.scratch/thread-motion/` probes only (`measure.mjs`, `probe.mjs`, `codex-turn.mjs`).
 
 ## Edit line counts
 

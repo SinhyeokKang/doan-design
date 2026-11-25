@@ -467,6 +467,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const sending = run.startSending(target);
       const reply = await calls.startConversation(start).catch(() => ({ error: "unknown" })).finally(sending);
       if ("error" in reply) return sendRefusal(reply);
+      store.markSent(reply.conversationId, request.text, 0);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
@@ -480,10 +481,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = waitsForReset(summary);
+    const unmark = store.markSent(mode.conversationId, request.text);
     const reply = await calls.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
+    if (reply && ("error" in reply || "scheduled" in reply)) unmark();
     if (reply && "error" in reply) return sendRefusal(reply);
     if (reply && "scheduled" in reply) {
       store.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
@@ -549,7 +552,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
-        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})} />
+        now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
+        localSends={store.localSends(conversationId)} onSpendSends={marks => store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
           {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {card && <CommandCardNotice card={card} onAction={cardAction} onDismiss={dismissCard} />}

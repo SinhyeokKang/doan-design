@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "../main/conversation/attachmentRecords.fixture";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
@@ -220,18 +220,6 @@ describe("scrollFollow", () => {
     expect(scrollFollow(false, 0)).toBe(true);
     expect(scrollFollow(false, 24)).toBe(true);
     expect(scrollFollow(false, 25)).toBe(false);
-  });
-});
-
-// An entry scrolled a tall question card to its top, and the thread's re-renders (about every
-// 100 ms in the real app) pulled it back to the bottom before the scroll could report a distance.
-describe("threadScroll", () => {
-  test("a re-render that drew nothing new leaves the scroll where it is", () => {
-    expect(threadScroll(true, false, 0)).toBe("bottom");
-    expect(threadScroll(false, true, 10)).toBe("bottom");
-    expect(threadScroll(false, true, 25)).toBe("behind");
-    expect(threadScroll(false, false, 0)).toBe("stay");
-    expect(threadScroll(false, false, 500)).toBe("stay");
   });
 });
 
@@ -770,5 +758,24 @@ describe("threadItems edit line counts", () => {
     seq = 0;
     const events = [...turn("t1"), edit("t1", "a.ts"), ev("t1", { type: "turn.done" })];
     expect(rowOf(events)).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.ts" }] });
+  });
+});
+
+// The reveal relies on these: a finished reply never grows again, and a turn's end finishes every reply of it.
+describe("threadItems behavior the reveal relies on", () => {
+  test("a delta after message.done is dropped", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "message.delta", messageId: "m1", text: " More" })];
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ kind: "agent", text: "Done.", streaming: false });
+  });
+
+  test("a turn's end finishes both replies of the turn", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "First" }), ev("t1", { type: "activity", kind: "read", path: "a.md", summary: "a.md" }), ev("t1", { type: "message.delta", messageId: "m2", text: "Second" })];
+    expect(threadItems(events, ROOT, true).filter(i => i.kind === "agent").map(i => i.kind === "agent" && i.streaming)).toEqual([true, true]);
+    for (const end of [{ type: "turn.done" }, { type: "interrupted", reason: "user" }, { type: "turn.failed", code: "unknown" }]) {
+      const ended = threadItems([...events, ev("t1", end)], ROOT, true).filter(i => i.kind === "agent");
+      expect(ended.map(i => i.kind === "agent" && i.streaming)).toEqual([false, false]);
+    }
   });
 });

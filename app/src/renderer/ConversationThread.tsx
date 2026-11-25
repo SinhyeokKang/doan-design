@@ -1,4 +1,5 @@
-import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from "react";
+import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, LayoutGrid, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
@@ -25,12 +26,13 @@ import { CommandCardNotice } from "./ComposerParts";
 import type { CommandCard, CommandCardTarget } from "./commandView";
 import { handoffCardView } from "./handoffView";
 import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbnails";
-import { providerLogo, sentFileView } from "./homeComposer";
+import { providerLogo, sentFileView, splitRequest } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
-import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
+import { anchorParts, FOLLOW_DISTANCE, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
+import { entering, FOLLOW_START, followStep, nextFollow, revealBoundary, revealStep, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -121,6 +123,12 @@ export interface ConversationThreadProps {
   card?: CommandCard | null;
   onCardAction?(target: CommandCardTarget): void;
   onCardDismiss?(): void;
+  // Messages this window sent (conversationStore localSends): the history's message for one enters with the rise. The
+  // thread hands back the marks it drew a message for, which the store then drops.
+  localSends?: readonly LocalSend[];
+  onSpendSends?(marks: readonly LocalSend[]): void;
+  // Main is stopping the turn: a reply still revealing shows whole at once.
+  stopping?: boolean;
 }
 // focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
 // permission request's first choice; after a handoff's move, the handoff card itself. False
@@ -219,6 +227,20 @@ interface ReplyCanvas { openCanvasId: string | null; frames: readonly FrameName[
 const ReplyCanvasContext = createContext<ReplyCanvas>({ openCanvasId: null, frames: undefined, rows: [], disabled: false, pressable: false });
 // The reply's "No longer in the canvas" note: `shownFor` is the chip it is shown for (its id describes that chip).
 const ReplyNote = createContext<{ shownFor: string | null; show(key: string): void }>({ shownFor: null, show: () => {} });
+// The text a reply received, while it reveals only part of it; null otherwise.
+const Received = createContext<string | null>(null);
+// The fenced code block starting at `at` in `text`, as far as it arrived; null when no fence starts there.
+export function codeToCopy(text: string, at: number): string | null {
+  const open = /^( {0,3})(`{3,}|~{3,})[^\n]*\n/.exec(text.slice(at));
+  if (!open) return null;
+  const fence = open[2]!, indent = new RegExp(`^ {0,${open[1]!.length}}`), lines: string[] = [];
+  for (const row of text.slice(at + open[0].length).split("\n")) {
+    const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(row)?.[1];
+    if (close && close[0] === fence[0] && close.length >= fence.length) break;
+    lines.push(row.replace(indent, ""));
+  }
+  return lines.join("\n").replace(/\n$/, "");
+}
 function textOf(node: unknown): string {
   if (!node || typeof node !== "object") return "";
   const n = node as { type?: string; value?: string; children?: unknown[] };
@@ -227,9 +249,14 @@ function textOf(node: unknown): string {
 // A pointer press does not take focus, so copying leaves the composer's focus, selection and IME composition alone;
 // keyboard activation still focuses the button first.
 export function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
-  const { copy } = useContext(Actions), reply = useContext(ReplyId);
+  const { copy } = useContext(Actions), reply = useContext(ReplyId), received = useContext(Received);
+  // A revealing reply draws part of its code; Copy takes the block's whole received code from the same offset.
+  const code = () => {
+    const at = (node as { position?: { start?: { offset?: number } } } | null)?.position?.start?.offset;
+    return (received !== null && at !== undefined ? codeToCopy(received, at) : null) ?? textOf(node).replace(/\n$/, "");
+  };
   return <div className="md-code"><pre className="doan-scroll">{children}</pre>
-    <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""), reply)}><Copy aria-hidden="true" /></button></TooltipTrigger>
+    <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(code(), reply)}><Copy aria-hidden="true" /></button></TooltipTrigger>
       <TooltipContent>Copy code</TooltipContent></Tooltip></div>;
 }
 function Link({ href, children }: { href: string | undefined; children?: ReactNode }) {
@@ -324,31 +351,149 @@ function streamingCaret() {
     else children.push(caret());
   };
 }
-const MarkdownText = memo(function MarkdownText({ text, prefix, streaming }: { text: string; prefix: string; streaming: boolean }) {
-  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={streaming ? [labelPrefix(prefix), streamingCaret] : [labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
+// Wraps the text of each run still fading in a span at its age's opacity. Offsets come from the hast positions, so text
+// whose source differs from what it draws (escapes, entities, inline code's backticks) fades a few characters off.
+function fadeRuns(runs: readonly RevealRun[], now: number, source: string) {
+  const young = runs.filter(run => now - run.at < FADE_MS);
+  const offset = (node: HastNode) => (node as { position?: { start?: { offset?: number } } }).position?.start?.offset;
+  return () => (root: HastNode) => {
+    if (young.length === 0) return;
+    // A code element carries its fence's position, so inside pre it takes the pre's content start instead.
+    const walk = (node: HastNode, inherited: number | null, inPre = false) => {
+      let start = inPre ? inherited : offset(node) ?? inherited;
+      // A fenced block's text starts on the line after its fence.
+      if (node.tagName === "pre" && start !== null) { const line = source.indexOf("\n", start); start = line < 0 ? null : line + 1; }
+      const kids = node.children;
+      if (!kids) return;
+      for (let i = 0; i < kids.length; i++) {
+        const child = kids[i]!;
+        if (child.type !== "text") { walk(child, child.tagName === "code" ? start : null, node.tagName === "pre"); continue; }
+        const at = offset(child) ?? start, value = child.value ?? "";
+        if (at === null || at + value.length <= young[0]!.from) continue;
+        const parts: HastNode[] = [];
+        let cut = 0;
+        for (const run of young) {
+          const from = Math.min(Math.max(run.from - at, cut), value.length), to = Math.min(Math.max(run.to - at, from), value.length);
+          if (to <= from) continue;
+          if (from > cut) parts.push({ type: "text", value: value.slice(cut, from) });
+          // A code line's break stays outside, so the streaming caret goes before it, on that line.
+          const piece = value.slice(from, to), end = piece.endsWith("\n") ? piece.length - 1 : piece.length;
+          if (end > 0) parts.push({ type: "element", tagName: "span", properties: { className: ["reveal-run"], style: `opacity:${fadeOpacity(now - run.at).toFixed(3)}` }, children: [{ type: "text", value: piece.slice(0, end) }] });
+          if (end < piece.length) parts.push({ type: "text", value: "\n" });
+          cut = to;
+        }
+        if (cut === 0) continue;
+        if (cut < value.length) parts.push({ type: "text", value: value.slice(cut) });
+        kids.splice(i, 1, ...parts);
+        i += parts.length - 1;
+      }
+    };
+    walk(root, null);
+  };
+}
+const NO_RUNS: readonly RevealRun[] = [];
+const MarkdownText = memo(function MarkdownText({ text, prefix, streaming, runs = NO_RUNS, now = 0 }: { text: string; prefix: string; streaming: boolean; runs?: readonly RevealRun[]; now?: number }) {
+  const plugins = [labelPrefix(prefix), ...runs.length ? [fadeRuns(runs, now, text)] : [], ...streaming ? [streamingCaret] : []];
+  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={plugins} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
 });
-function useFrameText(text: string, streaming: boolean): string {
-  const [shown, setShown] = useState(text);
-  const latest = useRef(text), frame = useRef<number | null>(null);
-  latest.current = text;
+
+// The reveal's fade runs over --time-thread-enter with a cubic ease-out; the opacity is drawn from each run's
+// age, so a render for any other reason never restarts a fade.
+export const FADE_MS = 400;
+export function fadeOpacity(age: number): number {
+  const t = Math.min(1, Math.max(0, age / FADE_MS));
+  return 1 - (1 - t) ** 3;
+}
+// A run of text shown in one frame (at), fading in. arrivals: when the text grew to each length, for the oldest hidden
+// character's age. doneAt: when message.done came, for the finishing tail. at: the last frame.
+export interface RevealRun { from: number; to: number; at: number }
+export interface RevealState { shown: number; runs: readonly RevealRun[]; arrivals: readonly { end: number; at: number }[]; doneAt: number | null; at: number | null }
+// flush: a Stop, a failure or an interrupt (an end item follows), any other item after the reply, a selection in it.
+export type RevealMode = "streaming" | "done" | "flush";
+export const revealStart = (shown: number): RevealState => ({ shown, runs: [], arrivals: [], doneAt: null, at: null });
+export function revealMode(streaming: boolean, flush: boolean): RevealMode {
+  return flush ? "flush" : streaming ? "streaming" : "done";
+}
+// One frame of a reply's reveal. Reduced motion and a flush show the text received whole, with no new fade; a large
+// gap since the last frame (a hidden window) catches up in one frame.
+export function revealFrame(state: RevealState, text: string, mode: RevealMode, now: number, reduced: boolean): RevealState {
+  const target = text.length, runs = state.runs.filter(run => now - run.at < FADE_MS);
+  if (reduced) return { shown: target, runs: [], arrivals: [], doneAt: state.doneAt, at: now };
+  const last = state.arrivals.at(-1)?.end ?? state.shown;
+  const arrivals = [...state.arrivals.filter(arrival => arrival.end > state.shown), ...target > last ? [{ end: target, at: now }] : []];
+  const doneAt = mode === "done" ? state.doneAt ?? now : null;
+  let shown = state.shown;
+  if (shown < target) {
+    if (mode === "flush") shown = target;
+    else {
+      const hidden = arrivals.find(arrival => arrival.end > state.shown);
+      const phase: RevealPhase = mode === "done" ? { finishing: now - doneAt! } : "streaming";
+      const step = revealStep(state.shown, target, hidden ? now - hidden.at : 0, state.at === null ? 16 : now - state.at, phase);
+      shown = revealBoundary(text, state.shown, step, mode === "done");
+    }
+  }
+  const grew = mode !== "flush" && shown > state.shown;
+  return { shown, runs: grew ? [...runs, { from: state.shown, to: shown, at: now }] : runs, arrivals: arrivals.filter(arrival => arrival.end > shown), doneAt, at: now };
+}
+const prefersReduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+// The thread's motion its replies share. revealed: the rAF time of a frame that showed more, in which the follow sticks
+// to the bottom instead of easing.
+interface ThreadMotion { revealed(at: number): void; reduced(): boolean }
+const Motion = createContext<ThreadMotion>({ revealed: () => {}, reduced: prefersReduced });
+// A reply mounts at `start` (replyStart). Each frame renders the whole reply synchronously (flushSync), so the follow
+// measures its new height before the frame paints.
+function useReveal(text: string, streaming: boolean, flush: boolean, start: number, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
+  const motion = useContext(Motion);
+  const [state, setState] = useState(() => revealStart(start));
+  const [selected, setSelected] = useState(false);
+  const mode = revealMode(streaming, flush || selected), reduced = motion.reduced();
+  // Shown whole now, so a later reveal goes on from the end instead of drawing less.
+  if ((mode === "flush" || reduced) && state.shown < text.length) setState({ ...state, shown: text.length, arrivals: [] });
+  // The loop's own state between renders (a frame that shows nothing new renders nothing); a state set here wins.
+  const current = useRef(state), adopted = useRef(state), latest = useRef({ text, mode });
+  if (adopted.current !== state) { adopted.current = state; current.current = state; }
+  latest.current = { text, mode };
+  const fading = (at: number | null) => at !== null && state.runs.some(run => at - run.at < FADE_MS);
+  const active = mode !== "flush" && !reduced && (streaming || state.shown < text.length || fading(state.at));
   useEffect(() => {
-    if (!streaming || frame.current !== null) return;
-    frame.current = requestAnimationFrame(() => { frame.current = null; setShown(latest.current); });
-  }, [text, streaming]);
-  useEffect(() => () => { if (frame.current !== null) cancelAnimationFrame(frame.current); }, []);
-  return streaming ? shown : text;
+    if (!active) return;
+    let frame = requestAnimationFrame(function tick(now) {
+      const before = current.current, next = revealFrame(before, latest.current.text, latest.current.mode, now, motion.reduced());
+      current.current = next;
+      const young = next.runs.some(run => now - run.at < FADE_MS);
+      if (next.shown !== before.shown) motion.revealed(now);
+      if (next.shown !== before.shown || young || before.runs.length !== next.runs.length) flushSync(() => setState(next));
+      frame = latest.current.mode === "streaming" || next.shown < latest.current.text.length || young ? requestAnimationFrame(tick) : 0;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, motion]);
+  // Rendering every frame would undo a selection inside the reply, so selecting shows it whole.
+  useEffect(() => {
+    if (!active || selected) return;
+    const change = () => {
+      const selection = document.getSelection(), node = host.current;
+      if (node && selection && !selection.isCollapsed && (node.contains(selection.anchorNode) || node.contains(selection.focusNode))) setSelected(true);
+    };
+    document.addEventListener("selectionchange", change);
+    return () => document.removeEventListener("selectionchange", change);
+  }, [active, selected, host]);
+  if (mode === "flush" || reduced || (!streaming && state.shown >= text.length && !fading(state.at))) return null;
+  return { length: Math.min(state.shown, text.length), runs: state.runs, now: state.at ?? 0 };
 }
 // A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
-// className: a handoff card's body is the same Markdown without the reply's own block.
-function AgentMessage({ text, streaming, className = "msg-agent md" }: { text: string; streaming: boolean; className?: string }) {
-  const shown = useFrameText(text, streaming), prefix = useId();
+// className: a handoff card's body is the same Markdown without the reply's own block. flush: show what arrived whole.
+function AgentMessage({ text, streaming, flush = false, start = text.length, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; start?: number; className?: string }) {
+  const host = useRef<HTMLDivElement | null>(null);
+  const reveal = useReveal(text, streaming, flush, start, host), prefix = useId();
   const [noted, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
   const copyFailed = useContext(CopyFailed) === prefix;
   return <ReplyId.Provider value={prefix}><ReplyNote.Provider value={note}>
-    <div className={className}><MarkdownText text={shown} prefix={prefix} streaming={streaming} /></div>
+    {/* One tree whether or not it reveals: a changed parent would remount the Markdown and drop a selection in it. */}
+    <div className={className} ref={host}><Received.Provider value={reveal ? text : null}>
+      <MarkdownText text={reveal ? text.slice(0, reveal.length) : text} prefix={prefix} streaming={streaming} runs={reveal?.runs ?? NO_RUNS} now={reveal?.now ?? 0} /></Received.Provider></div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
     {copyFailed && <p className="settings-msg error copy-failed" role="alert"><AlertIcon /><span>{COPY_FAILED_TEXT}</span></p>}
   </ReplyNote.Provider></ReplyId.Provider>;
@@ -507,8 +652,12 @@ function markColumn(block: BubbleList): number {
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
 // Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
-function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null }) {
+function UserMessage({ entry, frames, disabled, onLocate, home, entryAge: age }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null; entryAge: number | null }) {
   const base = useId();
+  // How far its entry had run when this element mounted: a history message replacing the Sending one goes on from there.
+  // Under a frame is this render's own delay, not an entry already under way.
+  const [entryAge] = useState(() => age === null ? null : age < 16 ? 0 : Math.round(age));
+  const enter = entryAge !== null && entryAge < FADE_MS;
   const [shown, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = shown ? chip : null;
@@ -534,7 +683,7 @@ function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extra
     <span className="bubble-item-body" data-depth={depth} data-mark={mark}>{inline(item.parts)}</span>
     {item.children.map((child, n) => <Fragment key={n}>{list(child, depth + 1)}</Fragment>)}
   </div>)}</div>;
-  return <div className="msg-user">
+  return <div className={enter ? "msg-user thread-enter" : "msg-user"} style={enter && entryAge ? { animationDelay: `-${entryAge}ms` } : undefined}>
     <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && !listed && "\n"}
       {listed ? blocks.map((block, i) => block.kind === "list" ? <Fragment key={i}>{list(block, 0)}</Fragment>
         : <span key={i} className="bubble-text">{inline(block.parts)}{i < blocks.length - 1 && endsInBlankLine(block.parts) && "\n"}</span>)
@@ -815,12 +964,58 @@ function stacks(items: readonly ThreadItem[]): ThreadItem[][] {
 // The background line's thread item key, which no history item takes (their keys start with a kind letter and a seq).
 const BACKGROUND_KEY = "background";
 
+// Where a reply's reveal starts: at the text it has when it mounts again (an open, a folded panel unfolding, a switch
+// back), so it never types again; at 0 when it first appears while the thread is open.
+export function replyStart(prev: readonly ThreadItem[], entry: Extract<ThreadItem, { kind: "agent" }>): number {
+  return prev.length > 0 && !prev.some(item => item.key === entry.key) ? 0 : entry.text.length;
+}
+// A reply shows whole once something follows it: a later item (a card it would push away, an activity row, an end), a
+// notice under the thread, or a Stop.
+export function flushesReply(entry: ThreadItem, drawn: readonly ThreadItem[], after: { stopping: boolean; notice: boolean }): boolean {
+  return after.stopping || after.notice || entry.key !== drawn.at(-1)?.key;
+}
+// A scroll to a permission or question still waiting holds the follow until it is answered; to anything else it is a
+// plain scroll.
+export function scrollToItemHolds(items: ConversationThreadProps["items"], key: string): boolean {
+  return Array.isArray(items) && items.some(item => item.key === key && waitsForPerson(item));
+}
+
+// When each user message this thread drew began its entry (entering), by key. A history message that replaces a
+// Sending one drawn in the previous render (same words and chips) takes that one's start, so the entry runs once.
+export function entryTimes(prev: readonly ThreadItem[], items: readonly ThreadItem[], localSends: readonly LocalSend[], times: ReadonlyMap<string, number>, now: number): ReadonlyMap<string, number> {
+  const fresh = entering(prev, items, localSends), drawn = new Set(prev.map(item => item.key));
+  const added: [string, number][] = [];
+  for (const key of fresh) if (!times.has(key)) added.push([key, now]);
+  for (const item of items) {
+    if (item.kind !== "user" || item.sending || drawn.has(item.key) || times.has(item.key) || fresh.has(item.key)) continue;
+    const from = prev.find(q => q.kind === "user" && q.sending === true && times.has(q.key) && sameItem(q.parts, item.parts) && sameItem(q.anchors, item.anchors));
+    if (from) added.push([item.key, times.get(from.key)!]);
+  }
+  return added.length ? new Map([...times, ...added]) : times;
+}
+
 // The thread item (its data-item key) holding focus, if focus is inside the thread.
 function focusedItem(scroller: HTMLElement | null): string | null {
   const active = typeof document === "undefined" ? null : document.activeElement;
   if (!scroller || !active || !scroller.contains(active)) return null;
   return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
 }
+
+// What the follow does when the thread's content or viewport changed size. distance: from the bottom before the change,
+// which decides whether a view the person left near the bottom follows again. While a reply reveals, the view sticks to
+// the bottom each frame (an ease would keep the line being written below the fold); a one-time growth eases. behind:
+// Jump to latest's new state, null to keep it; only new content (grew: a taller thread) shows it.
+export type FollowMove = "snap" | "ease" | "none";
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; grew: boolean }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
+  if (!next.pinned) return { state: next, move: "none", behind: change.grew && change.distance > FOLLOW_DISTANCE ? true : null };
+  return { state: next, move: change.reduced || change.revealing ? "snap" : "ease", behind: false };
+}
+// The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
+const frameTime = () => typeof document !== "undefined" ? document.timeline.currentTime : null;
+const NO_SENDS: readonly LocalSend[] = [];
+// Keys that edit text or press a control there rather than scroll the thread.
+const OWN_KEYS = "input, textarea, select, button, [contenteditable]";
 
 export const ConversationThread = forwardRef<ConversationThreadHandle, ConversationThreadProps>(function ConversationThread(props, ref) {
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
@@ -839,8 +1034,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   latest.current = props;
   const base = useId();
   const scroller = useRef<HTMLDivElement | null>(null);
-  const distance = useRef(0), opened = useRef(false), shownHeight = useRef(0);
-  const [behind, setBehind] = useState(false);
+  const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0);
+  // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
+  // wrote, so a scroll event of its own is told from the person's. heldKey: the waiting card scrollToItem went to.
+  const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
+  const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity), heldKey = useRef<string | null>(null);
+  const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
+  // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
+  const [behind, setBehindState] = useState(false), behindNow = useRef(false);
+  const setBehind = (value: boolean) => { if (behindNow.current !== value) { behindNow.current = value; setBehindState(value); } };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
@@ -893,7 +1095,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const timer = setTimeout(() => wake(n => n + 1), Math.max(0, SETTLE_MS - (Date.now() - settled.since)));
     return () => clearTimeout(timer);
   }, [settled]);
-  const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   // The turn whose background work this thread's Stop asked main to stop, until main answers.
   const [stoppingTurn, setStoppingTurn] = useState<string | null>(null);
   // Main answers a Stop at once while another host's Stop of the same work is under way; should that one fail, main
@@ -931,18 +1132,123 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
 
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
 
-  // Follow new output only from within 24px of the bottom, measured before this update.
+  // Messages this window sent enter once, in the render they first show; a remount starts with nothing entering.
+  const prevItems = useRef<readonly ThreadItem[]>([]), entered = useRef<ReadonlyMap<string, number>>(new Map());
+  const renderedAt = performance.now();
+  if (Array.isArray(items)) entered.current = entryTimes(prevItems.current, items, props.localSends ?? NO_SENDS, entered.current, renderedAt);
+  const entryAge = (key: string) => { const at = entered.current.get(key); return at === undefined ? null : renderedAt - at; };
+  useLayoutEffect(() => {
+    if (!Array.isArray(items)) return;
+    prevItems.current = items;
+    const marks = latest.current.localSends ?? NO_SENDS;
+    const spent = marks.filter(mark => items.some(item => item.kind === "user" && item.seq !== null && item.seq > mark.after &&
+      sameItem(anchorParts(splitRequest(mark.text, item.attachments.length).body), item.parts)));
+    if (spent.length) latest.current.onSpendSends?.(spent);
+  }, [items]);
+
+  // The follow: one rAF loop that eases toward the bottom and, after the person's wheel, waits out its inertia before
+  // following again. Growth is seen by a ResizeObserver, since a revealing reply grows without new items.
+  const bottomOf = (node: HTMLElement) => node.scrollHeight - node.clientHeight;
+  const write = (node: HTMLElement, top: number) => {
+    node.scrollTop = top;
+    wrote.current = node.scrollTop;
+    distance.current = bottomOf(node) - node.scrollTop;
+  };
+  const apply = (event: FollowEvent) => {
+    const before = follow.current;
+    follow.current = nextFollow(before, event);
+    if (!follow.current.pinned) easeTo.current = null;
+    else if (!before.pinned) setBehind(false);
+  };
+  const tick = (now: number) => {
+    loop.current = 0;
+    const node = scroller.current;
+    if (!node) return;
+    const dt = lastFrame.current === null ? 16 : now - lastFrame.current;
+    lastFrame.current = now;
+    if (easeTo.current !== null && follow.current.pinned) {
+      const step = followStep(node.scrollTop, easeTo.current, dt, bottomOf(node));
+      write(node, step.pos);
+      if (step.done) easeTo.current = null;
+    }
+    distance.current = bottomOf(node) - node.scrollTop;
+    apply({ type: "frame", at: now, distance: distance.current });
+    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.wheelAt < WHEEL_HOLD_MS * 2)) loop.current = requestAnimationFrame(tick);
+    else lastFrame.current = null;
+  };
+  const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
+  const resized = () => {
+    const node = scroller.current;
+    if (!node || !opened.current) return;
+    const now = performance.now();
+    const grew = node.scrollHeight > contentHeight.current;
+    contentHeight.current = node.scrollHeight;
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now, grew });
+    follow.current = change.state;
+    if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
+    else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
+    else distance.current = bottomOf(node) - node.scrollTop;
+    if (change.behind === false) setBehind(false);
+    else if (grew && change.move === "none" && distance.current > FOLLOW_DISTANCE) setBehind(true);
+  };
+  const latestFollow = useRef({ resized, apply, run });
+  latestFollow.current = { resized, apply, run };
+  // The thread opens at its bottom at once.
   useLayoutEffect(() => {
     const node = scroller.current;
-    if (!node || !Array.isArray(items)) return;
-    const opening = !opened.current;
+    if (!node || !Array.isArray(items) || opened.current) return;
     opened.current = true;
-    const drew = node.scrollHeight !== shownHeight.current;
-    shownHeight.current = node.scrollHeight;
-    const next = threadScroll(opening, drew, distance.current);
-    if (next === "bottom") { node.scrollTop = node.scrollHeight; distance.current = 0; setBehind(false); }
-    else if (next === "behind") setBehind(true);
+    contentHeight.current = node.scrollHeight;
+    write(node, bottomOf(node));
   }, [items]);
+  // A card scrollToItem went to that stopped waiting (answered, expired or gone) lets the follow resume at the bottom.
+  useLayoutEffect(() => {
+    const key = heldKey.current;
+    if (key === null || !Array.isArray(items) || items.some(item => item.key === key && waitsForPerson(item))) return;
+    heldKey.current = null;
+    apply({ type: "release" });
+  }, [items]);
+  const ready = Array.isArray(items);
+  useEffect(() => {
+    const node = scroller.current, content = node?.firstElementChild;
+    if (!ready || !node || !content) return;
+    const calls = () => latestFollow.current;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => calls().resized());
+    observer?.observe(content);
+    observer?.observe(node);
+    // The person's input, on the thread only: a wheel that can leave the bottom, a press on the scroller itself (its
+    // scrollbar), a scroll key outside a field or control. The composer is outside the thread.
+    const wheel = (event: WheelEvent) => {
+      if (event.deltaY >= 0 && follow.current.pinned) return;
+      calls().apply({ type: "input", kind: "wheel", at: performance.now() });
+      calls().run();
+    };
+    const pointer = (event: PointerEvent) => { if (event.target === node) calls().apply({ type: "input", kind: "pointer", at: performance.now() }); };
+    const key = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
+      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now() });
+      calls().run();
+    };
+    const selection = () => {
+      const chosen = document.getSelection();
+      const active = !!chosen && !chosen.isCollapsed && (node.contains(chosen.anchorNode) || node.contains(chosen.focusNode));
+      if (active === follow.current.selecting) return;
+      calls().apply({ type: "selection", active });
+      if (!active) calls().run();
+    };
+    node.addEventListener("wheel", wheel, { passive: true });
+    node.addEventListener("pointerdown", pointer);
+    node.addEventListener("keydown", key);
+    document.addEventListener("selectionchange", selection);
+    return () => {
+      observer?.disconnect();
+      node.removeEventListener("wheel", wheel);
+      node.removeEventListener("pointerdown", pointer);
+      node.removeEventListener("keydown", key);
+      document.removeEventListener("selectionchange", selection);
+    };
+  }, [ready]);
+  useEffect(() => () => { if (loop.current !== 0) cancelAnimationFrame(loop.current); }, []);
   // A folded card took the focus that was on it to the page: by its rule, the next waiting request or the composer
   // takes it. A person who moved focus elsewhere meanwhile keeps it.
   useLayoutEffect(() => {
@@ -970,23 +1276,32 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
   });
+  // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll
+  // anchoring is off on the scroller (styles.css), or it would move the view as a reply grows above.
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
-    distance.current = node.scrollHeight - node.scrollTop - node.clientHeight;
+    distance.current = bottomOf(node) - node.scrollTop;
+    if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) { apply({ type: "scroll" }); run(); }
     if (scrollFollow(false, distance.current)) setBehind(false);
   };
+  // Through the same follow: a native smooth scroll heads for the old bottom and can stop outside the 24px band.
   const jump = () => {
     const node = scroller.current;
     if (!node) return;
-    node.scrollTo({ top: node.scrollHeight, behavior: reduced() ? "auto" : "smooth" });
+    apply({ type: "jump" });
     setBehind(false);
+    if (motion.reduced()) write(node, bottomOf(node));
+    else { easeTo.current = bottomOf(node); run(); }
   };
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
+      const holds = scrollToItemHolds(latest.current.items, key);
+      if (holds) latestFollow.current.apply({ type: "scrollToItem" });
+      heldKey.current = holds ? key : null;
       // A question or handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
-      node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: reduced() ? "auto" : "smooth" });
+      node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },
     focusItem: focusIn,
   }), []);
@@ -1037,7 +1352,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
-      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null];
+      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null, entered.current.get(entry.key) ?? null];
+      case "agent": return [flushes(entry)];
       case "activity": return [expanded.has(entry.key)];
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
@@ -1054,11 +1370,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       default: return [];
     }
   };
+  const flushes = (entry: ThreadItem) => flushesReply(entry, drawn, { stopping: props.stopping === true, notice: !!props.card });
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
-      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} />;
-      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} />;
+      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} entryAge={entryAge(entry.key)} />;
+      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} start={replyStart(prevItems.current, entry)} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
       case "activity": {
@@ -1121,7 +1438,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
   };
 
-  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
+  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><Motion.Provider value={motion}><div className="conversation-thread">
     {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(drawn, rows, props.canvasListed, card => canvasCardText(card, { project: props.project, provider, listed: props.canvasListed }).icon === "spinner")} scroller={scroller} onImages={setImages} />}
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
@@ -1141,6 +1458,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
-  </div></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
+  </div></Motion.Provider></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 
