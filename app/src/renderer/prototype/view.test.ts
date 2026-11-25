@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
 import { covered, drawerGroups, drawerLabel, exportAvailability, linkMove, linkToast, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
@@ -15,6 +15,11 @@ describe("windowTitle", () => {
 });
 
 describe("stateScene", () => {
+  test("the timeout detail states the host's own limit", () => {
+    expect(TIMEOUT_DETAIL).toBe(`The frame didn’t finish loading within ${PROTOTYPE_LOAD_TIMEOUT_MS / 1000} seconds.`);
+    expect(TIMEOUT_DETAIL).toBe("The frame didn’t finish loading within 10 seconds.");
+  });
+
   test("names each cause with its own title; failures retry, lost targets only close", () => {
     expect(stateScene(view({ phase: "read-failed", detail: "EACCES" }))).toEqual({ icon: "read", heading: "Couldn’t open this prototype", body: "Doan couldn’t read the canvas file for this frame.", failure: true, detail: "EACCES" });
     expect(stateScene(view({ phase: "init-failed" }))).toEqual({ icon: "init", heading: "Couldn’t start this prototype", body: "The frame was read, but Doan couldn’t set it up in this window.", failure: true, detail: TIMEOUT_DETAIL });
