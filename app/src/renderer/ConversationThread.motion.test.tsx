@@ -107,6 +107,8 @@ describe("reveal", () => {
     expect(fadeOpacity(FADE_MS / 2)).toBeCloseTo(1 - 0.5 ** 3);
     expect(fadeOpacity(FADE_MS)).toBe(1);
     expect(fadeOpacity(200)).toBe(fadeOpacity(200));
+    // The fade runs over --time-thread-enter.
+    expect(readFileSync(new URL("tokens.css", import.meta.url), "utf8")).toContain(`--time-thread-enter: ${FADE_MS}ms;`);
   });
 
   test("a stop, a failure, the turn's end or an item after the reply flushes it; message.done finishes it", () => {
@@ -135,6 +137,10 @@ describe("code Copy", () => {
 });
 
 describe("follow", () => {
+  test("the thread's scroller has no scroll anchoring, which would move a followed view as a reply grows", () => {
+    expect(css).toContain(".conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }");
+  });
+
   const pinned = FOLLOW_START, at = 1000;
   test("while a reply reveals, the view sticks to the bottom; a one-time growth eases", () => {
     expect(followResize(pinned, { reduced: false, revealing: true, distance: 0, now: at })).toEqual({ state: pinned, move: "snap", behind: false });
