@@ -88,7 +88,8 @@ function cardTime(lead: CardTime["lead"], time: number, now: number): CardTime |
 }
 
 function frameCount(row: CanvasRow): string | null {
-  if (!row.frames) return null;
+  // An unreadable canvas arrives with an empty list beside its error.
+  if (row.error || !row.frames) return null;
   const n = row.frames.length, count = n.toLocaleString("en-US");
   if (row.framesTruncated) return `${count}+ frames`;
   return n === 0 ? "No frames" : `${count} ${n === 1 ? "frame" : "frames"}`;

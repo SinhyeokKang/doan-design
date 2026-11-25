@@ -124,7 +124,7 @@ describe("canvasCardMeta", () => {
     ["pending", {}, { kind: "pending" as const }, { kind: "pending" }],
     ["failed", {}, { kind: "failed" as const }, { kind: "failed" }],
     ["ready", {}, ready, ready],
-        ["an unreadable canvas with an old image", { error: { code: "unreadable_canvas", message: "x" } }, ready, { kind: "unreadable" }],
+    ["an unreadable canvas with an old image", { error: { code: "unreadable_canvas", message: "x" } }, ready, { kind: "unreadable" }],
   ])("thumbnail: %s", (_name, patch, state, thumb) => {
     expect(canvasCardMeta(row(patch), state, NOW, ROOT).thumb).toEqual(thumb);
   });
@@ -148,9 +148,9 @@ describe("canvasCardMeta", () => {
     expect(meta(patch).frames).toBe(frames);
   });
 
-  test("frames not reported (an unreadable canvas): no count", () => {
-    const { frames: _frames, ...bare } = row();
-    expect(canvasCardMeta(bare, ready, NOW, ROOT).frames).toBeNull();
+  // `doan ls` sends an empty list beside the error.
+  test("an unreadable canvas has no known frame count", () => {
+    expect(meta({ error: { code: "unreadable_canvas", message: "x" }, frames: [] }).frames).toBeNull();
   });
 
   test("no modified time: no time", () => {
