@@ -294,7 +294,9 @@ test("New conversation selects a new conversation and focuses the composer, does
 
 // Send now shows only while a turn runs or waits for a permission answer.
 test("steerPhaseOf reads the merged events first and the list after, as the composer's turn does", () => {
-  const at = (type: string, extra: Record<string, unknown> = {}) => ({ type, turnId: "t1", ...extra }) as unknown as ConversationEvent;
+  // Real events carry a seq: the fold, as main's, counts events by it.
+  let seq = 0;
+  const at = (type: string, extra: Record<string, unknown> = {}) => ({ type, turnId: "t1", conversationId: "c", seq: ++seq, ...extra }) as unknown as ConversationEvent;
   const started = at("turn.started"), working = at("activity", { summary: "Editing" });
   const asking = at("permission.request", { requestId: "r", summary: "Edit x", options: [] });
   const list = (patch: Partial<ConversationSummary>) => ({ phase: "ended", working: false, ...patch }) as ConversationSummary;
