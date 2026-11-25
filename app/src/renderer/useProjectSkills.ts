@@ -7,19 +7,15 @@ import type { ComposerTurn } from "./composerRules";
 const EMPTY: readonly SkillSummary[] = [];
 const NONE: readonly string[] = [];
 interface Listed { skills: readonly SkillSummary[]; passthrough: readonly string[] }
-// Each reply updates only its own root/provider entry, including replies after navigation.
-// The list is read again when a turn ends, so a skill the agent made shows at once. A held turn has ended (main only
-// judges it or sends its queue), so it counts with idle: running → holding reads, holding → idle does not.
+// Read again when a turn ends, so a skill the agent made shows at once. A held turn has ended, so running → holding
+// reads and holding → idle does not.
 const ended = (turn: ComposerTurn) => turn === "idle" || turn === "holding";
-// `calls`: `window.doan`, or the prototype window's same member.
-// An ACP agent's commands are its conversation's (the server pushes them per session), so they are read by
-// `conversationId` and listed only once there is one; Claude Code and Codex list the root's fixed table. `passthrough`:
-// the ACP server's commands no check confirmed, sent as written but shown in no row.
+// An ACP agent's commands are per session, so they are read by `conversationId` and listed only once there is one.
+// `passthrough`: unconfirmed ACP commands, sent as written but shown in no row.
 export type SkillsCalls = Pick<DoanApi, "listConversationSkills">;
 export function useProjectSkills(calls: SkillsCalls, root: string | null, provider: Provider | null, turn: ComposerTurn, generation = 0, conversationId?: string | null) {
   const [lists, setLists] = useState<Record<string, Listed>>({});
-  // A read asked while one for the same key is pending runs once after it: the pending reply may predate the skill a
-  // turn that has just ended made. Several such asks are one read.
+  // The pending reply may predate the skill a just-ended turn made, so one more read runs after it.
   const pending = useRef(new Map<string, { again: boolean }>());
   const fixedTable = provider === "claude" || provider === "codex";
   const conversation = fixedTable ? null : conversationId ?? null;

@@ -3,9 +3,8 @@ import type { History } from "./shellNavigation";
 
 export interface RemovedState { shellProjects: Record<string, ShellProject>; expanded: Record<string, string[]>; history: History }
 
-// What the window forgets about roots that left the list, for the menu's Remove from Doan and for `doan remove`
-// (folders:removed) alike. Each part, and the whole, keeps its identity when it holds none of the roots, so a second
-// pass for the same roots changes nothing and sets no state.
+// For Remove from Doan and `doan remove` alike. Each part keeps its identity when it holds none of the roots, so a
+// second pass for the same roots changes nothing and sets no state.
 export function afterRemoved(state: RemovedState, paths: readonly string[]): RemovedState {
   const gone = (root: string) => paths.includes(root);
   const touched = Object.values(state.shellProjects).some(project => project.roots.some(gone));

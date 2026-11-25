@@ -3,9 +3,8 @@ import type { FolderFocus } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
 
-// The Project Settings page's rules. The page shows one worktree, chosen
-// from a project menu, and follows that worktree while it is open. Named apart from the page component beyond
-// capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
+// Named apart from the page component beyond capitalization: macOS is case-insensitive, and a TS helper once hid its
+// TSX component.
 
 export type ProjectSettingsView = "settings" | "problem";
 // null: still loading, which keeps whatever the page shows.
@@ -15,16 +14,14 @@ export function projectSettingsView(entry: FolderEntry): ProjectSettingsView | n
 }
 
 export type ProjectSettingsFollow =
-  // The worktree left the list: the page is left through the `gone` event, which passes the lock.
+  // The page is left through the `gone` event, which passes the lock.
   | { kind: "leave" }
   | { kind: "stay" }
-  // cancelConfirm: a confirmation or picker opened for the old root or for a healthy worktree is dropped. origin: the
-  // origin to keep, moved to the new root when the reroot took the workspace it points at (POSTMORTEM 2026-10-25
-  // 'Locating a project kept the old root's selection').
+  // cancelConfirm: a confirmation or picker opened for the old root is dropped. origin moves to the new root when the
+  // reroot took the workspace it points at.
   | { kind: "show"; root: string; view: ProjectSettingsView; reread: boolean; cancelConfirm: boolean; origin: AddPageOrigin };
 
-// After each folder list: a worktree gone from the list leaves the page, a reroot from Locate or Set Up moves to the new
-// root (the page keeps its place, so the origin follows too), and a change of state switches the view.
+// A reroot from Locate or Set Up moves to the new root; the page keeps its place, so the origin follows too.
 export function followProjectSettings(shown: { root: string; view: ProjectSettingsView }, entries: readonly FolderEntry[], origin: AddPageOrigin, focus?: FolderFocus): ProjectSettingsFollow {
   const root = focus?.from === shown.root ? focus.root : shown.root;
   const entry = entries.find(item => item.path === root);
@@ -39,25 +36,23 @@ export function followProjectSettings(shown: { root: string; view: ProjectSettin
   return { kind: "show", root, view, reread: view === "settings", cancelConfirm: view === "problem", origin };
 }
 
-// A picker sheet, a confirmation or a config write is waiting on main, so every way off the page is ignored meanwhile.
+// Every way off the page is ignored meanwhile.
 export function projectSettingsLocked(work: { picking: boolean; confirming: boolean; writing: boolean }): boolean {
   return work.picking || work.confirming || work.writing;
 }
 
 export type PageAction = "setUp" | "locate" | "retry" | "details";
-// reading: the config of a healthy worktree is being read ("Reading settings"). failed: main's message.
+// failed: main's message.
 export type ReadState = { kind: "reading" } | { kind: "failed"; message: string } | { kind: "ready" };
 export interface PageNotice {
   tone: "warning" | "error";
   text: string;
-  // Shown under the sentence (a failed read), or only after Details (detail).
   reason?: string;
   detail?: string;
   actions: PageAction[];
 }
-// body: "sections" are Token CSS and Shared with canvases; "reading" the spinner line; "notice" one notice in their place.
 export interface ProjectSettingsPageView {
-  // The "Stored in .doan/config.json" note after the path: only once the settings are read and shown.
+  // Only once the settings are read and shown.
   storedNote: boolean;
   // Hidden when the folder is known to be missing and while it is still being read.
   showInFinder: boolean;
@@ -70,15 +65,13 @@ export interface ProjectSettingsPageView {
 const PROBLEMS = {
   notFound: "Doan can’t find this folder, so its settings can’t be read or changed.",
   uninitialized: "This folder isn’t set up for Doan yet, so it has no settings to change.",
-  // A worktree of a project that keeps its Doan files out of Git has none until it is set up (draft frame not-set-up).
   uninitializedLocal: "This project keeps its Doan files out of Git, so this worktree doesn’t have them yet. Set it up to use Doan here.",
   error: "Doan couldn’t read this folder’s configuration, so its settings can’t be changed.",
   cliError: "Doan couldn’t read this folder, so its settings can’t be read or changed.",
 } as const;
 
-// What the page draws for each state of the draft ('alt-2-page', 'alt-2-states', 'alt-2-page-problem',
-// 'alt-2-states-problem'). `read` only matters for a healthy worktree: a problem one never reads its settings.
-// keptLocal: another worktree of the project keeps its Doan files out of Git (storage.ts projectKeepsLocal).
+// `read` only matters for a healthy worktree: a problem one never reads its settings. keptLocal: another worktree
+// keeps its Doan files out of Git (storage.ts projectKeepsLocal).
 export function projectSettingsPageView(entry: FolderEntry, read: ReadState, keptLocal = false): ProjectSettingsPageView {
   const notice = (view: PageNotice, showInFinder: boolean): ProjectSettingsPageView => ({ storedNote: false, showInFinder, body: "notice", notice: view, removeSection: true });
   switch (entry.kind) {
@@ -94,10 +87,8 @@ export function projectSettingsPageView(entry: FolderEntry, read: ReadState, kep
   }
 }
 
-// The text under a failed write or pick, per section. A path outside the worktree is told where to choose; an
-// unavailable reply (the config session or the worktree's epoch changed) is not a failure of the path, so it asks to
-// choose again. `name` is the project's name.
-// A failed mode write shows the CLI's message as it is: it names no path to choose.
+// An unavailable reply (the config session or the worktree's epoch changed) is not a failure of the path, so it asks
+// to choose again. A failed mode write shows the CLI's message as it is.
 export function writeErrorMessage(section: ConfigKind | "storage", reply: { kind: "error"; message: string } | { kind: "unavailable" }, name: string): string {
   if (reply.kind === "unavailable") return "This worktree changed. Choose again.";
   if (section === "storage") return reply.message;
@@ -106,19 +97,16 @@ export function writeErrorMessage(section: ConfigKind | "storage", reply: { kind
   return `${reply.message.replace(/\.?$/, ".")} ${guidance}`;
 }
 
-// The path a Share confirmation names. main's picker answers an absolute path, while the config stores one inside the
-// worktree repo-relative, so the confirmation shows it that way; a path outside stays as picked (the config refuses it,
-// and the failure says where to choose instead).
+// main's picker answers an absolute path, while the config stores one inside the worktree repo-relative; a path outside
+// stays as picked (the config refuses it).
 export function sharedPathLabel(root: string, path: string): string {
   return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 
-// storageChosen: the Doan files radio now chosen, the mode on disk after the write (ARCHITECTURE §7 'Settings IPC'
-// 'Storage writes'): its options are disabled while Saving, so focus would otherwise fall to <body>.
+// storageChosen: its options are disabled while Saving, so focus would otherwise fall to <body> (ARCHITECTURE §7
+// 'Settings IPC').
 export type FocusAfterWrite = { kind: "pressed" } | { kind: "tokenPrimary" } | { kind: "sharedAdd" } | { kind: "sharedRemove"; path: string } | { kind: "storageChosen" };
-// Where focus goes once the page's controls re-enable: the button that was pressed while it is still
-// there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add file or folder for
-// Shared, or the Remove of the path after a removed one.
+// The pressed button while it is still there, else its section's main button (Clear removes itself).
 export function projectSettingsFocusAfter(done: { section: ConfigKind | "storage"; pressedAlive: boolean; removed?: { path: string; before: readonly string[]; after: readonly string[] } }): FocusAfterWrite {
   if (done.section === "storage") return { kind: "storageChosen" };
   if (done.pressedAlive) return { kind: "pressed" };

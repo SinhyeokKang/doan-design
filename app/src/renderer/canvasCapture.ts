@@ -2,19 +2,15 @@ import type { CanvasLoad, Rect } from "./canvasPicker";
 import { MAX_ATTACHMENTS } from "./homeComposer";
 import type { Point } from "./viewport";
 
-// Capture area: a dragged area of the board becomes one image in the canvas
-// conversation composer.
-
 // Main checks the same minimum on `attachments:capture`, so a smaller area never leaves the renderer.
 export const MIN_CAPTURE = 8;
 
 export const CAPTURE_UNAVAILABLE = "Capture area isn’t available while the canvas can’t be shown.";
-// Attach's own reason (DockedComposer.tsx): a capture is an attachment, so it is closed for the same conversations.
+// A capture is an attachment, so it is closed for the same conversations as Attach (DockedComposer.tsx).
 export const CAPTURE_TERMINAL = "Attachments can’t be added to a terminal session";
 export const CAPTURE_LIMIT = `Only ${MAX_ATTACHMENTS} attachments can be added. Remove one to add another.`;
 
-// The drag from `start` to `end` in the canvas area's px, clipped to the area and rounded to whole px. null for a
-// click or an area under MIN_CAPTURE on either side once clipped.
+// null for a click or an area under MIN_CAPTURE on either side once clipped.
 export function captureRect(start: Point, end: Point, bounds: { width: number; height: number }): Rect | null {
   if (![start.x, start.y, end.x, end.y].every(Number.isFinite)) return null;
   const clip = (value: number, size: number) => Math.round(Math.min(Math.max(value, 0), size));
@@ -24,9 +20,7 @@ export function captureRect(start: Point, end: Point, bounds: { width: number; h
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-// The toolbar's Capture area. `canvas` is "loaded" only while the board is drawn and App knows the panel's composer;
-// `composer` the composer's reason line while it takes no input (null: it does); `fixed` the conversation continues a
-// terminal session or is a legacy external one; `attachments` the draft's attachment count. First match wins.
+// `fixed`: a terminal session or a legacy external conversation. First match wins.
 export function captureAvailability(input: { canvas: CanvasLoad; composer: string | null; fixed: boolean; attachments: number }): { enabled: boolean; reason: string | null } {
   if (input.canvas !== "loaded") return { enabled: false, reason: CAPTURE_UNAVAILABLE };
   if (input.composer !== null) return { enabled: false, reason: input.composer };

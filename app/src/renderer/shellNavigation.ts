@@ -7,7 +7,7 @@ export function projectHue(name: string): typeof hues[number] {
   for (const point of name.trim()) hash = ((hash * 33) ^ point.codePointAt(0)!) >>> 0;
   return hues[hash % hues.length]!;
 }
-// The thumbnail letter, shared by the sidebar and onboarding project cards.
+// Shared by the sidebar and onboarding project cards.
 export function projectInitial(name: string): string { return Array.from(name.trim())[0]?.toUpperCase() ?? "?"; }
 export function projectExpanded(project: ShellProject, loaded: string | null): boolean {
   return project.expanded || (!project.collapsed && loaded !== null && project.roots.includes(loaded));
@@ -25,9 +25,7 @@ export function historyTarget(history: History, direction: -1 | 1, valid: (visit
   for (let index = history.cursor + direction; index >= 0 && index < history.visits.length; index += direction) if (valid(history.visits[index]!)) return index;
   return null;
 }
-// Where to go when the auto-registered worktree being shown vanishes or hides (PRODUCT §5 item 1): the worktree
-// selected before it, else the group's main checkout, else its first list root; there, the same canvas when that worktree lists it, else
-// its Overview. `rows` are the group's rows as the sidebar shows them; `gone` may already be out of them. null: nothing in the group is left to go to.
+// `gone` may already be out of `rows`. null: nothing in the group is left to go to (PRODUCT §5 item 1).
 export function fallbackWorktree(rows: readonly FolderEntry[], gone: string, previous: string | null, path: string | null): Visit | null {
   const others = rows.filter(row => row.path !== gone);
   const main = others.flatMap(row => row.kind === "list" && row.git?.main !== undefined ? [row.git.main] : [])[0];
@@ -35,8 +33,8 @@ export function fallbackWorktree(rows: readonly FolderEntry[], gone: string, pre
   if (!to) return null;
   return path !== null && to.kind === "list" && to.canvases.some(row => row.path === path) ? { root: to.path, canvas: path } : { root: to.path };
 }
-// An auto-registered worktree shows only while it is a list (PRODUCT §5 item 1): unread, it would be a
-// problem row whose only way out is the whole group's Remove from Doan. A hand-added worktree keeps its problem rows.
+// Unread, it would be a problem row whose only way out is the whole group's Remove from Doan. A hand-added worktree
+// keeps its problem rows.
 export function shownFolders(entries: readonly FolderEntry[]): FolderEntry[] {
   return entries.filter(entry => entry.autoRegistered !== true || entry.kind === "list");
 }
@@ -65,18 +63,14 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
   }));
 }
 
-// The loaded project's sidebar row (dogfooding #2, PRODUCT §5 item 3 'Project Overview' "the sidebar project row"):
-// elsewhere it re-enters the workspace; on a canvas it opens the Overview; on the Overview it opens the row's slot.
-// From Home and the Project Settings page, which shows Home's sidebar, the row opens the
-// Overview rather than re-entering the last canvas (user decision); another page goes back to the loaded workspace as it
-// was.
+// From Home and the Project Settings page the row opens the Overview rather than re-entering the last canvas (PRODUCT
+// §5 item 3 'Project Overview').
 export function loadedProjectRow(at: { screen: string; overviewShown: boolean }): "enter" | "overview" | "slot" {
   if (at.screen === "home" || at.screen === "projectSettings") return "overview";
   if (at.screen !== "workspace") return "enter";
   return at.overviewShown ? "slot" : "overview";
 }
 
-// The header's Projects tab leaves a page for where it came from, and from a workspace goes Home (dogfooding #2).
 export function projectsTab(screen: string): "leavePage" | "home" | "stay" {
   if (screen === "addProjects" || screen === "settings" || screen === "projectSettings") return "leavePage";
   return screen === "workspace" ? "home" : "stay";

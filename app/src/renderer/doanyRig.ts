@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The buddy's controller: the draft's shell flow from .doan/assets/buddies/motion-preview.js (MIT, Doan
-// contributors) with every DOM and WebGL dependency injected, so node tests can drive it with fakes.
-// Doany.tsx supplies the real WebGL target, observers and listeners.
+// The shell flow of .doan/assets/buddies/motion-preview.js (MIT, Doan contributors) with every DOM and WebGL dependency
+// injected, so node tests can drive it with fakes.
 import { advance, canvasSize, hop, hopLift, initialState, pointer, pose, reducedChanged, typing, type Pose, type Rect } from "./doanyMotion";
 
 export interface DoanyTarget {
@@ -16,11 +15,11 @@ export interface DoanyView {
   width(): number;
   rect(): Rect;
   dpr(): number;
-  // Not hidden by CSS visibility: Home behind the first-run overlay still intersects the viewport.
+  // Not CSS visibility: Home behind the first-run overlay still intersects the viewport.
   shown(): boolean;
   documentHidden(): boolean;
   setState(state: string): void;
-  // 0 on the floor to 1 at the hop's apex; the floor shadow outside WebGL follows it. The rig never touches the DOM.
+  // The floor shadow outside WebGL follows it. The rig never touches the DOM.
   setLift(lift: number): void;
   showCanvas(): void;
   showStatic(): void;
@@ -31,7 +30,7 @@ export interface DoanyRig {
   intersect(isIntersecting: boolean): void;
   pointer(clientX: number, clientY: number): void;
   hop(): void;
-  // Returns whether the key is a hop key, so the caller prevents its default (repeats included).
+  // So the caller prevents its default (repeats included).
   key(key: string, repeat?: boolean): boolean;
   typing(): void;
   reducedChange(): void;
@@ -45,9 +44,9 @@ export function createDoanyRig(deps: {
   frames: { request(callback: (now: number) => void): number; cancel(id: number): void };
   reduced: () => boolean;
   random: () => number;
-  // Wires observers and listeners to the rig; the returned function removes them.
+  // The returned function removes them.
   connect: (rig: DoanyRig) => () => void;
-  // WebGL is gone for this rig: its context was lost (ready: after it had drawn) or its textures failed.
+  // ready: after it had drawn.
   failed: (ready: boolean) => void;
 }): DoanyRig {
   const { target, view, frames } = deps;
@@ -77,17 +76,15 @@ export function createDoanyRig(deps: {
     hop() { hop(state, deps.reduced()); },
     key(key, repeat = false) {
       if (key !== "Enter" && key !== " ") return false;
-      // A held key repeats keydown every 33 ms or so, and each hop kicks the beret spring again until it
-      // spins out of the canvas. One press is one hop; a repeat still prevents the default, or Enter
-      // would click the button and hop anyway.
+      // A held key repeats keydown, and each hop kicks the beret spring until it spins out of the canvas. A repeat still
+      // prevents the default, or Enter would click the button and hop anyway.
       if (!repeat) hop(state, deps.reduced());
       return true;
     },
     typing() { typing(state); },
     reducedChange() { reducedChanged(state); render(); },
-    // The lost listener goes first: releasing the context reports a loss, which must not record static
-    // while Doany unmounts. The context is released last so each Home visit returns its own context
-    // instead of piling up to Chromium's limit.
+    // Releasing the context reports a loss, so the lost listener goes first. Releasing last returns each Home visit's own
+    // context instead of piling up to Chromium's limit.
     dispose() {
       disposed = true;
       offLost();

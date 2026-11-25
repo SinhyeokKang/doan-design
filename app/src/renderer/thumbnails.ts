@@ -3,7 +3,7 @@ import type { CanvasRow } from "../main/view";
 import type { ThumbnailReply } from "../main/thumbnails";
 import type { DoanApi } from "../preload";
 
-// Keyed by canvas path. A path with no entry has not been captured yet.
+// A path with no entry has not been captured yet.
 export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
 export type ThumbnailView = ThumbnailState | { kind: "noWidth" } | { kind: "unreadable" };
 
@@ -19,18 +19,16 @@ export function applyVisibility(current: ReadonlySet<string>, changes: readonly 
   return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
 }
 
-// One root's thumbnails for all its viewers. Nothing is asked before the first visibility report; an image stays while
-// any viewer lists its canvas, and main hears a canvas leave the screen only when no viewer shows it.
+// Nothing is asked before the first visibility report; main hears a canvas leave the screen only when no viewer
+// shows it.
 export class ThumbnailRequests {
   private items = new Map<string, ThumbnailState>();
   private rowsBy = new Map<string, readonly CanvasRow[]>();
   private visibleBy = new Map<string, ReadonlySet<string>>();
-  // Every viewer's rows and visible paths together.
   private rows: readonly CanvasRow[] = [];
   private visible = new Set<string>();
   private asked = new Set<string>();
-  // Only the newest request for a listed path may land: an older reply, or one
-  // for a path removed since (or removed and made again), is dropped.
+  // An older reply, or one for a path removed since, is dropped.
   private requests = new Map<string, number>();
   private seq = 0;
   private disposed = false;
@@ -111,7 +109,7 @@ export class ThumbnailRequests {
       this.publish(new Map(this.items));
     }, (error: unknown) => {
       console.error("thumbnails:get failed", error);
-      // A rejected request is a failure like a failed reply, so the row reads "Preview unavailable", not "Preview loading".
+      // A rejected request reads "Preview unavailable", not "Preview loading".
       if (this.disposed || this.requests.get(path) !== id) return;
       const old = this.items.get(path);
       if (old?.kind === "ready") URL.revokeObjectURL(old.url);
@@ -121,10 +119,10 @@ export class ThumbnailRequests {
   }
 }
 
-// `window.doan`, or the same members of `window.doanPrototype`, whose main answers its playing root only.
+// The prototype window's main answers its playing root only.
 export type ThumbnailCalls = Pick<DoanApi, "getThumbnail" | "setThumbnailVisibility" | "onThumbnailChanged">;
 
-// One viewer's hold on a root's shared requests; calls after release do nothing.
+// Calls after release do nothing.
 export interface ThumbnailLease {
   setRows(rows: readonly CanvasRow[]): void;
   onVisible(paths: readonly string[]): void;
@@ -136,16 +134,15 @@ interface SharedRoot {
   items: ReadonlyMap<string, ThumbnailState>;
   listeners: Map<string, (items: ReadonlyMap<string, ThumbnailState>) => void>;
   stop(): void;
-  // The last viewer left within LEAVE_MS: the root waits to be disposed, and the next viewer takes that viewer's place.
+  // The next viewer takes the leaving viewer's place.
   leaving: { viewer: string; timer: ReturnType<typeof setTimeout> } | null;
 }
 
-// How long a root no viewer holds keeps its images: a thread remounts for each conversation it shows and takes the root
-// again only once that conversation's history is read, so the images and main's marks carry over the switch.
+// A thread remounts for each conversation and takes the root again only once its history is read, so the images and
+// main's marks carry over the switch.
 export const LEAVE_MS = 2_000;
 
-// A window's thumbnails: one ThumbnailRequests per root for every viewer of that root, made on the first acquire and
-// disposed (its Blob URLs revoked) LEAVE_MS after the last viewer released it, unless a viewer took it meanwhile.
+// Disposed (its Blob URLs revoked) LEAVE_MS after the last viewer released it, unless a viewer took it meanwhile.
 export class ThumbnailHub {
   private roots = new Map<string, SharedRoot>();
   private viewers = 0;
@@ -180,7 +177,7 @@ export class ThumbnailHub {
     };
   }
 
-  // The root's images now, for a viewer's first render; none for a root no viewer holds.
+  // None for a root no viewer holds.
   items(root: string): ReadonlyMap<string, ThumbnailState> {
     return this.roots.get(root)?.items ?? NO_ITEMS;
   }
@@ -201,13 +198,11 @@ export class ThumbnailHub {
 
 const NO_ITEMS: ReadonlyMap<string, ThumbnailState> = new Map();
 
-// One hub per window, for every viewer in it.
 export function useThumbnailHub(calls: ThumbnailCalls): ThumbnailHub {
   const [hub] = useState(() => new ThumbnailHub(calls));
   return hub;
 }
 
-// One viewer's thumbnails of a root: the root's shared images and this viewer's own visibility reports.
 export function useThumbnails(hub: ThumbnailHub, root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
   const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(() => root === null ? new Map() : hub.items(root));
   const lease = useRef<ThumbnailLease | null>(null);

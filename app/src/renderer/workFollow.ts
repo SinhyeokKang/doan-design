@@ -1,17 +1,16 @@
 import { boardRectToScreen, elementView, FIT_INSET, fitFrame, safeArea, type Rect, type Size, type View } from "./viewport";
 
-// Following the working frame: the board moves to the frame an agent starts on only while
-// the person rests, once per frame and work turn, and never again in a turn after the person moved the view.
+// Only while the person rests, once per frame and work turn, and never again in a turn after the person moved the
+// view.
 
-// Tunable: the rest before the board follows.
 export const FOLLOW_IDLE_MS = 5000;
 
 export interface FollowInput {
   frame: string | undefined;
-  // Frames this work turn has followed, or counted as followed (already on screen, on entering the canvas, or named by
-  // an update from another work source, which must not swing the board back and forth).
+  // Counted as followed too: already on screen, on entering the canvas, or named by another work source's update, which
+  // must not swing the board back and forth.
   followed: ReadonlySet<string>;
-  // The frame's board rect in the current document, null while it has none (it may appear with the next reload).
+  // null while it has none (it may appear with the next reload).
   rect: Rect | null;
   viewport: Size;
   view: View;
@@ -21,9 +20,8 @@ export interface FollowInput {
   busy: boolean;
 }
 
-// `followed`: count the frame as followed for this turn. Not for a frame that is missing, busy or before the rest is
-// over, so a later layout can still follow it. `retryAt`: the frame waits only for the rest, which ends then; the
-// caller judges again at that time rather than waiting for the next update or layout.
+// Not followed while missing, busy or before the rest, so a later layout can still follow it. `retryAt`: the caller
+// judges again then rather than waiting for the next update or layout.
 export type FollowDecision = { kind: "move"; view: View } | { kind: "stay"; followed: boolean; retryAt?: number };
 
 export function followDecision(input: FollowInput): FollowDecision {
@@ -35,12 +33,12 @@ export function followDecision(input: FollowInput): FollowDecision {
   if (frameShown(rect, viewport, view)) return { kind: "stay", followed: true };
   const safe = safeArea(viewport, FIT_INSET);
   const fits = rect.width * view.scale <= safe.width && rect.height * view.scale <= safe.height;
-  // Same scale and centred when it fits (elementView's fitting case); otherwise the frame drawer's jump.
+  // Same scale and centred when it fits; otherwise the frame drawer's jump.
   return { kind: "move", view: fits ? elementView(rect, viewport, FIT_INSET, view) : fitFrame(rect, viewport, FIT_INSET, view) };
 }
 
-// Wholly in the safe area; along an axis where the frame is larger than that area, a frame is seen when its top edge is
-// in it (vertically) or when it spans the area (horizontally).
+// Along an axis where the frame is larger than the area, it is seen when its top edge is in it (vertically) or it
+// spans the area (horizontally).
 function frameShown(rect: Rect, viewport: Size, view: View): boolean {
   const safe = safeArea(viewport, FIT_INSET), screen = boardRectToScreen(view, rect);
   const right = screen.x + screen.width, bottom = screen.y + screen.height;
@@ -53,18 +51,17 @@ function frameShown(rect: Rect, viewport: Size, view: View): boolean {
   return across && down;
 }
 
-// A work turn's identity, made by main (terminal) or the conversation's turn: never the time the renderer first saw it,
-// which would differ with when the canvas was opened or subscribed.
+// Never the time the renderer first saw it, which would differ with when the canvas was opened or subscribed.
 export function followTurnKey(item: { turn: string } | { conversationId: string; turnId: string }): string {
   return "turn" in item ? `terminal:${item.turn}` : `conversation:${item.conversationId}:${item.turnId}`;
 }
 
-// One canvas's follow state, by work turn key; renderer memory only.
+// Renderer memory only.
 export interface FollowMemory { stopped: ReadonlySet<string>; followed: ReadonlyMap<string, ReadonlySet<string>> }
 export const EMPTY_FOLLOW: FollowMemory = { stopped: new Set(), followed: new Map() };
 
-// `keys` are the work turns on the canvas now. A turn that left them has ended (a key change is a new turn), so its stop
-// and followed frames go; a person's move stops every turn on the canvas, whichever source wins later.
+// A turn that left `keys` has ended, so its stop and followed frames go; a person's move stops every turn on the
+// canvas.
 export function followStopped(memory: FollowMemory, keys: readonly string[], personMoved: boolean): FollowMemory {
   const stopped = new Set([...memory.stopped].filter(key => keys.includes(key)));
   if (personMoved) for (const key of keys) stopped.add(key);

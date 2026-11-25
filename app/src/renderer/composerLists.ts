@@ -2,37 +2,34 @@ import { LIST_MARKER } from "../main/conversation/messageText";
 import { spliceUnits, textSegments, type FieldSegment } from "./anchorField";
 import type { MessagePart } from "./threadItems";
 
-// Lists in the composer and the sent bubble are a reading of the text, never a value of their own: the field keeps its
-// segments and the message its text, markers and depth spaces included (PRODUCT §5 'Composer').
+// Lists are a reading of the text, never a value of their own: the field keeps its segments and the message its text,
+// markers and depth spaces included (PRODUCT §5 'Composer').
 
 export type ListKind = "ul" | "ol";
-// A list item's line. `lead` and `body` are code units into the line where the marker and what follows its one space
-// start: the marker an edit copies or removes is always the marker and one space. `indent` is the marker's column and
-// `column` the body's column for nesting (CommonMark §5.2, see bodyColumn).
+// `lead` and `body` are code units into the line: the marker an edit copies or removes is always the marker and one
+// space. `column` is the body's column for nesting (CommonMark §5.2, see bodyColumn).
 export interface ListItem { list: ListKind; marker: string; number: number | null; depth: number; lead: number; body: number; indent: number; column: number }
 export type ListLine = ListItem | null;
 export type FieldListItem = ListItem & { start: number };
 export type FieldEdit = { segments: FieldSegment[]; caret: number };
 
-// A tab advances to the next multiple of 4 columns, not by a fixed 4 (CommonMark §2.2), so " \t" reaches column 4 as
-// Markdown readers count it.
+// A tab advances to the next multiple of 4 columns (CommonMark §2.2), so " \t" reaches column 4 as Markdown readers
+// count it.
 function columns(text: string, from = 0): number {
   let column = from;
   for (const char of text) column = char === "\t" ? column + 4 - (column % 4) : column + 1;
   return column;
 }
 
-// The body's column for an item whose marker starts at `indent`: 1 to 4 columns of whitespace after the marker put the
-// body past them, 5 or more (or no body) one column past the marker. `rest` is the line after the marker's one space.
+// 1 to 4 columns of whitespace after the marker put the body past them, 5 or more (or no body) one column past the
+// marker. `rest` is the line after the marker's one space.
 function bodyColumn(indent: number, marker: string, rest: string): number {
   const end = indent + marker.length - 1, space = /^[ \t]*/.exec(rest)?.[0] ?? "";
   const width = columns(" " + space, end) - end;
   return end + (width <= 4 && rest.trim() !== "" ? width : 1);
 }
 
-// CommonMark's rule: an item is the child of the nearest item above whose body starts at or before its marker. Unlike
-// full CommonMark, where blank lines and indented paragraphs can stay inside an item, any line that is not an item ends
-// the list here, so the next item starts again at depth 0.
+// Unlike full CommonMark, any line that is not an item ends the list here, so the next item starts again at depth 0.
 export function listLines(lines: readonly string[]): ListLine[] {
   const open: ListItem[] = [];
   return lines.map(line => {
@@ -50,8 +47,8 @@ export function listLines(lines: readonly string[]): ListLine[] {
   });
 }
 
-// A chip is one unit and can never be part of a marker, so it reads as one non-whitespace character and string offsets
-// stay field units; a line that starts with a chip is then not an item.
+// A chip reads as one non-whitespace character, so string offsets stay field units and a line that starts with a chip
+// is not an item.
 const CHIP = "￼";
 function layout(segments: readonly FieldSegment[]): { lines: string[]; starts: number[]; items: ListLine[] } {
   const lines = segments.map(segment => (segment.kind === "text" ? segment.text : CHIP)).join("").split("\n");
@@ -66,7 +63,6 @@ function lineOf(starts: readonly number[], caret: number): number {
   return i;
 }
 
-// The field's items, each with the unit its line starts at.
 export function fieldListItems(segments: readonly FieldSegment[]): FieldListItem[] {
   const { starts, items } = layout(segments);
   return items.flatMap((item, i) => (item ? [{ ...item, start: starts[i]! }] : []));
@@ -75,8 +71,7 @@ export function fieldListItems(segments: readonly FieldSegment[]): FieldListItem
 // A number marker has at most 3 digits; the one after 999 would read as text.
 const numbered = (n: number) => (n > 999 ? null : `${n}. `);
 
-// Shift+Enter in an item's body: a new item at the same depth, or for an empty item one level out, or at depth 0 the
-// marker gone and the list ended. Null leaves it to a plain line break.
+// Null leaves it to a plain line break.
 export function continueList(segments: readonly FieldSegment[], caret: number): FieldEdit | null {
   const { lines, starts, items } = layout(segments);
   const i = lineOf(starts, caret), item = items[i], start = starts[i]!, line = lines[i]!;
@@ -91,10 +86,8 @@ export function continueList(segments: readonly FieldSegment[], caret: number): 
   return spliceUnits(segments, caret, caret, textSegments(`\n${line.slice(0, item.lead)}${marker}`));
 }
 
-// Tab (1) makes the caret's item a child of the item above at its depth; Shift+Tab (-1) moves it to its parent's level.
-// Its own children move with it, so the tree under it keeps its shape. A numbered item takes the number after the
-// item it now follows at its new depth, or 1 when it starts a new numbered list there; when that number would have 4
-// digits the item keeps its marker, since the depth change is what the key asked for.
+// Its children move with it. When the new number would have 4 digits the item keeps its marker, since the depth change
+// is what the key asked for.
 export function indentItem(segments: readonly FieldSegment[], caret: number, dir: 1 | -1): FieldEdit | null {
   const { lines, starts, items } = layout(segments);
   const i = lineOf(starts, caret), item = items[i];
@@ -109,8 +102,8 @@ export function indentItem(segments: readonly FieldSegment[], caret: number, dir
   for (let j = i - 1; dir === 1 && j > at; j--) if (items[j]!.depth === item.depth + 1) { previous = items[j]!; break; }
   const marker = item.list === "ul" ? item.marker : numbered(previous?.list === "ol" ? (previous.number ?? 0) + 1 : 1) ?? item.marker;
   const lead = dir === 1 ? " ".repeat(target.column) : lines[at]!.slice(0, target.lead);
-  // The body keeps its whitespace after the marker, but a tab there can reach a different stop from the new place, so the
-  // children move by the body column's actual change.
+  // A tab after the marker can reach a different stop from the new place, so the children move by the body column's
+  // actual change.
   const shift = bodyColumn(columns(lead), marker, lines[i]!.slice(item.body)) - item.column;
   let edit: FieldEdit = { segments: [...segments], caret };
   // Bottom to top, so the units of the lines still to change stay where layout found them.
@@ -127,8 +120,7 @@ export function indentItem(segments: readonly FieldSegment[], caret: number, dir
   return { segments: edit.segments, caret: moved };
 }
 
-// Backspace at an item's body start with nothing selected: one level out, or at depth 0 the marker removed so the line
-// is plain text (its leading spaces stay).
+// At depth 0 the line becomes plain text; its leading spaces stay.
 export function removeMarker(segments: readonly FieldSegment[], caret: number): FieldEdit | null {
   const { starts, items } = layout(segments);
   const i = lineOf(starts, caret), item = items[i], start = starts[i]!;
@@ -137,9 +129,7 @@ export function removeMarker(segments: readonly FieldSegment[], caret: number): 
   return spliceUnits(segments, start + item.lead, start + item.body, []);
 }
 
-// A sent bubble's blocks. Markers, numbers and depth spaces are kept as typed, so the blocks stand for exactly the sent
-// text, joined by line breaks: plain lines run together into one text block, and an empty line is a text block with no
-// parts. A list holds items of one kind; an item's deeper items are its children.
+// Markers, numbers and depth spaces are kept as typed, so the blocks stand for exactly the sent text.
 export interface BubbleItem { lead: string; marker: string; parts: MessagePart[]; children: BubbleList[] }
 export interface BubbleList { kind: "list"; list: ListKind; items: BubbleItem[] }
 export type BubbleBlock = { kind: "text"; parts: MessagePart[] } | BubbleList;
@@ -193,8 +183,7 @@ export function bubbleBlocks(parts: readonly MessagePart[]): BubbleBlock[] {
   return blocks;
 }
 
-// Send drops only the blank lines (whitespace-only ones too) before and after the text, so the first line's
-// indentation, which may be a list's depth, survives.
+// Only blank lines go, so the first line's indentation, which may be a list's depth, survives.
 export function trimBlankLines(text: string): string {
   const lines = text.split("\n");
   let from = 0, to = lines.length;

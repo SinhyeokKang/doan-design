@@ -1,7 +1,5 @@
-// Pure view math for the canvas view. Screen coordinates are relative to the
-// canvas view container's top-left; the board is the iframe's own pixel space.
-// screen = board * scale + (x, y), matching `translate(x, y) scale(s)` with
-// `transform-origin: 0 0`.
+// screen = board * scale + (x, y), matching `translate(x, y) scale(s)` with `transform-origin: 0 0`, relative to the
+// view container's top-left.
 
 export interface View {
   x: number;
@@ -21,7 +19,7 @@ export interface Size {
 
 export interface Rect extends Point, Size {}
 
-// Distances kept free of the board view's edges, in screen px.
+// Screen px.
 export interface Inset {
   top: number;
   right: number;
@@ -37,22 +35,19 @@ export interface ZoomLimits {
 export const MIN_SCALE = 0.05;
 export const MAX_SCALE = 4;
 export const ZOOM_LIMITS: ZoomLimits = { min: MIN_SCALE, max: MAX_SCALE };
-// One toolbar/menu step.
 export const ZOOM_STEP = 1.25;
-// Cap per wheel event so one notch of a mouse wheel cannot jump across the range.
+// So one notch of a mouse wheel cannot jump across the range.
 export const WHEEL_ZOOM_MAX = 1.25;
-// Bottom clears the floating toolbar (20 + 50 + 10). Top matches it, so the safe area's centre is the viewport's,
-// which currentFrame reads: a jumped-to frame is then also the current one.
+// Bottom clears the floating toolbar (20 + 50 + 10). Top matches it, so the safe area's centre is the viewport's, which
+// currentFrame reads: a jumped-to frame is then also the current one.
 export const FIT_INSET: Inset = { top: 80, right: 32, bottom: 80, left: 32 };
 export const FIT_SCALE_MAX = 1;
 export const FIRST_LAYOUT_TIMEOUT_MS = 5000;
 
-// A feel constant, not a measured one: 0.01 makes a trackpad pinch (|dy| of a
-// few px) move smoothly while a mouse-wheel notch (|dy| 100) already hits
-// WHEEL_ZOOM_MAX. Revisit if wheel zoom feels off in the app.
+// A feel constant: a trackpad pinch (|dy| of a few px) moves smoothly while a mouse-wheel notch (|dy| 100) already
+// hits WHEEL_ZOOM_MAX.
 export const WHEEL_ZOOM_SENSITIVITY = 0.01;
-// Chromium reports pixels (deltaMode 0); lines and pages only show up from
-// other sources, so these are rough conversions rather than measured values.
+// Chromium reports pixels (deltaMode 0); lines and pages only come from other sources, so these are rough conversions.
 export const LINE_PX = 16;
 export const PAGE_PX = 800;
 
@@ -88,8 +83,8 @@ function fitScale(contentWidth: number, viewport: Size, inset: Inset): number {
   return Math.max(MIN_SCALE, Math.min(FIT_SCALE_MAX, wanted));
 }
 
-// The viewport minus the inset. A window smaller than its insets has no room: the size is clamped to 0, so content
-// is centered on the point at the top/left inset (it extends past it on both sides) rather than on a negative size.
+// A window smaller than its insets clamps the size to 0, so content is centered on the top/left inset point rather
+// than on a negative size.
 export function safeArea(viewport: Size, inset: Inset): Rect {
   return {
     x: inset.left,
@@ -105,8 +100,7 @@ export function fitWidth(boardWidth: number, viewport: Size, inset: Inset): View
   return { x: safe.x + (safe.width - boardWidth * scale) / 2, y: safe.y, scale };
 }
 
-// Chip locate for an element or a point: the person's scale, the
-// target centred in the safe area; an element larger than that area is zoomed out until it fits whole, never in.
+// An element larger than the safe area is zoomed out until it fits whole, never in.
 export function elementView(rect: Rect, viewport: Size, inset: Inset, current: View): View {
   if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return current;
   const safe = safeArea(viewport, inset);
@@ -119,8 +113,7 @@ export function elementView(rect: Rect, viewport: Size, inset: Inset, current: V
   };
 }
 
-// `current` is needed because a zero-size frame has no size to fit and keeps
-// the scale the person already chose.
+// A zero-size frame has no size to fit and keeps the scale the person already chose.
 export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View): View {
   const safe = safeArea(viewport, inset);
   const centerX = rect.x + rect.width / 2;
@@ -150,8 +143,7 @@ export interface WheelInput {
   deltaMode: number;
 }
 
-// `pan` is the translation to apply to the view (opposite to the wheel delta,
-// as scrolling down moves the content up).
+// `pan` is opposite to the wheel delta, as scrolling down moves the content up.
 export type WheelAction = { zoom: number } | { pan: { dx: number; dy: number } };
 
 function pixelScale(deltaMode: number): number {
@@ -163,8 +155,7 @@ function pixelScale(deltaMode: number): number {
 export function wheelAction(input: WheelInput): WheelAction {
   const scale = pixelScale(input.deltaMode);
   if (input.ctrl || input.meta) {
-    // Infinite dy is kept (not zeroed): exp(±Infinity) is 0 or Infinity and the
-    // clamp below turns both into a valid factor.
+    // Infinite dy is kept: exp(±Infinity) is 0 or Infinity and the clamp below turns both into a valid factor.
     const dy = Number.isNaN(input.dy) ? 0 : input.dy * scale;
     return { zoom: clamp(Math.exp(-dy * WHEEL_ZOOM_SENSITIVITY), 1 / WHEEL_ZOOM_MAX, WHEEL_ZOOM_MAX) };
   }

@@ -3,20 +3,16 @@ import type { CanvasRow } from "../main/view";
 import type { CanvasRect, LayoutMessage, SelectionMessage, SelectTarget } from "./canvasMessage";
 import { sameDocument, type CanvasViewUpdate } from "./canvasView";
 
-// What the panel and sidebar show; the rect stays in CanvasController so a
-// pan or a scroll never re-renders React.
+// The rect stays in CanvasController so a pan or a scroll never re-renders React.
 export type SelectionView = Omit<SelectTarget, "rect">;
 
 export const SELECTION_LOST = "The selection is no longer in the canvas.";
 
-// The controller keeps the notice until the next selection; the app shows it as a toast when it appears (an event,
-// not a state: as a board notice it stayed indefinitely and competed with the agent notice at the top centre).
+// A toast, not a board notice: as one it stayed indefinitely and competed with the agent notice at the top centre.
 export function noticeToast(previous: string, next: string): string | null {
   return next && next !== previous ? next : null;
 }
 
-// What the renderer last asked of or heard from the canvas script: its
-// document, the iframe height (the script's innerHeight) and the seq.
 export interface Expectation {
   href: string | null;
   height: number;
@@ -28,10 +24,8 @@ function viewportCurrent(expected: Expectation, viewport: number): boolean {
   return Math.abs(viewport - expected.height) <= 1;
 }
 
-// Design flow 4. A message from another document, or older than the last
-// command the renderer sent (an Esc, a path step, a frame pick), is dropped.
-// A rect measured at another iframe height is stale; a select still counts
-// and its rect follows with the next layout.
+// A message older than the last command the renderer sent is dropped. A rect measured at another iframe height is
+// stale; a select still counts and its rect follows with the next layout.
 export function acceptSelectionMessage(expected: Expectation, message: SelectionMessage): "drop" | "apply" | "applyWithoutRect" {
   if (expected.href === null || !sameDocument(expected.href, message.href)) return "drop";
   // A key is the person's intent whatever the canvas was doing.
@@ -54,9 +48,7 @@ export type SelectionTrigger =
   | { kind: "moved" | "resize" | "none" | "errorLine" | "loadFailed" | "anchorLost" | "unlisted" | "otherCanvas" }
   | { kind: "clear"; reason: Extract<CanvasViewUpdate, { kind: "clear" }>["reason"] };
 
-// Design flow 7 'selection by state'. `mark`: whether the overlay shows it. A
-// move is the same canvas reloaded at another path; a new id at the same path
-// is another canvas.
+// A move is the same canvas reloaded at another path; a new id at the same path is another canvas.
 export function selectionAfter(trigger: SelectionTrigger): { keep: boolean; mark: boolean; notice: boolean } {
   switch (trigger.kind) {
     case "reload": return trigger.idChanged ? { keep: false, mark: false, notice: false } : { keep: true, mark: false, notice: false };
@@ -72,8 +64,7 @@ export function selectionAfter(trigger: SelectionTrigger): { keep: boolean; mark
   }
 }
 
-// root and canvas come from renderer state (what main listed), never from the
-// canvas; only fields of the app-socket selection schema go to main.
+// root and canvas come from renderer state, never from the canvas; only app-socket selection schema fields go to main.
 export function mainSelection(open: { folder: string; canvas: string; row: Pick<CanvasRow, "id"> }, view: SelectionView): Selection {
   const selection: Selection = { root: open.folder, canvas: { path: open.canvas } };
   if (open.row.id) selection.canvas.id = open.row.id;
@@ -82,8 +73,7 @@ export function mainSelection(open: { folder: string; canvas: string; row: Pick<
   return selection;
 }
 
-// Esc and a blank click change nothing without a selection or one being found
-// again, so they neither ask about the draft nor take Esc's default action.
+// They then neither ask about the draft nor take Esc's default action.
 export function shouldGuardEscape(selection: SelectionView | null, reanchor: AnchorRequest | null): boolean {
   return selection !== null || reanchor !== null;
 }
@@ -94,7 +84,6 @@ export interface AnchorRequest {
   selector?: string;
 }
 
-// What the next document is asked to select again after a reload (flow 6).
 export function anchorRequest(view: SelectionView): AnchorRequest {
   if (view.element) return view.element.doanId === undefined ? { selector: view.element.selector } : { doanId: view.element.doanId, selector: view.element.selector };
   const request: AnchorRequest = {};
@@ -104,7 +93,7 @@ export function anchorRequest(view: SelectionView): AnchorRequest {
   return request;
 }
 
-// Canvas px as the size label and the measurement labels show them: up to two decimals, trailing zeros dropped.
+// Up to two decimals, trailing zeros dropped.
 export function canvasPx(value: number): string {
   return String(Math.round(value * 100) / 100);
 }

@@ -5,32 +5,30 @@ import type { ConnectorAction, ConnectorStatus } from "../main/mcpConnectors/sta
 import { MCP_PROVIDERS, type McpProvider } from "../main/mcpConnectors/presets";
 import { PROVIDER_NAMES, type Button, type Notice } from "./agentAuthView";
 
-// Settings > MCP Connectors: main's snapshot and agent-auth as the page draws them.
-// States come from main (service.ts, state.ts connectorState), never re-judged here; this only words them. Rows reuse
-// the first-run Agent step's provider row and Settings > Agents' notices and copy forms.
+// States come from main (service.ts, state.ts connectorState), never re-judged here; this only words them.
 
 export type McpCommand = "connect" | "disconnect" | "cancel" | "openLink" | "check" | "remove";
-// tooltip: why an aria-disabled button can't act now; it stays focusable so the reason can be read.
+// The button stays focusable so the reason can be read.
 export type McpButton = Button<McpCommand> & { tooltip?: string };
 export interface McpRowView {
   provider: McpProvider; name: string; label: string;
-  // url: a URL server's full address under its status line; presets show none. logo: a preset's local mark.
+  // Presets show no url.
   url: string | null; logo: string | null;
   group: string; status: string;
   button: McpButton | null; helper: string | null; notice: Notice<McpCommand> | null;
-  // A URL server's … menu (Remove); disabled while the server is being removed. removeDisabled: an agent connects it.
+  // removeDisabled: an agent connects it.
   menu: { label: string; disabled: boolean; removeDisabled: boolean } | null;
 }
 export interface McpSectionView { provider: McpProvider; title: string; header: { reason: string; action: Button<"openAgents"> } | null; rows: McpRowView[] }
 export interface McpPageView { notice: Notice<never> | null; addDisabled: boolean; sections: McpSectionView[] }
 
-// Local copies of the draft's marks; sources are in public/mcp-logos/README.md. Relative, as the provider marks.
+// Sources are in public/mcp-logos/README.md. Relative, as the provider marks.
 const LOGOS: Record<string, string> = { "doan-notion": "mcp-logos/notion.png", "doan-atlassian": "mcp-logos/atlassian.svg", "doan-figma": "mcp-logos/figma.svg" };
 const STATUS: Record<ConnectorStatus, string> = {
   checking: "Checking", not_connected: "Not connected", connecting: "Connecting", connected: "Connected",
   disconnecting: "Disconnecting", removing: "Removing", reconnect_needed: "Reconnect needed", check_failed: "Couldn’t check",
 };
-// The Agents sign-in row's sentence for a browser that did not open (agentAuthView), said the same way here.
+// Said the same way as the Agents sign-in row (agentAuthView).
 export const OPEN_FAILED_TEXT = "Couldn’t open your browser. Try again.";
 export const BLOCKED_LINE = "Doan is still disconnecting the previous account. Try again later.";
 // URL servers are one list for every agent, so what happens to one is said for both.
@@ -48,7 +46,7 @@ function button(command: McpCommand, label: string, variant: Button["variant"], 
 }
 const alert = (body: string, actions: McpButton[]): Notice<McpCommand> => ({ role: "alert", spinner: false, body, actions });
 
-// The row's Remove failure, also said inside the Remove alert when that is still open.
+// Also said inside the Remove alert when that is still open.
 export const removeFailedText = (label: string) => `Couldn’t remove ${label} from Doan’s agents. Try again.`;
 
 export function mcpFailureText(failure: McpFailure, provider: McpProvider, label: string): string {
@@ -65,7 +63,6 @@ export function mcpFailureText(failure: McpFailure, provider: McpProvider, label
   }
 }
 
-// Why the section's buttons are off while the agent is signed in but can't run (draft frame 2 tile).
 function headerReason(status: AuthStatusDto | undefined): string | null {
   if (!status || status.readiness.ready || status.readiness.cause === "busy") return null;
   const agent = PROVIDER_NAMES[status.provider], cause = status.readiness.cause;
@@ -75,7 +72,6 @@ function headerReason(status: AuthStatusDto | undefined): string | null {
   return `${agent} can’t run right now. Check it in Agents to connect or disconnect its servers.`;
 }
 
-// Why a busy section's Connect waits: the one attempt the agent runs.
 function busyReason(rows: readonly McpRowDto[], labels: ReadonlyMap<string, string>): string {
   const running = rows.find(row => row.view.status === "connecting" || row.view.status === "disconnecting" || row.view.status === "removing");
   const label = running ? labels.get(running.name) ?? running.name : "other";
@@ -84,7 +80,7 @@ function busyReason(rows: readonly McpRowDto[], labels: ReadonlyMap<string, stri
   return `Finish or cancel the ${label} connection first.`;
 }
 
-// openFailed: this row's last Open again answered open_failed (the browser did not open).
+// openFailed: the browser did not open.
 function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, busy: string, remembered: ConnectorAction | null, openFailed: boolean): McpRowView {
   const agent = PROVIDER_NAMES[provider], label = server.label, of = `${label} for ${agent}`, { view } = row;
   const off = view.disabled !== null;
@@ -101,11 +97,11 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
     case "removing": rowButton = settled(remembered ?? "connect", true); break;
     case "connecting": {
       const cancel = button("cancel", "Cancel", "subtle", `Cancel connecting ${of}`);
-      // The Agents sign-in row's alert for the same failure (agentAuthView); Open browser keeps Open again's command.
+      // The Agents sign-in row's alert for the same failure; Open browser keeps Open again's command.
       if (provider === "claude" && openFailed) { notice = alert(OPEN_FAILED_TEXT, [cancel, button("openLink", "Open browser", "prominent", `Open browser to connect ${of}`, !row.link)]); break; }
       notice = provider === "claude"
         ? { role: "status", spinner: true, title: `Finish connecting to ${label}`, body: `Allow access to ${label} in your browser, then return here.`, actions: [cancel, button("openLink", "Open again", "subtle", `Open ${label}’s sign-in again for ${agent}`, !row.link)] }
-        // Codex opens the default browser itself; Doan has no link to open again (POSTMORTEM 2026-10-30).
+        // Codex opens the default browser itself; Doan has no link to open again.
         : { role: "status", spinner: true, title: `Finish connecting to ${label}`, body: `Codex opened your default browser. Allow access to ${label} there, then return here.`, actions: [cancel] };
       break;
     }
@@ -117,9 +113,8 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   }
   if (view.status === "reconnect_needed" && !view.blocked) helper = `${agent} was connected to ${label} before, and that access has ended. Reconnect to use it again.`;
   if (view.blocked) helper = BLOCKED_LINE;
-  // A failed Remove shows its own alert over an earlier Connect failure; while a Remove runs, an earlier failure's alert
-  // stays (it lasts until the row's next Connect, Retry or Cancel) with its Retry disabled.
-  // A running attempt's own actions (Cancel, Open again) win over the Remove failure, which shows again once it ends.
+  // While a Remove runs, an earlier failure's alert stays with its Retry disabled. A running attempt's own actions win
+  // over the Remove failure, which shows again once it ends.
   if (server.removeFailed && view.status !== "removing" && view.status !== "connecting") notice = alert(removeFailedText(label), [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
   // A failed attempt keeps the row it returned to and puts the reason and Retry in place of the row's button.
   else if (row.failure) {
@@ -135,8 +130,8 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   };
 }
 
-// remembered: the action a row offered before it started Removing, which it keeps disabled meanwhile (draft frame 7).
-// openFailed: the row's last Open again answered open_failed; drawn only while the row is connecting.
+// remembered: the action a row offered before it started Removing, kept disabled meanwhile. openFailed is drawn only
+// while the row is connecting.
 export function mcpPageView(snapshot: McpSnapshot | null, auth: AuthSnapshot | null | undefined, remembered: (provider: McpProvider, name: string) => ConnectorAction | null = () => null,
   openFailed: (provider: McpProvider, name: string) => boolean = () => false): McpPageView {
   if (!snapshot) return { notice: null, addDisabled: true, sections: [] };
@@ -153,7 +148,7 @@ export function mcpPageView(snapshot: McpSnapshot | null, auth: AuthSnapshot | n
     const header = reason ? { reason, action: { command: "openAgents" as const, label: "Open Agents settings", variant: "prominent" as const, disabled: false, ariaLabel: `Open Agents settings for ${PROVIDER_NAMES[provider]}` } } : null;
     return [{ provider, title: PROVIDER_NAMES[provider], header, rows }];
   });
-  // The Settings storage notice form: an unreadable file is not read as empty, and a newer one is never written.
+  // An unreadable file is not read as empty, and a newer one is never written.
   const notice: Notice<never> | null = snapshot.file === "broken"
     ? { role: "alert", spinner: false, body: "Doan couldn’t read its saved servers, so you can’t add or remove servers by URL.", actions: [] }
     : snapshot.file === "newer" ? { role: "status", spinner: false, title: "These servers were saved by a newer version of Doan", body: "You can’t add or remove servers by URL here. Update Doan to change them.", actions: [] } : null;
@@ -175,16 +170,15 @@ export function addError(reply: McpAddReply): string | null {
   }
 }
 
-// Where focus goes after a Remove: the next item in the section, else the previous one.
+// The next item in the section, else the previous one.
 export function removeFocus(names: readonly string[], removed: string): string | null {
   const at = names.indexOf(removed);
   if (at === -1) return null;
   return names[at + 1] ?? names[at - 1] ?? null;
 }
 
-// What changed between two snapshots that the page reads aloud, a toast tells or a notice follows.
-// A status settling from Checking is not a change; a success is told by its generation, not by a missing
-// failure, so a cancel says nothing.
+// A status settling from Checking is not a change; a success is told by its generation, not by a missing failure, so
+// a cancel says nothing.
 export type McpChange =
   | { kind: "connected" | "disconnected" | "failed" | "disconnectFailed" | "reconnectNeeded" | "checkFailed" | "succeeded"; provider: McpProvider; name: string; label: string }
   | { kind: "added" | "removed" | "removeFailed"; name: string; label: string };
@@ -205,8 +199,8 @@ export function mcpChanges(prev: McpSnapshot | null, next: McpSnapshot): McpChan
       if (row.failure && row.failure !== old.failure) change(row.failure === "disconnect_failed" ? "disconnectFailed" : "failed");
       else if (succeeded === row.name && was === "connecting") change("connected");
       else if (succeeded === row.name && was === "disconnecting") change("disconnected");
-      // An attempt that ended without a success was cancelled or failed (told by its failure); a first Checking result
-      // is not read.
+      // An attempt that ended without a success was cancelled or failed (told by its failure); a first Checking result is
+      // not read.
       else if (was === "checking" || was === now || ["connecting", "disconnecting", "removing"].includes(was)) continue;
       else if (now === "connected") change("connected");
       else if (now === "not_connected" && was === "connected") change("disconnected");

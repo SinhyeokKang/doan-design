@@ -19,15 +19,12 @@ import { groupProjects } from "./homeCards";
 import { displayPath } from "./projectDisplay";
 import { projectReadingLine, projectUnavailableLine } from "./problemView";
 
-// Pure parts of the Home composer. Copy follows the confirmed draft
-// `.doan/canvases/doan-home.html`.
-
 // `group` is optional: an older CLI on PATH lists presets without it.
 export type PresetSummary = DesignPresetSummary & { group?: string };
 export type PresetListReply = DesignSkillReply<{ version: string; presets: PresetSummary[] }>;
 export interface PresetRef { id: string; title: string }
 
-// The conversation IPC's text limit, in UTF-16 code units.
+// UTF-16 code units.
 export const TEXT_LIMIT = LIMITS.text;
 export const MAX_ATTACHMENTS = LIMITS.attachments;
 // main's MAX_IMAGE_BYTES (main/attachments.ts), which the renderer cannot import: that module reaches node:fs.
@@ -61,15 +58,14 @@ export function lengthCounter(length: number): string | null {
 }
 
 export interface AttachmentDraft {
-  // The renderer's own key; `id` is main's opaque id once the file is checked.
+  // `id` is main's opaque id once the file is checked.
   key: string; id?: string;
   name: string; kind: "image" | "file" | "directory"; pasted: boolean;
-  // replaced: a folder whose path now leads to another folder (main's recheck said so).
+  // replaced: main's recheck found the path now leads to another folder.
   status: "checking" | "ready" | "missing" | "replaced";
-  // A folder never has a size.
   size?: number; path?: string; lines?: number; excerpt?: string;
-  // held: the id a returned queue handed over (takeDraft). main keeps a queued id aside as sent, so removing it alone
-  // would put it back aside; the draft holding the chip is its last owner and also releases it.
+  // held: the id a returned queue handed over. main keeps a queued id aside as sent, so the draft holding the chip is its
+  // last owner and also releases it.
   held?: true;
 }
 
@@ -82,7 +78,7 @@ export interface SendInput {
 }
 export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string };
 
-// An empty composer and a send in flight disable Send without a reason line (spec 9).
+// An empty composer and a send in flight disable Send without a reason line.
 export function sendAvailability(input: SendInput): { enabled: boolean; reason: SendReason | null } {
   const off = (reason: SendReason | null) => ({ enabled: false, reason });
   if (input.sending) return off(null);
@@ -92,13 +88,13 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: projectUnavailableLine(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
-  // An empty composer shows no line: Home keeps its suggestions until something is typed.
+  // Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
   const draft = draftProblem(input.text, input.preset, input.attachments, input.skills);
   return draft ? off(draft) : { enabled: true, reason: null };
 }
 
-// The picked agent cannot run. Shared with the docked composer's new-conversation mode.
+// Shared with the docked composer's new-conversation mode.
 export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Provider | null): SendReason | null {
   if (!provider) return { kind: "noAgent", text: "No agent is ready to run." };
   // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
@@ -106,15 +102,14 @@ export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Pr
   return null;
 }
 
-// What in a non-empty draft stops the send. Shared with the docked composer. A plain string is typed text only; the
-// chip field passes its segments, because {text, anchors} cannot tell a typed {{1}} from a chip's marker.
+// The chip field passes its segments, because {text, anchors} cannot tell a typed {{1}} from a chip's marker.
 export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[], skills: readonly string[]): SendReason | null {
   const typed = typedPieces(draft);
   const text = typeof draft === "string" ? draft : toMessage(draft)?.text ?? typed.join("");
   const request = composeRequest(text, preset, skills, attachments.length);
   if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
-  // The conversation IPC reads {{ and }} as anchor markers and refuses stray ones. Only what the person typed is
-  // checked, piece by piece between chips: braces typed on both sides of a chip are not one marker.
+  // The conversation IPC refuses stray {{ and }}. Only typed text is checked, piece by piece between chips: braces typed
+  // on both sides of a chip are not one marker.
   typed.push(...requestLines(preset, skills));
   if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
   if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments" };
@@ -152,18 +147,14 @@ const START_ERRORS: Record<string, { text: (p: string, project: string) => strin
 };
 
 // Home has no sign-in, so provider codes only explain; bad_request, unknown and codes this table does not know retry.
-// resets: the usage limit's reset as limitReset.ts words it, when main knew it.
 export function startErrorView(code: string, provider: Provider, project: string, resets: string | null = null): { text: string; retry: boolean } {
   if (code === "rate_limited" && resets) return { text: `${PROVIDER_NAMES[provider]} reached a usage limit. Send again after it resets ${resets}.`, retry: false };
   const row = Object.hasOwn(START_ERRORS, code) ? START_ERRORS[code]! : { text: () => "Couldn’t start the conversation. Try again.", retry: true };
   return { text: row.text(PROVIDER_NAMES[provider], project), retry: row.retry };
 }
 
-// Projects
-
-// Order: the first-run handoff, the loaded workspace, the last Home send, then the sidebar's first
-// healthy root. A chosen root that is still listed stays chosen even when unhealthy, so Send explains it; a removed
-// one falls back to the sidebar order only, and adding it again does not choose it again.
+// A chosen root still listed stays chosen even when unhealthy, so Send explains it; a removed one falls back to the
+// sidebar order only, and adding it again does not choose it again.
 export function defaultProject(entries: readonly FolderEntry[], lastCommon: ReadonlyMap<string, string>, prefs: {
   handoff?: string | null; current?: { root: string; name: string } | null; loaded?: string | null; lastRoot?: string | null;
 }): { root: string | null; announcement: string | null } {
@@ -179,19 +170,16 @@ export function defaultProject(entries: readonly FolderEntry[], lastCommon: Read
   return { root: fallback, announcement: null };
 }
 
-// A project switch picks the worktree the sidebar remembers for it (`selectedRoot`), else its first healthy root.
 export function rootForProject(rows: readonly FolderEntry[], remembered: string | undefined): string | null {
   if (rows.some(r => r.path === remembered)) return remembered!;
   return rows.find(r => r.kind === "list")?.path ?? rows[0]?.path ?? null;
 }
 
-// Providers
-
-// The marks onboarding shows (public/provider-logos/README.md); relative, so the packaged app's file URL resolves them.
+// Relative, so the packaged app's file URL resolves them (public/provider-logos/README.md).
 const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.png", cursor: "cursor.svg", antigravity: "antigravity.svg", copilot: "copilot.svg" };
 export function providerLogo(provider: Provider): string { return `provider-logos/${LOGOS[provider]}`; }
 
-// Only providers with a saved connection are listed, in agent-auth's order.
+// In agent-auth's order.
 function connectedProviders(auth: AuthSnapshot | null | undefined): AuthStatusDto[] {
   return (auth?.providers ?? []).filter(p => p.account !== null).sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
 }
@@ -201,11 +189,10 @@ export function selectableProvider(status: AuthStatusDto): boolean {
   return status.readiness.ready || status.readiness.cause === "unverified";
 }
 
-// The agent, model and effort fixed in Settings > Agents > New conversations; null is Last used.
-// Home starts each new input from it; the person's picks override it until they send.
+// null is Last used. The person's picks override it until they send.
 export interface NewConversationDefault { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 
-// The fixed preference speaks only for its own agent: a fallback agent keeps its own remembered model and effort.
+// A fallback agent keeps its own remembered model and effort.
 export function fixedPreference(preference: NewConversationDefault | null, provider: Provider): NewConversationDefault | null {
   return preference?.provider === provider ? preference : null;
 }
@@ -218,23 +205,18 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
   return (choosable.find(s => s.readiness.ready) ?? choosable[0])?.provider ?? null;
 }
 
-// Models and effort
-
-// fast: the model offers Fast; description is Codex's tier text, unavailable an account-level
-// reason Claude Code's list read gave. defaultEffort: Codex's level for this model when none is sent.
+// unavailable: an account-level reason from Claude Code's list. defaultEffort: Codex's level when none is sent.
 // older: an earlier generation the menus fold (main models.ts olderIds).
 export interface ModelOption { id: string; label: string; default: boolean; older?: true; efforts?: string[]; defaultEffort?: string; fast?: { description?: string; unavailable?: FastUnusedReason } }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
-// modes: what an ACP server listed with its models; absent for Claude and Codex.
 export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
 
 function receivedModels(state: ModelsState): ModelOption[] | null {
   return state !== undefined && state !== "loading" && "models" in state && state.models.length > 0 ? state.models : null;
 }
 
-// ui-state's remembered model is only a preference: main accepts a model only from a list received in this run.
-// fixed (this agent's fixed preference) replaces the remembered model; one this project does not list, or none, is
-// the provider's default.
+// main accepts a model only from a list received in this run, so the remembered model is only a preference. One this
+// project does not list, or none, is the provider's default.
 export function defaultModel(state: ModelsState, saved: { model: string; effort?: string } | undefined, fixed: NewConversationDefault | null = null): string | null {
   const models = receivedModels(state);
   if (!models) return null;
@@ -242,14 +224,12 @@ export function defaultModel(state: ModelsState, saved: { model: string; effort?
   return models.find(m => m.id === wanted)?.id ?? models.find(m => m.default)?.id ?? null;
 }
 
-// No level means the provider's default, which sends no effort. fixed replaces the remembered level the same way.
+// No level means the provider's default, which sends no effort.
 export function defaultEffort(model: ModelOption | null, remembered: string | undefined, fixed: NewConversationDefault | null = null): string | null {
   const wanted = fixed ? fixed.effort : remembered;
   return wanted !== undefined && model?.efforts?.includes(wanted) ? wanted : null;
 }
 
-// Why Claude Code did not or cannot run Fast: the thread's line and a disabled switch row's
-// description.
 const FAST_REASONS: Record<FastUnusedReason, string> = {
   plan: "Your plan doesn’t include it.", extra_usage: "Extra usage is turned off for this account.", model: "It isn’t available for this model.",
   policy: "Your organization turned it off.", cooldown: "It’s paused after a rate limit.",
@@ -259,30 +239,24 @@ export function fastReason(reason: FastUnusedReason): string { return FAST_REASO
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
 function effortLabel(id: string): string { return EFFORT_LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1); }
 
-// isDefault: the provider's own default row (Claude Code's default, Codex's isDefault, an ACP agent's current model),
-// marked "Default" in the menu.
+// Claude Code's default, Codex's isDefault, an ACP agent's current model.
 export type ModelRow =
   | { kind: "model"; id: string; label: string; effort: boolean; selected: boolean; isDefault: boolean; older?: true }
   | { kind: "default"; label: "Default"; selected: boolean };
 export interface ProviderGroup {
   provider: Provider; name: string; selectable: boolean;
-  // For the shared short status copy (agentAuthView); null when ready.
+  // null when ready.
   cause: ReadinessCause | null;
-  // The draft (frame 05) shows reading as a note in the group head over the Default row.
   note: "Models unavailable" | "Loading models" | null;
-  // Read the list when this group opens.
   read: boolean;
   rows: ModelRow[];
 }
-// fast: the conversation's or the new input's Fast, kept even for a model without it; absent where the
-// composer offers no Fast (Settings > Agents 'New conversations').
+// fast: kept even for a model without it; absent where the composer offers no Fast.
 export interface ModelChoice { provider: Provider | null; model: string | null; effort: string | null; fast?: boolean }
 export interface FastView { on: boolean; description?: string; unavailable?: FastUnusedReason }
 // placeholder: the label is the drawer's name, not a value (drawn in the metadata ink).
-// isDefault: the shown model is the provider's default row.
 export interface ModelTrigger { provider: Provider | null; label: string; ariaLabel: string; placeholder: boolean; isDefault: boolean }
-// unset: the menu's first row, which goes back to sending no level. It stays out of options, so Settings, which draws
-// its own Default row, never shows two.
+// unset stays out of options, so Settings, which draws its own Default row, never shows two.
 export interface EffortView {
   label: string; ariaLabel: string; placeholder: boolean; menuLabel: string; title: string;
   unset: { label: "Default"; description: string; selected: boolean };
@@ -304,9 +278,9 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default, ...(m.older ? { older: true as const } : {}) })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
-    // A failed read is read again when the group opens, as Settings > Agents' Retry reads it again; an empty list is an answer.
+    // A failed read is read again when the group opens; an empty list is an answer.
     if (state !== undefined) return { ...group, note: "Models unavailable", read: "error" in state, rows };
-    // Every provider, Copilot included, lists its models without a model request, so all are read.
+    // Every provider, Copilot included, lists its models without a model request.
     return { ...group, read: true, rows };
   });
   const trigger: ModelTrigger = !choice.provider ? { provider: null, label: "No agent ready", ariaLabel: "Agent: none ready", placeholder: false, isDefault: false }
@@ -316,29 +290,26 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
   return { trigger, groups, effort };
 }
 
-// Older models: a group's rows keep every model, and the menu folds the older ones under one line
-// only when drawing. Picking and finding the checked row read the full rows, so an older pick never falls back to Default.
+// The menu folds older rows only when drawing; picking reads the full rows, so an older pick never falls back to
+// Default.
 type FoldRow = { older?: true; selected: boolean };
-// Current and older rows each retain the provider's list order.
 export function foldRows<T extends FoldRow>(rows: readonly T[]): { current: T[]; older: T[] } {
   return { current: rows.filter(row => !row.older), older: rows.filter(row => row.older) };
 }
-// An upward menu grows above its anchor: inserting before the line keeps it under the pointer. Use the
-// painted side, since Radix can flip a top-requested menu below the trigger.
+// Inserting before the line keeps it under the pointer. Use the painted side: Radix can flip a top-requested menu.
 export function olderOrder<T>(line: T, rows: readonly T[], side: string): T[] {
   return side === "top" ? [...rows, line] : [line, ...rows];
 }
-// After a disclosure toggles, growth must scroll on that side rather than move the line to the opposite side.
+// Growth must scroll on that side rather than move the line to the opposite side.
 export function lockedOlderSide(locked: "top" | "bottom" | null, painted: string | undefined): "top" | "bottom" | null {
   return locked ?? (painted === "top" || painted === "bottom" ? painted : null);
 }
-// The line's name leads with its visible label (WCAG 2.5.3), the provider as in the docked names.
+// Leads with its visible label (WCAG 2.5.3).
 export function olderLabel(provider: string, count: number): string { return `Older models (${provider}), ${count}`; }
-// Which groups are unfolded, and which the person toggled. It lives with an open menu and is dropped when it closes.
+// Dropped when the menu closes.
 export interface OlderGroups { open: readonly string[]; touched: readonly string[] }
 export const NO_OLDER: OlderGroups = { open: [], touched: [] };
-// On opening and when a list arrives, a group the person has not toggled unfolds when its checked row is older.
-// Returns the same state when nothing changes.
+// A group the person has not toggled unfolds when its checked row is older. Returns the same state when unchanged.
 export function olderOpened(state: OlderGroups, groups: readonly { provider: string; rows: readonly FoldRow[] }[]): OlderGroups {
   const add = groups.filter(g => !state.open.includes(g.provider) && !state.touched.includes(g.provider) && g.rows.some(row => row.older && row.selected)).map(g => g.provider);
   return add.length ? { ...state, open: [...state.open, ...add] } : state;
@@ -349,14 +320,13 @@ export function olderToggled(state: OlderGroups, provider: string, open: boolean
     touched: state.touched.includes(provider) ? state.touched : [...state.touched, provider],
   };
 }
-// The menu's scrollTop after a toggle: moved by as much as the line moved, so the line stays under the pointer
-// (an up-opening menu grows upward). Clamped to the scroll range; with no range the line moves.
+// Moved by as much as the line moved, so the line stays under the pointer. Clamped; with no range the line moves.
 export function heldScrollTop(m: { scrollTop: number; maxScrollTop: number; lineBefore: number; lineAfter: number }): number {
   return Math.min(Math.max(m.scrollTop + m.lineAfter - m.lineBefore, 0), Math.max(m.maxScrollTop, 0));
 }
 
-// With no level chosen the trigger shows the level the provider will run when Doan knows it (Codex's defaultEffort),
-// else the drawer's name.
+// With no level chosen, the level the provider will run when Doan knows it (Codex's defaultEffort), else the drawer's
+// name.
 function effortView(provider: Provider, model: ModelOption, choice: ModelChoice): EffortView {
   const levels = model.efforts ?? [];
   const picked = choice.effort !== null && levels.includes(choice.effort) ? choice.effort : null;
@@ -364,7 +334,7 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   const label = picked ? effortLabel(picked) : known ? effortLabel(known) : "Effort";
   const named = picked ? label : known ? `${label}, default` : "default";
   const fast = choice.fast !== undefined ? fastView(provider, model, choice.fast) : null;
-  // label stays the level alone: Settings shows it as its row's text.
+  // Settings shows label as its row's text.
   return {
     label, ariaLabel: fast && !fast.unavailable ? `Effort: ${named}, Fast ${fast.on ? "on" : "off"}` : `Effort: ${named}`, placeholder: !picked && !known,
     menuLabel: `Effort for ${model.label}`, title: `Effort · ${model.label}`,
@@ -373,10 +343,9 @@ function effortView(provider: Provider, model: ModelOption, choice: ModelChoice)
   };
 }
 
-// Only Claude Code and Codex list Fast per model; the others offer Fast as a model of its own.
+// The others offer Fast as a model of its own.
 const FAST_PROVIDERS: readonly Provider[] = ["claude", "codex"];
-// Claude Code's own words (2.1.318: "same model, faster output", "Fast mode requires usage credits"); check them again
-// when the CLI's copy changes. Codex's description is its tier's, as listed.
+// Claude Code's own words; check them again when the CLI's copy changes.
 const CLAUDE_FAST = "Same model, faster output. Requires usage credits.";
 function fastView(provider: Provider, model: ModelOption, on: boolean): FastView | null {
   if (!FAST_PROVIDERS.includes(provider) || !model.fast) return null;
@@ -386,29 +355,25 @@ function fastView(provider: Provider, model: ModelOption, on: boolean): FastView
   return { on, ...(text ? { description: text } : {}) };
 }
 
-// What an existing conversation's send says of Fast: nothing until the person switched it. An off is stored whatever
-// the model; an on only while the shown model's row can be used, since main refuses Fast for a model without it.
-// provider: null for a conversation that takes no Fast (a terminal session).
+// Nothing until the person switched it. An on only while the shown model's row can be used: main refuses Fast for a
+// model without it.
 export function fastToSend(picked: boolean | undefined, provider: Provider | null, view: FastView | null): { fast?: boolean } {
   if (picked === undefined || provider === null || !FAST_PROVIDERS.includes(provider)) return {};
   if (!picked) return { fast: false };
   return view && !view.unavailable ? { fast: true } : {};
 }
 
-// A new input's Fast is its provider's Last used; a fixed Settings default never sets it. The switch shows
-// it on only for a model that offers Fast (fastView).
+// A fixed Settings default never sets it.
 export function defaultFast(memory: HomeMemory | null | undefined, provider: Provider | null): boolean {
   return provider !== null && memory?.fast?.[provider] === true;
 }
-
-// Presets
 
 const GROUPS: Record<string, { label: string; icon: string }> = {
   start: { label: "Start", icon: "compass" }, review: { label: "Review", icon: "scan-eye" }, refine: { label: "Refine", icon: "paintbrush" },
   content: { label: "Content", icon: "text-align-start" }, explore: { label: "Explore", icon: "shapes" },
 };
 const PRESET_ICON = "pencil-sparkles";
-// Membership lives in the CLI catalog only; the renderer maps a key to its name and icon.
+// Membership lives in the CLI catalog only.
 export function groupLabel(key: string | undefined): string | null {
   return key === undefined ? null : Object.hasOwn(GROUPS, key) ? GROUPS[key]!.label : key;
 }
@@ -416,13 +381,12 @@ export function groupIcon(key: string | undefined): string {
   return key !== undefined && Object.hasOwn(GROUPS, key) ? GROUPS[key]!.icon : PRESET_ICON;
 }
 
-// Screens are the `.doan/canvases/` canvases; a design system is any canvas in `.doan/ds/`.
 // A legacy `.doan/canvases/design-system.html` counts as a screen.
 function split(canvases: readonly CanvasRow[]): { screens: CanvasRow[]; designSystem: boolean } {
   return { screens: canvases.filter(row => canvasKind(row.path) !== "ds"), designSystem: canvases.some(row => canvasKind(row.path) === "ds") };
 }
 
-// Fixed rules on what Doan knows about the project; ids the CLI did not list are skipped.
+// Ids the CLI did not list are skipped.
 export function suggestedPresets(entry: FolderEntry | null, presets: readonly PresetSummary[]): PresetSummary[] {
   if (entry?.kind !== "list") return [];
   const { screens, designSystem } = split(entry.canvases);
@@ -431,12 +395,11 @@ export function suggestedPresets(entry: FolderEntry | null, presets: readonly Pr
   return ids.flatMap(id => presets.filter(p => p.id === id)).slice(0, 3);
 }
 
-// `parts` splits `label` for display only: `value` marks the project and canvas names the screens highlight.
+// `parts` is for display only: `value` marks the project and canvas names the screens highlight.
 export interface SuggestionPart { text: string; value: boolean }
 export interface SuggestedPrompt { label: string; parts: readonly SuggestionPart[]; preset: PresetSummary; text: string }
 
-// The same rules as suggestedPresets. Labels are short imperatives in the words a person would type; the composer
-// text adds the target canvas's path so the agent does not ask which design is meant.
+// The composer text adds the target canvas's path so the agent does not ask which design is meant.
 export function suggestedPrompts(entry: FolderEntry | null, project: string, presets: readonly PresetSummary[]): SuggestedPrompt[] {
   if (entry?.kind !== "list") return [];
   const plain = (label: string) => ({ label, parts: [{ text: label, value: false }], text: `${label}.` });
@@ -488,19 +451,16 @@ function skillRow(s: ProjectSkillSummary): PresetRow {
     description: s.description, scope: "", tooltip: s.description, group: null };
 }
 
-// A provider's built-in command: the skill's gray tile with a terminal icon.
 function commandRow(s: ProjectSkillSummary): PresetRow {
   return { ...skillRow(s), kind: "command", key: `command:${s.name}`, icon: "terminal" };
 }
-// conversation:skills answers skills and the provider's commands together. Rows from before commands had a kind are
-// skills. A project skill wins over a command of its name (PRODUCT §5 'Project skills').
+// Rows from before commands had a kind are skills. A project skill wins over a command of its name.
 function splitRows(rows: readonly ProjectSkillSummary[]): { skills: ProjectSkillSummary[]; commands: ProjectSkillSummary[] } {
   const skills = rows.filter(r => r.kind !== "command"), names = new Set(skills.map(r => r.name));
   return { skills, commands: rows.filter(r => r.kind === "command" && !names.has(r.name)) };
 }
 const byName = (rows: readonly ProjectSkillSummary[]) => [...rows].sort((a, b) => a.name.localeCompare(b.name));
 
-// Rows in order: presets, then skills, then commands, each kind in name order.
 export function searchDrawer(presets: readonly PresetSummary[], rows: readonly ProjectSkillSummary[], query: string): PresetRow[] {
   const trimmed = query.trim(), tokens = queryTokens(query);
   const { skills, commands } = splitRows(rows);
@@ -557,7 +517,7 @@ function drawerSummary(rows: readonly PresetRow[], query: string, hasSkills: boo
   return `${counts.join(" and ")} ${rows.length === 1 ? "matches" : "match"} ${query}`;
 }
 
-// Preset failures remain visible above usable project skills; they never discard an independent skill read.
+// Preset failures never discard an independent skill read.
 export function presetListView(reply: PresetListReply | undefined, opts: {
   project: string; suggested: readonly PresetSummary[]; query: string; tab: string | null; slash?: boolean;
   skills?: readonly ProjectSkillSummary[];
@@ -594,11 +554,9 @@ export function presetListView(reply: PresetListReply | undefined, opts: {
   return { kind: "list", tabs, sections, summary: null };
 }
 
-// Greeting
-
 export const GREETINGS = ["What should we design today?", "What are we making next?", "What would you like to change?", "What’s next for <project>?", "Where should we start?"] as const;
 
-// Picked once per visit; never the previous one, so a return to Home reads as new without animating.
+// Never the previous one, so a return to Home reads as new without animating.
 export function pickGreeting(previous: string | null, random: () => number, hasProject: boolean): string {
   const pool = GREETINGS.filter(g => g !== previous && (hasProject || !g.includes("<project>")));
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]!;
@@ -609,8 +567,6 @@ export function greetingText(template: string, project: string | null): string {
   return project ? template.replace("<project>", project) : GREETINGS[0];
 }
 
-// Keys
-
 export function isSubmitKey(event: { key: string; shiftKey: boolean; isComposing: boolean; keyCode: number }): boolean {
   // keyCode 229 is the IME's own Enter in browsers that do not set isComposing on it.
   return event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229;
@@ -620,8 +576,7 @@ export function steerKey(event: { key: string; ctrlKey: boolean; metaKey: boolea
   return isSubmitKey(event) && event.ctrlKey && !event.metaKey && !event.altKey;
 }
 
-// A plain → or Tab on an empty field takes the suggestion its placeholder shows (Claude Code's own CLI takes it with either).
-// Any modifier keeps the key's own selection, word and line move or Shift+Tab's focus move; keyCode 229 is the IME's own key.
+// As in Claude Code's own CLI. Any modifier keeps the key's own move; keyCode 229 is the IME's own key.
 export function takesSuggestion(
   event: { key: string; shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number },
   state: { suggestion: string | null; empty: boolean; composing: boolean },
@@ -630,14 +585,12 @@ export function takesSuggestion(
     && state.suggestion !== null && state.empty && !state.composing;
 }
 
-// `dismissed`: Escape closed the list, which stays closed until the field is empty again.
+// `dismissed` stays until the field is empty again.
 export function slashQuery(text: string, dismissed: boolean, names: ReadonlySet<string> = new Set()): string | null {
   const first = /^[^\p{White_Space}]+(?=\p{White_Space})/u.exec(text);
   if (first && skillWords(first[0], names).some(run => run.start === 0)) return null;
   return !dismissed && text.startsWith("/") && !text.includes("\n") ? text.slice(1) : null;
 }
-
-// Attachments
 
 export function pastedTextMeta(text: string): { lines: number; excerpt: string } {
   const normalized = text.replace(/\r\n?/g, "\n");
@@ -669,9 +622,8 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
   return { accept, notices };
 }
 
-// The chooser's answer against the draft's room. main accepts at most 10 paths of one pick and refuses the rest,
-// unchecked, as limit; those count as left out with the accepted ones that no longer fit, so one notice gives the
-// count. release: ids main kept that the draft will not show.
+// main accepts at most 10 paths of one pick and refuses the rest as limit; those count as left out, so one notice
+// gives the count. release: ids main kept that the draft will not show.
 export function chosenAttachments<R extends AttachmentResult>(existing: number, results: readonly R[]): { chosen: R[]; release: string[]; notices: string[] } {
   const candidates = results.filter(result => result.ok || result.error === "limit");
   const limit = attachmentLimit(existing, candidates.map(() => ({ pasted: false, size: 0 })));
@@ -691,46 +643,43 @@ const REFUSALS: Record<string, (name: string, kind: AttachmentRefusalKind) => st
   unreadable: (name, kind) => kind === "pastedText" ? "Couldn’t save the pasted text. Paste it again." : `${name} couldn’t be read, so it wasn’t attached.`,
   too_large: (_name, kind) => kind === "pastedText" ? "This text is over 50 MB, so it wasn’t attached." : "This image is over 50 MB, so it wasn’t attached.",
   limit: (_name, kind) => kind === "pastedText" ? `Only ${MAX_ATTACHMENTS} attachments can be added, so the pasted text wasn’t added. Remove one and paste again.` : LIMIT_TEXT,
-  // An empty canvas capture or one main could not save: the file name means nothing.
+  // The file name means nothing for a capture.
   capture_failed: () => "Couldn’t capture the canvas. Try again.",
 };
-// Why main refused one item of an Attach, drop or paste; an unknown code reads as unreadable.
+// An unknown code reads as unreadable.
 export function attachRefusal(error: string, name: string, kind: AttachmentRefusalKind = "file"): string { return (REFUSALS[error] ?? REFUSALS.unreadable!)(name, kind); }
 
-// A chip for what main checked, or for a recorded path main could not issue again (a request read back into a draft).
+// Also a recorded path main could not issue again.
 export function readyAttachment(key: string, info: AttachmentInfo): AttachmentDraft {
   return { key, id: info.id, name: info.name, kind: info.kind, pasted: info.pasted, status: "ready", ...("size" in info ? { size: info.size } : {}), path: info.path, ...(info.lines === undefined ? {} : { lines: info.lines }), ...(info.excerpt === undefined ? {} : { excerpt: info.excerpt }) };
 }
 export function recordedAttachment(key: string, record: AttachmentRecord): AttachmentDraft {
   return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", ...("size" in record ? { size: record.size } : {}), path: record.path, ...(record.lines === undefined ? {} : { lines: record.lines }), ...(record.excerpt === undefined ? {} : { excerpt: record.excerpt }) };
 }
-// A recorded path main issued again as a new attachment. Only the recorded kind counts as the same: a folder whose path
-// now names a file or an image (or the reverse) comes back as the recorded kind's moved chip, and release names the new
-// id for the caller to give back.
+// Only the recorded kind counts as the same; a changed kind comes back as the recorded kind's moved chip, and release
+// names the new id for the caller to give back.
 export function issuedAttachment(key: string, record: AttachmentRecord, result: AttachmentResult | undefined): { chip: AttachmentDraft; release?: string } {
   if (!result?.ok) return { chip: recordedAttachment(key, record) };
   if (result.attachment.kind !== record.kind) return { chip: recordedAttachment(key, record), release: result.attachment.id };
   return { chip: readyAttachment(key, result.attachment) };
 }
-// A refused start or send as the composers read it: attachment_missing's ids, and the replaced folders among them.
 // resetsAt: a usage-limit refusal's reset time, which the refusal line names.
 export function sendRefusal(reply: { error: string; missing?: unknown; replaced?: unknown; resetsAt?: unknown }): { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string } {
   const ids = (value: unknown) => Array.isArray(value) && value.every(id => typeof id === "string") ? value as string[] : undefined;
   const missing = ids(reply.missing), replaced = ids(reply.replaced);
   return { error: reply.error, ...(missing ? { missing } : {}), ...(replaced ? { replaced } : {}), ...(typeof reply.resetsAt === "string" ? { resetsAt: reply.resetsAt } : {}) };
 }
-// A send refused with attachment_missing: the named chips become problems, a replaced folder as Replaced.
 export function markRefused(attachments: readonly AttachmentDraft[], missing: readonly string[], replaced: readonly string[] | undefined): AttachmentDraft[] {
   return attachments.map(a => !a.id || !missing.includes(a.id) ? a : { ...a, status: replaced?.includes(a.id) ? "replaced" : "missing" });
 }
 
-// main writes a canvas capture as a paste named canvas-capture-<time>.png (attachments.ts capturedName); AttachmentInfo has no
-// field for it, so a draft chip is known by this name. A path attachment with the same name has pasted false.
+// AttachmentInfo has no field for a capture, so it is known by main's name (attachments.ts capturedName). A path
+// attachment with the same name has pasted false.
 function isCanvasCapture(a: AttachmentDraft): boolean { return a.pasted && a.name.startsWith("canvas-capture-"); }
 export function isPastedText(a: { name: string; kind: string; pasted?: boolean; status?: string; lines?: number; excerpt?: string }): boolean {
   if (a.kind !== "file") return false;
   if (a.pasted && a.status === "checking" && a.name === "Pasted text") return true;
-  // Recorded pasted text always had metadata; ordinary path attachments have neither that signal nor pasted ownership.
+  // Ordinary path attachments have neither that signal nor pasted ownership.
   return /^pasted-text-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.txt$/.test(a.name)
     && (a.pasted === true || a.lines !== undefined || a.excerpt !== undefined);
 }
@@ -755,7 +704,7 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
   const label = text ? "Pasted text" : a.pasted ? pastedLabel(a) : a.name;
   const folder = a.kind === "directory";
   const dot = a.name.lastIndexOf(".");
-  // Pasted images are always re-encoded to PNG by main. A folder's name says nothing about a type, even shots.png.
+  // main re-encodes pasted images to PNG. A folder's name says nothing about a type.
   const type = folder ? "Folder" : a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
   const problem = a.status === "missing" || a.status === "replaced";
   const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : a.status === "replaced" ? "Replaced"
@@ -768,15 +717,12 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
   };
 }
 
-// A sent message's chip: a file shows its size, a folder Folder and its path.
 export function sentFileView(file: AttachmentRecord, home: string | null): { label: string; meta: string; tooltip: string | null; folder: boolean } {
   if (isPastedText(file)) return { label: "Pasted text", meta: file.lines === undefined ? "" : pastedTextLabel(file.lines), tooltip: file.excerpt ?? null, folder: false };
   return file.kind === "directory" ? { label: file.name, meta: "Folder", tooltip: displayPath(file.path, home), folder: true }
     : { label: file.name, meta: formatSize(file.size), tooltip: null, folder: false };
 }
 
-// A queued message names its first folder or pasted text and counts the other attachments.
-// The tooltip and accessible name use paths for files and folders, and the first line for pasted text.
 export function queueAttachmentSummary(files: readonly AttachmentRecord[], home: string | null): { name: string; more: string | null; items: { name: string; path: string }[]; label: string; pastedText?: true } | null {
   const first = files.find(file => file.kind === "directory" || isPastedText(file));
   if (!first) return null;
@@ -785,8 +731,7 @@ export function queueAttachmentSummary(files: readonly AttachmentRecord[], home:
   return { name: isPastedText(first) ? "Pasted text" : first.name, ...(isPastedText(first) ? { pastedText: true as const } : {}), more: files.length > 1 ? `+${files.length - 1}` : null, items, label: `Attachments: ${items.map(item => `${item.name} — ${item.path}`).join("; ")}` };
 }
 
-// Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;
-// × hands focus to the chip that moves into its place, else the field.
+// Backspace takes the preset first, then the last attachment; × hands focus to the chip that moves into its place.
 export function chipRemoval(chips: readonly { label: string; preset?: boolean }[], trigger: { kind: "backspace"; text: string; caret: number } | { kind: "button"; index: number }): { remove: number; announcement: string; focus: number | "textarea" } | null {
   if (trigger.kind === "backspace") {
     if (trigger.text !== "" || trigger.caret !== 0 || chips.length === 0) return null;
@@ -799,8 +744,7 @@ export function chipRemoval(chips: readonly { label: string; preset?: boolean }[
   return { remove: trigger.index, announcement: `Removed ${chip.label}`, focus: trigger.index < chips.length - 1 ? trigger.index : "textarea" };
 }
 
-// Arrows move; Enter picks unless an IME is composing; Tab and Escape close until the field is empty.
-// Returning null for an exact skill or command lets the composer's ordinary submit path handle Enter.
+// null for an exact skill or command lets the composer's ordinary submit path handle Enter.
 export function slashKey(key: string, highlight: number, count: number, composing: boolean,
   skill?: { query: string; row: PresetRow | undefined },
 ): { kind: "move"; highlight: number } | { kind: "pick" } | { kind: "close"; dismiss: boolean } | null {

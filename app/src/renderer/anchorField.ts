@@ -1,11 +1,9 @@
 import { chipLabel, LIMITS, splitMarkers } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 
-// The chip field's value: typed text and inline chips in order. The
-// composer and main exchange it as {text, anchors}, where each chip is a {{n}} marker.
+// The composer and main exchange it as {text, anchors}, where each chip is a {{n}} marker.
 export type FieldSegment = { kind: "text"; text: string } | { kind: "chip"; anchor: Anchor };
 
-// What makes two chips the same place: the frame, the element's doan-id and selector, the point's frame and offset.
 // Names and excerpts are labels only, so a renamed frame is still the same target.
 function targetKey(anchor: Anchor): string {
   const { frame, element, point } = anchor;
@@ -13,13 +11,13 @@ function targetKey(anchor: Anchor): string {
 }
 export function sameTarget(a: Anchor, b: Anchor): boolean { return targetKey(a) === targetKey(b); }
 
-// The number of different places the segments point at, which LIMITS.anchors bounds.
+// LIMITS.anchors bounds it.
 export function distinctTargets(segments: readonly FieldSegment[]): number {
   return new Set(segments.flatMap(s => (s.kind === "chip" ? [targetKey(s.anchor)] : []))).size;
 }
 
-// Markers count from 1 in order of first appearance; the same place again reuses its number (main allows repeats).
-// Null past LIMITS.anchors different places: main would refuse the message.
+// The same place again reuses its number (main allows repeats). Null past LIMITS.anchors different places: main would
+// refuse the message.
 export function toMessage(segments: readonly FieldSegment[]): { text: string; anchors: Anchor[] } | null {
   const numbers = new Map<string, number>(), anchors: Anchor[] = [];
   let text = "";
@@ -33,16 +31,14 @@ export function toMessage(segments: readonly FieldSegment[]): { text: string; an
   return anchors.length > LIMITS.anchors ? null : { text, anchors };
 }
 
-// A sent message, a returned draft or combineQueued's result drawn back as chips. Anchors no marker names are dropped;
-// a marker past the anchors stays text, so draftProblem still stops it.
+// Anchors no marker names are dropped; a marker past the anchors stays text, so draftProblem still stops it.
 export function fromMessage(text: string, anchors: readonly Anchor[]): FieldSegment[] {
   return splitMarkers(text, anchors.length).map(part => ("n" in part ? { kind: "chip", anchor: anchors[part.n - 1]! } : { kind: "text", text: part.text }));
 }
 
-// Positions in a field are units: every UTF-16 code unit of text is one (a line break is "\n") and a chip is exactly
-// one, so a caret stands before or after a chip, never inside it. The chip field (chipField.ts) edits through these.
+// Units: every UTF-16 code unit of text is one and a chip is exactly one, so a caret never stands inside a chip.
 
-// Adjacent text joins and empty text drops, so two fields with the same content compare equal.
+// So two fields with the same content compare equal.
 export function normalize(segments: readonly FieldSegment[]): FieldSegment[] {
   const out: FieldSegment[] = [];
   for (const segment of segments) {
@@ -56,7 +52,6 @@ export function normalize(segments: readonly FieldSegment[]): FieldSegment[] {
   return out;
 }
 
-// A typed string as field segments (Home, and Overview's suggested prompts).
 export function textSegments(text: string): FieldSegment[] {
   return text === "" ? [] : [{ kind: "text", text }];
 }
@@ -77,7 +72,7 @@ export function sliceUnits(segments: readonly FieldSegment[], start: number, end
   return normalize(out);
 }
 
-// Units [start, end) replaced by `inserted`; the caret lands after the insertion.
+// The caret lands after the insertion.
 export function spliceUnits(segments: readonly FieldSegment[], start: number, end: number, inserted: readonly FieldSegment[]): { segments: FieldSegment[]; caret: number } {
   const next = normalize([...sliceUnits(segments, 0, start), ...inserted, ...sliceUnits(segments, end, unitLength(segments))]);
   return { segments: next, caret: start + unitLength(inserted) };
@@ -93,7 +88,6 @@ export function chipAt(segments: readonly FieldSegment[], unit: number): Anchor 
   return null;
 }
 
-// The hard line around [start, end): from after the line break before `start` to the line break at or after `end`.
 export function hardLine(segments: readonly FieldSegment[], start: number, end: number): [number, number] {
   let from = 0, to = unitLength(segments), at = 0;
   for (const segment of segments) {
@@ -110,17 +104,16 @@ export function hardLine(segments: readonly FieldSegment[], start: number, end: 
   return [from, to];
 }
 
-// What leaves Doan as plain text (a paste into another app, a field that takes no chips): chips read as their names.
+// Chips read as their names.
 export function plainText(segments: readonly FieldSegment[]): string {
   return segments.map(segment => (segment.kind === "text" ? segment.text : chipLabel(segment.anchor).label)).join("");
 }
 
-// Only the person's own text, chips left out: the `/` list and Home read it.
+// The `/` list and Home read it.
 export function typedText(segments: readonly FieldSegment[]): string {
   return segments.map(segment => (segment.kind === "text" ? segment.text : "")).join("");
 }
 
-// Something to send: a chip, or text that is more than whitespace.
 export function hasContent(segments: readonly FieldSegment[]): boolean {
   return segments.some(segment => segment.kind === "chip" || segment.text.trim() !== "");
 }
@@ -134,9 +127,8 @@ export function sameSegments(a: readonly FieldSegment[], b: readonly FieldSegmen
   });
 }
 
-// A chip that starts a line: Chromium cannot hold a caret before a contenteditable=false element at a line's start, so
-// ChipField draws a zero-width filler there. Only that drawn node's character is skipped; a U+200B the person typed or
-// pasted is text like any other.
+// Chromium cannot hold a caret before a contenteditable=false element at a line's start, so ChipField draws this
+// filler there; a U+200B the person typed is text like any other.
 export const FILLER = "​";
 export function isLineStart(segments: readonly FieldSegment[], unit: number): boolean {
   if (unit === 0) return true;
@@ -148,13 +140,11 @@ export function isLineStart(segments: readonly FieldSegment[], unit: number): bo
   }
   return false;
 }
-// The chip clipboard between Doan fields keeps segments, not {text, anchors}: a typed {{1}} next to a chip must come
-// back as typed text, which a marker string cannot tell apart. The scope is the canvas the chips belong to.
+// A typed {{1}} next to a chip must come back as typed text, which a marker string cannot tell apart.
 export function writeFieldClipboard(scope: string, segments: readonly FieldSegment[]): string {
   return JSON.stringify({ v: 1, scope, segments });
 }
-// The segments, or null when the clipboard is not a chip clipboard of this scope or any field the field reads (the chip
-// label, the marker) has the wrong type; the caller then pastes the plain text. main checks anchors again on send.
+// null makes the caller paste the plain text. main checks anchors again on send.
 export function readFieldClipboard(raw: string, scope: string): FieldSegment[] | null {
   let value: unknown;
   try { value = JSON.parse(raw); } catch { return null; }
@@ -171,7 +161,7 @@ export function readFieldClipboard(raw: string, scope: string): FieldSegment[] |
 type Fields = Record<string, unknown>;
 const isObject = (value: unknown): value is Fields => typeof value === "object" && value !== null && !Array.isArray(value);
 const optional = (value: unknown, type: "string" | "number") => value === undefined || (type === "number" ? typeof value === "number" && Number.isFinite(value) : typeof value === type);
-// The Anchor shape, with every member chipLabel and toMessage read typed as declared (types.ts).
+// Every member chipLabel and toMessage read is typed as declared (types.ts).
 function isAnchor(value: unknown): boolean {
   if (!isObject(value)) return false;
   const { frame, element, point } = value;

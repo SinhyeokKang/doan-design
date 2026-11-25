@@ -1,44 +1,39 @@
 import type { ProjectPhase } from "./projectStep";
 
-// Where a page (Add Projects, Settings or Project Settings) goes when it is left. The origin is the last Projects-side screen, not the previous one, so
-// moving from one page to another never makes a page the return target.
+// The last Projects-side screen, not the previous one, so moving from one page to another never makes a page the
+// return target.
 export type AddPageOrigin = { screen: "home" } | { screen: "workspace"; root: string };
 export type PageName = "addProjects" | "settings" | "projectSettings";
 export type ShellScreen = AddPageOrigin | { screen: PageName };
 export type AddPageEvent =
   | { kind: "projectsTab" } | { kind: "back" } | { kind: "cancel" } | { kind: "forward" } | { kind: "reopen" } | { kind: "home" }
-  // editing: an edited field or an IME composition holds the key. overlay: Quick Open or a dialog closes itself first.
+  // overlay: Quick Open or a dialog closes itself first.
   | { kind: "escape"; editing: boolean; overlay: boolean }
   | { kind: "added"; root: string }
-  // The page's worktree left the list (Remove from Doan, a removal elsewhere); nothing is left to hold the page.
+  // Nothing is left to hold the page.
   | { kind: "gone" };
-// A sidebar row or a Quick Open pick is not an event here: it leaves through the shell's own navigation, whose
-// controller asks the draft guard canvas by canvas (only the canvas already open skips it). The page never decides
-// that a move may skip the guard.
+// A sidebar row or Quick Open pick leaves through the shell's own navigation, which asks the draft guard; the page
+// never decides that a move may skip it.
 export type AddPageDestination =
   | { kind: "stay" }
   | { kind: "home"; select: string | null }
   | { kind: "workspace"; root: string };
 
-// Entering hides the Projects-side screen and keeps its state; a start-up restore or a workspace still opening would
-// otherwise land after the entry and take the window away from the page (POSTMORTEM 2026-10-27 'Shell navigation
-// shortcuts lost destination ownership and recovery access'). A locked page cannot be left, not even for the other one.
+// Entering keeps the Projects-side screen's state, so a start-up restore or an opening workspace must not land after
+// the entry and take the window away. A locked page cannot be left, not even for the other one.
 export function pageEnter(from: ShellScreen, origin: AddPageOrigin, to: PageName, locked: boolean): { kind: "stay" } | { kind: "enter"; origin: AddPageOrigin; cancelPending: true } {
   if (locked || from.screen === to) return { kind: "stay" };
   return { kind: "enter", origin: from.screen === "home" || from.screen === "workspace" ? from : origin, cancelPending: true };
 }
 
-// Choosing a worktree's Project Settings while its page is already open. It never goes through pageEnter, which would stay: the page is the same, only its worktree changes.
-// The origin is kept as it is.
+// Never through pageEnter, which would stay: the page is the same, only its worktree changes.
 export function projectSettingsReentry(shown: string, target: string, locked: boolean):
   { kind: "ignore" } | { kind: "focusTitle" } | { kind: "switch"; root: string; cancelPending: true } {
   if (locked) return { kind: "ignore" };
   return target === shown ? { kind: "focusTitle" } : { kind: "switch", root: target, cancelPending: true };
 }
 
-// locked: the page owns a write, a clone or a confirmation, so every move away is ignored; the page's own completion
-// (added) is not a move away, and neither is its worktree being removed: gone passes the lock because the page has
-// nothing left to show (a pending result is dropped with the page).
+// Completion (added) is not a move away, and gone passes the lock because the page has nothing left to show.
 export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots: readonly string[], locked = false): AddPageDestination {
   if (locked && event.kind !== "added" && event.kind !== "gone") return { kind: "stay" };
   switch (event.kind) {
@@ -50,16 +45,13 @@ export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots:
   return origin.screen === "workspace" && roots.includes(origin.root) ? { kind: "workspace", root: origin.root } : { kind: "home", select: null };
 }
 
-// The loaded workspace's root left the list (Remove from Doan) while the workspace is on screen: it goes Home, as a page
-// whose origin project was removed does. A reroot is not a removal: a Set Up or Locate focus moves the loaded root first,
-// and a workspace Locate still waiting on its answer holds the old root (`locatingFrom`).
+// A reroot is not a removal: a Set Up or Locate focus moves the loaded root first, and a pending workspace Locate holds
+// the old root (`locatingFrom`).
 export function workspaceRemoved(screen: ShellScreen["screen"], loadedRoot: string | null, roots: readonly string[], locatingFrom: string | null): boolean {
   return screen === "workspace" && loadedRoot !== null && loadedRoot !== locatingFrom && !roots.includes(loadedRoot);
 }
 
-// Only a field you type into holds Escape (the URL field, an IME composition); a focused radio of
-// the candidates list does not. An IME may hold Escape without setting isComposing; keyCode 229 is its own key then
-// (homeComposer isSubmitKey).
+// An IME may hold Escape without setting isComposing; keyCode 229 is its own key then (homeComposer isSubmitKey).
 const UNTYPED = new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]);
 function typing(target: unknown): boolean {
   if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
@@ -70,8 +62,7 @@ export function pageEscape(event: { target: unknown; isComposing: boolean; keyCo
   return { kind: "escape", editing: typing(event.target) || event.isComposing || event.keyCode === 229, overlay };
 }
 
-// Selecting writes the project and a clone runs until it ends or is cancelled; neither result may be dropped, so the
-// page cannot be left meanwhile.
+// Neither result may be dropped, so the page cannot be left meanwhile.
 export function leaveLocked(phase: Pick<ProjectPhase, "kind">): boolean {
   return phase.kind === "selecting" || phase.kind === "cloning";
 }

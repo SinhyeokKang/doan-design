@@ -1,11 +1,9 @@
 import type { ConversationEvent } from "../main/conversation/types";
 
-// The ring's reading of a conversation: the last context.usage recorded before a turn's
-// end. value fills the ring and stops at 100; percent is the real ratio the name and tooltip give.
+// The last context.usage before a turn's end. value stops at 100; percent is the real ratio the name and tooltip give.
 export interface ContextUsage { value: number; percent: number; used: number; size: number }
 
-// stale: the last value is a session /clear left behind (commandView threadCommands usageStale); no ring until a turn
-// measures the new one, rather than a made-up empty value.
+// stale: the value is one a session /clear left behind; no ring until a turn measures the new one.
 export function contextRing(events: readonly ConversationEvent[], stale = false): ContextUsage | null {
   if (stale) return null;
   let at = events.length - 1;
@@ -16,15 +14,15 @@ export function contextRing(events: readonly ConversationEvent[], stale = false)
   return { value: Math.min(percent, 100), percent, used: last.used, size: last.size };
 }
 
-// Counts read as the provider's window is usually named: 84K, 1M, 1.2M; floored like the percent.
+// Floored like the percent.
 export function tokenText(count: number): string {
   if (count < 1_000) return `${count}`;
   if (count < 1_000_000) return `${Math.floor(count / 1_000)}K`;
   return `${Math.floor(count / 100_000) / 10}M`;
 }
 
-// label is the ring's name and the tooltip's first line; tokens its description and second line. Both percents divide
-// the integer used * 100 by size: (used / size) * 100 can land just under an integer (0.29 * 100) and floor one low.
+// Both percents divide the integer used * 100 by size: (used / size) * 100 can land just under an integer and floor
+// one low.
 export function contextText({ used, size }: ContextUsage): { label: string; tokens: string } {
   return { label: `Context window ${Math.floor(used * 100 / size)}% used · last turn`, tokens: `${tokenText(used)} of ${tokenText(size)} tokens` };
 }

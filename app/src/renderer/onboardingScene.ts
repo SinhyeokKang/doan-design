@@ -1,24 +1,24 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 
-// Welcome → Buddy → Agent → Project → Home, with no Skip.
+// No Skip.
 export type Scene = "welcome" | "buddy" | "agent" | "project" | "home";
-// Every accepted scene change advances the generation, so results started on an earlier scene are dropped.
+// Results started on an earlier scene are dropped.
 export interface Fence { generation: number }
 export interface SceneState extends Fence { scene: Scene }
 export type SceneEvent =
   | { type: "start" } | { type: "continue" } | { type: "back" } | { type: "escape" }
   | { type: "step"; to: SetupStep }
-  // Main saved the completion record; the renderer never decides completion itself.
+  // The renderer never decides completion itself.
   | { type: "completed" };
-// busy: project setup or the completion save is running, which locks Back and the stepper.
+// busy locks Back and the stepper.
 export interface SceneGuard { auth: AuthSnapshot | null; busy: boolean }
 
 export function initialScene(completed: boolean): SceneState { return { scene: completed ? "home" : "welcome", generation: 0 }; }
 // agent-auth owns readiness; onboarding only asks whether any provider is ready.
 export function canAdvance(auth: AuthSnapshot | null): boolean { return !!auth && auth.providers.some(p => p.readiness.ready); }
 
-// The stepper's steps, in order; Welcome is before them and Home after.
+// Welcome is before them and Home after.
 export type SetupStep = "buddy" | "agent" | "project";
 const STEPS: readonly { step: SetupStep; title: string }[] = [{ step: "buddy", title: "Buddy" }, { step: "agent", title: "Agent" }, { step: "project", title: "Project" }];
 
@@ -49,7 +49,7 @@ export function nextScene(state: SceneState, event: SceneEvent, guard: SceneGuar
 }
 
 export interface StepperItem { step: SetupStep; n: number; title: string; state: "done" | "current" | "ahead"; label: string | null }
-// label: the accessible name of a done step, whose visible number is replaced by a check.
+// label: a done step's visible number is replaced by a check.
 export function setupSteps(scene: Scene): StepperItem[] {
   const at = STEPS.findIndex(item => item.step === scene);
   return STEPS.map((item, i) => {
@@ -58,14 +58,14 @@ export function setupSteps(scene: Scene): StepperItem[] {
   });
 }
 
-// Project selection keeps its own fence: a new URL or folder outdates lookups started for the previous one.
+// A new URL or folder outdates lookups started for the previous one.
 export function advance<T extends Fence>(fence: T): T { return { ...fence, generation: fence.generation + 1 }; }
 
 // onAgentAuth already drops older snapshots, but a readAgentAuth reply can still arrive after a newer event.
 export function newerAuth(current: AuthSnapshot | null, incoming: AuthSnapshot): AuthSnapshot {
   return current && current.revision >= incoming.revision ? current : incoming;
 }
-// Continue with another provider ready cancels this window's own sign-ins still running (2026-10-28 user).
+// Continue with another provider ready cancels them.
 export function ownedSignIns(auth: AuthSnapshot | null, owned: readonly string[]): { provider: Provider; attemptId: string }[] {
   return (auth?.providers ?? []).flatMap(p => p.attempt?.kind === "signIn" && !p.attempt.cancelling && owned.includes(p.attempt.id) ? [{ provider: p.provider, attemptId: p.attempt.id }] : []);
 }

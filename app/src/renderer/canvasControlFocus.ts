@@ -2,10 +2,8 @@ import { useEffect, useRef, type RefObject } from "react";
 import { controlFocusLost } from "./canvasFocus";
 import type { CanvasViewStore } from "./CanvasController";
 
-// A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page. Checked a
-// task later, after a closing Radix menu has tried its trigger. It runs after every render of the pane and after every
-// change of the view store: a publish that moves only the zoom or the current frame redraws the header alone, and that
-// is where Zoom in or Zoom out turns disabled at a scale limit.
+// Checked a task later, after a closing Radix menu has tried its trigger. Also runs on view store changes: a zoom-only
+// publish redraws the header alone, where Zoom in or out turns disabled at a scale limit.
 export function useControlFocusRecovery(panel: RefObject<HTMLElement | null>, viewport: RefObject<HTMLElement | null>, covered: boolean, view: CanvasViewStore): void {
   const lastFocus = useRef<HTMLElement | null>(null);
   const coveredNow = useRef(covered);

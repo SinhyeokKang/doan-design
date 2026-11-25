@@ -4,17 +4,14 @@ import { frameLabel } from "./canvasTree";
 import type { SelectionView } from "./selection";
 
 export interface HomeCard {
-  // `git.common` when known; the row's own path for a project outside git.
+  // The row's own path for a project outside git.
   key: string;
   name: string;
   rows: FolderEntry[];
 }
 
-// Cards keep the saved order: a card sits where its first row is, and its rows
-// stay in saved order. A row that is not a list has no `git`, so it stays with
-// the card it was last seen in (`lastCommon`, path → common, main's memory)
-// until the app restarts. A list row is trusted as it is: without `git` it is
-// a project outside git, whatever card it used to be in.
+// A non-list row has no `git`, so it stays with the card it was last seen in (`lastCommon`) until the app restarts. A
+// list row without `git` is a project outside git, whatever card it used to be in.
 export function groupProjects(entries: readonly FolderEntry[], lastCommon: ReadonlyMap<string, string>): HomeCard[] {
   const cards = new Map<string, HomeCard>();
   for (const entry of entries) {
@@ -31,9 +28,8 @@ export function groupProjects(entries: readonly FolderEntry[], lastCommon: Reado
   return [...cards.values()];
 }
 
-// What a project's Remove from Doan takes: every registered root of the group `paths` (its shown rows) belong to, an
-// auto-registered worktree hidden from those rows included, in saved order. `all` is main's whole list, grouped as
-// `doan remove` groups it (main/cliRemove.ts), so the menu and the CLI remove the same roots.
+// Includes auto-registered worktrees hidden from `paths`, grouped as `doan remove` groups them (main/cliRemove.ts), so
+// the menu and the CLI remove the same roots.
 export function groupRoots(all: readonly FolderEntry[], paths: readonly string[]): string[] | null {
   // A restored or newly registered root can still turn out to belong to the group.
   if (all.some(entry => entry.kind === "loading" && !entry.lastCommon)) return null;
@@ -43,34 +39,26 @@ export function groupRoots(all: readonly FolderEntry[], paths: readonly string[]
 }
 
 export type RowAction = "setUp" | "locate" | "remove" | "showInFinder" | "retry" | "details";
-// One label per recovery action for the workspace status line, the sidebar's project menu, the Overview's recovery
-// menu and the Project Settings page: no trailing ellipsis, since each acts or opens its own surface at once.
+// No trailing ellipsis, since each acts or opens its own surface at once.
 export const ROW_ACTION_LABELS: Record<RowAction, string> = { setUp: "Set up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
-// The icons the project menus (sidebar, Overview recovery menu) draw before those labels; Set Up and Locate have none.
+// Set Up and Locate have none.
 export const ROW_ACTION_ICONS: Partial<Record<RowAction, LucideIcon>> = { retry: RotateCw, details: Info };
 
 export interface CardRow {
   chip?: "Not set up" | "Missing" | "Config error" | "CLI error" | "Reading";
   // The first action takes focus when a problem row is clicked.
   actions: RowAction[];
-  // Only for a list row.
   summary?: { branch?: string; changedAt?: number };
-  // This row is the loaded workspace ("Open").
   current: boolean;
-  // "Selected for your agent: <selected>" while `current`.
   selected?: string;
-  // Config error or CLI error text behind Details.
   detail?: string;
 }
 
-// The shipped status chip a problem row draws in Home's project and worktree menus and the Overview's worktree menu.
 export function chipClass(chip: string | undefined): string {
   return `ob-chip${chip === "Config error" ? " err" : chip === "Missing" || chip === "CLI error" ? " warn" : ""}`;
 }
 
-// `loaded` is the root of the loaded workspace, `selection` the one the
-// renderer holds for it. Design
-// 'Problem rows' table.
+// `selection` is the one the renderer holds for the loaded workspace.
 export function cardRow(entry: FolderEntry, loaded: string | null, selection: SelectionView | null): CardRow {
   const current = loaded === entry.path;
   const selected = current && selection ? selectionLabel(selection) : undefined;
@@ -97,7 +85,6 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
   }
 }
 
-// A frame selection shows the frame's title, an element its tag and id.
 function selectionLabel(selection: SelectionView): string | undefined {
   if (selection.element) return selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`;
   return selection.frame ? frameLabel(selection.frame, 0).name : undefined;

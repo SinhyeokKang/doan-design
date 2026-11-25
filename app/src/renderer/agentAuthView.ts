@@ -3,39 +3,30 @@ import type { AuthAttempt, AuthErrorCode, AuthStatusDto, Provider } from "../mai
 import type { InstallResult } from "../main/installCommand";
 import type { SettingsTarget } from "./settingsSections";
 
-// Shared by onboarding, Settings, Home and conversations (2026-10-28 user). Copy follows the approved
-// doan-onboarding draft's Authentication states tiles; states come from agent-auth DTOs only, never re-judged here.
+// Shared by onboarding, Settings, Home and conversations. States come from agent-auth DTOs only, never re-judged here.
 export const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", antigravity: "Antigravity", copilot: "GitHub Copilot" };
 const VENDORS: Record<Provider, string> = { claude: "Anthropic", codex: "OpenAI", cursor: "Cursor", antigravity: "Google", copilot: "GitHub" };
-// These sign-in CLIs open the default browser themselves: Cursor and Copilot (accepted limit, 2026-10-28 user) and
-// codex login.
+// These sign-in CLIs open the default browser themselves.
 const OPENS_OWN_BROWSER: readonly Provider[] = ["codex", "cursor", "copilot"];
 export const MAX_PASTE = 16384;
 
 export type AuthCommand = "install" | "update" | "installPage" | "signIn" | "reauth" | "signOut" | "check" | "cancel" | "openLink" | "pasteAddress" | "submitCode" | "read" | "dismiss";
-// note: visible text shown next to the button (the Copilot request cost).
+// note: the Copilot request cost.
 export interface Button<C extends string = AuthCommand> { command: C; label: string; variant: "prominent" | "subtle" | "ghost"; disabled: boolean; ariaLabel?: string; note?: string }
 export type AuthButton = Button;
-// Errors are role=alert and progress is role=status with an aria-hidden spinner.
 export interface Notice<C extends string = AuthCommand> { role: "status" | "alert"; spinner: boolean; title?: string; body?: string; note?: string; actions: Button<C>[] }
 export interface ProviderView {
   provider: Provider; name: string;
-  // The line under the name; null when a connected account has nothing to show (Codex and Antigravity when their
-  // account lookup found no email).
+  // null when a connected account has nothing to show (Codex and Antigravity when their lookup found no email).
   detail: string | null; detailRole: "status" | null;
-  // The row's own button; states with a notice put their buttons in the notice instead.
+  // States with a notice put their buttons in the notice instead.
   button: AuthButton | null; helper: string | null; notice: Notice | null;
-  // Antigravity's secondary line under a waiting notice, outside its button row.
   paste: { prompt: string; button: AuthButton } | null;
-  // Settings only: a connected row's own Sign out beside its button, unless the row already offers one.
+  // Unless the row already offers one.
   signOut: AuthButton | null;
 }
-// What this window knows beyond the snapshot. prompt: the attemptId of the last sign-in link it received.
-// reply: its last refused call for this provider. failures: sign_in_failed results in a row.
-// busyWith: the provider whose sign-in or sign-out holds the lock. autoCheck: the consumer checks unverified
-// connections itself when its screen opens (the onboarding Agent step), so the row may say so.
-// settings: the row is on Settings > Agents rather than the first-run Agent step.
-// install: the latest Install or Update request's result on this row, set by the screen showing the rows.
+// prompt: the attemptId of the last sign-in link received. autoCheck: the consumer checks unverified connections itself
+// when its screen opens, so the row may say so.
 export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean; settings?: boolean; install?: InstallState | null }
 // checked: the window came back after it opened, and the return check ran.
 export interface InstallState { provider: Provider; action: "install" | "update"; result: InstallResult; checked: boolean }
@@ -50,8 +41,8 @@ function disable(view: ProviderView): ProviderView {
   return { ...view, button: view.button && off(view.button), notice: view.notice && { ...view.notice, actions: view.notice.actions.map(off) }, paste: view.paste && { ...view.paste, button: off(view.paste.button) }, signOut: view.signOut && off(view.signOut) };
 }
 
-// Copilot's check spends one model request; a version cause only re-reads tool facts and spends nothing.
-// The cost is shown, not only announced; the unverified row carries it in its detail line instead.
+// Copilot's check spends one model request; a version cause only re-reads tool facts. The unverified row carries the
+// cost in its detail line instead.
 function check(provider: Provider, label: string, free: boolean): AuthButton {
   if (provider !== "copilot" || free) return button("check", label);
   // The accessible name starts with the visible label (WCAG 2.5.3), so voice control finds it.
@@ -105,7 +96,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       const notice = errorNotice(status, ctx);
       if (notice) return { ...view, notice };
       const copilot = provider === "copilot";
-      // Settings checks with Check, not first run's Retry (2026-10-30 draft review), and says the Copilot cost below the row.
+      // Settings checks with Check, not first run's Retry, and says the Copilot cost below the row.
       if (ctx.settings) return {
         ...view, detail: view.detail === null ? "Not checked" : `${view.detail} · not checked`,
         button: button("check", "Check", "subtle", false, copilot ? `Check ${name}, uses one Copilot request` : `Check ${name}`),
@@ -117,13 +108,12 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
         helper: !copilot && ctx.autoCheck ? "Doan checks this automatically when you open this step." : null,
       };
     }
-    // busy without a sign-in or sign-out attempt cannot come from agent-auth; keep the row inert until the next snapshot.
+    // agent-auth never sends busy without an attempt; keep the row inert until the next snapshot.
     case "busy": return { ...view, button: button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`) };
   }
 }
 
-// A row whose CLI is missing or below the minimum, after its Install or Update.
-// The row keeps one button; a state left from the other action reads as before the click.
+// A state left from the other action reads as before the click.
 export function installRowView(readiness: { cause: "cli_missing" | "version_unsupported" }, install: InstallState | null, name: string): Pick<ProviderView, "button" | "helper" | "notice"> {
   const action = readiness.cause === "cli_missing" ? "install" : "update";
   const label = action === "install" ? "Install" : "Update";
@@ -148,9 +138,8 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   const account = status.account && (status.account.email ?? status.account.displayName ?? null);
   const view: ProviderView = { provider, name, detail: status.account ? account : VENDORS[provider], detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
   const signInDisabled = button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`);
-  // Ownership is not inferred: after a reload, or for a CLI-started sign-in, this window may own the attempt without
-  // knowing its id, and must keep Cancel. Only agent-auth's not_owner reply says otherwise.
-  // Settings is in the only window, so the other owner is the CLI that started it.
+  // Ownership is not inferred: after a reload or a CLI-started sign-in this window may own the attempt without knowing
+  // its id. Only agent-auth's not_owner says otherwise; in Settings the other owner is the CLI.
   if (ctx.reply === "not_owner") return { ...view, detail: ctx.settings ? "Finish this sign-in where it started." : "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
   if (attempt?.kind === "signIn") {
     const prompted = ctx.prompt === attempt.id, cancel = button("cancel", "Cancel", "subtle");
@@ -175,11 +164,10 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   return attempt?.kind === "check" ? disable(settled) : settled;
 }
 
-// The sentence a Settings > Agents row leads with (its notice's title, else its body, else its detail) for a connected
-// provider known only by what that wording depends on. Agent usage shows it for a connection that can't be used
-// (ARCHITECTURE §7 'Agent usage'), so the two never word one state differently.
+// Agent usage shows it for a connection that can't be used (ARCHITECTURE §7 'Agent usage'), so the two never word one
+// state differently.
 export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "phase" | "readiness"> & { error?: AuthErrorCode; attempt?: AuthAttempt["kind"] }): string {
-  // The row's wording never reads the revision, generation, actions, attempt ID or retryable flag; an empty account is connected without an email.
+  // The wording never reads the revision, generation, actions, attempt ID or retryable flag.
   const status: AuthStatusDto = {
     provider, revision: 0, generation: 0, phase: facts.phase, account: {}, readiness: facts.readiness, actions: [],
     attempt: facts.attempt ? { id: "", kind: facts.attempt, cancelling: false } : null, error: facts.error ? { code: facts.error, retryable: false } : null,
@@ -189,15 +177,14 @@ export function connectionLine(provider: Provider, facts: Pick<AuthStatusDto, "p
   return view.notice?.title ?? view.notice?.body ?? view.detail ?? "Not available right now";
 }
 
-// Settings keeps Sign out on every connected row (first run shows it only to recover), once per row.
+// First run shows it only to recover.
 function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: ProviderView): ProviderView {
   if (!ctx.settings || status.account === null) return view;
   if ([view.button, ...(view.notice?.actions ?? [])].some(b => b?.command === "signOut")) return view;
   return { ...view, signOut: button("signOut", "Sign out", "subtle", false, `Sign out of ${view.name}`) };
 }
 
-// Why a connected provider can't run, as Home's picker labels it and as Settings' New conversations says it about the
-// provider: one table, so the two never name one cause differently.
+// One table, so Home's picker and Settings never name one cause differently.
 const BLOCKED = {
   expired: { short: "Sign-in expired", sentence: (name: string) => `${name}’s sign-in expired` },
   update: { short: "Needs an update", sentence: (name: string) => `${name} needs an update` },
@@ -219,21 +206,19 @@ function blocked(status: AuthStatusDto): (typeof BLOCKED)[keyof typeof BLOCKED] 
   }
 }
 
-// The status describes the cause separately from the picker action that opens Settings for recovery.
 // null: ready, or not connected (Home doesn't list it). Unverified stays selectable because main checks it on send.
 export function providerShortStatus(status: AuthStatusDto): string | null {
   if (!status.readiness.ready && status.readiness.cause === "unverified") return "Checks your connection when you send.";
   return blocked(status)?.short ?? null;
 }
 
-// Why a provider fixed as the default can't start a conversation, by the picker's causes.
 export function providerUnavailableReason(provider: Provider, status: AuthStatusDto | undefined): string {
   const name = PROVIDER_NAMES[provider];
   if (!status || status.account === null) return `${name} isn’t signed in`;
   return (blocked(status) ?? BLOCKED.other).sentence(name);
 }
 
-// show: the row displays it. dialog: confirm stopping runs, then resend with stop. reread: read the latest state.
+// dialog: confirm stopping runs, then resend with stop. reread: read the latest state.
 export function replyEffect(reason: AuthReason): "show" | "dialog" | "reread" {
   switch (reason) {
     case "busy": case "not_owner": case "open_failed": return "show";
@@ -242,8 +227,7 @@ export function replyEffect(reason: AuthReason): "show" | "dialog" | "reread" {
   }
 }
 
-// undefined: not read yet. null: readAgentAuth returned null, the account store is unreadable and every other call fails.
-// shared: context every row gets, before its own (onboarding passes autoCheck).
+// null: the account store is unreadable and every other call fails. shared: context every row gets, before its own.
 export function authListView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}, shared: ProviderContext = {}): { notice: Notice | null; providers: ProviderView[]; anyReady: boolean } {
   if (auth === null) return { notice: alert("Doan couldn’t read its agent connections.", [button("read", "Retry")]), providers: [], anyReady: false };
   if (auth === undefined) return { notice: progress("Checking connections", []), providers: [], anyReady: false };
@@ -255,7 +239,6 @@ export function authListView(auth: AuthSnapshot | null | undefined, contexts: Pa
   };
 }
 
-// Settings > Agents: rows split by whether a connection is saved, an expired one included; an empty section is hidden.
 // A row keeps its provider, so focus on its group follows it into the other section.
 export interface AgentsSection { id: "connected" | "notConnected"; title: string; providers: ProviderView[] }
 export function agentsSettingsView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}, shared: ProviderContext = {}): { notice: Notice | null; sections: AgentsSection[]; anyReady: boolean } {
@@ -268,8 +251,7 @@ export function agentsSettingsView(auth: AuthSnapshot | null | undefined, contex
   return { notice: list.notice, sections: sections.filter(section => section.providers.length > 0), anyReady: list.anyReady };
 }
 
-// Home's agent picker sends a group that cannot run to its Agents row. A row
-// that can run (ready, or unverified, which main checks on send) and a provider without a connection have none.
+// A row that can run (unverified included: main checks it on send) and a provider without a connection have none.
 export interface SettingsAction { label: string; target: SettingsTarget }
 export function pickerAction(status: AuthStatusDto): SettingsAction | null {
   const r = status.readiness;
@@ -279,27 +261,26 @@ export function pickerAction(status: AuthStatusDto): SettingsAction | null {
   if (r.cause === "version_unsupported") return { label: "Update", target };
   return { label: "Open Agents settings", target };
 }
-// Providers without a connection are not listed, so the last item is how a new one is added; with nothing able to run
-// it is the menu's only focus target.
+// Providers without a connection are not listed, so the last item is how a new one is added.
 export function pickerFooter(anyRunnable: boolean): { note: string | null; action: SettingsAction } {
   return anyRunnable
     ? { note: null, action: { label: "Manage agents", target: { section: "agents" } } }
     : { note: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" } } };
 }
 
-// A sign-in that ends while Settings > Agents is not shown; the window is not raised.
+// The window is not raised.
 export function signInToast(provider: Provider, ok: boolean): { text: string; action: SettingsAction | null } {
   const name = PROVIDER_NAMES[provider];
   return ok ? { text: `${name} connected.`, action: null } : { text: `${name} sign-in didn’t finish.`, action: { label: "Open Agents settings", target: { section: "agents", provider } } };
 }
 
-// Project step: completion needs a ready agent at the moment it is saved.
+// Completion needs a ready agent at the moment it is saved.
 export function noAgentReadyNotice(auth: AuthSnapshot | null): Notice<"chooseFolder" | "backToAgents"> | null {
   if (auth?.providers.some(p => p.readiness.ready)) return null;
   return { ...alert("No agent is ready. Go back and connect an agent to finish setup.", [button("chooseFolder", "Choose another folder", "subtle"), button("backToAgents", "Back to agents")]), note: "Your project selection stays here." };
 }
 
-// Announced once with role=status; the window is never raised for it (2026-10-28 user).
+// Announced once with role=status; the window is never raised for it.
 export function readyAnnouncements(previous: AuthSnapshot | null, next: AuthSnapshot): string[] {
   if (!previous) return [];
   return next.providers.filter(p => p.readiness.ready && previous.providers.some(old => old.provider === p.provider && !old.readiness.ready)).map(p => `${PROVIDER_NAMES[p.provider]} connected`);
@@ -310,8 +291,7 @@ export function stopDialog(provider: Provider, intent: "signIn" | "signOut"): { 
   const name = PROVIDER_NAMES[provider];
   return {
     title: `Stop ${name} conversations?`,
-    // Signing out also logs the agent out of its MCP servers; only Claude Code and Codex have them.
-    // Doan does not pass how many run, so the body counts none: "every running" reads right for one or several.
+    // Doan does not pass how many run, so "every running" must read right for one or several.
     body: `${intent === "signOut" ? "Signing out" : "Signing in again"} stops every running ${name} conversation. Your conversation history stays.${intent === "signOut" && (provider === "claude" || provider === "codex") ? " Its MCP connectors need connecting again." : ""}`,
     cancel: button("dismiss", "Cancel", "subtle"), confirm: button(intent, intent === "signOut" ? "Stop and sign out" : "Stop and sign in again"),
   };

@@ -1,14 +1,12 @@
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
-// What pressing a reply chip does. The link's canvas id is untrusted agent
-// output, so it is only ever compared with the ids of the rows of the conversation's own root.
+// The link's canvas id is untrusted agent output, so it is only ever compared with the rows of the conversation's own
+// root.
 export type ReplyChipTarget = "locate" | "missing" | "duplicate" | "unavailable" | { open: CanvasRow };
 
-// openCanvasId: the canvas that is on screen right now, or null while the Overview covers it. The Overview keeps the
-// last canvas laid out but inert, so using the stored open canvas would move something nobody can see.
-// entry: the folder entry of the conversation's root. An entry of another root is not looked at: two worktrees can
-// share a canvas id (POSTMORTEM 2026-11-01), so it reads as no usable list.
+// The Overview keeps the last canvas laid out but inert, so the stored open canvas would move something nobody can
+// see. Another root's entry is not looked at: worktrees can share a canvas id.
 export function replyChipTarget(
   link: Pick<ReplyAnchor, "canvas">,
   { root, openCanvasId, entry }: { root: string; openCanvasId: string | null; entry: FolderEntry | undefined },

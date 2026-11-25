@@ -1,7 +1,5 @@
-// Ported from malmoi lib/signin/dot-field.ts at 6dcdd575 to preserve its
-// continuous row turns and matching scale/partition boundary for canvas drawing.
-// Several spots at once and the opposing spot (`opposingCursor`) are Doan's additions at the user's request;
-// malmoi draws one spot and there is no outside source for them.
+// Ported from malmoi lib/signin/dot-field.ts at 6dcdd575, keeping its row turns and scale/partition boundary. Several
+// spots and the opposing spot (`opposingCursor`) are Doan's own.
 export type Dot = { x: number; y: number };
 
 export function dotGrid(width: number, height: number, gap: number): Dot[] {
@@ -18,8 +16,8 @@ export function dotScale(distance: number, radius: number, base: number, max: nu
   return base + (max - base) * (1 - distance / radius);
 }
 
-// A dot is near when any spot is within the radius, and `distance` is the one to its nearest spot, so overlapping
-// spots never add up: size and alpha stay within the single-spot maximum. No spots (reduced motion) leaves all far.
+// `distance` is to the nearest spot, so overlapping spots never add up past the single-spot maximum. No spots (reduced
+// motion) leaves all far.
 export function partitionDots(dots: Dot[], spots: readonly Dot[], radius: number): { near: { dot: Dot; distance: number }[]; far: Dot[] } {
   if (spots.length === 0 || radius <= 0) return { near: [], far: dots };
   const near: { dot: Dot; distance: number }[] = [];
@@ -33,8 +31,8 @@ export function partitionDots(dots: Dot[], spots: readonly Dot[], radius: number
   return { near, far };
 }
 
-// The spot's point reflection through the area's centre. With an odd row count, `autoCursor`'s zig-zag reflected this
-// way is the same path walked backwards at the same speed, and the two spots cross at the centre on the middle row.
+// With an odd row count, `autoCursor`'s zig-zag reflected this way is the same path walked backwards, and the two spots
+// cross at the centre on the middle row.
 export function opposingCursor(spot: Dot, width: number, height: number): Dot {
   return { x: width - spot.x, y: height - spot.y };
 }
@@ -77,15 +75,13 @@ function legWithin(elapsed: number, width: number, speed: number, row: number, o
   return row % 2 === 0 ? progress * span - overshoot : span - progress * span - overshoot;
 }
 
-// The dot field: malmoi's DotField (components/signin/dot-field.tsx, lib/signin/dot-field.ts at 6dcdd575)
-// with doan's values. The alphas are twice malmoi's base (dogfooding #4): white dots at 0.08 barely showed on the
-// light board.
+// The alphas are twice malmoi's base: white dots at 0.08 barely showed on the light board.
 export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 } as const;
 
 type DotContext = Pick<CanvasRenderingContext2D, "globalAlpha" | "fillStyle" | "clearRect" | "beginPath" | "moveTo" | "arc" | "fill">;
 
-// Dots outside every spot's radius all share the base size and alpha, so they go into one path and one fill (malmoi R8):
-// a full board is thousands of dots each frame.
+// Dots outside every spot's radius share the base size and alpha, so they go into one path and one fill: a full board
+// is thousands of dots each frame.
 export function drawDotField(ctx: DotContext, width: number, height: number, dots: Dot[], spots: readonly Dot[], color: string): void {
   const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
   ctx.clearRect(0, 0, width, height);
@@ -106,9 +102,8 @@ export function drawDotField(ctx: DotContext, width: number, height: number, dot
   ctx.globalAlpha = 1;
 }
 
-// The field's animation frames. `draw` gets the time the cursor has travelled, or null for the still field of reduced
-// motion. Paused, it asks for no frame: a hidden workspace or window still runs requestAnimationFrame, so the field
-// must stop itself there. Resuming continues the sweep where it paused.
+// A hidden workspace or window still runs requestAnimationFrame, so the paused field asks for no frame. Resuming
+// continues the sweep where it paused.
 export class DotFieldLoop {
   private frame: number | null = null;
   private running = false;
@@ -125,7 +120,7 @@ export class DotFieldLoop {
     this.frame = this.host.request(this.tick);
   }
 
-  // The canvas was resized and cleared: a running loop paints on its next frame, a paused or still one now.
+  // A running loop paints on its next frame, a paused or still one now.
   resized(): void {
     if (this.frame !== null) return;
     this.host.draw(this.host.reducedMotion() ? null : this.elapsed);
@@ -149,9 +144,7 @@ export class DotFieldLoop {
   };
 }
 
-// The Worker's side of the field. The page transfers the canvas once (`start`) and then sends what only it can read:
-// the CSS size and device pixel ratio (after the transfer it cannot set the canvas's width), the colour from its computed
-// style, the motion setting, and whether the field runs (workspace, window and document shown). The Worker owns the
+// After the transfer the page cannot set the canvas's width, so it sends the CSS size and ratio. The Worker owns the
 // loop and every draw, so the page's main thread draws nothing.
 export type DotFieldSize = { width: number; height: number; ratio: number };
 export type DotFieldMessage =

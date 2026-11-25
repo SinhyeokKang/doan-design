@@ -1,15 +1,12 @@
-// The working notice's erase-and-type change (draft frame notice-typing).
-
-// Tunable: per erased and per typed character, and the most one change may take.
+// Tunable.
 export const ERASE_MS = 20;
 export const TYPE_MS = 35;
 export const TYPING_CAP_MS = 1000;
 
 export interface TypingStep {
   text: string;
-  // ms from the change.
   at: number;
-  // The line's width floor in px while the change runs; null on the last step, which clears it.
+  // null on the last step, which clears it.
   minWidth: number | null;
 }
 
@@ -18,9 +15,8 @@ function graphemes(text: string): string[] {
   return [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map(part => part.segment);
 }
 
-// The common start stays; the rest of `from` is erased one character at a time, then the rest of `to` typed. A change
-// longer than `capMs` has both intervals scaled by the same ratio, so a long note never runs into the next update.
-// The floor is the shorter text's width: the card never shrinks below it while the text changes.
+// A change longer than `capMs` scales both intervals, so a long note never runs into the next update. The floor is the
+// shorter text's width, so the card never shrinks below it.
 export function typingSteps(from: string, to: string, options: { eraseMs?: number; typeMs?: number; capMs?: number; fromWidth: number; toWidth: number }): TypingStep[] {
   if (from === to) return [];
   const { eraseMs = ERASE_MS, typeMs = TYPE_MS, capMs = TYPING_CAP_MS, fromWidth, toWidth } = options;
@@ -38,25 +34,23 @@ export function typingSteps(from: string, to: string, options: { eraseMs?: numbe
   return steps;
 }
 
-// One moment of the notice: which canvas, whether it is in view, which update its words come from.
 export interface NoticeMoment { canvas: string | null; visible: boolean; content: string | null; waiting: boolean }
 
-// Only a new update (or work starting) while the canvas stays in view erases and types. Opening the canvas or coming
-// back to it mid-turn, a layout turning a frame id into its title, and waiting (the person has to act) change at once.
+// Opening the canvas or coming back mid-turn, a frame id turning into its title, and waiting change at once.
 export function typesOn(previous: NoticeMoment | null, next: NoticeMoment): boolean {
   return previous !== null && previous.visible && next.visible && next.canvas !== null && previous.canvas === next.canvas
     && !next.waiting && previous.content !== next.content;
 }
 
-// Another canvas, or the canvas going out of or into view: a change still running belongs to what was there before.
+// A change still running belongs to what was there before.
 export function crossesBoundary(previous: NoticeMoment | null, next: NoticeMoment): boolean {
   return previous !== null && (previous.canvas !== next.canvas || previous.visible !== next.visible);
 }
 
 export interface TypedText { text: string; minWidth: number | null; typing: boolean }
 
-// Runs the steps on timers. `measure` reads the two texts' widths once per change (never per step); a change while one
-// runs restarts from the text on screen toward the newest text.
+// `measure` reads the widths once per change, never per step; a change while one runs restarts from the text on
+// screen.
 export class NoticeTyping {
   private shown = "";
   private target: string | null = null;
@@ -83,7 +77,7 @@ export class NoticeTyping {
     }
   }
 
-  // Ends any running change on `text` at once, even when it is the change's own target (set would keep it running).
+  // Even when it is the change's own target (set would keep it running).
   settle(text: string): void {
     this.target = text;
     this.stop();

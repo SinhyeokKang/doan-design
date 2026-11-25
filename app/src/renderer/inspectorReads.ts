@@ -4,19 +4,18 @@ import { acceptInspect, inspectRequestFor, type InspectFlight, type InspectPanel
 
 export type InspectCall = (request: InspectRequest) => Promise<MainInspectReply | InspectRefused>;
 
-// The selection the canvas page applied (never one only sent to the canvas), with the canvas it is in.
+// Never one only sent to the canvas.
 export interface InspectorSelection {
   canvas: { root: string; path: string };
   view: SelectionView;
 }
 
-// The anchor main's collector looks up: an element's selector, or a frame's own path step.
 export function inspectTarget(selection: InspectorSelection): InspectTarget | null {
   const selector = selection.view.element?.selector ?? selection.view.path.at(-1)?.selector;
   return selector ? { canvas: selection.canvas, selector } : null;
 }
 
-// What the panel draws. `seq` names the read in flight, so a new selection's delayed spinner starts again.
+// `seq` names the read in flight, so a new selection's delayed spinner starts again.
 export interface InspectorReadState {
   panel: InspectPanel;
   retrying: boolean;
@@ -25,10 +24,8 @@ export interface InspectorReadState {
 
 const IDLE: InspectFlight = { seq: 0, target: null, same: false };
 
-// The inspector's `inspect:get` flow for one panel: a request per accepted selection while the panel shows, a reply
-// taken only while it is still the latest for that selection and canvas (inspectorRows.ts). The rows of a selection
-// read again (found after a reload, the same canvas at a new path, picked again, Retry) stay until the reply; Retry
-// keeps the failure line, busy, until it answers. A store, so the panel reads it with useSyncExternalStore.
+// The rows of a selection read again stay until the reply; Retry keeps the failure line, busy, until it answers. A
+// store, so the panel reads it with useSyncExternalStore.
 export class InspectorReads {
   private flight = IDLE;
   private state: InspectorReadState = { panel: { kind: "empty" }, retrying: false, seq: 0 };
@@ -42,14 +39,11 @@ export class InspectorReads {
   readonly get = (): InspectorReadState => this.state;
   readonly subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
 
-  // The panel's inputs after each commit: whether it shows (open and not yielding to a narrow window), the accepted
-  // selection and the shown document's token.
   update(shown: boolean, given: InspectorSelection | null, document: string | null): void {
     const view = given?.view ?? null;
     const previous = this.seen;
-    // A selection belongs to the canvas it was applied in. A same-id move changes the open canvas's path at once while
-    // the controller keeps the old selection until the moved canvas finds it again; until then it is still that
-    // canvas's selection, so nothing is asked and the rows stay.
+    // A same-id move changes the open path at once while the controller keeps the old selection until the moved canvas
+    // finds it again, so nothing is asked meanwhile and the rows stay.
     const selection = given !== null && this.selection !== null && view === previous.view ? { ...given, canvas: this.selection.canvas } : given;
     this.shown = shown;
     this.selection = selection;
@@ -57,8 +51,8 @@ export class InspectorReads {
     const target = selection === null ? null : inspectTarget(selection);
     const viewChanged = previous.view !== view, documentChanged = previous.document !== document;
     const asked = this.flight.target;
-    // The same anchor applied again reads in place. After a not-shown, the next selection apply or shown-document
-    // change asks once more; the reply itself never does (main answers not-shown until that canvas shows again).
+    // After a not-shown, the next selection apply or shown-document change asks once more; the reply itself never does
+    // (main answers not-shown until that canvas shows again).
     const again = target !== null && asked !== null && ((viewChanged && asked.selector === target.selector && asked.canvas.root === target.canvas.root)
       || (this.flight.notShown === true && (viewChanged || documentChanged)));
     this.ask(target, again, false);

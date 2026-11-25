@@ -1,7 +1,5 @@
-// Plain text to the clipboard from the renderer. Main denies every permission check, so the
-// async Clipboard API is always refused here, and main never writes a string the renderer names. The document's own
-// copy command fires a copy event whose clipboard data takes the text; nothing takes focus or selection for it, so
-// the field the person is in (an IME composition may be in it) is never blurred.
+// Main denies every permission check, so the async Clipboard API is refused here. The document's copy command takes no
+// focus or selection, so the field the person is in (an IME composition may be in it) is never blurred.
 export function copyText(text: string): boolean {
   let written = false;
   const listener = (event: ClipboardEvent) => {

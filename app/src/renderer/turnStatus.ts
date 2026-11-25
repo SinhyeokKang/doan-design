@@ -1,23 +1,17 @@
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { countHead, rootRelative, runningHead, sameItem, waitsForPerson, type ActivityStep, type ThreadItem } from "./threadItems";
 
-// The turn indicator's state: what the agent of the last turn does now, read from the
-// thread's items, the turn and main's latest stage signal. threadItems already folds streaming, waiting cards, ends and
-// crashes, so none of it is decided again here.
+// threadItems already folds streaming, waiting cards, ends and crashes, so none of it is decided again here.
 
-// The last turn as the indicator needs it. lastSeq: the last event seq of that turn, which a stage signal must not be
-// older than; live: main holds a turn of this conversation (threadItems' `live`); ended: the turn has its terminal.
+// lastSeq: the turn's last event seq, which a stage signal must not be older than. live: threadItems' `live`.
 export interface TurnInfo { turnId: string; at: string; lastSeq: number; live: boolean; ended: boolean }
-// tool: `text` is what the indicator shows, the activity rows' words for the same tool. `step`: the activity step the
-// event rule took it from; absent when main's stage named the tool.
+// `step`: the activity step the event rule took the tool from; absent when main's stage named it.
 export type TurnStatus =
   | { kind: "none" } | { kind: "waiting" } | { kind: "reply" } | { kind: "general" } | { kind: "thinking" }
   | { kind: "tool"; activity: "read" | "edit" | "command" | "other"; text: string; step?: string };
 
-// Main appends a turn's opening user.message and its turn.started one after the other and pushes each (a save and a
-// list notice lie between), so a render can hold the message alone; that message already opens its turn, or the
-// indicator would miss the render the message enters (measured 10–14 ms on an existing conversation). A
-// steered message carries the running turn's id and opens nothing.
+// main pushes a turn's user.message and its turn.started separately, so a render can hold the message alone; the
+// message opens its turn, or the indicator would miss that render. A steered message opens nothing.
 export function turnOf(events: readonly ConversationEvent[], live: boolean): TurnInfo | null {
   let last = events.length - 1;
   while (last >= 0 && events[last]!.type !== "turn.started") last--;
@@ -28,24 +22,21 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   let lastSeq = started.seq, ended = false;
   for (const event of events) {
     if (event.turnId !== started.turnId) continue;
-    // canvas.drawn and activity.result can land while another tool runs; neither is the agent acting, so neither ages
-    // a stage.
+    // Neither is the agent acting, so neither ages a stage.
     if (event.type !== "canvas.drawn" && event.type !== "activity.result") lastSeq = Math.max(lastSeq, event.seq);
     if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") ended = true;
   }
   return { turnId: started.turnId, at: started.at, lastSeq, live, ended };
 }
 
-// A read or edit with a path reads "Reading/Editing <path>", as the activity rows do; without one, its summary. Main
-// leaves the folder out of a Codex listFiles or search, which reads as "Reading files".
+// Main leaves the folder out of a Codex listFiles or search, which reads as "Reading files".
 function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): TurnStatus {
   const path = stage.path ? rootRelative(stage.path, root) : null;
   return { kind: "tool", activity: stage.activity, text: runningHead({ key: "", kind: stage.activity, verb: stage.summary, path }) };
 }
 const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step), step: step.key });
 
-// Where the thread's own items end: the hosts append Send now's messages in flight, which the agent reads only later
-// (Claude once its running tool ended), and a turn's canvas cards sit at its end, so the status and the last row are
+// Send now's messages in flight and a turn's canvas cards sit at the thread's end, so the status and the last row are
 // judged above both.
 function ownEnd(items: readonly ThreadItem[]): number {
   let end = items.length;
@@ -53,11 +44,8 @@ function ownEnd(items: readonly ThreadItem[]): number {
   return end;
 }
 
-// A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
-// an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
-// activities but no tool. The thread's last activity row runs only while this names a tool (activityRun).
-// stopping: main took a Stop of this turn (the list's `stopping`). The indicator goes at once although the turn's end
-// may be held while main reads the session transcript for steered messages.
+// A stage counts only for this turn and only while no event of it came after. stopping: the indicator goes at once,
+// although main may hold the turn's end while it reads the transcript for steered messages.
 export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string, stopping = false): TurnStatus {
   if (!turn || !turn.live || turn.ended || stopping) return { kind: "none" };
   const items = all.slice(0, ownEnd(all));
@@ -75,15 +63,8 @@ export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, st
 
 type ActivityItem = Extract<ThreadItem, { kind: "activity" }>;
 const fromStage = (status: TurnStatus) => status.kind === "tool" && status.step === undefined;
-// The thread's last activity row, from the indicator's shown status, so the row and the indicator say the same and a
-// fast tool does not flicker the row: it runs with the indicator's words only while those name a tool, and is its step
-// count otherwise. A Claude Code or Codex activity is written as its tool starts, so the event rule's tool still runs.
-// An ACP agent writes it only once its tool completed, so there only a stage makes the row run, possibly for a tool not
-// in its steps yet; `acp` is that turn's latest status, before settle, and null for Claude Code and Codex. The shown
-// stage outlives its tool by the settle time, so an ACP row runs only while the latest status is that same stage's tool:
-// a row born from a tool's completion never runs with that tool's words, neither before the general stage settles nor
-// before the next tool's stage does. The last step reads "Running a command" only when the status came from that step.
-// A Codex MCP startup line keeps its sentence as the head until the turn ends.
+// From the indicator's shown status, so the two agree and a fast tool does not flicker the row. An ACP agent writes an
+// activity only once its tool completed, so there only a stage of that same tool (`acp`, before settle) makes it run.
 export function activityRun(items: readonly ThreadItem[], status: TurnStatus, acp: TurnStatus | null): readonly ThreadItem[] {
   const at = ownEnd(items) - 1;
   const row = items[at];
@@ -101,16 +82,13 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
   return items.map((item, i) => i === at ? next : item);
 }
 
-// A card's spinner goes with the indicator: a Stop main has taken hides the indicator before the turn's end arrives,
-// and the cards stop drawing in that same render. A waiting request hides the indicator too, but the turn still runs.
+// A Stop main took hides the indicator before the turn's end arrives, so the cards stop drawing in that same render.
 export function drawingCards(items: readonly ThreadItem[], status: TurnStatus): readonly ThreadItem[] {
   if (status.kind !== "none" || !items.some(item => item.kind === "canvasCard" && item.drawing)) return items;
   return items.map(item => item.kind === "canvasCard" && item.drawing ? { ...item, drawing: false } : item);
 }
 
-// What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time
-// counts from. The id lets the thread drop the settle state of an earlier turn.
-// label: a command turn's own running words (commandView commandTurnLabel), shown in place of the status's.
+// The id lets the thread drop the settle state of an earlier turn. label: a command turn's own running words.
 export interface ThreadTurn { turnId: string; status: TurnStatus; at: string; label?: string }
 export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string, stopping = false, labelOf?: (turnId: string) => string | null): ThreadTurn | null {
   const turn = turnOf(events, live);
@@ -119,26 +97,21 @@ export function threadTurn(events: readonly ConversationEvent[], items: readonly
   return { turnId: turn.turnId, status: turnStatus(items, turn, stage, root, stopping), at: turn.at, ...(label ? { label } : {}) };
 }
 
-// Which stage to keep: within a turn the higher rev, since a read's reply and a push sent after it may
-// arrive in either order (POSTMORTEM 2026-10-26). A stage of another turn than the history's current one is dropped;
-// `current` is null while the history is not read.
+// A read's reply and a push sent after it may arrive in either order, so within a turn the higher rev wins. `current`
+// is null while the history is not read.
 export function newerStage(held: StageSignal | null, incoming: StageSignal, current: string | null): StageSignal | null {
   if (current !== null && incoming.turnId !== current) return held;
   if (held && held.turnId === incoming.turnId && held.rev >= incoming.rev) return held;
   return incoming;
 }
 
-// Settle: a new stage shows once it has held for 300 ms, so short tools between model requests do not
-// flicker; one replaced sooner never shows. Replying, waiting and none show at once, and so does the first stage after
-// none or waiting (spec condition 1: the indicator is there from the render the message enters, and again right after
-// a card is answered). Every other change waits, replying back to general included.
+// So short tools between model requests do not flicker. Replying, waiting and none show at once, and so does the first
+// stage after none or waiting.
 export const SETTLE_MS = 300;
 export interface Settled { shown: TurnStatus; pending: TurnStatus | null; since: number }
 const hidden = (status: TurnStatus) => status.kind === "none" || status.kind === "waiting";
 export const statusKey = (status: TurnStatus) => status.kind === "tool" ? `tool:${status.activity}:${status.text}` : status.kind;
-// Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders. The
-// same words from a later step of the event rule take that step at once (the thread's row marks the step that runs);
-// a stage's tool stays as shown, so an ACP row it made run runs on once the next stage follows a completion of the same words.
+// Nothing changed gives `previous` itself, so the thread can keep the result as state derived while it renders.
 const laterStep = (shown: TurnStatus, next: TurnStatus) => shown.kind === "tool" && next.kind === "tool" && shown.step !== undefined && next.step !== undefined && shown.step !== next.step;
 export function settle(previous: Settled | null, next: TurnStatus, now: number): Settled {
   const same = previous !== null && statusKey(next) === statusKey(previous.shown);
@@ -150,14 +123,14 @@ export function settle(previous: Settled | null, next: TurnStatus, now: number):
   return { shown: previous.shown, pending: next, since: now };
 }
 
-// Elapsed time in whole seconds, seconds always shown; an unreadable, negative or future span is 0s.
+// Seconds always shown; an unreadable, negative or future span is 0s.
 export function elapsedText(ms: number): string {
   const total = Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
   const h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
   return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// The indicator's words: the provider names only the stages without a tool.
+// The provider names only the stages without a tool.
 export function turnText(status: TurnStatus, provider: string): string {
   switch (status.kind) {
     case "tool": return status.text;
@@ -166,18 +139,15 @@ export function turnText(status: TurnStatus, provider: string): string {
     default: return `${provider} is working`;
   }
 }
-// The status text read to screen readers: the stage's kind only, never a path or the time, so it changes only when the
-// kind does (spec condition 7). Hidden states say nothing here.
+// The stage's kind only, never a path or the time, so it changes only when the kind does.
 const TOOL_ANNOUNCEMENT = { read: "is reading files", edit: "is editing files", command: "is running a command", other: "is using a tool" } as const;
 export function turnAnnouncement(status: TurnStatus, provider: string): string {
   if (hidden(status)) return "";
   return status.kind === "tool" ? `${provider} ${TOOL_ANNOUNCEMENT[status.activity]}` : turnText(status, provider);
 }
 
-// The background work line under a done turn: main's list names the turn whose process group still runs work it
-// started (memory only, gone with the group). sending: the thread shows the person's message after that turn, which
-// ends the group (the next send stops it first), so the line goes in that same render rather than when main's list
-// catches up. stopping: this window's Stop is waiting for main; main's own `stopping` covers a press in the other host.
+// sending: the next send stops the group first, so the line goes in that same render rather than when main's list
+// catches up. stopping: this window's Stop; main's own `stopping` covers a press in the other host.
 export function backgroundLine(input: { background: { turnId: string; stopping?: true } | null | undefined; sending: boolean; stopping: boolean }): { turnId: string; stopping: boolean } | null {
   const { background } = input;
   if (!background || input.sending) return null;
@@ -185,8 +155,8 @@ export function backgroundLine(input: { background: { turnId: string; stopping?:
 }
 
 export const BACKGROUND_STOP_FAILED = "Couldn’t stop the background work. Try again.";
-// The line's Stop. It names its done turn, so a press that reaches main after a newer send stops nothing there. Main
-// answers once the group is gone, or with a ConversationError when it was still there; null when the stop went through.
+// It names its done turn, so a press that reaches main after a newer send stops nothing there. null when the stop
+// went through.
 export async function stopBackground(request: { conversationId: string; turnId: string }, interrupt: (request: { conversationId: string; turnId: string }) => Promise<void | { error: string }>): Promise<string | null> {
   try {
     const reply = await interrupt(request);

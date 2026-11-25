@@ -1,23 +1,20 @@
 import { linkGroups } from "../main/prototype/links";
 import { typeaheadNext } from "./canvasTree";
 
-// The part of a FrameDrawerRow the open list moves focus by. `key` is the frame id unless the id repeats
-// (frameDrawer.ts rowKeys), so following the key follows the frame across a reload.
+// `key` is the frame id unless the id repeats, so following the key follows the frame across a reload.
 export interface DrawerListRow {
   key: string;
   name: string;
   current: boolean;
 }
 
-// The row to keep focused after the rows changed: the same frame while it is listed (even when the viewed frame
-// moved on), else the viewed row, else the first. Null when no row is left: the list closes.
-// Derived from the current rows every time (POSTMORTEM 'Home card roving tabindex').
+// Derived from the current rows every time. Null when no row is left: the list closes.
 export function focusedRowAfter(rows: readonly DrawerListRow[], focusedKey: string | null): string | null {
   if (focusedKey !== null && rows.some(row => row.key === focusedKey)) return focusedKey;
   return (rows.find(row => row.current) ?? rows[0])?.key ?? null;
 }
 
-// Arrow keys stop at the ends, as in the sidebar tree.
+// As in the sidebar tree.
 export function drawerKeyTarget(rows: readonly DrawerListRow[], focusedKey: string | null, key: string): string | null {
   if (rows.length === 0) return null;
   const index = Math.max(0, rows.findIndex(row => row.key === focusedKey));
@@ -28,14 +25,13 @@ export function drawerKeyTarget(rows: readonly DrawerListRow[], focusedKey: stri
   return next === null ? null : rows[next]!.key;
 }
 
-// The sidebar tree's typeahead over frame names; the caller keeps the 500 ms buffer.
+// The caller keeps the 500 ms buffer.
 export function drawerTypeahead(rows: readonly DrawerListRow[], focusedKey: string | null, buffer: string): string | null {
   const match = typeaheadNext(rows.map(row => row.name), rows.findIndex(row => row.key === focusedKey), buffer);
   return match === null ? null : rows[match]!.key;
 }
 
-// A playable frame for the prototype drawers (the prototype window's and the toolbar's). `mark` is its raw mark, which
-// link grouping checks again.
+// `mark` is its raw mark, which link grouping checks again.
 export interface DrawerFrame {
   key: string;
   id: string;
@@ -45,7 +41,6 @@ export interface DrawerFrame {
   mark: string;
 }
 
-// `number` is the frame's canvas number; `group` is its group's place in the list.
 export interface DrawerRow extends DrawerListRow {
   id: string;
   number: number;
@@ -59,8 +54,7 @@ export interface DrawerGroup {
 
 export const UNLINKED_GROUP = "Frames without links";
 
-// The drawer's display rule over the link groups: groups of two or more linked frames first, in the document order of
-// their first frames, then every frame without links together. Within a group, document order.
+// Linked groups first, in the document order of their first frames, then every frame without links together.
 export function groupDrawer(frames: readonly DrawerFrame[], gotos: readonly { value: string; frames: readonly string[] }[]): DrawerGroup[] {
   const byId = new Map(frames.map(frame => [frame.id, frame]));
   const linked = linkGroups(frames.map(frame => ({ id: frame.id, prototype: frame.mark })), gotos).filter(group => group.length > 1);
@@ -74,21 +68,20 @@ export function groupDrawer(frames: readonly DrawerFrame[], gotos: readonly { va
   }));
 }
 
-// The rows in the order they show, which arrows, Home/End and typeahead follow across groups.
+// Arrows, Home/End and typeahead follow this order across groups.
 export function drawerOrder(groups: readonly DrawerGroup[]): DrawerRow[] {
   return groups.flatMap(group => group.rows);
 }
 
 export interface Typed { text: string; at: number }
 
-// An unmodified printable key, which an open list keeps from the window's shortcuts.
 function listTakesKey(event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
   return event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
 export interface DrawerKey { prevent: boolean; pick?: string; move?: string; typed: Typed }
 
-// The open list's answer to a key. Every unmodified printable key is the list's, even one the typeahead cannot match,
-// so no key reaches the window's own shortcuts (the canvas tools' V and H) while the list is open. Esc is Radix's.
+// Even a key the typeahead cannot match, so the canvas tools' V and H never fire while the list is open. Esc is
+// Radix's.
 export function drawerKey(rows: readonly DrawerListRow[], focusedKey: string | null, event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }, typed: Typed, now: number): DrawerKey {
   const { key } = event;
   if (key === "Tab") return { prevent: true, typed };

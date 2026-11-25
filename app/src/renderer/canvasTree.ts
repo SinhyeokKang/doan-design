@@ -8,7 +8,7 @@ export function canvasLabel(row: CanvasRow): string {
   return canvasStem(row.path);
 }
 
-// canvasLabel for a bare path: every canvas name the app shows goes through this one rule.
+// Every canvas name the app shows goes through this one rule.
 export function canvasStem(path: string): string {
   const fileName = fileNameOf(path);
   const stem = fileName.toLowerCase().endsWith(".html") ? fileName.slice(0, -".html".length) : fileName;
@@ -19,11 +19,8 @@ export function frameLabel(frame: { id: string; title?: string }, index: number)
   return { number: index + 1, name: frame.title?.trim() || frame.id || "(no id)" };
 }
 
-// WAI-ARIA APG Tree View. A repeated single letter cycles through the rows of
-// that letter; a longer buffer searches from the current row inclusive, so
-// continuing to type refines the current match instead of skipping it (typing
-// "ab" stays on "abacus" rather than jumping to "abbey"), as typical tree and
-// list typeahead does.
+// WAI-ARIA APG Tree View. A longer buffer searches from the current row inclusive, so typing "ab" stays on "abacus"
+// rather than jumping to "abbey".
 export function typeaheadNext(visibleKeys: readonly string[], currentIndex: number, buffer: string): number | null {
   const count = visibleKeys.length;
   if (buffer === "" || count === 0) return null;
@@ -43,8 +40,7 @@ export function typeaheadNext(visibleKeys: readonly string[], currentIndex: numb
   return search(needle, Math.max(currentIndex, 0));
 }
 
-// Expanded tree keys after the open canvas moved: its own row keeps its
-// state, and the folders it moved into open.
+// Its own row keeps its state, and the folders it moved into open.
 export function moveExpanded(paths: readonly string[], from: string, to: string): string[] {
   const next = new Set(paths.filter(path => path !== from));
   const parts = to.split("/");
@@ -53,8 +49,6 @@ export function moveExpanded(paths: readonly string[], from: string, to: string)
   return [...next];
 }
 
-// A canvas ls could not read: the fixed sentence under its row, and the raw
-// error for Details.
 export function rowProblem(row: CanvasRow): { sentence: string; detail: string } | null {
   const error = row.error;
   if (!error) return null;

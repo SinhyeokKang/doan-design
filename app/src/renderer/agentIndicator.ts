@@ -9,34 +9,25 @@ import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
 import { groupProjects } from "./homeCards";
 import { followTurnKey } from "./workFollow";
 
-// The agent indicator on the board.
-
-// The canvas the indicator reads, with its project root: the open canvas while its project is a listed one and the page
-// is a listed canvas. Loading, failed and no-width canvases count (the notice still says what works on it while the HTML is broken); an unlisted
-// page or a project problem has none. The root is part of the identity: worktrees of one repository share canvas ids
-// and paths.
+// Loading, failed and no-width canvases count. The root is part of the identity: worktrees of one repository share
+// canvas ids and paths.
 export interface WorkingCanvas { root: string; canvas: Canvas }
 export function workingCanvas(open: CanvasState["open"], unlisted: boolean, entry: FolderEntry | undefined): WorkingCanvas | null {
   if (!open || unlisted || entry?.kind !== "list" || entry.path !== open.folder) return null;
   return { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } };
 }
 
-// HomeRun's list state for the root: a list still loading or failed is a failed read to boardPresence.
+// A list still loading or failed is a failed read to boardPresence.
 export function listForPresence(state: readonly ConversationSummary[] | "loading" | "error" | undefined): readonly ConversationSummary[] | null {
   return Array.isArray(state) ? state : null;
 }
 
-// The content the open canvas shows. `source` is the terminal session or the conversation (a change of it does not
-// follow); `key` the work turn (follow and its stop last one turn); `waiting`: the canvas's own conversation waits for
-// an answer, so the marker stays still.
+// A change of `source` does not follow; `key` is the work turn (follow and its stop last one turn). `waiting` keeps
+// the marker still.
 export interface PickedWork { source: string; key: string; touched: number; frame?: string; note?: string; waiting: boolean }
 
-// The followed conversation (the board's, boardPresence) decides alone, with its content on this canvas or none: another
-// conversation's update never moves the screen. Otherwise the last update on this root and path wins among project
-// conversations, conversations bound to another canvas and terminal sessions. A twin path in another worktree never
-// counts (POSTMORTEM 2026-11-01).
-// Work content comes from `doan work update`: a terminal session's items carry it with
-// main's turn id; an app conversation's (`ConversationWork`) lives apart from them so it is never counted as terminal work.
+// The followed conversation decides alone, so another's update never moves the screen; else the last update on this
+// root and path wins. App conversation work lives apart from terminal items so it is never counted as terminal work.
 export function pickWork(target: WorkingCanvas | null, presence: Pick<AgentPresence, "conversationId" | "kind"> | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): PickedWork | null {
   if (!target) return null;
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
@@ -56,8 +47,7 @@ export function pickWork(target: WorkingCanvas | null, presence: Pick<AgentPrese
   return best;
 }
 
-// What the controller gets for the marker and following: the open canvas (also with no work, so it sees a change of
-// canvas as entering it), the picked work, and every work turn on this root and path, which a person's move stops.
+// Also with no work, so the controller sees a change of canvas as entering it.
 export function canvasWorkTarget(target: WorkingCanvas | null, picked: PickedWork | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): CanvasWorkTarget | null {
   if (!target) return null;
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
@@ -66,9 +56,7 @@ export function canvasWorkTarget(target: WorkingCanvas | null, picked: PickedWor
   return { root: target.root, path: target.canvas.path, work, keys: [...new Set(keys)] };
 }
 
-// The frame's title as last found, so a reload that has not laid out yet keeps it instead of falling back to the id. It
-// belongs to one root, canvas path, work turn and frame (POSTMORTEM 2026-11-01: the indicator outlives a switch of
-// root or canvas), and an update without a frame, or no work, drops it.
+// The indicator outlives a switch of root or canvas, so the title belongs to one root, path, work turn and frame.
 export interface TitleCache { key: string; title: string }
 export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas | null, picked: PickedWork | null, frames: readonly CanvasFrameRect[] | null): { title: string | undefined; cache: TitleCache | null } {
   if (!target || picked?.frame === undefined) return { title: undefined, cache: null };
@@ -78,26 +66,19 @@ export function workFrameTitle(cache: TitleCache | null, target: WorkingCanvas |
   return { title, cache: title === undefined ? null : { key, title } };
 }
 
-// The working frame's rect in the current layout: the first frame with the id, as frame jumps take it. None without a
-// layout (loading, a canvas without doan:width), when the document has no such frame, or when the frame has no size:
-// a reload's first layout can report every frame as 0 × 0 at (0, 0) before the document is measured, and following
-// or marking that would place the board's origin, not the frame.
+// A reload's first layout can report every frame as 0 × 0 before measuring, and following or marking that would place
+// the board's origin, not the frame.
 export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: string | undefined): CanvasFrameRect | null {
   if (!layout || id === undefined) return null;
   const frame = layout.frames.find(item => item.id === id);
   return frame && frame.width > 0 && frame.height > 0 ? frame : null;
 }
 
-// presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a
-// conversation bound to another canvas does (`doan work`).
+// presence null: a terminal session, a project conversation or a conversation bound to another canvas works on it.
 export type CanvasAgentState = { root: string; presence: BoardPresence } | { root: string; presence: null; terminal: true };
 
-// boardPresence for the open canvas. `shown` is the conversation the panel shows, or would show once unfolded. A failed
-// read keeps the previous presence only within the same project: a twin canvas in another worktree (same id or path)
-// must never show the first project's conversation. Without an app conversation working or waiting on it, a terminal
-// session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so the indicator stays when the
-// app turn ends and the terminal session goes on. Another conversation's `update` naming this canvas (`conversations`)
-// shows the same variant.
+// A failed read keeps the previous presence only within the same project: a twin canvas in another worktree must never
+// show the first project's conversation.
 export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[], conversations: readonly ConversationWork[] = [], shown: string | null = null): CanvasAgentState | null {
   if (!target) return null;
   const kept = previous?.root === target.root && previous.presence ? previous : null;
@@ -107,11 +88,8 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
   return work.some(on) || conversations.some(on) ? { root: target.root, presence: null, terminal: true } : null;
 }
 
-// A terminal session on the open canvas's path in another worktree of the same project (docs/design/canvas.md 'Terminal work in another worktree').
-// The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere.
-// Only a list worktree that lists the path counts: its Open needs that row. With several, the last in `work` wins
-// (WorkItem has no time). This root's own session wins, and the caller lets an app conversation win too. The label is
-// the branch, else the folder name (a detached HEAD included).
+// The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere. This
+// root's own session wins, and the caller lets an app conversation win too.
 export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | null, entries: readonly FolderEntry[]): { root: string; label: string } | null {
   if (!target) return null;
   const path = target.canvas.path;
@@ -127,24 +105,19 @@ export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | n
 }
 
 export interface AgentNoticeView {
-  // The visible words; the tooltip shows them whole.
+  // The tooltip shows them whole.
   text: string;
-  // The screen reader's words: with a note and a frame both, the frame's title too.
+  // With a note and a frame both, the frame's title too.
   status: string;
-  // The dot stops while the agent waits for an answer.
   steady: boolean;
-  // Open while the agent waits for an answer; null while it works. The board has no Stop (user decision): with several
-  // conversations on a canvas a Stop there was ambiguous, so stopping is the composer's, tied to one conversation.
+  // The board has no Stop: with several conversations on a canvas it was ambiguous, so stopping is the composer's.
   action: { kind: "open"; label: "Open"; name: "Open the request" } | null;
 }
 
-// `terminal`: a terminal session works on the canvas; it shows only without an app presence, with the same words.
-// `content` is the picked work's frame and note, with the frame's title as last found (its id before a layout names it):
-// the note as written, else "Working on <title>", else the fixed words. Waiting overrides it: the person
-// has to act.
+// The note as written, else "Working on <title>", else the fixed words. Waiting overrides it: the person has to act.
 export function agentNoticeView(presence: AgentPresence | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
   if (!presence && !terminal) return null;
-  // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
+  // The panel beside the board already says which agent this is.
   if (presence?.kind === "waiting") return { text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const name = content?.frame === undefined ? undefined : content.title ?? content.frame;
   const text = content?.note ?? (name === undefined ? "Agent is working" : `Working on ${name}`);

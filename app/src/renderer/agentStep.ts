@@ -13,16 +13,16 @@ type Api = Pick<DoanApi, "readAgentAuth" | "onAgentAuth" | "checkAgentAuth" | "s
   "submitAgentSignInCode" | "openAgentSignInLink" | "onAgentSignInPrompt">;
 export interface AgentStepDeps {
   api: Api;
-  // Install or Update: main picks Terminal or the install page from the provider alone.
+  // main picks Terminal or the install page from the provider alone.
   openInstall(provider: Provider): Promise<InstallResult>;
-  // A failed Terminal's Open install page. Resolves false when the page could not be opened.
+  // Resolves false when the page could not be opened.
   openInstallPage(provider: Provider): Promise<boolean>;
   hasFocus(): boolean;
   changed(): void;
-  // Attempt ids this window started, kept across a renderer reload; agent-auth still names the window their owner.
+  // Kept across a renderer reload; agent-auth still names the window their owner.
   remember?(ids: readonly string[]): void;
   recall?(): string[];
-  // The renderer's sign-in controller. Without one the step keeps a private controller and disposes it with itself.
+  // Without one the step keeps a private controller and disposes it with itself.
   signIn?: AgentSignIn;
 }
 export type AgentDialog =
@@ -30,24 +30,21 @@ export type AgentDialog =
   | { kind: "paste"; provider: Provider; attemptId: string; value: string; submitting: boolean };
 // seq makes a repeated request distinct, so the component acts on each one once.
 export interface AgentStepState {
-  // undefined: not read yet. null: the account store is unreadable.
+  // null: the account store is unreadable.
   auth: AuthSnapshot | null | undefined;
   contexts: Partial<Record<Provider, ProviderContext>>;
   dialog: AgentDialog | null;
   announcement: { text: string; seq: number } | null;
   focus: { target: "continue" | "paste"; provider?: Provider; seq: number } | null;
-  // The latest Install, Update or Open install page request's result; its row shows it.
   install: InstallState | null;
   continuing: boolean;
 }
 type OwnState = Omit<AgentStepState, "auth" | "contexts">;
 
-// Providers whose check is free and whose state a check can settle: re-checked on step entry and on return from
-// an install page. Copilot's check spends a model request, so only its Retry checks.
+// Copilot's check spends a model request, so only its Retry checks.
 const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
 
-// The onboarding Agent step's state over the renderer's sign-in controller. It never judges readiness itself
-// (authListView does), and it cancels only attempts this renderer started.
+// It never judges readiness itself (authListView does), and it cancels only attempts this renderer started.
 export class AgentStepSession {
   private own: OwnState = { dialog: null, announcement: null, focus: null, install: null, continuing: false };
   private live = false;
@@ -55,9 +52,9 @@ export class AgentStepSession {
   private seq = 0;
   private readonly signIn: AgentSignIn;
   private readonly owner: boolean;
-  // Replies that open a dialog belong to the Agent step only; one landing after Back or Continue is dropped.
+  // One landing after Back or Continue is dropped.
   private onStep = false;
-  // Install pages opened, checked again when the window regains focus.
+  // Checked again when the window regains focus.
   private installs = new Set<Provider>();
   constructor(private readonly deps: AgentStepDeps) {
     this.owner = !deps.signIn;
@@ -69,7 +66,7 @@ export class AgentStepSession {
     return { ...this.own, auth: this.signIn.state.auth, contexts: install ? { ...contexts, [install.provider]: { ...contexts[install.provider], install } } : contexts };
   }
 
-  // The wizard shows the rows for its whole life, so first-run announcements stay on its live region as before.
+  // The wizard shows the rows for its whole life, so first-run announcements stay on its live region.
   start(): void {
     this.live = true;
     this.signIn.start();
@@ -81,7 +78,6 @@ export class AgentStepSession {
       dialog: (provider, intent) => { if (this.onStep) this.set({ dialog: { kind: "stop", provider, intent } }); },
     }));
   }
-  // Each entry to the Agent step reads, then checks what a free check can settle.
   enter(): void {
     this.onStep = true;
     void this.signIn.read().then(() => {
@@ -98,8 +94,8 @@ export class AgentStepSession {
   canContinue(): boolean { return canAdvance(this.signIn.state.auth ?? null) && !this.own.continuing; }
 
   retryRead(): void { void this.signIn.read(); }
-  // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
-  // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request.
+  // Only install returns check. Copilot is checked only while its cause is the CLI or its version, when a check spends
+  // no request.
   windowFocused(): void {
     const installed = [...this.installs], request = this.installRequests;
     this.installs.clear();
@@ -109,15 +105,14 @@ export class AgentStepSession {
         const r = this.status(provider)?.readiness;
         if (provider !== "copilot" || (r && !r.ready && (r.cause === "cli_missing" || r.cause.startsWith("version_")))) this.signIn.check(provider);
       }
-      // A check that settles the cause publishes a snapshot (followInstall); while it stays, the row offers Check again.
-      // A request made meanwhile owns the row and has not been checked.
+      // While the cause stays, the row offers Check again. A request made meanwhile owns the row and has not been checked.
       const shown = this.own.install;
       if (shown && request === this.installRequests && !shown.checked && installed.includes(shown.provider)) this.set({ install: { ...shown, checked: true } });
     });
     this.signIn.windowFocused();
   }
 
-  // Install, Update and Open install page return their request, so a caller can wait for its result.
+  // So a caller can wait for the result.
   command(provider: Provider, command: AuthCommand): Promise<void> | void {
     if (!this.live) return;
     const attempt = this.status(provider)?.attempt;
@@ -160,7 +155,7 @@ export class AgentStepSession {
     this.set({ dialog: null });
     await (d.intent === "signIn" ? this.signIn.signIn(d.provider, true) : this.signIn.signOut(d.provider, true));
   }
-  // Escape or Cancel: a paste modal hands focus back to its Paste its address button.
+  // A paste modal hands focus back to its Paste its address button.
   closeDialog(): void {
     const d = this.own.dialog;
     // A submitted address is answered before the modal goes, so a late reply cannot close a newer one.
@@ -169,7 +164,7 @@ export class AgentStepSession {
     if (d.kind === "paste") this.focusOn("paste", d.provider);
   }
 
-  // Continue with another provider ready cancels this renderer's own sign-ins still running (2026-10-28 user).
+  // Cancels this renderer's own sign-ins still running.
   async continue(): Promise<boolean> {
     if (!this.canContinue()) return false;
     this.set({ continuing: true });
@@ -183,7 +178,7 @@ export class AgentStepSession {
   // A pending install result belongs to the step it was asked on.
   private leave(): void { this.onStep = false; this.installRequests++; if (this.own.dialog || this.own.install) this.set({ dialog: null, install: null }); }
 
-  // Only the latest Install, Update or Open install page result is shown (POSTMORTEM 2026-10-25, an older install failure).
+  // An older install failure must not replace newer feedback.
   private installRequests = 0;
   private async install(provider: Provider): Promise<void> {
     const action = this.actionOf(provider);
@@ -191,7 +186,7 @@ export class AgentStepSession {
     const result = await this.deps.openInstall(provider).catch((): InstallResult => "failed");
     this.settleInstall(provider, action, request, result);
   }
-  // Only from a failed Terminal's notice, which goes at once; focus recovery hands its focus to the row's button.
+  // The notice goes at once; focus recovery hands its focus to the row's button.
   private async installPage(provider: Provider): Promise<void> {
     const shown = this.own.install;
     if (shown?.provider !== provider) return;
@@ -206,7 +201,7 @@ export class AgentStepSession {
   }
   private settleInstall(provider: Provider, action: InstallState["action"] | null, request: number, result: InstallResult): void {
     if (!this.live) return;
-    // Every Terminal or page that opened is checked on return; only the latest result is shown on its row.
+    // Only the latest result is shown on its row.
     if (result === "terminal" || result === "page") this.installs.add(provider);
     if (action && request === this.installRequests) this.set({ install: { provider, action, result, checked: false } });
   }
@@ -214,9 +209,8 @@ export class AgentStepSession {
     const r = this.status(provider)?.readiness;
     return r && !r.ready ? (r.cause === "cli_missing" ? "install" : r.cause === "version_unsupported" ? "update" : null) : null;
   }
-  // The row's cause changed: its install state ends. Only the next state (Sign in, Connected) is announced, once. A
-  // version Doan could not read (a failed probe reads as unknown even for a missing CLI), one it cannot run, or a CLI
-  // that went missing after an update is not news of an install or update.
+  // Only the next state is announced, once. An unreadable version, one Doan cannot run, or a CLI that went missing after
+  // an update is not news of an install or update.
   private followInstall(): void {
     const shown = this.own.install, r = shown && this.status(shown.provider)?.readiness;
     if (!shown || !r || this.actionOf(shown.provider) === shown.action) return;
@@ -226,7 +220,7 @@ export class AgentStepSession {
     this.own = { ...this.own, announcement: { text: installedAnnouncement(shown.provider, shown.action), seq: ++this.seq } };
     if (canAdvance(this.signIn.state.auth ?? null)) this.own = { ...this.own, focus: { target: "continue", seq: ++this.seq } };
   }
-  // The attempt behind the paste modal ended (the page loaded after all, or it was cancelled): nothing is left to submit.
+  // Nothing is left to submit.
   private followPaste(): void {
     const d = this.own.dialog, auth = this.signIn.state.auth;
     if (d?.kind !== "paste" || !auth || auth.providers.some(p => p.provider === d.provider && p.attempt?.kind === "signIn" && p.attempt.id === d.attemptId)) return;

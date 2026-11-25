@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The docked buddy's core: the DOM-free part of the docked draft .doan/assets/buddies/docked-poc.js (MIT, Doan
-// contributors), for the buddy that stands on the docked composer card and the canvas toolbar. One advanceDocked()
-// step runs time, motion and the surface/hide state together, because they share one random stream and one state.
-// Formulas, constants and operation order are the draft's: dockedBuddyCore.test.ts replays every frame of the golden
-// that app/scripts/dockedBuddyGolden.mjs records from the draft. One guard differs, only where the draft throws: a
-// click while time is stopped, with the current surface gone in the same frame, keeps x. The draft's preview-only
-// controls (Pause, Jump, look and walk buttons, Hide & reappear) are not ported. Time and randomness are arguments;
-// nothing here reads the DOM.
+// Port of .doan/assets/buddies/docked-poc.js (MIT, Doan contributors): formulas, constants and operation order must
+// match it, since dockedBuddyCore.test.ts replays the golden dockedBuddyGolden.mjs records from it. Nothing reads the DOM.
 import { buddy, type BuddyId } from "./buddies";
 
 export const SIZE = 56;          // rig viewport, CSS px, on both surfaces
@@ -14,8 +8,8 @@ export const FLOOR = -1;         // ground origin, relative to the surface's top
 export const WINDOW = 88;        // clip window height above the floor; only the buddy is clipped
 export const DROP = 52;          // hide descent
 export const PEEK = 12;          // reveal pause depth
-export const REST_SECONDS = 5;   // the person rests after this long without view, selection, input or thread-scroll activity
-export const TRIP_MIN = 60, TRIP_SPREAD = 60; // idle surface trip: after 60–120 s of uninterrupted rest
+export const REST_SECONDS = 5;   // rest after this long without view, selection, input or thread-scroll activity
+export const TRIP_MIN = 60, TRIP_SPREAD = 60; // idle surface trip after 60–120 s of uninterrupted rest
 export const FLOAT_WAIT = 1;     // after the last overlapping floating element closes
 const RISE = .22;                // a reveal without a peek
 
@@ -24,17 +18,16 @@ export const HIDES: readonly HideStyle[] = [{ name: "quick", delay: 0, duration:
 
 export type SurfaceName = "dock" | "tools";
 export type Presence = "shown" | "hiding" | "waiting" | "revealing" | "hidden";
-// 'input': a key or input inside the composer. 'thread': the pointer moved over the thread. 'poke': a click on the painted body.
+// 'poke': a click on the painted body.
 export type DockedEvent = "input" | "thread" | "poke";
 
 export interface Surface { present: boolean; width: number; floating: boolean }
-// accepts: the card takes input (an unlisted page or a canvas sharing another's id keeps the card but not the input).
+// An unlisted page or a canvas sharing another's id keeps the card but not the input.
 export interface DockSurface extends Surface { accepts: boolean }
 
 export interface DockedInputs {
   surfaces: { dock: DockSurface | null; tools: Surface | null };
-  // Step-aside reasons: a queued message, a new conversation's notice or choice (prompts), a permission or question card
-  // waiting for an answer.
+  // prompts: a new conversation's notice or choice.
   reasons: { queue: boolean; prompts: boolean; waiting: boolean };
   panel: { folded: boolean; folding: boolean };
   resting: boolean;
@@ -66,14 +59,14 @@ export interface DockedFrame {
   // 0 standing on the floor to 1 fully down.
   conceal: number;
   presence: Presence;
-  // Each surface's remembered x, the current one included.
+  // The current one included.
   slots: Partial<Record<SurfaceName, number>>;
   hideStyle: HideStyle["name"] | null;
-  // The host's translation from its rest position on the surface: x along the floor, y down while hiding.
+  // x along the floor, y down while hiding.
   host: { x: number; y: number };
-  // The shader uniforms (look is lookX, lookY), plus hopLift (0 on the floor to 1 at Home's apex) and the hop phase.
+  // look is lookX, lookY; hopLift is 0 on the floor to 1 at Home's apex.
   pose: { time: number; squash: number; lift: number; tilt: number; hatTilt: number; energy: number; eyeOpen: number; lookX: number; lookY: number; hopLift: number; phase: Phase };
-  // The floor shadow: centre x from the surface's left edge, scale about that centre, and opacity.
+  // x from the surface's left edge, scale about that centre.
   shadow: { x: number; scaleX: number; scaleY: number; opacity: number };
   attention: "input" | "thread" | "walk";
   mode: DockedMode;
@@ -82,20 +75,17 @@ export interface DockedFrame {
 const REST = { squash: 0, lift: 0, tilt: 0, phase: "rest" as Phase };
 const smooth = (u: number) => u*u*(3-2*u);
 const clamp01 = (u: number) => Math.max(0, Math.min(1, u));
-// Shader UV to a fraction of the host box: (p-.5)*1.34 in clip space is .165 + .67*p of the viewport (Doany.tsx's
-// shadow origin uses the same mapping).
+// (p-.5)*1.34 in clip space is .165 + .67*p of the viewport (Doany.tsx's shadow origin uses the same mapping).
 const project = (v: number) => .165 + .67*v;
 
-// contactX: the shadow centre from the host's left edge; hostTop: the host's top from the floor; originY: its
-// transform-origin y as a fraction, so the feet are the pivot. Computed from the registry, so no buddy needs its own CSS.
+// originY puts the pivot at the feet. Computed from the registry, so no buddy needs its own CSS.
 export function dockedGeometry(id: BuddyId) {
   const [x, y] = buddy(id).rig.contact;
   return { contactX: SIZE*project(x), hostTop: -SIZE*project(y), originY: project(y) };
 }
 
 const trackMax = (width: number) => Math.max(-2, width - 52);
-// Where the buddy stands, or would stand, on a surface of this width: its x there, else the first-visit x. The shell
-// measures floating elements against the box at this x.
+// The shell measures floating elements against the box at this x.
 export function xOn(st: Pick<DockedState, "surface" | "x" | "slots">, name: SurfaceName, width: number) {
   const x = st.surface === name ? st.x : st.slots[name] ?? (name === "tools" ? (width - SIZE)/2 : 16);
   return Math.max(-2, Math.min(trackMax(width), x));
@@ -114,16 +104,14 @@ export function createDockedState(id: BuddyId, random: () => number): DockedStat
   return st;
 }
 
-// A buddy change keeps the core state (surface, each surface's x, hide, trip); only the buddy and its tempo change.
+// Only the buddy and its tempo change.
 export function setDockedBuddy(st: DockedState, id: BuddyId) {
   st.buddy = id;
   st.tempo = id === "puri" ? 1.12 : 1;
 }
 
-// Whether another step can change anything without new inputs. False while time is stopped (reduced motion), and
-// while the buddy is down with nowhere to go or under a floating element that is still open: only an input change
-// moves it on, so the shell may stop its rAF until one arrives. The 1 s wait after a floating element closes, a
-// hide or reveal, a hop and a shown buddy (breathing, blinks, idle walks, the idle-trip count) all need time.
+// False while time is stopped, and while the buddy is down with nowhere to go or under an open floating element, so
+// the shell may stop its rAF until an input changes.
 export function dockedNeedsTime(st: DockedState) {
   if (!st.mounted) return true;
   if (st.reduced) return false;
@@ -158,8 +146,8 @@ interface View {
   s: DockedInputs["surfaces"]; stepAside: boolean; folded: boolean;
   floor(name: SurfaceName): boolean; floating(name: SurfaceName): boolean; ok(name: SurfaceName): boolean; anyFloating: boolean;
 }
-// What the inputs allow. A surface has a floor when it is present, at least 56px wide and, for the dock, an input
-// card that accepts input on an open panel. ok: the buddy may stand there now.
+// A surface has a floor when it is present, at least 56px wide and, for the dock, an input card that accepts input on
+// an open panel.
 function read(inputs: DockedInputs): View {
   const s = inputs.surfaces, panel = inputs.panel, r = inputs.reasons;
   const stepAside = r.queue || r.prompts || r.waiting;
@@ -169,7 +157,7 @@ function read(inputs: DockedInputs): View {
   const ok = (name: SurfaceName) => floor(name) && !floating(name) && !(name === "dock" && stepAside);
   return { s, stepAside, folded, floor, floating, ok, anyFloating: floating("dock") || floating("tools") };
 }
-// The surface the rules want now. The dock is home; the toolbar keeps the buddy only after an idle visit.
+// The dock is home; the toolbar keeps the buddy only after an idle visit.
 function want(st: DockedState, v: View): SurfaceName | null {
   const cur = st.surface;
   if (cur && v.ok(cur) && (cur === "dock" || st.visit === "idle")) return cur;
@@ -201,7 +189,7 @@ function startTrip(st: DockedState, dest: SurfaceName | null, random: () => numb
   st.trip = { destination: dest, phase: hidden ? "waiting" : "leaving", from: st.conceal, at: hidden ? st.time : null, style,
     wait: opts.hold ? 0 : .25 + random()*.35, idle: !!opts.idle, hold: !!opts.hold, closedAt: null, quick: false };
 }
-// No floor under the buddy, or its surface left: hidden at once, so it is never seen crossing the page.
+// Hidden at once, so it is never seen crossing the page.
 function drop(st: DockedState, dest: SurfaceName | null, random: () => number) {
   st.conceal = 1; st.motion = null; st.stepsLeft = 0;
   st.trip = { destination: dest, phase: "waiting", from: 1, at: st.time, style: null, wait: .25 + random()*.35, idle: false, hold: false, closedAt: null, quick: false };
@@ -216,7 +204,7 @@ function arrive(st: DockedState, dest: SurfaceName, inputs: DockedInputs, v: Vie
 }
 function done(st: DockedState) { st.trip = null; st.conceal = 0; st.nextMove = st.time + 1.5; st.idleLeft = null; }
 
-// Time is not running (not visible, reduced motion): every surface and hide change applies at once.
+// Not visible or reduced motion: every surface and hide change applies at once.
 function settle(st: DockedState, v: View, inputs: DockedInputs) {
   st.trip = null; st.idleLeft = null;
   if (st.surface === "tools" && (v.stepAside || !v.floor("dock"))) st.visit = "forced";
@@ -233,8 +221,8 @@ function decide(st: DockedState, v: View, inputs: DockedInputs, dt: number, rand
   const cur = st.surface;
   if (cur === "tools" && (v.stepAside || !v.floor("dock"))) st.visit = "forced";
   const trip = st.trip;
-  // The input card is still on screen but takes no input: the buddy goes down with the quick hide instead of popping
-  // out. A card that is gone, folding or too narrow still drops it at once.
+  // A card still on screen that takes no input: the quick hide instead of popping out. A card that is gone, folding or
+  // too narrow still drops it at once.
   const sc = cur === "dock" ? v.s.dock : null;
   if (sc && sc.present && sc.width >= SIZE && !v.folded && sc.accepts === false) {
     const w = want(st, v);
@@ -248,7 +236,7 @@ function decide(st: DockedState, v: View, inputs: DockedInputs, dt: number, rand
     else drop(st, want(st, v), random);
     return;
   }
-  // A floating element over the buddy's own box: down until every one closes, then 1 s, then the rules again.
+  // Down until every one closes, then 1 s, then the rules again.
   if (v.floating(cur) && (!trip || trip.phase === "arriving" || trip.hold)) {
     if (trip && trip.hold) trip.closedAt = null;
     else startTrip(st, cur, random, { hold: true });
@@ -277,16 +265,14 @@ function decide(st: DockedState, v: View, inputs: DockedInputs, dt: number, rand
   }
   if (w === null) { if (st.conceal < 1) startTrip(st, null, random); return; }
   if (w !== cur || st.conceal === 1) { startTrip(st, w, random); return; }
-  // Idle trips: only while the person rests and nothing else holds the buddy. Overview has no toolbar, so it hides
-  // and returns at the same input.
+  // Overview has no toolbar, so it hides and returns at the same input.
   const free = !v.stepAside && !v.folded && !v.anyFloating;
   if (!(free && inputs.resting && attention(st) !== "input")) { st.idleLeft = null; return; }
   if (st.idleLeft === null) st.idleLeft = TRIP_MIN + random()*TRIP_SPREAD;
   st.idleLeft -= dt;
   if (st.idleLeft <= 0) idleTrip(st, v, random);
 }
-// A click on the buddy: the same choreography as an idle trip, to the other surface when the rules allow it, else
-// to a new random x on the same surface, so a click always gets a visible answer.
+// Else to a new random x on the same surface, so a click always gets a visible answer.
 function pokeTrip(st: DockedState, v: View, random: () => number) {
   const other = st.surface === "dock" ? "tools" : "dock";
   const go = v.ok(other) ? other : st.surface;
@@ -322,7 +308,7 @@ function advanceTrip(st: DockedState, inputs: DockedInputs, v: View) {
     else { const u = Math.min(1, (elapsed - .34)/.22); st.conceal = peek*(1 - smooth(u)); if (u === 1) done(st); }
   }
 }
-// The first step stands the buddy at rest on the current surface, without a hide or reveal.
+// Without a hide or reveal.
 function mount(st: DockedState, v: View, inputs: DockedInputs) {
   st.mounted = true;
   const w = want(st, v), s = v.s;
@@ -339,9 +325,7 @@ function presence(st: DockedState): Presence {
   return trip.hold || trip.destination === null ? "hidden" : "waiting";
 }
 
-// One step. now is a rAF timestamp in ms; random() returns [0, 1). Updates state in place and returns what to draw.
-// While not visible or under reduced motion no time passes and every change applies at once; the first step after
-// a pause advances at most 35 ms.
+// now is a rAF timestamp in ms; random() returns [0, 1). The first step after a pause advances at most 35 ms.
 export function advanceDocked(st: DockedState, inputs: DockedInputs, now: number, random: () => number): DockedFrame {
   const dt = Math.min(.035, st.last ? (now - st.last)/1000 : 1/60);
   st.last = now;
@@ -365,7 +349,7 @@ export function advanceDocked(st: DockedState, inputs: DockedInputs, now: number
       const other = st.surface === "dock" ? "tools" : "dock";
       if (v.ok(other)) { moveTo(st, other, inputs); st.visit = other === "tools" ? "idle" : null; }
       else {
-        // The draft reads the surface unguarded; a surface gone in the same frame keeps x instead of throwing.
+        // docked-poc.js reads the surface unguarded; a surface gone in the same frame keeps x instead of throwing.
         const s = inputs.surfaces[st.surface];
         if (s) st.x = -2 + random()*(trackMax(s.width) + 2);
       }
@@ -405,14 +389,14 @@ export function advanceDocked(st: DockedState, inputs: DockedInputs, now: number
   st.bodyLean += (st.lookX*.025 - st.bodyLean)*(1 - Math.exp(-dt*3));
   const hatTarget = -st.bodyLean*.55 - hopPose(st).tilt*.35;
   st.hatV += (hatTarget - st.hat)*70*dt; st.hatV *= Math.exp(-dt*12); st.hat += st.hatV*dt;
-  // Blinks: Home's 420 ms, every 4–8 s.
+  // Home's 420 ms, every 4–8 s.
   if (t >= st.nextBlink) { st.blinkAt = t; st.nextBlink = t + 4 + random()*4; }
   const b = t - st.blinkAt;
   st.eye = b >= 0 && b < .42 ? 1 - .96*Math.sin(Math.PI*b/.42) : 1;
   return frame(st);
 }
 
-// What to draw. Reduced motion rests like Home: no breathing, blink, gaze or hop, and a static shadow.
+// Reduced motion rests like Home: no breathing, blink, gaze or hop, and a static shadow.
 function frame(st: DockedState): DockedFrame {
   const rig = buddy(st.buddy).rig, g = dockedGeometry(st.buddy), still = st.reduced;
   const moving = still ? REST : hopPose(st);

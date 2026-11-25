@@ -1,18 +1,17 @@
-// Validation for messages from the script injected into a canvas iframe. The
-// canvas's own scripts share that window and can post anything, so every field
-// is checked and copied into a fresh object; nothing is trusted by shape.
+// The canvas's own scripts share the iframe window and can post anything, so every field is checked and copied into a
+// fresh object; nothing is trusted by shape.
 
 import type { SelectionElement } from "../formats/types";
 import { MAX_PROTOTYPE_MARK } from "../main/prototype/mark";
 
-// The nodes an anchors answer found for one reply chip target, from exact DOM lookups; html/text never identify a node.
+// From exact DOM lookups; html/text never identify a node.
 export interface TargetCandidates {
   doanId?: readonly string[];
   selector?: readonly string[] | null;
   frame?: readonly string[];
 }
 
-// Board coordinates after inner scrolling; `clip` is the nearest clipping ancestors' visible box.
+// `clip` is the nearest clipping ancestors' visible box.
 interface PinRect { x: number; y: number; width: number; height: number }
 export interface PinGeometry extends PinRect { clip?: PinRect }
 
@@ -21,21 +20,18 @@ export const MAX_GOTOS = 1000;
 export const MAX_STRING = 200;
 // UTF-16 code units, as `String.length` counts them.
 export const MAX_HREF = 8192;
-// Selection caps. Over a cap the whole message is
-// dropped: the script clips before sending, so only a forged message is over.
+// Over a cap the whole message is dropped: the script clips before sending, so only a forged message is over.
 export const MAX_SELECTOR = 1000;
 export const MAX_VALUE = 500;
 // Code points, as the schema's maxLength counts them.
 export const MAX_HTML = 2000;
 export const MAX_TEXT = 500;
 export const MAX_PATH = 32;
-// A canvas text range: the text ⌘C copies, in code points, and the line rects the overlay paints. The text cap keeps
-// a forged message from handing the clipboard megabytes; the rect cap bounds the overlay's nodes (a dense frame has a
-// few hundred lines, and a range past the cap still copies whole).
+// The text cap keeps a forged message from handing the clipboard megabytes; the rect cap bounds the overlay's nodes (a
+// range past it still copies whole).
 export const MAX_COPY_TEXT = 100_000;
 export const MAX_TEXT_RECTS = 2000;
 
-// The inspector's element menu: at most this many nodes per element-tree answer.
 export const MAX_TREE_NODES = 200;
 
 export type ElementKind = "frame" | "flex-row" | "flex-column" | "grid" | "input" | "button" | "text" | "box";
@@ -43,12 +39,12 @@ export type ElementKind = "frame" | "flex-row" | "flex-column" | "grid" | "input
 export interface CanvasFrameRect {
   id: string;
   title?: string;
-  // The frame's raw `data-doan-prototype` value; playability parses it. A `cut` frame keeps it but never plays.
+  // A `cut` frame keeps it but never plays.
   prototype?: string;
-  // The ID was cut at 200 UTF-16 units, so it is not the frame's: the frame cannot play, and link groups, which compare
-  // raw ids, must leave it out rather than take the cut ID for another frame's.
+  // The ID was cut at 200 UTF-16 units, so it is not the frame's: it cannot play, and link groups must leave it out
+  // rather than take the cut ID for another frame's.
   cut?: true;
-  // The nearest enclosing frame's index in `frames`; it always comes earlier.
+  // It always comes earlier.
   parent?: number;
   x: number;
   y: number;
@@ -56,8 +52,7 @@ export interface CanvasFrameRect {
   height: number;
 }
 
-// In the iframe's own viewport (getBoundingClientRect), which is board
-// coordinates while the canvas document does not scroll inside the iframe.
+// Board coordinates while the canvas document does not scroll inside the iframe.
 export interface CanvasRect {
   x: number;
   y: number;
@@ -65,9 +60,7 @@ export interface CanvasRect {
   height: number;
 }
 
-// A `data-doan-goto` link outside `<template>`, in document order: its raw value (one over 200 units is not reported)
-// and the index in `frames` of the innermost listed frame around it, absent when none is. Its enclosing frames are that
-// frame and its `parent` chain.
+// One over 200 units is not reported. `frame` is the innermost listed frame around it, absent when none is.
 export interface CanvasGoto {
   value: string;
   frame?: number;
@@ -78,18 +71,17 @@ export interface LayoutMessage {
   document?: string;
   href: string;
   height: number;
-  // The canvas's innerHeight when it measured `height`.
   viewport: number;
   frames: CanvasFrameRect[];
   truncated: boolean;
   gotos: CanvasGoto[];
-  // Only while the script has a selection; null once it lost the element.
+  // null once the script lost the element.
   seq?: number;
   selected?: CanvasRect | null;
 }
 
-// `seq` belongs to the hover channel for hover/Alt, and to the selection
-// channel for select/clear/Escape and selected layout. Channels reset on load.
+// `seq` belongs to the hover channel for hover/Alt, and to the selection channel for select/clear/Escape and selected
+// layout. Channels reset on load.
 interface SelectionMessageBase {
   href: string;
   seq: number;
@@ -111,9 +103,8 @@ export interface SelectTarget {
   rect: CanvasRect;
   tag: string;
   frame?: { id: string; title?: string; implements?: string };
-  // Position in `layout.frames`; absent past the 1,000 listed.
+  // Absent past the 1,000 listed.
   frameIndex?: number;
-  // Absent for a frame selection.
   element?: SelectionElement;
   path: PathItem[];
   interactive?: "link" | "control";
@@ -123,12 +114,11 @@ export interface SelectMessage extends SelectionMessageBase {
   type: "select";
   // null: the script could not find the anchor it was asked for.
   target: SelectTarget | null;
-  // The command this selection answers; absent for a click, which can share
-  // the seq of a command the script then drops.
+  // Absent for a click, which can share the seq of a command the script then drops.
   answer?: SelectionAnswer;
 }
 
-// select-parent is Esc's step back, answered by the frame around the selection or, past the outermost one, a clear.
+// select-parent is answered by the frame around the selection or, past the outermost one, a clear.
 export type SelectionAnswer = "select-anchor" | "select-parent";
 
 export interface ClearMessage extends SelectionMessageBase {
@@ -136,7 +126,7 @@ export interface ClearMessage extends SelectionMessageBase {
   answer?: "select-parent";
 }
 
-// Space, V and H come from a canvas that has focus after an ⌥-click.
+// Only from a canvas that has focus after an ⌥-click.
 export type KeyMessage = SelectionMessageBase & { type: "key" } & (
   { key: "Escape" } | { key: "Alt"; alt: boolean } | { key: "Space"; down: boolean } | { key: "V" | "H" }
 );
@@ -169,39 +159,27 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-// The canvas's answer to the app's pick. `pick` is the seq of the pick-start
-// command it answers, on the pick channel's own seq that neither clicks nor selection or hover commands move; the
-// message type is the reply marker, so no selection reply can complete a pick. Exactly one of: the element or frame
-// under the click; a Shift-clicked spot, in the canvas document's coordinates; Esc pressed inside the canvas.
-// `document` is the answering document's token: a pick lives only as long as the document it was started in.
+// The message type is the reply marker, so no selection reply can complete a pick; `pick` is on the pick channel's own
+// seq. A pick lives only as long as its `document`.
 export type PickedMessage = { type: "picked"; href: string; document: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
 
-// The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
+// Until then the app keeps clicks off the canvas.
 export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
 
-// The canvas's Select text drag. `document` is the posting document's token and `epoch` the last clear-text it took,
-// so a range from a replaced document or sent before a clear is dropped. `rects` are the line boxes of the range's Text
-// nodes in the iframe's viewport, as hover and selected rects are; empty is no range. `text` comes once the drag ends.
+// A range from a replaced document or sent before a clear (`epoch`) is dropped. Empty `rects` is no range; `text`
+// comes once the drag ends.
 export interface TextRangeMessage { type: "text-range"; document: string; epoch: number; dragging: boolean; rects: CanvasRect[]; text?: string }
-// The answer to the app's text-at or text-press (Hand): whether a Select press at that point would start a text drag.
 export interface TextHitMessage { type: "text-hit"; document: string; probe: number; hit: boolean }
 
-// The canvas's answer to the inspector's `element-tree` request: the innermost frame around the selection and the
-// nodes below it, in document order with their depth below that frame (the frame is depth 0). `seq` is the request's,
-// on the tree's own channel that neither clicks nor selection or hover commands move, and `document` the answering
-// document's token, so an answer from a replaced document or to an older request is dropped. Empty without a
-// selection or for one outside every frame. Over MAX_TREE_NODES the script keeps the path to the selection, its
-// children and its nearest siblings, and marks the answer truncated. `anchor` is what `select-anchor` takes; `rect` is
-// in the iframe's viewport, as hover rects are.
+// The tree has its own seq channel and a `document` token, so an answer from a replaced document or to an older
+// request is dropped. Over MAX_TREE_NODES the script keeps the path to the selection and marks the answer truncated.
 export interface ElementTreeAnchor { selector: string; doanId?: string; frame?: string }
 export interface ElementTreeNode { depth: number; name: string; kind: ElementKind; anchor: ElementTreeAnchor; rect: CanvasRect; selected?: true }
 export interface ElementTreeMessage { type: "element-tree"; href: string; document: string; seq: number; viewport: number; nodes: ElementTreeNode[]; truncated: boolean }
 
-// A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
-// selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
-// with it, moves focus to the canvas area, so a forged one can do no more than that.
+// It carries nothing, so a forged one can do no more than close the app's lists and move focus to the canvas area.
 export interface PressMessage { type: "press" }
-// The person moved the pointer in the canvas frame (at most once a second).
+// At most once a second.
 export interface ActivityMessage { type: "activity" }
 
 export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage | TextHitMessage | ElementTreeMessage;
@@ -218,7 +196,6 @@ function nonNegative(value: unknown): value is number {
   return finite(value) && value >= 0;
 }
 
-// Returns whether the text was cut so the caller can raise `truncated`.
 function clip(text: string): { text: string; cut: boolean } {
   if (text.length <= MAX_STRING) return { text, cut: false };
   let end = MAX_STRING;
@@ -320,8 +297,8 @@ function parseTextRange(data: Record<string, unknown>): TextRangeMessage | null 
 
 const ELEMENT_KINDS: readonly string[] = ["frame", "flex-row", "flex-column", "grid", "input", "button", "text", "box"] satisfies ElementKind[];
 
-// Over the node cap the whole message is dropped, as the script never sends more. Depths must nest in document order
-// below one root, so the menu can indent and draw guides from them alone.
+// The script never sends more than the cap. Depths must nest below one root, so the menu can indent and draw guides
+// from them alone.
 function parseElementTree(data: Record<string, unknown>): ElementTreeMessage | null {
   const { href, document, seq, viewport, nodes, truncated } = data;
   if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(seq) || !nonNegative(viewport) ||
@@ -444,13 +421,12 @@ function parseElement(raw: unknown): SelectionElement | null {
 function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
   const { href, height, viewport, frames } = data;
   if (typeof href !== "string" || !nonNegative(height) || !nonNegative(viewport) || !Array.isArray(frames)) return null;
-  // `href` is compared with a canvas URL later, so cutting it would only make a
-  // long path look like an unknown document; an oversized one is dropped whole.
+  // `href` is compared with a canvas URL later, so cutting it would only make a long path look like an unknown document.
   if (href.length > MAX_HREF) return null;
   let truncated = data.truncated === true || frames.length > MAX_FRAMES;
   if (data.gotos !== undefined && !Array.isArray(data.gotos)) return null;
   const kept: CanvasFrameRect[] = [];
-  // Indexes the script sent refer to its list; a dropped frame shifts the rest, so they are mapped to the kept list.
+  // A dropped frame shifts the rest, so the script's indexes are mapped to the kept list.
   const keptAt: (number | undefined)[] = [];
   const keptIndex = (value: unknown, before: number) =>
     typeof value === "number" && Number.isInteger(value) && value >= 0 && value < before ? keptAt[value] : undefined;
@@ -499,7 +475,7 @@ function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | nu
   const clippedId = clip(id);
   const frame: CanvasFrameRect = { id: clippedId.text, x, y, width, height };
   if (clippedId.cut || raw.cut === true) frame.cut = true;
-  // A mark that is not a string or is over the cap is dropped, not the frame: the frame stays listed, unmarked.
+  // A bad mark is dropped, not the frame: the frame stays listed, unmarked.
   if (typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
   let cut = clippedId.cut;
   if (title !== undefined) {
@@ -524,10 +500,8 @@ export interface CanvasMessageEvent {
   data: unknown;
 }
 
-// A sandboxed iframe without `allow-same-origin` posts from the opaque origin
-// "null", and `source` is the only thing tying the message to *our* iframe. A
-// detached iframe has a null `contentWindow`, which must not match the null
-// `source` of a message from a closed window.
+// A sandboxed iframe posts from origin "null", so `source` is the only tie to our iframe. A detached iframe's null
+// `contentWindow` must not match the null `source` of a closed window's message.
 export function acceptCanvasMessage(event: CanvasMessageEvent, frameWindow: unknown): CanvasMessage | null {
   if (frameWindow === null || frameWindow === undefined) return null;
   if (event.source !== frameWindow || event.origin !== "null") return null;

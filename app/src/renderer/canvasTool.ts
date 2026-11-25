@@ -1,7 +1,6 @@
 import { editableTarget } from "./selection";
 
-// The canvas tools a person switches between. A pick is not one: it runs ahead of the
-// tool for a moment and leaves it as it was.
+// A pick is not one: it runs ahead of the tool for a moment and leaves it as it was.
 export type CanvasTool = "select" | "hand";
 
 export type ToolShortcut = { kind: "tool"; tool: CanvasTool } | { kind: "space"; down: boolean };
@@ -21,13 +20,8 @@ function interactiveTarget(target: unknown): boolean {
   return typeof role === "string" && CONTROL_ROLES.has(role);
 }
 
-// One rule for "a menu, list, popover or dialog is open" on the page: the tool keys ask it of the key's target, following
-// the working frame and the star card of the document (PRODUCT §5 item 2 'Canvas header', 'Following'). Every app menu's
-// content carries `doan-menu`, every app list (a frame drawer, the `/` list, Quick Open's results) is a listbox, and the
-// design presets popover and the `/` list hold their list beside group tabs and a Retry. Radix menus and popovers
-// (role="menu", role="dialog") exist only while open; a native <dialog> may stay mounted closed, so only an open one
-// counts. Radix's typeahead prevents nothing, so `defaultPrevented` alone does not catch a key in an open menu;
-// preventing for it would skip that typeahead.
+// Radix's typeahead prevents nothing, so `defaultPrevented` alone misses a key in an open menu. A native <dialog> may
+// stay mounted closed, so only an open one counts.
 export const OPEN_OVERLAY = '.doan-menu, [role="menu"], [role="listbox"], .preset-popover, dialog[open], [role="dialog"]:not(dialog), [role="alertdialog"]:not(dialog)';
 
 function inOpenOverlay(target: unknown): boolean {
@@ -39,10 +33,8 @@ export function overlayOpen(root: { querySelector(selector: string): unknown }):
   return root.querySelector(OPEN_OVERLAY) !== null;
 }
 
-// By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release always counts: one
-// pressed on the canvas may be released over the composer, and a held Space must not outlive the key. An open menu,
-// list, popover or dialog keeps every printable key (PRODUCT §5 item 2 'Canvas header'); a sidebar row that only has
-// focus does not.
+// By `code`, so a Korean layout's ㅍ and ㅗ still switch tools. A Space release always counts: one pressed on the canvas
+// may be released over the composer, and a held Space must not outlive the key.
 export function toolShortcut(event: ShortcutEvent, context: { canvasPage: boolean }): ToolShortcut | null {
   if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
   if (event.type !== "keydown") return null;
@@ -56,9 +48,8 @@ export function toolShortcut(event: ShortcutEvent, context: { canvasPage: boolea
 
 export type EscapeStep = "cancelPick" | "cancelCapture" | "selectTool" | "clearText" | "stepSelection";
 
-// Esc's next action once menus, popovers and the `/` list have had theirs (they prevent it). A pick and capture mode
-// (never both at once) end wherever focus is; a text field keeps its own Esc otherwise. A canvas text range goes before
-// the element selection steps back, which it leaves as it is.
+// A pick and capture mode end wherever focus is; a text field keeps its own Esc otherwise. A canvas text range goes
+// before the element selection steps back.
 export function escapeStep(state: { picking: boolean; capturing: boolean; hand: boolean; editable: boolean; canvasText: boolean }): EscapeStep | null {
   if (state.picking) return "cancelPick";
   if (state.capturing) return "cancelCapture";
