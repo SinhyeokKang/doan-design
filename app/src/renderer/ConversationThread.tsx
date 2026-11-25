@@ -24,7 +24,7 @@ import { NameTip } from "./NameTip";
 import { CommandCardNotice } from "./ComposerParts";
 import type { CommandCard, CommandCardTarget } from "./commandView";
 import { handoffCardView } from "./handoffView";
-import { applyVisibility, useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbnails";
+import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbnails";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
@@ -590,9 +590,8 @@ function CardMeta({ meta, keep }: { meta: CanvasCardMeta; keep: boolean }) {
   if (parts.length === 0 && !keep) return null;
   return <span className="cc-meta">{parts.map((part, i) => <Fragment key={i}>{i > 0 && <span className="sep" aria-hidden="true">·</span>}{part}</Fragment>)}</span>;
 }
-// A canvas of a turn (draft handoff-card-emphasis.html): the banner, then the state icon, the canvas icon and name over
-// the status and meta, and Open. The status changes in place (the card's key holds), so focus on Open stays. No live
-// region: the thread's status line says the new canvases once the turn ends.
+// A canvas of a turn. The status changes in place (the card's key holds), so focus on Open stays. No live region: the
+// thread's status line says the new canvases once the turn ends.
 export function CanvasCard({ entry, context, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; context: CardContext; project: string; provider: Provider;
   canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
   const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, context.rows) }, { project, provider, listed: canvasListed }), open = view.open;
@@ -688,36 +687,50 @@ export function HandoffCard({ entry, context, project, canvasListed, conversatio
 
 // The thread's one viewer of its root's images: it asks for the canvases its cards show and reports which banners are on
 // screen. A component of its own, so the thread body keeps no thumbnail hooks; its images go back up through onImages.
-function CardThumbnails({ hub, root, rows, scroller, onImages }: { hub: ThumbnailHub; root: string; rows: readonly CanvasRow[];
+function CardThumbnails({ hub, root, banners, scroller, onImages }: { hub: ThumbnailHub; root: string; banners: readonly CardBanner[];
   scroller: { readonly current: HTMLElement | null }; onImages(images: ReadonlyMap<string, ThumbnailState>): void }) {
+  const rows = [...new Map(banners.map(banner => [banner.row.path, banner.row])).values()];
   // A row's width decides whether it can be captured, so it is part of what is asked.
   const key = rows.map(row => `${row.path}\t${row.width ?? ""}`).join("\n");
   const held = useRef({ key, rows });
   if (held.current.key !== key) held.current = { key, rows };
   const { thumbnails, onVisible } = useThumbnails(hub, root, held.current.rows);
   useEffect(() => { onImages(thumbnails); }, [thumbnails, onImages]);
+  // By card, not by path: a later card of a canvas already shown has a banner of its own to watch.
+  const watched = banners.map(banner => banner.key).join("\n");
   useEffect(() => {
     const field = scroller.current;
-    if (!field || key === "") return;
-    let visible = new Set<string>();
-    const observer = new IntersectionObserver(changes => {
-      const next = applyVisibility(visible, changes.map(change => ({ path: (change.target as HTMLElement).dataset.path ?? "", visible: change.isIntersecting })));
-      if (next) { visible = next; onVisible([...next]); }
-    }, { root: field });
-    for (const banner of field.querySelectorAll<HTMLElement>(".cc-banner[data-path]")) observer.observe(banner);
-    return () => { observer.disconnect(); onVisible([]); };
-  }, [key, scroller, onVisible]);
+    if (!field || watched === "") return;
+    return watchBanners(field, onVisible);
+  }, [watched, scroller, onVisible]);
   return null;
 }
-// The rows of the canvases the thread's cards show, once each.
-function cardRows(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean): CanvasRow[] {
-  const found = new Map<string, CanvasRow>();
-  for (const item of items) {
+export interface CardBanner { key: string; row: CanvasRow }
+// The banners the thread's cards draw with a listed canvas's row, by card key.
+export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasRow[], listed: (canvas: Canvas) => boolean): CardBanner[] {
+  return items.flatMap(item => {
     const canvas = item.kind === "canvasCard" ? cardCanvas(item, rows) : item.kind === "handoffCard" ? item.origin.canvas : undefined;
     const row = canvas && cardRow(canvas, rows, listed);
-    if (row) found.set(row.path, row);
-  }
-  return [...found.values()];
+    return row ? [{ key: item.key, row }] : [];
+  });
+}
+// Reports the paths with a banner on screen in `field`, again whenever that set changes, and [] once stopped. Several
+// cards can show one canvas, so a path stays visible while any of its banners is.
+export function watchBanners(field: HTMLElement, report: (paths: readonly string[]) => void, Observer: typeof IntersectionObserver = IntersectionObserver): () => void {
+  const shown = new Map<Element, string>();
+  let reported = "";
+  const observer = new Observer(changes => {
+    for (const change of changes) {
+      if (change.isIntersecting) shown.set(change.target, (change.target as HTMLElement).dataset.path ?? "");
+      else shown.delete(change.target);
+    }
+    const paths = [...new Set(shown.values())].sort();
+    if (paths.join("\n") === reported) return;
+    reported = paths.join("\n");
+    report(paths);
+  }, { root: field });
+  for (const banner of field.querySelectorAll<HTMLElement>(".cc-banner[data-path]")) observer.observe(banner);
+  return () => { observer.disconnect(); report([]); };
 }
 
 // The last turn's end, which offers the end actions. resend: that turn began with the person's message; a turn the
@@ -1100,7 +1113,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
-    {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} rows={cardRows(items, rows, props.canvasListed)} scroller={scroller} onImages={setImages} />}
+    {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(items, rows, props.canvasListed)} scroller={scroller} onImages={setImages} />}
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />

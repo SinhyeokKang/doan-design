@@ -1310,11 +1310,8 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .marker .doan-button { color: var(--text-standard); }
 .conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
-/* Canvas cards and the handoff card (draft handoff-card-emphasis.html): one white bordered surface and one head row,
-   since both stand for a canvas; rules only one card uses stay on .canvas-cards and .handoff-card. The card is the size
-   container: a container cannot restyle itself, so .card-layout puts the banner on top below 480px and a 160 × 100
-   thumbnail beside the head at 480 or wider. The name never wraps (the component cuts it in the middle), Open never
-   shrinks, the status wraps and the meta wraps by item. */
+/* Canvas and handoff cards share these rules so neither changes alone; one-card rules stay on .canvas-cards and
+   .handoff-card. A container cannot restyle itself, so .card-layout answers the card's own width. */
 .conversation-thread .canvas-cards { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .conversation-thread .card-surface { display: flex; flex-direction: column; width: 100%; align-self: stretch; min-width: 0; border: 1px solid var(--border-standard); border-radius: var(--radius-row); background: var(--surface-panel); overflow: hidden; container-type: inline-size; }
 .conversation-thread .card-layout { display: flex; flex-direction: column; min-width: 0; }
@@ -1343,11 +1340,8 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .card-head .cc-meta > span { white-space: nowrap; }
 .conversation-thread .card-head .cc-meta .sep { color: var(--text-disabled); }
 .conversation-thread .card-head .cc-open { flex: none; color: var(--text-standard); }
-/* The handoff card: the earlier agent's message under a divider; its inline code takes the inset fill the white surface
-   would otherwise share. */
 .conversation-thread .handoff-card:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .conversation-thread .handoff-card .handoff-body { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--border-standard); }
-.conversation-thread .handoff-card .md code { background: var(--surface-inset); }
 .conversation-thread .handoff-card .card-layout > :is(.chip-missing, .copy-failed) { margin: 0 var(--space-4) var(--space-4); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* Above the docked buddy's slot (2), which shares its stacking context, like the queue pills. */
