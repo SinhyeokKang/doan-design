@@ -1,11 +1,6 @@
-/* Surfaces: what sits on the shell (panels), over the canvas (floating menus, popovers,
-   toasts and tooltips) and over the whole window (modal dialogs). Opt-in through doan-
-   classes; opening and closing follow Radix data-state and the native dialog [open]. */
+/* Surfaces are opt-in doan- classes; open and close follow Radix data-state and native dialog [open]. */
 
-/* ── Panel ───────────────────────────────────────────────────────────────────
-   A rounded, opaque card raised on a backdrop (first run's cards and lists, notices on a
-   backdrop that is not plain white); the shadow's hairline ring draws its edge. A screen's
-   body panel is not one and has no shadow. It draws no content of its own. */
+/* The shadow's hairline ring draws the panel's edge. A screen's body panel is not a .doan-panel and has no shadow. */
 .doan-panel {
   overflow: hidden;
   border-radius: var(--radius-container);
@@ -13,11 +8,8 @@
   box-shadow: var(--shadow-panel);
 }
 
-/* ── Floating material ───────────────────────────────────────────────────────
-   Menus, popovers and toasts open over the canvas, which can be any colour an agent
-   chose. The base is the opaque popover fill, so text stays readable wherever glass is
-   unavailable or unwanted. The border is transparent so its 1px still counts in the
-   nested-corner arithmetic while the panel shadow draws the visible edge. */
+/* The opaque popover fill keeps text readable where glass is unavailable. The transparent border keeps its 1px in
+   the nested-corner arithmetic while the shadow draws the edge. */
 .doan-floating {
   color: var(--text-standard);
   background: var(--surface-popover);
@@ -26,14 +18,11 @@
   box-shadow: var(--shadow-panel);
   padding: var(--space-1);
 }
-/* Radix copies the content's z-index onto its fixed portal wrapper. Without one the wrapper paints under the
-   Overview (`.ov` is z-index 1 so it covers the canvas panel in the same cell), and its menus open unseen. */
+/* Radix copies this z-index onto its portal wrapper; without it menus paint under the Overview (`.ov`, z-index 1)
+   and open unseen. */
 [data-radix-popper-content-wrapper] > .doan-floating { z-index: 50; }
-/* A short action list takes the compact corner and inset so it does not look heavier
-   than the one or two rows it holds. */
+/* A short action list takes the compact corner and inset so it does not look heavier than its rows. */
 .doan-floating[data-ui-size="compact"] { border-radius: var(--radius-row); padding: var(--space-half); }
-/* Glass is opt-in: only when the person has not asked for less transparency, forced
-   colours are off, and the engine can blur what is behind. */
 @media (prefers-reduced-transparency: no-preference) and (not (forced-colors: active)) {
   @supports (backdrop-filter: blur(1px)) {
     .doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }
@@ -44,9 +33,7 @@
   .doan-floating { border-color: CanvasText; }
 }
 
-/* ── Menu ────────────────────────────────────────────────────────────────────
-   Size: the list scrolls inside the room Radix reports, never past the window, and is
-   wide enough for a label with its detail. */
+/* The list scrolls inside the room Radix reports, never past the window. */
 .doan-menu {
   overflow-y: auto;
   max-height: min(384px, var(--radix-popper-available-height, 384px));
@@ -54,8 +41,7 @@
   max-width: min(320px, calc(100vw - var(--space-4)));
 }
 
-/* Rows. A row's corner is derived, not picked: max(0, surface corner − inset − border)
-   keeps it concentric with the surface (19px here, 13px in a compact menu). */
+/* A row's corner is max(0, surface radius − inset − border), which keeps it concentric with the surface. */
 .doan-menu-item {
   display: flex;
   align-items: center;
@@ -78,24 +64,19 @@
 .doan-menu-head { padding: var(--space-2) var(--space-3) var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .doan-menu-sep { height: 1px; margin: var(--space-1) var(--space-3); background: var(--border-standard); }
 
-/* Row states. The highlighted row (pointer or arrow keys) and the row whose submenu is
-   open share one fill; a disabled row keeps its place but takes the disabled ink. Inside
-   the scrolling list an outer ring would be clipped, so the keyboard ring is drawn inward. */
+/* A disabled row keeps its place. The keyboard ring is drawn inward because the scrolling list would clip it. */
 .doan-menu-item:is([data-highlighted], [data-state="open"]) { background: var(--affordance-floating-hover); }
-/* A listbox row is not a Radix item, so nothing sets data-highlighted. A focusable one fills while focused; the pointer moves
-   focus onto it only once focus is already in the list (as the frame list does). Until then, with focus elsewhere such as the
-   popover's search box, it fills on hover alone, so one row at a time is filled either way. */
+/* A listbox row has no data-highlighted: it fills on focus, or on hover only while focus is outside the list,
+   so one row at a time is filled. */
 .doan-menu-item[role="option"][tabindex]:focus,
 [role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
 .doan-menu-item[data-disabled], .doan-menu-item[data-disabled] .sub { color: var(--text-disabled); }
 .doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 
-/* A tree row's depth and a guide's level, set inline on each; 0 when unset. */
+/* Set inline on each tree row and guide; 0 when unset. */
 :root { --tree-depth: 0; --tree-level: 0; }
-/* A tree of nested rows (data-ui-variant="tree"). A row's --tree-depth moves it in by its icon and the gap, so a child's
-   icon starts under its parent's name; a 1px neutral guide per ancestor (--tree-level) runs down that ancestor's icon to
-   its last descendant row. The selected row is pressed. As in a listbox, a row fills while focused, or hovered while
-   the tree has no focus, so one fill shows at a time. */
+/* --tree-depth indents a row so a child's icon starts under its parent's name; --tree-level places each ancestor
+   guide. A row fills on focus, or on hover only while the tree has no focus. */
 .doan-menu[data-ui-variant="tree"] .doan-menu-item { position: relative; gap: var(--space-2); padding-inline-start: calc(var(--space-3) + var(--tree-depth) * (var(--size-icon) + var(--space-2))); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .doan-menu[data-ui-variant="tree"] .doan-menu-item > .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -105,12 +86,9 @@
 .doan-menu[data-ui-variant="tree"] [role="tree"]:not(:has(:focus)) > .doan-menu-item[role="treeitem"]:hover:not([aria-selected="true"]) { background: var(--affordance-floating-hover); }
 .doan-menu[data-ui-variant="tree"] .guide { position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) + var(--tree-level) * (var(--size-icon) + var(--space-2)) + var(--size-icon) / 2); width: 1px; transform: translateX(-50%); background: var(--border-standard); pointer-events: none; }
 
-/* Popovers hold a few lines of content rather than a list. */
 .doan-popover { width: 320px; padding: var(--space-3); }
 .doan-popover[data-ui-size="compact"] { width: 224px; }
 
-/* Toasts: one message and at most one action on its right, on the same material. A long
-   message wraps on its own while the action stays centred beside it. */
 .doan-toast {
   display: flex;
   align-items: center;
@@ -121,11 +99,8 @@
 }
 .doan-toast .msg { flex: 1; min-width: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
-/* ── Tooltip ─────────────────────────────────────────────────────────────────
-   A near-black capsule. Its corner is half of its one-line height, so a short label stays
-   a capsule; a long path wraps inside the width cap instead of running off the window.
-   A label takes no clicks: Radix keeps a closing tooltip mounted until its fade ends, and the
-   capsule often sits over the control next to its trigger. */
+/* A label takes no clicks: Radix keeps a closing tooltip mounted until its fade ends, often over the control
+   next to its trigger. */
 .doan-tooltip {
   width: fit-content;
   max-width: min(384px, calc(100vw - 2 * var(--space-4)));
@@ -142,14 +117,10 @@
   transform-origin: var(--radix-tooltip-content-transform-origin);
   pointer-events: none;
 }
-/* Radix positions the capsule inside a wrapper box of the same size; the label rule above would not stop that box from
-   taking the press meant for the control under it. */
+/* The Radix wrapper box is the capsule's size and would take the press meant for the control under it. */
 [data-radix-popper-content-wrapper]:has(> .doan-tooltip) { pointer-events: none; }
 
-/* ── Modal dialog ────────────────────────────────────────────────────────────
-   Native <dialog> opened with showModal(). Width comes in four steps. A compact
-   confirmation is centred; every larger dialog hangs 128px from the top, so its title
-   stays put while its content grows, and may grow down to 16px above the window edge. */
+/* A compact dialog is centred; larger ones hang 128px from the top, so the title stays put while content grows. */
 .doan-dialog {
   inset: 128px 0 auto;
   width: min(640px, calc(100% - 2 * var(--space-4)));
@@ -170,25 +141,22 @@
 .doan-dialog[data-ui-size="compact"] { inset: 0; width: min(400px, calc(100% - 2 * var(--space-4))); max-height: calc(100dvh - 2 * var(--space-4)); margin: auto; }
 .doan-dialog[data-ui-size="wide"] { width: min(880px, calc(100% - 2 * var(--space-4))); }
 .doan-dialog[data-ui-size="expanded"] { width: min(1152px, calc(100% - 2 * var(--space-4))); height: calc(100dvh - 128px - var(--space-4)); }
-/* In a narrow window the 32px inset would leave too little room for the content. */
+/* In a narrow window the 32px inset would leave too little room for content. */
 @media (max-width: 480px) {
   .doan-dialog { padding: var(--space-4); }
 }
 .doan-dialog::backdrop { background: var(--bg-scrim); }
-/* Search presentation (Quick Open): the panel fill and a corner of the panel radius plus 4px, so the field and rows
-   inset by 12px meet it concentrically. Width, position, backdrop and motion stay the base dialog's. Two classes beat the narrow-window padding above. */
+/* Search presentation: the panel radius plus 4px keeps rows inset by 12px concentric. Two classes beat the
+   narrow-window padding above. */
 .doan-dialog[data-ui-presentation="search"] { padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1)); background: var(--surface-panel); corner-shape: squircle; }
 .doan-dialog[data-ui-presentation="search"][open] { gap: 0; }
-/* Header: the title over an optional description. There is no Close button; Cancel and
-   Escape close every doan dialog. */
+/* There is no Close button; Cancel and Escape close every doan dialog. */
 .doan-dialog-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
 .doan-dialog-heading { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
 .doan-dialog-title { font-size: var(--type-label-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
 .doan-dialog-description { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-/* Actions close the dialog, Cancel first and the completing action last, at the end of
-   the row. A dialog can scroll, which would clip a 2px focus ring at its edge: the 4px
-   padding, cancelled out by the negative margin, leaves that ring room. `safe` lets an
-   action wider than the row fall back to the start instead of off the dialog. */
+/* Cancel comes first, the completing action last. The padding and negative margin leave the focus ring room in a
+   scrolling dialog; `safe` keeps an action wider than the row from overflowing the start. */
 .doan-dialog-actions {
   display: flex;
   flex-wrap: wrap;
@@ -199,11 +167,8 @@
   padding: var(--space-1);
 }
 
-/* ── Notices ─────────────────────────────────────────────────────────────────
-   An inset fill, never a coloured edge. Every notice leads with an icon on its first line of
-   text: the alert icon, or a spinner or status mark in that slot, in the text's colour. Every
-   notice shares one style (padding, gap, radius, type, icon size and alignment); only the tone,
-   which colours the text, and the surface (inset, or doan-panel's fill and shadow) differ. */
+/* Every notice shares one style; only the tone (text colour) and the surface (inset or doan-panel) differ.
+   Each leads with an icon on its first line. */
 .doan-notice {
   display: flex;
   align-items: flex-start;
@@ -217,27 +182,20 @@
   letter-spacing: var(--type-body-sm-letter-spacing);
   overflow-wrap: anywhere;
 }
-/* The tone colours the whole text and the icon follows it; code chips, links and buttons inside keep their own ink. */
+/* Code chips, links and buttons inside keep their own ink. */
 .doan-notice.warning { color: var(--text-warning); }
 .doan-notice.error { color: var(--text-danger); }
 .doan-notice.ok { color: var(--text-success); }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
-/* An inline action, or a group of them, centres vertically in the notice, so beside a two-line text it
-   sits between the lines while the icon stays on the first; the negative margins let a sm button reach
-   into the padding, so a one-line notice keeps its height. */
+/* Negative margins let a sm button reach into the padding, so a one-line notice keeps its height. */
 .doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }
-/* Two or more actions stack: the group takes its own row at the notice's end, under the text, --space-2 below it. On
-   its own row the negative margins above would eat the bottom padding, so the stacked row drops them. */
+/* Two or more actions stack on their own row, where those negative margins would eat the bottom padding. */
 .doan-notice.stacked { flex-wrap: wrap; row-gap: var(--space-2); }
 .doan-notice.stacked > :has(> .doan-button) { flex-basis: 100%; justify-content: flex-end; margin-block: 0; }
-/* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
-   the notice takes the white panel surface and shadow (from doan-panel); nothing else changes. */
+/* On a backdrop that is not plain white, the notice takes the panel surface and doan-panel's shadow. */
 .doan-notice.doan-panel { background: var(--surface-panel); }
 
-/* ── Settings group ──────────────────────────────────────────────────────────
-   A bordered container of preference rows split by lines: a title column with an optional
-   description, and the row's controls trailing on the right. The group is the rows' query container,
-   so a narrow group puts a button control under its title while a switch stays beside it. */
+/* The group is the rows' query container: a narrow group puts a button control under its title, a switch stays beside it. */
 .doan-settings-group {
   container-type: inline-size;
   min-width: 0;
@@ -290,17 +248,14 @@ label.doan-preference-row-label { cursor: pointer; }
   .doan-preference-row-trailing:has(button:not([role="switch"])) { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
-/* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling.
-   The thumb is transparent at rest and shows while the pointer is over the scroller or keyboard focus is on or in it.
-   :focus-visible rather than :focus-within, because an open modal dialog or menu always holds focus. A menu counts only
-   focus on its items: Radix focuses the menu itself on open, which Chromium marks :focus-visible even when the pointer
-   opened it. Only the colour changes, so the gutter keeps its width and nothing shifts. */
+/* Native scrolling (no Radix ScrollArea). The thumb shows on hover or :focus-visible, not :focus-within (dialogs always
+   hold focus); menus count item focus only, since Radix focuses the menu itself, which Chromium marks focus-visible. */
 .doan-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .doan-scroll:is(:hover, :focus-visible, :has(:focus-visible)) { scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-/* Menus use ::-webkit-scrollbar parts to inset both tracks from the rounded corners; the standard scrollbar-width and scrollbar-color would turn these parts off in Chromium. */
+/* ::-webkit-scrollbar parts inset the tracks from the corners; scrollbar-width or scrollbar-color would disable them. */
 .doan-menu::-webkit-scrollbar { width: var(--space-2); height: var(--space-2); }
-/* The menu hands the thumb its colour as an inherited property: Electron 45 did not repaint a thumb whose own
-   .doan-menu:hover::-webkit-scrollbar-thumb rule began to match, but repaints it when the menu's own style changes. */
+/* Electron 45 did not repaint a thumb matched only by a new :hover::-webkit-scrollbar-thumb rule, so the menu passes
+   the colour as an inherited property. */
 :root { --menu-scrollbar-thumb: transparent; }
 .doan-menu:is(:hover, :has(:focus-visible)) { --menu-scrollbar-thumb: var(--scrollbar-thumb-quiet); }
 .doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--menu-scrollbar-thumb); }
@@ -308,19 +263,15 @@ label.doan-preference-row-label { cursor: pointer; }
 .doan-menu::-webkit-scrollbar-track { margin: var(--radius-container); }
 .doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin: var(--radius-row); }
 
-/* ── Motion ──────────────────────────────────────────────────────────────────
-   Surfaces arrive with a short rise and fade and leave faster than they came. */
 
-/* A tooltip that waited for its delay settles in; one that opens instantly, because
-   another tooltip was just showing, appears at once so moving along a toolbar never
-   replays the animation. Radix keeps a closing tooltip mounted until its animation ends. */
+/* Tooltips that wait for their delay animate; instant ones do not, so moving along a toolbar never replays.
+   Radix keeps a closing tooltip mounted until its animation ends. */
 .doan-tooltip[data-state="delayed-open"] { animation: doan-tooltip-in var(--time-state) var(--ease-settle); }
 .doan-tooltip[data-state="closed"] { animation: doan-tooltip-out var(--time-fast) var(--ease-state) forwards; }
 @keyframes doan-tooltip-in { from { opacity: 0; transform: translateY(2px) scale(0.97); filter: blur(2px); } }
 @keyframes doan-tooltip-out { to { opacity: 0; transform: translateY(2px) scale(0.97); filter: blur(2px); } }
 
-/* A dialog rises 12px as it opens and drops 4px as it closes. The discrete display and
-   overlay transitions keep a closing modal painted, in the top layer, until it has faded. */
+/* The discrete display and overlay transitions keep a closing modal painted in the top layer until it fades. */
 .doan-dialog,
 .doan-dialog::backdrop {
   transition:
@@ -338,8 +289,7 @@ label.doan-preference-row-label { cursor: pointer; }
   .doan-dialog[open]::backdrop { opacity: 0; }
 }
 
-/* Reduced motion keeps the fades, which carry the open and closed state, and drops every
-   movement, scale and blur. */
+/* Reduced motion keeps the fades, which carry open and closed state, and drops movement, scale and blur. */
 @media (prefers-reduced-motion: reduce) {
   .doan-dialog,
   .doan-dialog::backdrop {
