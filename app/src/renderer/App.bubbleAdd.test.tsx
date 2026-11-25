@@ -52,7 +52,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton", "toolbarEscape"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onElementTree", "requestElementTree", "previewElement", "selectElement", "pick", "cancelPick", "onCapture", "startCapture", "cancelCapture", "locate", "dropPendingLocate", "settleFit", "bubblePlayButton", "bubbleReturns", "toolbarEscape"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -314,6 +314,7 @@ test.each(["Play", "Add to message"] as const)("the bubble going with focus on %
     const back = { ...element(which), closest: () => null };
     if (which === "Play") harness.controller!.bubblePlayButton!.mockReturnValue(back);
     else bubble()!.button.current = back;
+    harness.controller!.bubbleReturns!.mockReturnValue(1);
     windowListeners.focus!(new Event("focus") as never);
     vi.runAllTimers();
     expect(target.focus).toHaveBeenCalledOnce();
@@ -332,9 +333,27 @@ test("the toolbar Play's hand-off is not made again once Add to message shows ag
     (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay.onFocusLost();
     expect(toolbarPlay.focus).toHaveBeenCalledOnce();
     bubble()!.button.current = { ...element("Add to message"), closest: () => null };
+    harness.controller!.bubbleReturns!.mockReturnValue(1);
     windowListeners.focus!(new Event("focus") as never);
     vi.runAllTimers();
     expect(toolbarPlay.focus).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
+
+// The reload lost the selection for good, and then an agent's `doan open --element` selected another element: the bubble
+// shows again, but nothing returned focus to it, so activation would restore the gone Play without the hand-off.
+test("the toolbar Play's hand-off is made again when the bubble shows again for another selection with no focus return", async () => {
+  await bubbleWithComposer();
+  const toolbarPlay = element("toolbar Play");
+  (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+  Object.assign(document, { hasFocus: () => false });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    (harness.controller as unknown as { bubblePlay: { onFocusLost(): void } }).bubblePlay.onFocusLost();
+    bubble()!.button.current = { ...element("Add to message"), closest: () => null };
+    windowListeners.focus!(new Event("focus") as never);
+    vi.runAllTimers();
+    expect(toolbarPlay.focus).toHaveBeenCalledTimes(3);
   } finally { vi.useRealTimers(); }
 });
 

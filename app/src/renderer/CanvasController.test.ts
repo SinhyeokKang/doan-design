@@ -607,10 +607,13 @@ describe("selection", () => {
             const button = which === "play" ? playButton()! : addButton;
             h.doc.activeElement = button;
             const activate = behind(h);
+            const returns = h.controller.bubbleReturns();
             h.controller.command("reload");
             h.layout({ frames });
             h.select(1, { target });
             expect(button.focus, which).toHaveBeenCalledOnce();
+            // App's toolbar hand-off reads this to stand down.
+            expect(h.controller.bubbleReturns(), which).toBe(returns + 1);
             activate();
             expect(button.focus, which).toHaveBeenCalledTimes(3);
             // Found again, then lost again before activation: the gone button is not focused.

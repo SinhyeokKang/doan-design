@@ -550,6 +550,10 @@ export class CanvasController {
   // (ARCHITECTURE §3, as `FocusIntent`).
   private bubbleReturn: { button: BubbleAction; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
   private bubbleActivation: () => void = () => {};
+  // Counts the bubble's own focus moves, so App's toolbar hand-off can tell a return to the bubble from a bubble shown
+  // again for another selection.
+  private bubbleFocusMoves = 0;
+  bubbleReturns(): number { return this.bubbleFocusMoves; }
   // For focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
@@ -2297,6 +2301,7 @@ export class CanvasController {
   // A reload can move this focus while the prototype window is in front, so it is made again on activation
   // (POSTMORTEM 2026-11-17), only to a button the bubble still shows.
   private handBubbleFocus(target: () => HTMLElement | null | undefined): void {
+    this.bubbleFocusMoves++;
     this.bubbleActivation();
     this.bubbleActivation = focusThroughActivation(() => {
       const button = target();
