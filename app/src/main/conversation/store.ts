@@ -8,6 +8,7 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
+import { CANVAS_ID } from "./replyAnchor";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
@@ -33,7 +34,7 @@ function insideCanvasDir(path: string): boolean {
 export function validCanvas(value: unknown): value is Canvas {
   return object(value) && typeof value.path === "string" && insideCanvasDir(value.path) && value.path.length <= 4096 &&
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
-    (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
+    (value.id === undefined || (typeof value.id === "string" && CANVAS_ID.test(value.id)));
 }
 function label(value: unknown): value is string { return str(value) && value.length > 0; }
 type IndexVersion = 1 | 2 | 3;
