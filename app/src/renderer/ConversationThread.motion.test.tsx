@@ -177,12 +177,12 @@ describe("follow", () => {
 
   const pinned = FOLLOW_START, at = 1000;
   test("while a reply reveals, the view sticks to the bottom; a one-time growth eases", () => {
-    expect(followResize(pinned, { reduced: false, revealing: true, distance: 0, now: at })).toEqual({ state: pinned, move: "snap", behind: false });
-    expect(followResize(pinned, { reduced: false, revealing: false, distance: 0, now: at }).move).toBe("ease");
+    expect(followResize(pinned, { reduced: false, revealing: true, distance: 0, now: at, grew: true })).toEqual({ state: pinned, move: "snap", behind: false });
+    expect(followResize(pinned, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("ease");
   });
 
   test("reduced motion jumps", () => {
-    expect(followResize(pinned, { reduced: true, revealing: false, distance: 0, now: at }).move).toBe("snap");
+    expect(followResize(pinned, { reduced: true, revealing: false, distance: 0, now: at, grew: true }).move).toBe("snap");
   });
 
   test("scrolled away by the person, growth leaves the view and shows Jump to latest", () => {
@@ -211,14 +211,14 @@ describe("follow", () => {
 
   test("back near the bottom once the wheel's inertia is over, it follows again", () => {
     const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
-    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at }).move).toBe("none");
-    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at + 200 }).move).toBe("ease");
+    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at, grew: true }).move).toBe("none");
+    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at + 200, grew: true }).move).toBe("ease");
   });
 
   test("after a scroll to a waiting card it stays until released", () => {
     const held = nextFollow(pinned, { type: "scrollToItem" });
-    expect(followResize(held, { reduced: false, revealing: false, distance: 0, now: at }).move).toBe("none");
+    expect(followResize(held, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("none");
     const released = nextFollow(held, { type: "release" });
-    expect(followResize(released, { reduced: false, revealing: false, distance: 0, now: at }).move).toBe("ease");
+    expect(followResize(released, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("ease");
   });
 });

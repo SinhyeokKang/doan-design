@@ -376,7 +376,10 @@ function fadeRuns(runs: readonly RevealRun[], now: number, source: string) {
           const from = Math.min(Math.max(run.from - at, cut), value.length), to = Math.min(Math.max(run.to - at, from), value.length);
           if (to <= from) continue;
           if (from > cut) parts.push({ type: "text", value: value.slice(cut, from) });
-          parts.push({ type: "element", tagName: "span", properties: { className: ["reveal-run"], style: `opacity:${fadeOpacity(now - run.at).toFixed(3)}` }, children: [{ type: "text", value: value.slice(from, to) }] });
+          // A code line's break stays outside, so the streaming caret goes before it, on that line.
+          const piece = value.slice(from, to), end = piece.endsWith("\n") ? piece.length - 1 : piece.length;
+          if (end > 0) parts.push({ type: "element", tagName: "span", properties: { className: ["reveal-run"], style: `opacity:${fadeOpacity(now - run.at).toFixed(3)}` }, children: [{ type: "text", value: piece.slice(0, end) }] });
+          if (end < piece.length) parts.push({ type: "text", value: "\n" });
           cut = to;
         }
         if (cut === 0) continue;
@@ -437,12 +440,11 @@ const prefersReduced = () => typeof matchMedia === "function" && matchMedia("(pr
 // to the bottom instead of easing.
 interface ThreadMotion { revealed(at: number): void; reduced(): boolean }
 const Motion = createContext<ThreadMotion>({ revealed: () => {}, reduced: prefersReduced });
-// A reply mounts at the text it already has, so a remount never types it again; one that arrived while the thread was
-// open (fresh) reveals from its start. Each frame renders the whole reply synchronously (flushSync), so the follow
+// A reply mounts at `start` (replyStart). Each frame renders the whole reply synchronously (flushSync), so the follow
 // measures its new height before the frame paints.
-function useReveal(text: string, streaming: boolean, flush: boolean, fresh: boolean, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
+function useReveal(text: string, streaming: boolean, flush: boolean, start: number, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
   const motion = useContext(Motion);
-  const [state, setState] = useState(() => revealStart(fresh ? 0 : text.length));
+  const [state, setState] = useState(() => revealStart(start));
   const [selected, setSelected] = useState(false);
   const mode = revealMode(streaming, flush || selected), reduced = motion.reduced();
   // Shown whole now, so a later reveal goes on from the end instead of drawing less.
@@ -480,9 +482,9 @@ function useReveal(text: string, streaming: boolean, flush: boolean, fresh: bool
 }
 // A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
 // className: a handoff card's body is the same Markdown without the reply's own block. flush: show what arrived whole.
-function AgentMessage({ text, streaming, flush = false, fresh = false, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; fresh?: boolean; className?: string }) {
+function AgentMessage({ text, streaming, flush = false, start = text.length, className = "msg-agent md" }: { text: string; streaming: boolean; flush?: boolean; start?: number; className?: string }) {
   const host = useRef<HTMLDivElement | null>(null);
-  const reveal = useReveal(text, streaming, flush, fresh, host), prefix = useId();
+  const reveal = useReveal(text, streaming, flush, start, host), prefix = useId();
   const [noted, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
@@ -962,6 +964,22 @@ function stacks(items: readonly ThreadItem[]): ThreadItem[][] {
 // The background line's thread item key, which no history item takes (their keys start with a kind letter and a seq).
 const BACKGROUND_KEY = "background";
 
+// Where a reply's reveal starts: at the text it has when it mounts again (an open, a folded panel unfolding, a switch
+// back), so it never types again; at 0 when it first appears while the thread is open.
+export function replyStart(prev: readonly ThreadItem[], entry: Extract<ThreadItem, { kind: "agent" }>): number {
+  return prev.length > 0 && !prev.some(item => item.key === entry.key) ? 0 : entry.text.length;
+}
+// A reply shows whole once something follows it: a later item (a card it would push away, an activity row, an end), a
+// notice under the thread, or a Stop.
+export function flushesReply(entry: ThreadItem, drawn: readonly ThreadItem[], after: { stopping: boolean; notice: boolean }): boolean {
+  return after.stopping || after.notice || entry.key !== drawn.at(-1)?.key;
+}
+// A scroll to a permission or question still waiting holds the follow until it is answered; to anything else it is a
+// plain scroll.
+export function scrollToItemHolds(items: ConversationThreadProps["items"], key: string): boolean {
+  return Array.isArray(items) && items.some(item => item.key === key && waitsForPerson(item));
+}
+
 // When each user message this thread drew began its entry (entering), by key. A history message that replaces a
 // Sending one drawn in the previous render (same words and chips) takes that one's start, so the entry runs once.
 export function entryTimes(prev: readonly ThreadItem[], items: readonly ThreadItem[], localSends: readonly LocalSend[], times: ReadonlyMap<string, number>, now: number): ReadonlyMap<string, number> {
@@ -986,11 +1004,11 @@ function focusedItem(scroller: HTMLElement | null): string | null {
 // What the follow does when the thread's content or viewport changed size. distance: from the bottom before the change,
 // which decides whether a view the person left near the bottom follows again. While a reply reveals, the view sticks to
 // the bottom each frame (an ease would keep the line being written below the fold); a one-time growth eases. behind:
-// Jump to latest's new state, null to keep it.
+// Jump to latest's new state, null to keep it; only new content (grew: a taller thread) shows it.
 export type FollowMove = "snap" | "ease" | "none";
-export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; grew: boolean }): { state: FollowState; move: FollowMove; behind: boolean | null } {
   const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
-  if (!next.pinned) return { state: next, move: "none", behind: change.distance > FOLLOW_DISTANCE ? true : null };
+  if (!next.pinned) return { state: next, move: "none", behind: change.grew && change.distance > FOLLOW_DISTANCE ? true : null };
   return { state: next, move: change.reduced || change.revealing ? "snap" : "ease", behind: false };
 }
 // The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
@@ -1016,7 +1034,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   latest.current = props;
   const base = useId();
   const scroller = useRef<HTMLDivElement | null>(null);
-  const distance = useRef(0), opened = useRef(false);
+  const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0);
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
   // wrote, so a scroll event of its own is told from the person's. heldKey: the waiting card scrollToItem went to.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
@@ -1163,12 +1181,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const node = scroller.current;
     if (!node || !opened.current) return;
     const now = performance.now();
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now });
+    const grew = node.scrollHeight > contentHeight.current;
+    contentHeight.current = node.scrollHeight;
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now, grew });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
     else distance.current = bottomOf(node) - node.scrollTop;
-    if (change.behind === false || (change.move === "none" && distance.current > FOLLOW_DISTANCE)) setBehind(!change.state.pinned);
+    if (change.behind === false) setBehind(false);
+    else if (grew && change.move === "none" && distance.current > FOLLOW_DISTANCE) setBehind(true);
   };
   const latestFollow = useRef({ resized, apply, run });
   latestFollow.current = { resized, apply, run };
@@ -1177,6 +1198,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const node = scroller.current;
     if (!node || !Array.isArray(items) || opened.current) return;
     opened.current = true;
+    contentHeight.current = node.scrollHeight;
     write(node, bottomOf(node));
   }, [items]);
   // A card scrollToItem went to that stopped waiting (answered, expired or gone) lets the follow resume at the bottom.
@@ -1275,9 +1297,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
-      latestFollow.current.apply({ type: "scrollToItem" });
-      const items = latest.current.items;
-      heldKey.current = Array.isArray(items) && items.some(item => item.key === key && waitsForPerson(item)) ? key : null;
+      const holds = scrollToItemHolds(latest.current.items, key);
+      if (holds) latestFollow.current.apply({ type: "scrollToItem" });
+      heldKey.current = holds ? key : null;
       // A question or handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
       node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },
@@ -1348,13 +1370,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       default: return [];
     }
   };
-  // A reply shows whole once an item follows it (a card it would push away, an activity row, a notice) or a Stop.
-  const flushes = (entry: ThreadItem) => props.stopping === true || entry.key !== drawn.at(-1)?.key;
+  const flushes = (entry: ThreadItem) => flushesReply(entry, drawn, { stopping: props.stopping === true, notice: !!props.card });
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
       case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} entryAge={entryAge(entry.key)} />;
-      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} fresh={prevItems.current.length > 0 && !prevItems.current.some(item => item.key === entry.key)} />;
+      case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} start={replyStart(prevItems.current, entry)} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
       case "activity": {
