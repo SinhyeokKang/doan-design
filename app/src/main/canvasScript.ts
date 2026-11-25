@@ -703,13 +703,14 @@ export function canvasScript(lib: CanvasLib): void {
   };
 
   const failedSheets = new WeakSet<HTMLLinkElement>();
+  const stylesheetPending = () => document.readyState !== "complete" && Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
+    link => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
+  );
   const send = () => {
     if (firstLayoutAt === null) {
       // Unstyled frame rects can already be nonzero. Resizing to that height can also
       // make the stylesheet's later growth look like a document chasing its viewport.
-      if (document.readyState !== "complete" && Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet" i][href]:not([rel~="alternate" i])')).some(
-        link => !link.sheet && !link.disabled && !failedSheets.has(link) && (!link.media || matchMedia(link.media).matches),
-      )) return;
+      if (stylesheetPending()) return;
       firstLayoutAt = performance.now();
     }
     tryPending();

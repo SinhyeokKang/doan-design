@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	nethtml "golang.org/x/net/html"
 
@@ -170,13 +171,17 @@ type protoFrame struct {
 func protoFrames(frames []ProtoFrame) []protoFrame {
 	out := make([]protoFrame, 0, len(frames))
 	for _, f := range frames {
-		name := f.Title
-		if name == "" {
-			name = f.ID
-		}
-		out = append(out, protoFrame{f.ID, name})
+		out = append(out, protoFrame{f.ID, frameName(f.ID, f.Title)})
 	}
 	return out
+}
+
+// frameName is the app's title.trim() || id. JavaScript trims Unicode White_Space without U+0085, plus U+FEFF.
+func frameName(id, title string) string {
+	if t := strings.TrimFunc(title, func(r rune) bool { return r == '\uFEFF' || r != '\u0085' && unicode.IsSpace(r) }); t != "" {
+		return t
+	}
+	return id
 }
 
 func prototypeFiles() (shell string, values map[string]string, isolateScript string, err error) {
@@ -322,11 +327,11 @@ func prototypeExports(c canvas.Canvas, before []byte, measureScript string) (fra
 			if err != nil {
 				return frameExports{}, err
 			}
-			name := f.ID
-			if played.Title != nil && *played.Title != "" {
-				name = *played.Title
+			title := ""
+			if played.Title != nil {
+				title = *played.Title
 			}
-			out.Frames = append(out.Frames, exportFrame{f.ID, html.EscapeString(name), string(start), group[f.ID], played.Size})
+			out.Frames = append(out.Frames, exportFrame{f.ID, html.EscapeString(frameName(f.ID, title)), string(start), group[f.ID], played.Size})
 		case canvas.PrototypeShared:
 			out.Refused = append(out.Refused, exportRefusal{f.ID, "shared"})
 		case canvas.PrototypeNotMarked:
