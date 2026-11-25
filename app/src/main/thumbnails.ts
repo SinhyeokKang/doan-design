@@ -119,6 +119,9 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     if (viewers.size > 0) visibility.set(key, viewers); else visibility.delete(key);
     return viewers.size > 0;
   };
+  // Keys of roots gone from the list, until removed takes them: the shell sends the list before main calls removed, and a
+  // missing root's `before` entry lists no canvases.
+  const departed = new Map<string, Set<string>>();
   // Per root, the servedRev and row revisions of the last update.
   const revs = new Map<string, { served: number; rows: Map<string, number | undefined> }>();
   // One served signature per folder and served revision.
@@ -346,8 +349,10 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
           known.delete(key);
           visibility.delete(key);
           forget(key);
+          if (entry === undefined) departed.set(target.root, (departed.get(target.root) ?? new Set()).add(key));
         }
       }
+      for (const root of departed.keys()) if (entries.some((entry) => entry.path === root)) departed.delete(root);
       for (const entry of entries) {
         if (entry.kind !== "list") continue;
         const seen = revs.get(entry.path);
@@ -377,6 +382,10 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     async removed(roots, before) {
       const keys = before.flatMap((entry) => (entry.kind === "list" && roots.includes(entry.path) ? entry.canvases.map((row) => thumbnailKey(entry.path, row.path)) : []));
       for (const [key, target] of known) if (roots.includes(target.root)) keys.push(key);
+      for (const root of roots) {
+        keys.push(...departed.get(root) ?? []);
+        departed.delete(root);
+      }
       const unique = [...new Set(keys)];
       // Forget them all first: a write waiting for its lock then sees it is stale.
       for (const key of unique) {
