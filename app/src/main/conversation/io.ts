@@ -195,7 +195,10 @@ export function claudeTranscript(config: string, id: string): string | null {
   try {
     const base = join(config, "projects"), names = readdirSync(base); if (names.length > 4096) return null;
     for (const name of names) {
-      const dir = join(base, name); if (canonicalDirectory(dir) !== dir) return null;
+      const dir = join(base, name), entry = lstatSync(dir);
+      // A plain file (.DS_Store) is no project; a link still fails the lookup.
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+      if (canonicalDirectory(dir) !== dir) return null;
       const path = join(dir, `${id}.jsonl`);
       try { if (lstatSync(path).isFile()) return path; } catch { /* Not in this project directory. */ }
     }

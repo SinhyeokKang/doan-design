@@ -1,4 +1,4 @@
-import { accessSync, closeSync, constants, mkdirSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { accessSync, closeSync, constants, lstatSync, mkdirSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
@@ -75,7 +75,10 @@ export function claudeSessionExists(config: string, id: string): boolean {
   try {
     const base = join(config, "projects"), names = readdirSync(base); if (names.length > 4096) return false;
     for (const name of names) {
-      const dir = join(base, name); if (canonicalDirectory(dir) !== dir) return false;
+      const dir = join(base, name), entry = lstatSync(dir);
+      // A plain file (.DS_Store) is no project; a link still fails the lookup.
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+      if (canonicalDirectory(dir) !== dir) return false;
       // Existence is an identity check (a regular file, opened without blocking on a FIFO), not a read: Claude Code owns
       // the transcript and bounds neither its size nor its bytes.
       try { closeSync(openRegular(join(dir, `${id}.jsonl`))); return true; } catch { /* A missing session in one project is not a fallback session. */ }
