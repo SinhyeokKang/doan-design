@@ -24,11 +24,11 @@ vi.mock("react", async original => {
 const { useProjectFocus } = await import("./Onboarding");
 
 class Element { disabled = false; focused = 0; isConnected = true; matches(selector: string) { return selector === ":disabled" ? this.disabled : false; } focus() { this.focused++; doc.activeElement = this; } }
-const doc: { activeElement: Element | null; body: Element } = { activeElement: null, body: new Element() };
+const doc: { activeElement: Element | null; body: Element; hasFocus(): boolean; querySelectorAll(): unknown[] } = { activeElement: null, body: new Element(), hasFocus: () => true, querySelectorAll: () => [] };
 vi.stubGlobal("HTMLElement", Element);
 vi.stubGlobal("document", doc);
 vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
-afterEach(() => { hooks.slots = []; });
+afterEach(() => { hooks.slots = []; doc.hasFocus = () => true; vi.useRealTimers(); });
 
 // An arrow key on the setup panel's storage radios plans the folder again, and the plan disables the radios meanwhile,
 // which drops focus: once the plan is made, focus is back on the radio the person chose, not on the heading.
@@ -127,4 +127,41 @@ test("a cancelled save panel hands focus back to New folder, or to the notice bu
   open(gone); gone.isConnected = false; session.state = { ...session.state, error: null }; cancel(gone);
   expect(failure?.code).toBe("project_unavailable");
   expect(doc.activeElement).toBe(choose);
+});
+
+// A clone or check can end while the person is in another app; activation then restores the focus the window had before
+// (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the phase's focus is made again on activation,
+// and only while the same phase shows.
+test("a phase that ends with the window in the background focuses its target again on activation, only while it still shows", () => {
+  const win = new EventTarget();
+  vi.stubGlobal("window", win);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  doc.hasFocus = () => false;
+  const alert = new Element(), heading = new Element(), cancel = new Element();
+  const session = { state: { phase: { kind: "cloning" }, error: null as { code: string } | null }, busy: () => session.state.phase.kind === "cloning", picking: () => false };
+  const scope = { current: { querySelector: (selector: string) => selector.includes('role="alert"') ? alert : null } };
+  const render = () => { hooks.cursor = 0; return useProjectFocus(session as never, scope as never, { current: heading } as never, () => true, true); };
+  const activate = () => { win.dispatchEvent(new Event("focus")); vi.runAllTimers(); };
+  doc.activeElement = cancel;
+  render();
+  expect(cancel.focused).toBe(0);
+  // The clone failed: Cancel went with the wait, and the failure's notice takes focus.
+  cancel.isConnected = false; doc.activeElement = doc.body;
+  session.state = { phase: { kind: "choose" }, error: { code: "clone_failed" } };
+  render();
+  expect(alert.focused).toBe(1);
+  activate();
+  expect(alert.focused).toBe(3);
+  // A later phase before activation, which moves no focus: the earlier target is not focused again.
+  session.state = { phase: { kind: "cloning" }, error: null }; render();
+  doc.activeElement = doc.body;
+  session.state = { phase: { kind: "choose" }, error: { code: "clone_failed" } }; render();
+  expect(alert.focused).toBe(4);
+  session.state = { phase: { kind: "inspecting" }, error: null }; render();
+  activate();
+  expect(alert.focused).toBe(4);
+  vi.unstubAllGlobals();
+  vi.stubGlobal("HTMLElement", Element);
+  vi.stubGlobal("document", doc);
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
 });
