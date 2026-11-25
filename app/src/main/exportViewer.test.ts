@@ -1089,6 +1089,22 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
       expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
     }
   });
+
+  // The exported player's run iframe is as large as the app's, so its chain splits the clip the same way.
+  test("export player: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
+    expect(declared(shellCss, { tag: "div", id: "pw-panel", classes: ["pw-panel"], attributes: ["class", "id"] }, clipping)).toEqual([]);
+    expect(declared(shellCss, { tag: "div", id: "pw-content", classes: ["pw-content"], attributes: ["class", "id", "data-mode"] }, bottomRadius)).toEqual([]);
+    expect(declared(shellCss, { tag: "div", id: "pw-content", classes: ["pw-content"], attributes: ["class", "id", "data-mode"] }, clipping)).not.toEqual([]);
+    expect(declared(shellCss, { tag: "div", id: "pw-stage", classes: ["pw-stage"], attributes: ["class", "id"] }, topRadius)).toEqual([]);
+    expect(declared(shellCss, { tag: "div", id: "pw-stage", classes: ["pw-stage"], attributes: ["class", "id"] }, clipping)).not.toEqual([]);
+    expect(declarations(shellCss, ".pw-panel")).toContain("border-radius: var(--radius-container)");
+    expect(declarations(shellCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
+    expect(declarations(shellCss, ".pw-stage")).toEqual(expect.arrayContaining(["border-bottom-left-radius: var(--radius-container)", "border-bottom-right-radius: var(--radius-container)"]));
+    for (const element of [{ tag: "iframe", classes: ["pw-frame"], attributes: ["class", "sandbox", "name", "srcdoc", "style"] }, { tag: "div", classes: ["pw-box"], attributes: ["class", "style"] },
+      { tag: "div", id: "pw", classes: ["pw", "name-row"], attributes: ["class", "id", "style"] }, ...page]) {
+      expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
+  });
 });
 
 describe("the toolbar", () => {
@@ -1192,6 +1208,78 @@ describe("the toolbar", () => {
     expect(z(".vw-tool-tip")).toBeGreaterThan(z(".doan-canvas-bottom"));
     // An open Frames list or zoom menu reaches down to the tools in a short window.
     expect(z(".doan-canvas-panel > .doan-canvas-head")).toBeGreaterThan(z(".vw-tool-tip"));
+  });
+});
+
+// The first layout waits for the canvas's linked stylesheets, as the app's canvasScript.ts does (its "measures the
+// parsed canvas after its linked stylesheet has …" tests): a height measured unstyled sticks through nextHeight.
+describe("measure.js waits for linked stylesheets before its first layout", () => {
+  class FakeLink { sheet: object | null = null; media = ""; disabled = false; }
+  const canvas = (links: FakeLink[]) => {
+    const posted: { type: string; height?: number }[] = [];
+    const listeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const documentListeners: { type: string; fn: (event: unknown) => void }[] = [];
+    const frames: (() => void)[] = [];
+    const html = { height: 364, scrollHeight: 364, getBoundingClientRect: () => ({ top: 0, height: html.height }) };
+    const parent = { postMessage: (message: { type: string; height?: number }) => posted.push(message) };
+    const document = {
+      readyState: "interactive", documentElement: html, body: null, adoptedStyleSheets: [],
+      addEventListener: (type: string, fn: (event: unknown) => void) => documentListeners.push({ type, fn }),
+      fonts: { addEventListener() {}, ready: new Promise(() => {}) },
+      querySelectorAll: (selector: string) => selector.startsWith("link[") ? links : [],
+    };
+    const context = {
+      document, parent, innerHeight: 150, scrollX: 0, scrollY: 0, location: { href: "about:srcdoc" },
+      HTMLLinkElement: FakeLink, history: { pushState() {}, replaceState() {} },
+      ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
+      requestAnimationFrame: (fn: () => void) => frames.push(fn),
+      getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible", position: "static", display: "block" }),
+      matchMedia: () => ({ matches: true }),
+      addEventListener: (type: string, fn: (event: unknown) => void) => listeners.push({ type, fn }),
+    };
+    runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
+    const fire = (list: typeof listeners, type: string, event: unknown = {}) => { for (const l of list) if (l.type === type) l.fn(event); };
+    return {
+      html, document,
+      layouts: () => posted.filter(message => message.type === "layout"),
+      trigger: (type: string) => fire(listeners, type),
+      fromParent: (data: unknown) => fire(listeners, "message", { source: parent, data }),
+      settle: (type: "load" | "error", link: FakeLink) => fire(documentListeners, type, { type, target: link }),
+      runFrames: () => { for (const fn of frames.splice(0)) fn(); },
+    };
+  };
+
+  test.each(["loaded", "failed"])("measures the parsed canvas after its linked stylesheet has %s", outcome => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    c.fromParent({ type: "measure" });
+    c.runFrames();
+    expect(c.layouts()).toHaveLength(0);
+    if (outcome === "loaded") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.document.readyState = "complete";
+    c.trigger("load");
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test.each(["load", "error"] as const)("a linked stylesheet's %s before the window's sends the first layout", type => {
+    const link = new FakeLink();
+    const c = canvas([link]);
+    expect(c.layouts()).toHaveLength(0);
+    if (type === "load") {
+      link.sheet = {};
+      c.html.height = 988;
+    }
+    c.settle(type, link);
+    expect(c.layouts().at(-1)?.height).toBe(c.html.height);
+  });
+
+  test("a disabled or non-matching stylesheet does not hold the first layout", () => {
+    const disabled = new FakeLink();
+    disabled.disabled = true;
+    expect(canvas([disabled]).layouts()).toHaveLength(1);
   });
 });
 
