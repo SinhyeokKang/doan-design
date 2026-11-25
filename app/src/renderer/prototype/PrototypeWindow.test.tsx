@@ -709,6 +709,28 @@ describe("Export", () => {
     expect(render() && toastParts()).toBeNull();
   });
 
+  // The toast's action held focus and went with the toast while the window was in the background (POSTMORTEM 2026-11-17).
+  test("focus a closing toast hands back is handed again on activation", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    answer({ kind: "exported", external: 0, reveal: "id-1" });
+    await settle();
+    const element = shell.toast as ReactElement<{ ref(node: unknown): (() => void) | undefined; onFocus(event: unknown): void }>;
+    const before = new FakeElement();
+    const node = { contains: (target: unknown) => target === node };
+    element.props.onFocus({ currentTarget: node, relatedTarget: before });
+    const detach = element.props.ref(node)!;
+    doc.activeElement = node;
+    doc.hasFocus = () => false;
+    detach();
+    doc.activeElement = doc.body;
+    await settle();
+    expect(before.focus).toHaveBeenCalledOnce();
+    activate();
+    expect(before.focus.mock.calls.length).toBeGreaterThan(1);
+  });
+
   test("Show in Finder asks main with the reply's id", async () => {
     show(view({ phase: "ready" }));
     const answer = pending();

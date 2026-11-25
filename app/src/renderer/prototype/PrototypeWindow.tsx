@@ -85,9 +85,11 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // The text of the export toast this window last showed: while it is the toast on screen, a link's toast waits.
   const exportToastShown = useRef<string | null>(null);
   const exportRun = useRef<ExportRun | null>(null);
+  // Focus moves that can run with the window in the background go through this, so activation does not undo them.
+  const handFocus = useActivationFocus();
   const toast = useToast(previous => {
     const active = document.activeElement;
-    if (active === null || active === document.body || !active.isConnected) previous?.focus();
+    if (previous !== null && (active === null || active === document.body || !active.isConnected)) handFocus(() => { if (previous.isConnected) previous.focus(); });
   }, api.onWindowVisible);
   const toastRef = useRef(toast); toastRef.current = toast;
   // The conversation panel's host, connected before the view effect below reads anything (subscribe, then read).
@@ -286,7 +288,6 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const active = document.activeElement;
   focusWasInside.current = active === null || active === document.body || (!!content.current && content.current.contains(active));
   // A state can arrive with the window in the background, so the title takes focus again on activation while it is still the scene's.
-  const handFocus = useActivationFocus();
   const currentScene = useRef(sceneKey); currentScene.current = sceneKey;
   useLayoutEffect(() => {
     setDetails(false);
