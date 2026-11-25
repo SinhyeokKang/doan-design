@@ -2725,7 +2725,7 @@ describe("viewerApp.js: the app's judgments, generated", () => {
 
 // Play reopens this file as a player window (`#doan-play=<id>`); what it decides is the app's (viewerApp.js). These pin
 // the browser's own rules; player.js defines only names at load, so it is read with no globals.
-const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, frameName: typeof frameName === "undefined" ? undefined : frameName })`, {}) as Lib : {};
+const pc: Lib = playerJs ? runInNewContext(`${playerJs}\n({ PLAYER_COPY, linkToastText, READING_DELAY_MS, frameName })`, {}) as Lib : {};
 
 describe("the browser player's rules", () => {
   // The window title, the name button and the move announcement name a frame as the app does (canvasTree.ts frameName).
