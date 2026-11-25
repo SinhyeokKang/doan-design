@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, rekeyReservation, releaseReservation, reserveSession } from "./ownership";
-import { transportError, type ClaudeModeReport } from "./transport";
+import { storableText, transportError, type ClaudeModeReport } from "./transport";
 import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
@@ -1424,11 +1424,16 @@ export class ConversationService {
     clearTimeout(turn.timer); this.handoffTurns.delete(id);
     for (const wake of turn.waiters.splice(0)) wake();
   }
-  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn.
+  // The earlier conversation's queue follows the work: it goes out after the new conversation's first turn. What does not
+  // fit there is the source's draft, its attachment ids held for it as giveBack holds them.
   private moveQueue(from: string, to: string): void {
-    const moved = this.drafts.move(from, to);
+    const { moved, returned } = this.drafts.move(from, to);
     for (const item of moved) { const held = this.queuedExtras.get(item.itemId); if (held) held.owner = to; }
-    if (moved.length) this.changedOf(from);
+    if (returned.length) {
+      const held = this.forget(from, returned.map(item => item.itemId));
+      if (held.length) this.returnedHeld.set(from, [...this.returnedHeld.get(from) ?? [], ...held]);
+    }
+    if (moved.length || returned.length) this.changedOf(from);
   }
   // A deleted conversation's run: it is closed, a send waiting for its previous process is refused, and its queue comes
   // back as a draft before the deletion discards it.
@@ -1931,7 +1936,7 @@ export class ConversationService {
       if (this.live.get(id) === live && live.turnId === turn) this.transportFailed(id, error);
     });
   }
-  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
+  private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? storableText(error.message).slice(0, 4096) : "Transport failed" }); }
 }
 
 // A command message carries nothing but its text (its argument included): no anchors, and no attachments, which stay in

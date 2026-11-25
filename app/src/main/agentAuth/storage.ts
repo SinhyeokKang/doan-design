@@ -192,6 +192,11 @@ export class AuthStorage {
   // A profile file no one but an agent would write and a later provider process loads (Codex's .env): unlinked, a link
   // without following it; anything rmSync cannot unlink (a directory) fails the start.
   removePlanted(provider: Provider, rel: string, profile: string = provider): void { this.remove(this.working(provider, rel, profile)); }
+  removePlaintext(provider: Provider, rels: readonly string[], profile: string = provider): boolean {
+    let found = false;
+    for (const rel of rels) found = removePlaintextFile(this.working(provider, rel, profile), this.root) || found;
+    return found;
+  }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.removeWorking(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
@@ -244,19 +249,26 @@ export class AuthStorage {
       throw new StorageError("write_failed", message(error));
     }
   }
-  // A fenced agent may write a Doan-written profile file, so it can also create a folder there, which a rename onto
-  // the path or rmSync cannot replace. It is renamed into the auth root, which no fenced process can write, before its
-  // tree is removed: a removal walking the profile path could follow a link the agent swaps in meanwhile.
-  private clearFolder(path: string): void {
-    const aside = join(this.root, `.planted-${randomUUID()}`);
-    try { if (!lstatSync(path).isDirectory()) return; renameSync(path, aside); }
-    catch (error) { if (absent(error)) return; throw new StorageError("delete_failed", message(error)); }
-    // The path is clear either way; a tree that cannot be removed stays under its .planted- name until removed by hand.
-    try { rmSync(aside, { recursive: true, force: true }); } catch { /* See above. */ }
-  }
-  private replaceWorking(path: string, bytes: Buffer): void { this.clearFolder(path); this.replace(path, bytes); }
-  private removeWorking(path: string): void { this.clearFolder(path); this.remove(path); }
+  private replaceWorking(path: string, bytes: Buffer): void { clearFolder(path, this.root); this.replace(path, bytes); }
+  private removeWorking(path: string): void { clearFolder(path, this.root); this.remove(path); }
   private remove(path: string): void {
     try { rmSync(path); } catch (error) { if (!absent(error)) throw new StorageError("delete_failed", message(error)); }
   }
+}
+
+// A fenced agent may write a Doan-written profile file, so it can also create a folder there, which a rename onto
+// the path or rmSync cannot replace. It is renamed into the auth root, which no fenced process can write, before its
+// tree is removed: a removal walking the profile path could follow a link the agent swaps in meanwhile.
+function clearFolder(path: string, root: string): void {
+  const aside = join(root, `.planted-${randomUUID()}`);
+  try { if (!lstatSync(path).isDirectory()) return; renameSync(path, aside); }
+  catch (error) { if (absent(error)) return; throw new StorageError("delete_failed", message(error)); }
+  // The path is clear either way; a tree that cannot be removed stays under its .planted- name until removed by hand.
+  try { rmSync(aside, { recursive: true, force: true }); } catch { /* See above. */ }
+}
+// A keychain provider's plaintext fallback (Claude's .credentials.json) in a profile under root, removed unread; the
+// fence leaves it writable. true: a file was there, not a planted folder.
+export function removePlaintextFile(path: string, root: string): boolean {
+  clearFolder(path, root);
+  try { rmSync(path); return true; } catch (error) { if (absent(error)) return false; throw new StorageError("delete_failed", message(error)); }
 }

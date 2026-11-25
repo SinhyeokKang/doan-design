@@ -35,6 +35,8 @@ export interface Workspace {
   openLog: string;
   handoffLog: string;
   prototypeLog: string;
+  // Requests the fake app failed to answer (socket.ts fakeAppErrors); absent until one.
+  appErrorLog: string;
   // Files the fake app wrote into `repo` with their content; absent until it writes one.
   appWrites: string;
   // Names reported under `repo`'s canvas directories after the baseline (canvas-watch.ts).
@@ -130,7 +132,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, cli: o.cli, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
     return {
-      base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES), canvasLog,
+      base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appErrorLog: join(base, "rt/app-errors.jsonl"), appWrites: join(base, "rt", APP_WRITES), canvasLog,
       stopCanvasWatch: () => watch.stop(),
       // Each removal runs even when an earlier step throws: the Codex home links the user's sign-in.
       async dispose() {
@@ -153,7 +155,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "doanLog" | "workLog" | "openLog" | "handoffLog" | "prototypeLog" | "canvasLog">>, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "doanLog" | "workLog" | "openLog" | "handoffLog" | "prototypeLog" | "canvasLog" | "appErrorLog">>, dir: string): void {
   const keep = (path: string | undefined, name: string) => {
     if (path && existsSync(path)) writeFileSync(join(dir, name), readArtifact(path, LOG_BYTES), { mode: 0o600 });
   };
@@ -164,6 +166,7 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
   keep(ws.prototypeLog, "prototype.jsonl");
   keep(ws.handoffLog, "handoff.jsonl");
   keep(ws.canvasLog, "canvas-names.jsonl");
+  keep(ws.appErrorLog, "app-errors.jsonl");
 }
 
 // Keeps a Codex run's sessions when its rollout was not copied. Only the run's own CODEX_HOME is copied:

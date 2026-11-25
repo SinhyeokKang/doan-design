@@ -5,9 +5,10 @@ import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { join, resolve } from "node:path";
 import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
-import { ATTRIBUTES_BYTES, CANVAS_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
+import { ATTRIBUTES_BYTES, CANVAS_BYTES, LOG_BYTES, MANIFEST_BYTES, readArtifact, resolveOnDisk } from "./artifact.ts";
 import { settlesWithin } from "./canvas-watch.ts";
 import { contentHash } from "./work.ts";
+import type { Check } from "./types.ts";
 
 // Stand-in for the app side of `doan active` (runtime.v1 file, app-socket.v1 socket, as app/src/main/runtime.ts).
 // The validators follow schema/*.schema.json and are tested against its fixtures.
@@ -383,7 +384,7 @@ function listedFrames(cli: string, root: string, runtime: string, path: string):
   return isObj(item) && Array.isArray(item.frames) ? item.frames.map(frame => isObj(frame) ? frame.id : null) : null;
 }
 
-export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
+export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; errorLog: string; close(): Promise<void> }
 // Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5.
 // handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas.
 // cli: the doan whose canvas list the fake reads frames from, as the app does; a v4 request with a frame needs it.
@@ -404,6 +405,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const openLog = join(o.dir, "open.jsonl");
   const handoffLog = join(o.dir, "handoff.jsonl");
   const prototypeLog = join(o.dir, "prototype.jsonl");
+  const errorLog = join(o.dir, "app-errors.jsonl");
   const paths = new Set<string>();
   const handoffTaken = new Set<string>();
   const contents = (path: string): Buffer | null => {
@@ -518,7 +520,21 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     connection.on("data", chunk => {
       buffer += chunk;
       const newline = buffer.indexOf("\n");
-      if (newline !== -1) connection.end(JSON.stringify(reply(buffer.slice(0, newline))) + "\n");
+      if (newline === -1) return;
+      const line = buffer.slice(0, newline);
+      let answer: string;
+      try {
+        answer = JSON.stringify(reply(line)) + "\n";
+      } catch (error) {
+        // The fake's own failure gets no answer, which the agent would read as its outcome, and must not end the fake.
+        let request: unknown = null;
+        try { request = JSON.parse(line); } catch { /* recorded as null */ }
+        if (isObj(request)) { const { token: _token, ...rest } = request; request = rest; }
+        appendFileSync(errorLog, JSON.stringify({ request, error: (error as Error).stack ?? String(error), at: new Date().toISOString() }) + "\n", { mode: 0o600 });
+        connection.end();
+        return;
+      }
+      connection.end(answer);
     });
   });
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
@@ -530,6 +546,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     openLog,
     handoffLog,
     prototypeLog,
+    errorLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -558,6 +575,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     openLog: join(o.dir, "open.jsonl"),
     handoffLog: join(o.dir, "handoff.jsonl"),
     prototypeLog: join(o.dir, "prototype.jsonl"),
+    errorLog: join(o.dir, "app-errors.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();
@@ -569,6 +587,12 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
 }
 
 const CLOSE_GRACE_MS = 2000;
+
+// Failures the fake app recorded fail the run as the harness's: the agent's app calls after one may have failed for it.
+export function fakeAppErrors(log: string): Check[] {
+  const text = existsSync(log) ? readArtifact(log, LOG_BYTES).toString("utf8").trim() : "";
+  return text ? [{ id: "fake_app_error", pass: false, detail: `the eval fake app failed while answering: ${text}` }] : [];
+}
 
 // Child side. It exits when the runner closes stdin, including when the runner dies.
 if (import.meta.main) {

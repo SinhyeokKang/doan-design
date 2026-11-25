@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -322,6 +322,22 @@ describe("connect", () => {
     expect(row(s, "claude", "doan-notion")?.failure).toBe("storage_failed");
     expect(existsSync(join(profile("claude"), ".credentials.json"))).toBe(false);
     expect(existsSync(join(dir, "mcp-connectors.json"))).toBe(false);
+  });
+
+  // A fenced Claude turn may write .credentials.json, so it can create a folder there; it is no credential.
+  it("a folder planted at .credentials.json is cleared and the Connect still succeeds", async () => {
+    const s = service();
+    s.connect("claude", "doan-notion");
+    const p = await login("claude");
+    hook!(LINK);
+    const planted = join(profile("claude"), ".credentials.json");
+    mkdirSync(join(planted, "nested"), { recursive: true }); writeFileSync(join(planted, "nested/x"), "x");
+    cli.approve(p);
+    await s.idle();
+    expect(row(s, "claude", "doan-notion")?.failure).toBeNull();
+    expect(status(s, "claude", "doan-notion")).toBe("connected");
+    expect(existsSync(planted)).toBe(false);
+    expect(readdirSync(join(dir, "agent-auth")).filter(name => name.startsWith("."))).toEqual([]);
   });
 
   it("a sign-in or sign-out in progress (admit busy) fails with the busy reason", async () => {

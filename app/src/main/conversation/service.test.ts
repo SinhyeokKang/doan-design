@@ -320,6 +320,13 @@ it("keeps the canvas's earlier conversation as it was when a new one starts and 
   expect(h.store.list().map(m => m.conversationId).sort()).toEqual([old, next].sort());
   expect(h.store.read(next).at(-1)?.type).toBe("turn.failed");
 });
+// The store refuses U+0000; the code is read from the raw message.
+it("stores a send rejection whose message holds U+0000", async () => {
+  const h = fixture();
+  h.open.mockImplementationOnce(async input => ({ sessionId: input.sessionId ?? "new-session", send: async () => { throw new Error("Not logged in\0x"); }, close: async () => {}, stop: async () => {}, answer: () => false }));
+  const id = (await h.service.start(request)).conversationId;
+  await vi.waitFor(() => expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in<U+0000>x" }));
+});
 
 // Claude spawns one process per turn; its reservation outlives turn.done until that process group is gone.
 const claudeTurn = { runtime: "claude" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} };

@@ -50,8 +50,11 @@ type Canvas struct {
 	Gotos []Goto
 }
 
-// IDPattern is the one canvas id rule (data-doan-id), shared by check and the cli package.
+// IDPattern is the form of a <meta name="doan:canvas"> id (ARCHITECTURE §1 convention 2).
 var IDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidID reports whether the canvas declares exactly one well-formed id.
+func (c Canvas) ValidID() bool { return c.HasID && !c.IDDup && IDPattern.MatchString(c.ID) }
 
 var prototypePattern = regexp.MustCompile(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`)
 

@@ -53,6 +53,8 @@ function make(deps: ThumbnailDeps): Thumbnails {
 
 const PNG = (label: string) => Buffer.from(`png:${label}`);
 
+const META = `${JSON.stringify({ mtimeMs: 1, size: 1, appVersion: "1.0.0", tokens: "t" })}\n`;
+
 interface Fixture {
   root: string;
   dir: string;
@@ -497,21 +499,22 @@ test("a project removed while a get reads the cache is captured when it is added
   await started(f, 1);
 });
 
-test("cleans orphaned cache and temp files once nothing is loading, keeping live and foreign files", async () => {
+test("cleans orphaned cache and temp files once every root lists, keeping live and foreign files", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   mkdirSync(f.dir);
   const live = thumbnailKey(f.root, ".doan/canvases/a.html");
   const orphan = thumbnailKey("/gone", ".doan/canvases/a.html");
-  for (const name of [`${live}.png`, `${live}.json`, `${orphan}.png`, `${orphan}.json`, `${live}.png.abc.tmp`, "notes.txt"]) writeFileSync(join(f.dir, name), "x");
+  for (const name of [`${live}.png`, `${orphan}.png`, `${live}.png.abc.tmp`, "notes.txt"]) writeFileSync(join(f.dir, name), "x");
+  for (const name of [`${live}.json`, `${orphan}.json`]) writeFileSync(join(f.dir, name), META);
   const thumbnails = make(f.deps);
   thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "loading" }]);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(readdirSync(f.dir)).toHaveLength(6);
-  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "notFound" }]);
+  thumbnails.entriesChanged(f.entries);
   await vi.waitFor(() => expect(readdirSync(f.dir).sort()).toEqual([`${live}.json`, `${live}.png`, "notes.txt"].sort()));
   // Once per start: a later orphan waits for the next start.
   writeFileSync(join(f.dir, `${orphan}.png`), "x");
-  thumbnails.entriesChanged(f.entries);
+  thumbnails.entriesChanged([...f.entries]);
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(readdirSync(f.dir)).toContain(`${orphan}.png`);
 });
@@ -623,6 +626,45 @@ test("a closed window's visibility no longer counts", async () => {
   expect(f.captures.at(-1)?.endsWith("b.html")).toBe(true);
 });
 
+// A registered root that does not list yet (gone, CLI failure, uninitialized) still owns its cache: its keys are not
+// knowable until it lists. What no root can reuse (a temp, an unpaired or unreadable key, another app version) goes at
+// once; the rest waits for every root to list.
+test.each(["notFound", "cliError", "uninitialized"] as const)("startup collection keeps the cache of a registered %s root until it lists", async (kind) => {
+  const f = fixture([".doan/canvases/a.html"]);
+  mkdirSync(f.dir);
+  const live = thumbnailKey(f.root, ".doan/canvases/a.html");
+  const unread = thumbnailKey("/unread", ".doan/canvases/a.html");
+  const old = thumbnailKey("/unread", ".doan/canvases/old.html");
+  const unpaired = thumbnailKey("/unread", ".doan/canvases/unpaired.html");
+  const broken = thumbnailKey("/unread", ".doan/canvases/broken.html");
+  for (const name of [`${live}.png`, `${unread}.png`, `${old}.png`, `${unpaired}.png`, `${broken}.png`, "old.png.abc.tmp"]) writeFileSync(join(f.dir, name), "x");
+  for (const name of [`${live}.json`, `${unread}.json`]) writeFileSync(join(f.dir, name), META);
+  writeFileSync(join(f.dir, `${old}.json`), META.replace("1.0.0", "0.9.0"));
+  writeFileSync(join(f.dir, `${broken}.json`), "{");
+  const thumbnails = make(f.deps);
+  const problem: FolderEntry = kind === "cliError" ? { path: "/unread", kind, reason: "x" } : { path: "/unread", kind };
+  thumbnails.entriesChanged([...f.entries, problem]);
+  await vi.waitFor(() => expect(readdirSync(f.dir).sort()).toEqual([`${live}.json`, `${live}.png`, `${unread}.json`, `${unread}.png`].sort()));
+  // Listing without that canvas makes its keys garbage, so the deferred collection does run.
+  thumbnails.entriesChanged([...f.entries, { path: "/unread", kind: "list", servedRev: 0, canvases: [] }]);
+  await vi.waitFor(() => expect(readdirSync(f.dir).sort()).toEqual([`${live}.json`, `${live}.png`].sort()));
+});
+
+test("the collection keeps the cache of a canvas listed after the update that started it", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html"]);
+  mkdirSync(f.dir);
+  const a = thumbnailKey(f.root, ".doan/canvases/a.html");
+  const b = thumbnailKey(f.root, ".doan/canvases/b.html");
+  for (const key of [a, b]) { writeFileSync(join(f.dir, `${key}.png`), "x"); writeFileSync(join(f.dir, `${key}.json`), META); }
+  const all = f.entries;
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged([{ path: f.root, kind: "list", servedRev: 0, canvases: [row(".doan/canvases/a.html")] }]);
+  // b is listed before the collection reads the directory.
+  f.entries = all;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(readdirSync(f.dir).sort()).toEqual([`${a}.json`, `${a}.png`, `${b}.json`, `${b}.png`].sort());
+});
+
 test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   mkdirSync(f.dir);
@@ -635,7 +677,7 @@ test("startup collection leaves an active temporary write intact while removing 
   await vi.waitFor(() => expect(writeGate.temp.startsWith(f.dir)).toBe(true));
   const temp = writeGate.temp;
   expect(existsSync(temp)).toBe(true);
-  thumbnails.entriesChanged([...f.entries, { path: "/slow", kind: "notFound" }]);
+  thumbnails.entriesChanged([...f.entries]);
   await vi.waitFor(() => expect(existsSync(orphan)).toBe(false));
   writeGate.dir = "";
   writeGate.release();

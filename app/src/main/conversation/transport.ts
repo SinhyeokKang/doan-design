@@ -127,7 +127,7 @@ export function transportError(detail: string): FailureCode {
   return "unknown";
 }
 function failed(state: TransportState, detail: string, code: FailureCode = transportError(detail)): TransportResult {
-  return finish(state, { type: "turn.failed", code, ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+  return finish(state, { type: "turn.failed", code, ...(detail ? { detail: storableText(detail).slice(0, 4096) } : {}) });
 }
 // A Codex TurnError. modelNotFound names the model only in its message, which gives the ID (a model Doan never sent);
 // without a readable ID the turn fails as any other error does.
@@ -135,7 +135,7 @@ function codexFailed(state: TransportState, error: unknown): TransportResult {
   const detail = object(error) ? text(error.message) : "";
   const model = object(error) && error.codexErrorInfo === "modelNotFound" ? /'([^'\s]+)' model\b/.exec(detail)?.[1] : undefined;
   if (!model) return failed(state, detail);
-  return finish(state, { type: "turn.failed", code: "model_unavailable", model, detail: detail.slice(0, 4096) });
+  return finish(state, { type: "turn.failed", code: "model_unavailable", model: storableText(model), detail: storableText(detail).slice(0, 4096) });
 }
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
 // Fallbacks when an item carries nothing readable: provider item types (commandExecution, fileChange, Bash) are wire
@@ -249,7 +249,8 @@ function withFileSummary(summaries: Record<string, string>, id: string, summary:
   return { ...Object.fromEntries(kept), [id]: summary };
 }
 type ActivityEvent = Extract<EventPayload, { type: "activity" }>;
-// The store refuses U+0000 and one refused event fails the turn's whole write; activity text keeps every other character.
+// Every agent-written string in a stored event: the store refuses U+0000 and one refused event fails the turn's whole
+// write; the text keeps every other character.
 export function storableText(text: string): string { return text.replaceAll("\0", "<U+0000>"); }
 function activity(kind: ActivityKind, path: string, line: string, root: string, callId?: string): ActivityEvent {
   // Paths and tool names come from the agent unbounded; the strip shows one line and every event is stored. A path with
@@ -388,7 +389,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       return { state: rest, events: [], stage: GENERAL_STAGE };
     }
     if (event.type === "content_block_delta" && object(event.delta) && event.delta.type === "text_delta" && typeof event.delta.text === "string") {
-      return { state, events: [{ type: "message.delta", messageId: `${state.messageId}:${event.index}`, text: event.delta.text }] };
+      return { state, events: [{ type: "message.delta", messageId: `${state.messageId}:${event.index}`, text: storableText(event.delta.text) }] };
     }
   }
   if (raw.type === "assistant" && object(raw.message) && Array.isArray(raw.message.content)) {
@@ -405,7 +406,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     state = failure ? { ...kept, claudeFailure: failure } : kept;
     const body = raw.message.content.filter(object).filter(c => c.type === "text").map(c => text(c.text)).join("");
     if (body && !completedMessages.includes(messageId)) {
-      events.push({ type: "message.done", messageId, text: body }); completedMessages.push(messageId);
+      events.push({ type: "message.done", messageId, text: storableText(body) }); completedMessages.push(messageId);
     }
     for (const content of raw.message.content) {
       // The question card stands for an AskUserQuestion call, so it shows no "Using a tool" line.
@@ -438,7 +439,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
       // ran, so a model turn's result never repeats its last message.
       const answer = raw.num_turns === 0 && !state.stop && !state.compacted && !state.completedMessages.length ? commandOutput(text(raw.result)) : "";
       const done = finish(state, { type: "turn.done" });
-      return answer ? { ...done, events: [{ type: "message.done", messageId: text(raw.uuid) || state.messageId, text: answer }, ...done.events] } : done;
+      return answer ? { ...done, events: [{ type: "message.done", messageId: text(raw.uuid) || state.messageId, text: storableText(answer) }, ...done.events] } : done;
     }
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail, state.claudeFailure);
@@ -454,7 +455,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
   if (raw.type === "system" && raw.subtype === "local_command_output" && !state.compacted) {
     const output = commandOutput(text(raw.content)), messageId = text(raw.uuid) || state.messageId;
     if (!output || state.completedMessages.includes(messageId)) return unchanged(state);
-    return { state: { ...state, completedMessages: [...state.completedMessages, messageId] }, events: [{ type: "message.done", messageId, text: output }] };
+    return { state: { ...state, completedMessages: [...state.completedMessages, messageId] }, events: [{ type: "message.done", messageId, text: storableText(output) }] };
   }
   if (raw.type === "user" && object(raw.message) && Array.isArray(raw.message.content) && raw.message.content.some(c => object(c) && c.type === "tool_result")) {
     const results = raw.message.content.filter(object).filter(c => c.type === "tool_result");
@@ -473,7 +474,8 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
 export const CLAUDE_QUESTION_TOOL = "AskUserQuestion";
 // A Claude question as the card shows it, and each ordinal id's question text: Claude keys its answers by that text.
 export interface ClaudeQuestion { questions: Question[]; textById: Record<string, string> }
-function bounded(value: unknown, max: number): value is string { return typeof value === "string" && value.length <= max; }
+// U+0000 is refused like a length: the answer carries the text and labels back, so they cannot be escaped (storableText).
+function bounded(value: unknown, max: number): value is string { return typeof value === "string" && value.length <= max && !value.includes("\0"); }
 // AskUserQuestion's input (sdk-tools.d.ts AskUserQuestionInput); null for anything a card cannot show whole. A
 // question past a limit is refused, never cut, and so is a repeated question text, which would key two answers alike.
 export function claudeQuestion(input: unknown): ClaudeQuestion | null {
@@ -580,7 +582,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     return value ? { state: { ...state, context: value }, events: [] } : unchanged(state);
   }
   if (raw.method === "item/agentMessage/delta" && typeof params.delta === "string" && typeof params.itemId === "string") {
-    return { state, events: [{ type: "message.delta", messageId: params.itemId, text: params.delta }] };
+    return { state, events: [{ type: "message.delta", messageId: params.itemId, text: storableText(params.delta) }] };
   }
   if ((raw.method === "item/completed" || raw.method === "item/started") && object(params.item)) {
     const item = params.item;
@@ -593,7 +595,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const id = text(item.id);
     if (raw.method === "item/completed" && id in state.fileSummaries) state = { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, id) };
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
-      return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: text(item.text) }] };
+      return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: storableText(text(item.text)) }] };
     }
     // A tool item runs from its start to its completion. Only a read has a stage of its own; any tool's completion
     // reports general once no other tool item runs.
@@ -660,7 +662,7 @@ export function claudePermissionRequest(requestId: string, tool: string, input: 
   const summary = claudePermissionSummary(tool, input, root, labels);
   return {
     // A Doan connector's input, its description included, stays out (claudePermissionSummary).
-    type: "permission.request", requestId, tool, summary, ...(DOAN_MCP_TOOL.test(tool) ? {} : permissionReason(text(input.description), summary)),
+    type: "permission.request", requestId, tool: storableText(tool), summary, ...(DOAN_MCP_TOOL.test(tool) ? {} : permissionReason(text(input.description), summary)),
     options: [
       { id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" },
       ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const, ...savedDetail(claudeSuggestionsDetail(suggestions)) }] : []),

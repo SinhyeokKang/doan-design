@@ -79,7 +79,6 @@ func Summarize(findings []Finding, canvases int) Summary {
 // canvas uses it without defining it; nothing defines it on the board.
 const viewportHeightVar = "--doan-viewport-height"
 
-func validID(c canvas.Canvas) bool { return c.HasID && !c.IDDup && canvas.IDPattern.MatchString(c.ID) }
 func Run(in Input) []Finding {
 	findings := []Finding{}
 	seen := map[Finding]bool{}
@@ -110,7 +109,7 @@ func Run(in Input) []Finding {
 	sort.Slice(canvases, func(i, j int) bool { return canvases[i].Path < canvases[j].Path })
 	counts := map[string]int{}
 	for _, c := range canvases {
-		if validID(c) {
+		if c.ValidID() {
 			counts[c.ID]++
 		}
 	}
@@ -134,7 +133,7 @@ func Run(in Input) []Finding {
 				f.Message = "missing canvas id in head (found in body)"
 			}
 			add(f)
-		} else if !validID(c) {
+		} else if !c.ValidID() {
 			emit("invalid_canvas_id")
 		} else if counts[c.ID] > 1 {
 			emit("duplicate_canvas_id")

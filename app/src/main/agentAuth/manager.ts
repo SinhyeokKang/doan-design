@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
@@ -438,12 +438,12 @@ export class AuthManager {
       account = withIdentity(account, await this.lookup(provider, attemptId, profile, source), null);
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
     }
-    const profileDir = this.options.storage.profileDir(provider, profile), storage = this.options.storage;
+    const storage = this.options.storage;
     let sealed: Buffer | null = null;
     // The working copy goes before the commit: after the vault and metadata name the new login nothing may fail and
     // hand the previous connection back over it.
     if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); storage.scrub(provider, auth.vault!); });
-    else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
+    else if (await this.storageStep(() => storage.removePlaintext(provider, auth.plaintext, profile))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile, account };
     // Last cancellation point: from the vault and metadata writes to the signedIn transition only microtasks run, so
     // no cancel or window-close event can land between a persisted connection and its state.
@@ -476,8 +476,7 @@ export class AuthManager {
       // Cleanup is not the stopped work: a cancelled login may already have written its keychain item.
       this.stopRequests.delete(attemptId);
       if (staged) { await this.cleanProfile(provider, attemptId, staged); return; }
-      const profileDir = storage.profileDir(provider, this.profileOf(provider));
-      for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+      storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider));
       if (!hadConnection && auth.logout) await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
     } catch (error) { console.error(`doan: ${provider} sign-in cleanup failed`, message(error)); }
   }
@@ -489,8 +488,7 @@ export class AuthManager {
   private async cleanProfile(provider: Provider, attemptId: string, profile: string): Promise<boolean> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
-      const profileDir = storage.profileDir(provider, profile);
-      for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+      storage.removePlaintext(provider, auth.plaintext, profile);
       if (auth.logout) {
         const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000, profile);
         if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
@@ -526,8 +524,7 @@ export class AuthManager {
       const logout = await this.exec(provider, attemptId, auth.logout, this.options.statusTimeoutMs ?? 20_000);
       if (logout.code !== 0) throw new Error(`logout exited ${logout.code}: ${tail(logout.stderr) ?? ""}`);
     }
-    const profileDir = storage.profileDir(provider, this.profileOf(provider));
-    for (const rel of auth.plaintext) rmSync(join(profileDir, rel), { force: true });
+    storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider));
     // A deleted file proves nothing until a fresh provider process reports the profile signed out.
     const checked = await this.statusRun(provider, attemptId);
     if (checked.status !== "disconnected" && checked.status !== "expired") throw new Error(`profile still reports ${checked.status}`);
@@ -885,7 +882,7 @@ export class AuthManager {
   private async recover(provider: Provider, connected: boolean): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
     try {
-      if (!auth.vault) { const dir = storage.profileDir(provider, this.profileOf(provider)); for (const rel of auth.plaintext) rmSync(join(dir, rel), { force: true }); return; }
+      if (!auth.vault) { storage.removePlaintext(provider, auth.plaintext, this.profileOf(provider)); return; }
       // A crash can leave a refreshed working copy; keep it only in encrypted form. A lone temporary sibling is an interrupted
       // write: absorbing it would read the missing file as a sign-out and empty the vault.
       if (connected && storage.hasWorkingCopy(provider, auth.vault)) {
@@ -895,8 +892,8 @@ export class AuthManager {
       if (!connected) storage.removeVault(provider);
     } catch (error) { console.error(`doan: ${provider} credential recovery failed`, message(error)); }
   }
-  private async storageStep(step: () => unknown): Promise<void> {
-    try { await step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
+  private async storageStep<T>(step: () => T | Promise<T>): Promise<T> {
+    try { return await step(); } catch (error) { throw new Failure("storage_failed", message(error)); }
   }
   // The stored connection's profile; a provider without one signs in to its own.
   private profileOf(provider: Provider): string { return this.state(provider).connection?.profile ?? provider; }

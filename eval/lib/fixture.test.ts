@@ -149,3 +149,27 @@ test("a real run whose evidence cannot be read keeps the agent's exit facts", { 
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+// A workspace dispose cannot finish (a folder the agent locked) must not replace the finished run's record.
+test("a real run whose workspace cannot be removed keeps its record and says why", { timeout: 30_000 }, async () => {
+  const base = mkdtempSync("/tmp/doan-real-run-test-");
+  const saved = process.env.PATH;
+  const metaFile = join(base, "out/W3b-claude/meta.json");
+  try {
+    const bin = join(base, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "claude"), "#!/bin/sh\nmkdir locked && : > locked/file && chmod 500 locked\nexit 0\n", { mode: 0o700 });
+    process.env.PATH = `${bin}:${saved}`;
+    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3b"), init: null, selectionValue: null };
+    const setup = { options: parseArgs(["--no-judge", "--round", "real-run-test"], new Date()), cli: join(base, "cli"), stub: "stub\n", out: join(base, "out"), meta: { date: "", versions: {}, guideSha256: "", cliVersion: "" } };
+    const record = await realRun(setup, scenario, "claude", 1);
+    assert.deepEqual([record.exitCode, record.dir], [0, ".scratch/agent-eval/real-run-test/W3b-claude"]);
+    assert.notEqual(record.checks.length, 0);
+    assert.match(readFileSync(join(base, "out/W3b-claude/workspace-cleanup-error.txt"), "utf8"), /EACCES|EPERM|ENOTEMPTY/);
+  } finally {
+    process.env.PATH = saved;
+    // The locked folder is left in the workspace and in the run's copy of the repo.
+    const workspace = existsSync(metaFile) ? dirname(JSON.parse(readFileSync(metaFile, "utf8")).tempRepo) : null;
+    for (const dir of [workspace, base]) if (dir && existsSync(dir)) { spawnSync("chmod", ["-R", "u+rwx", dir]); rmSync(dir, { recursive: true, force: true }); }
+  }
+});

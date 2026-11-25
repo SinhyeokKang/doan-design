@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MAX_SLUG } from "../mcpConnectors/names";
@@ -50,6 +50,14 @@ describe.runIf(usable)("the outer fence's writes in the agent's folder", () => {
       "CLAUDE.md", "session-env/1b9d/sessionstart-hook-0.sh", "settings.json", ".mcp.json", ".claude/settings.json", "rules/a.md", "output-styles/a.md", "skills/a/SKILL.md", "agents/a.md", "commands/a.md",
       ".storage-write.other", "plugins/a/plugin.json", "hooks/a.json", "remote-settings.json", "policy-limits.json", "daemon/a", "workflows/a", "x",
     ]);
+  });
+  // .credentials.json is a prefix write rule, so a fenced turn can make a folder there; Doan clears one before removing it.
+  it("lets a fenced Claude create a folder at .credentials.json", () => {
+    const { userData, profile } = world("claude");
+    const paths = resolveFencePaths({ provider: "claude", userData, profileDir: profile, attachments: [] }, path => realpathSync.native(path))!;
+    const run = spawnSync(SANDBOX_EXEC, [...fenceArgs("claude", paths), "/bin/mkdir", "-p", join(profile, ".credentials.json", "nested")]);
+    expect(run.status).toBe(0);
+    expect(statSync(join(profile, ".credentials.json")).isDirectory()).toBe(true);
   });
   it("allows Claude's account refresh lock, its owner record and the temporary owner write", () => {
     expectWrites("claude", [".oauth_refresh.lock", ".oauth_refresh.lock.owner", ".oauth_refresh.lock.owner.tmp.6bb75133"], [

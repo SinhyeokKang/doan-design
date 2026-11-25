@@ -615,6 +615,23 @@ describe("project setup and upward refresh", () => {
     expect(shell.epoch(sub)).toBeNull();
   });
 
+  // A re-root drops the stored root, so main runs the old root's clean-up before the list goes out, on a re-read and
+  // right before Set Up.
+  test.each(["re-read", "setup"])("a re-root reports the old root as left before the list goes out (%s)", async (site) => {
+    const root = dir(); const sub = join(root, "web"); mkdirSync(sub);
+    let published = -1;
+    const left = vi.fn(() => { published = changes.length; });
+    const { shell, changes } = await uninitialized(sub, cli, { left });
+    writeRepo(root);
+    if (site === "setup") expect(await shell.initialize(sub, null)).toMatchObject({ kind: "rerooted", root });
+    else await shell.reopen(sub);
+    await vi.waitFor(() => expect(shell.entries().map(e => e.path)).toEqual([root]), until);
+    expect(left).toHaveBeenCalledTimes(1);
+    expect(left).toHaveBeenCalledWith([sub], [expect.objectContaining({ path: sub })]);
+    // No list without the old root had gone out yet.
+    expect(changes.slice(0, published).every(entries => entries.some(e => e.path === sub))).toBe(true);
+  });
+
   test("startup merges two stale children with an existing root without losing order", async () => {
     const root = writeRepo(dir()); const other = writeRepo(dir());
     const a = join(root, "a"); const b = join(root, "b"); mkdirSync(a); mkdirSync(b);
@@ -1064,7 +1081,7 @@ exit 2
     const main = dir();
     const changes: Change[] = [];
     const removed = vi.fn();
-    const shell = await startShell(file, git.path, (entries, focus) => changes.push({ entries, focus }), { autoRemoved: removed });
+    const shell = await startShell(file, git.path, (entries, focus) => changes.push({ entries, focus }), { left: removed });
     shells.push(shell);
     await shell.store([main]);
     await vi.waitFor(() => expect(listed(shell.entries(), main)).toBeDefined(), until);

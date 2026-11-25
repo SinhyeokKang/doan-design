@@ -242,7 +242,7 @@ let launchEligibility = "dev";
 let launchFeed = false;
 const HELD = Symbol("held");
 // Runs inside startShell with the options main passed, as the shell's first folder reads do before it resolves.
-let atShellStart: ((options: { autoRemoved?: (paths: string[], before: unknown[]) => void }) => void) | undefined;
+let atShellStart: ((options: { left?: (paths: string[], before: unknown[]) => void }) => void) | undefined;
 let settleSetup: (value: unknown) => void = () => {};
 // The previous test's launch. A hook that timed out is not cancelled: its launch still opens a window later, which must
 // land before this launch resets the instances, not in the next test.
@@ -616,10 +616,10 @@ test("an auto-removed worktree goes through Remove's clean-up: selection, thumbn
   const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
   await invoke("selection:set", window().webContents, null, { ...SELECTION, root: W });
   expect(runtimeState().selection()).toMatchObject({ root: W });
-  const options = mocks.startShell.mock.calls[0]?.[3] as { autoRemoved?: (paths: string[], before: unknown[]) => void } | undefined;
-  if (!options?.autoRemoved) throw new Error("no auto-removal hook");
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  if (!options?.left) throw new Error("no left-roots hook");
   mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
-  options.autoRemoved([W], before);
+  options.left([W], before);
   expect(runtimeState().selection()).toBeNull();
   expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([W], before);
   expect(stop).toHaveBeenCalledExactlyOnceWith([W]);
@@ -627,10 +627,28 @@ test("an auto-removed worktree goes through Remove's clean-up: selection, thumbn
   expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
 });
 
+// A stored root the shell re-roots upward leaves the list as Locate's old root does (shell.ts `left`).
+test("a re-rooted stored root goes through Remove's clean-up, as Locate's old root does", async () => {
+  const SUB = `${ROOT}/web`;
+  const before = [{ path: SUB }];
+  mocks.shell.entries.mockReturnValue(before);
+  const stop = vi.spyOn(mocks.conversationService as unknown as { stopBackground(paths: string[]): void }, "stopBackground");
+  await invoke("selection:set", window().webContents, null, { ...SELECTION, root: SUB });
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  if (!options?.left) throw new Error("no left-roots hook");
+  mocks.shell.entries.mockReturnValue([{ path: ROOT }]);
+  options.left([SUB], before);
+  expect(runtimeState().selection()).toBeNull();
+  expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([SUB], before);
+  expect(stop).toHaveBeenCalledExactlyOnceWith([SUB]);
+  expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([SUB]);
+  expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([SUB]);
+});
+
 // A worktree that vanished while Doan was closed is found by the first folder read, before main has its other stores.
 describe("a worktree found gone while the shell starts", () => {
   const W = "/orca/workspaces/repo/gone";
-  beforeAll(() => { atShellStart = options => options.autoRemoved?.([W], [{ path: W }]); });
+  beforeAll(() => { atShellStart = options => options.left?.([W], [{ path: W }]); });
   afterAll(() => { atShellStart = undefined; });
   test("still drops its quit-stopped starts", () => {
     expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([W]);
@@ -647,8 +665,8 @@ test("restores launchd's CA certificates once at import, then trusts the file it
 test("an auto-removed worktree keeps another root's selection", async () => {
   mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/w" }]);
   await invoke("selection:set", window().webContents, null, SELECTION);
-  const options = mocks.startShell.mock.calls[0]?.[3] as { autoRemoved?: (paths: string[], before: unknown[]) => void } | undefined;
-  options?.autoRemoved?.(["/w"], []);
+  const options = mocks.startShell.mock.calls[0]?.[3] as { left?: (paths: string[], before: unknown[]) => void } | undefined;
+  options?.left?.(["/w"], []);
   expect(runtimeState().selection()).toEqual(SELECTION);
 });
 
