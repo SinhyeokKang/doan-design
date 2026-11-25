@@ -23,9 +23,8 @@ const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?:
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
-  // App skips its render for view-only publishes, so its state can hold an older zoom and frame than the view store.
-  // A frame inserted before the current one moves its index and the layout in one publish; the header drawn by that
-  // render names the same frame.
+  // App skips its render for view-only publishes, so its state can lag the view store; a frame inserted before the current
+  // one moves its index and the layout in one publish, and the header names the same frame.
   it("names the current frame from one layout and index when both changed together", () => {
     const inserted = [{ id: "intro", title: "Intro", x: 0, y: 0, width: 1280, height: 800 }, ...frames.map(frame => ({ ...frame, y: frame.y + 900 }))];
     const state = opened({ layout: layout({ frames: inserted, height: 3600, viewport: 3600 }), currentFrame: 3 });
@@ -182,7 +181,7 @@ describe("CanvasHeader", () => {
     expect(button(html(opened(), { open: false, show: vi.fn(), badge: null }), "Show conversation")).not.toContain("data-badge");
   });
 
-  // Draft canvas-concurrent-conversations frame badge: the prototype window's working spinner, new to the main window.
+  // The working spinner on the folded panel's open button.
   it("puts the working spinner on the folded panel's open button while a conversation of the canvas works", () => {
     const markup = html(opened(), { open: false, show: vi.fn(), badge: { kind: "working", label: "Show conversation, agent is working" } });
     const working = button(markup, "Show conversation, agent is working");
@@ -191,8 +190,8 @@ describe("CanvasHeader", () => {
     expect(markup).not.toContain("badge-bubble");
   });
 
-  // canvas-inspector-panel draft header-buttons: one divider after Reload, then only the folded panels' Show buttons,
-  // Show inspector (sliders-horizontal) before Show conversation (message-square), each naming its panel for focus.
+  // One divider after Reload, then only the folded panels' Show buttons, Show inspector before Show conversation, each
+  // naming its panel for focus.
   describe("the Show buttons of folded panels", () => {
     const show = (open: { inspector: boolean; conversation: boolean }, fits = true) =>
       html(opened(), { open: open.conversation, show: vi.fn() }, undefined, { open: open.inspector, fits, show: vi.fn() });

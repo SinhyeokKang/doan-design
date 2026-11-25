@@ -8,8 +8,8 @@ import { drawerKey } from "./frameDrawerList";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 
-// One Tab stop on the pressed tool, Select and Hand pressed one at a time, then the Picker and Capture area,
-// each pressed only during its own mode.
+// One Tab stop on the pressed tool, Select and Hand pressed one at a time, then the Picker and Capture area, each
+// pressed only during its own mode.
 const PICKER = { enabled: true, reason: null, onToggle: () => {} };
 const CAPTURE = { enabled: true, reason: null, onToggle: () => {} };
 type Props = Parameters<typeof CanvasTools>[0];
@@ -203,8 +203,7 @@ describe("CanvasTools", () => {
     expect(text(tips[5]!.props.children as ReactNode)).toBe("Exporting");
   });
 
-  // Radix links the tooltip only while it is open, so a closed one (after a press, or under a screen reader's cursor)
-  // left the button without its reason (design-sync measurement, draft frame toolbar-disabled).
+  // Radix links the tooltip only while it is open, so a closed one left the button without its reason.
   it("an unavailable Export names its reason with aria-describedby even while the tooltip is closed", () => {
     const html = markup({ exporter: { reason: "This page is not a listed canvas.", onExport: () => {} } });
     const tag = html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0] ?? "";
@@ -284,8 +283,8 @@ describe("CanvasTools", () => {
     expect(all(CanvasTools(props())).some(element => element.type === FrameListBody)).toBe(false);
   });
 
-  // The drawer's list sits in a portal, but React still bubbles its keys to the toolbar's handler. Arrows there are the
-  // list's (or nobody's), V and H are swallowed by the list so the canvas tools ignore them, and Esc is Radix's.
+  // The drawer's list sits in a portal, but React still bubbles its keys to the toolbar's handler: arrows there are the
+  // list's, V and H are swallowed by the list, and Esc is Radix's.
   it("keys from a drawer row that reach the toolbar move no tool", () => {
     const tree = CanvasTools(props({ player: { ...DRAWER, open: true } }));
     const toolbar = all(tree).find(element => element.props.role === "toolbar")!;

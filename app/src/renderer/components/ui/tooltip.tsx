@@ -2,9 +2,8 @@ import * as React from "react"
 import { cn } from "cn"
 import { Slot as SlotPrimitive, Tooltip as TooltipPrimitive } from "radix-ui"
 
-// The first tooltip waits so passing over controls does not flash labels; within the skip window the next one opens
-// at once (Radix's own defaults, which shadcn's template had set to 0). Content is not hoverable: a tooltip is a label,
-// so the pointer heading for the capsule must not keep it open over the controls beside its trigger.
+// Radix's own delay defaults, which shadcn's template had set to 0, so passing over controls does not flash labels. Content is not
+// hoverable: a tooltip is a label, so heading for the capsule must not keep it open over neighbouring controls.
 function TooltipProvider({
   delayDuration = 700,
   skipDelayDuration = 300,
@@ -28,14 +27,8 @@ function Tooltip({
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
 }
 
-// An unavailable control that names its reason with its own aria-describedby (an sr-only sibling, so it is read while
-// the tooltip is closed too) keeps that description alone: Radix adds the open content's id, which holds the same
-// reason, so it would be read twice. Between Radix's trigger and the control, the trigger's props
-// are merged into the control again by Radix's Slot (handlers, ref, class), without the added id when `own`. Any other
-// trigger keeps Radix's description, unless it marks its own as the tooltip's words (`data-own-description`: the Queue
-// button's usage-limit reset, which its tooltip repeats). Every asChild trigger goes through this layer, unavailable or not: a control that
-// turns unavailable while focused (Play prototype losing its frame's mark) must stay the same element, or React mounts
-// a new button and focus falls to the page.
+// An unavailable control's own sr-only aria-describedby stays alone: Radix's added content id holds the same reason, read twice.
+// Every asChild trigger goes through this layer so a control turning unavailable while focused stays the same element.
 function OwnDescription({
   "aria-describedby": added,
   own,
@@ -61,9 +54,8 @@ function TooltipTrigger({
   )
 }
 
-// A menu, a popover list or a modal dialog that holds tooltips over its rows. While a tooltip is open it is the top
-// dismissable layer, so Radix gives it the first Esc and the host would stay open; a host provides its close here and
-// an Esc on such a tooltip closes the host too. A tooltip's own onEscapeKeyDown still decides for itself.
+// A tooltip open over a host's row is the top dismissable layer, so Radix gives it the first Esc and the host would stay open; a
+// host provides its close here so that Esc closes it too. A tooltip's own onEscapeKeyDown still decides for itself.
 const TooltipEscape = React.createContext<(() => void) | null>(null)
 
 // `container`: a modal dialog sits in the top layer, above anything portalled to the body, so a tooltip inside one is

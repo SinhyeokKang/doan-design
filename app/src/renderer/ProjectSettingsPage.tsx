@@ -44,12 +44,8 @@ const UNTRACK_COMMAND = "git rm -r --cached .doan";
 type Recovery = Extract<RowAction, "setUp" | "locate" | "retry">;
 
 
-// The Project Settings page edits one worktree's .doan/config.json in the white body, where Agents and Notifications
-// already live, and follows that worktree while it is open (projectSettingsRules).
-// App owns navigation, the lock and Remove from Doan; this component reports only whether it holds a picker, a
-// confirmation or a write. `root` is the worktree opened: the page follows a reroot itself and reports it, so App
-// remounts it (a new key) only to show another worktree. Config session lifetime is the page's: it starts on mount and
-// ends on unmount.
+// Edits one worktree's .doan/config.json and follows that worktree (projectSettingsRules). App owns navigation, the lock and
+// Remove from Doan; the page follows a reroot itself, so App remounts it only for another worktree.
 export function ProjectSettingsPage({ header, sidebar, root: opened, entries, reroot, origin, homeDirectory, arrival, onState, onGone, onRerooted, onAction, onRemove }: {
   header: ReactNode; sidebar: ReactNode; root: string; entries: readonly FolderEntry[];
   reroot: (FolderFocus & { seq: number }) | null; origin: AddPageOrigin; homeDirectory: string | null;
@@ -79,7 +75,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const [switched, setSwitched] = useState<SwitchNote | null>(null);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const [choice, setChoice] = useState<{ choiceId: string; path: string } | null>(null);
-  // Keep out of Git pressed outside Git: the confirmation to create the repository is open (draft keep-out-git-init).
+  // Keep out of Git pressed outside Git: the confirmation to create the repository is open.
   const [creating, setCreating] = useState(false);
   // Details expands the config error in place, and a recovery's feedback shows under the notice.
   const [details, setDetails] = useState(false);
@@ -105,9 +101,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   // so the title focus is made again on activation (POSTMORTEM 2026-11-17).
   const handFocus = useActivationFocus();
   function focusTitle() { requestAnimationFrame(() => handFocus(() => heading.current?.focus())); }
-  // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
-  // just returned to them is not dropped; it still supersedes any older read. retry: Retry on a failed read keeps the
-  // failed notice drawn while it reads, so the pressed Retry stays mounted, busy, and keeps focus.
+  // quiet: a refresh for a change made elsewhere keeps the controls as they are, so a focus just returned to them is not
+  // dropped. retry: the failed notice stays drawn, so the pressed Retry stays mounted, busy, and keeps focus.
   async function read(target: string, quiet = false, retry = false) {
     const request = ++epoch.current;
     if (!quiet) setReading(true);
@@ -215,9 +210,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       if (live.current && stale === generation.current && changedDuringWrite.current) { changedDuringWrite.current = false; void read(request.root, true); }
     }
   }
-  // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (PRODUCT §5
-  // item 0 'Project Settings'). Focus returns to the chosen radio once the write ends, whatever it chose. The exception
-  // is Keep out of Git outside Git, which creates a repository: it asks first, and Cancel returns focus the same way.
+  // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (PRODUCT §5 item 0
+  // 'Project Settings'). Keep out of Git outside Git creates a repository, so it asks first.
   function writeStorage(storage: StorageChoice, input: HTMLInputElement) {
     if (busy || picking || reading || choice || creating) return;
     returnFocus.current = { button: input, section: "storage" };
@@ -258,8 +252,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     } catch (failure) { if (live.current && stale === generation.current) setError({ section: kind, message: failure instanceof Error ? failure.message : String(failure) }); }
     finally { if (live.current) setPicking(false); }
   }
-  // The controls behind an open confirmation stay drawn enabled (the draft's confirmation tile): the modal dialog already
-  // makes the page inert, and the lock is `locked`, not this.
+  // The controls behind an open confirmation stay drawn enabled: the modal dialog already makes the page inert, and the lock is
+  // `locked`, not this.
   const disabled = !!busy || picking || reading;
   const waiting = disabled || !!choice || creating;
   // Once nothing is pending, focus returns (projectSettingsFocusAfter) unless a confirmation owns the modal layer or
@@ -317,7 +311,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{withChips(error.message, [`${root}/.git`])}</span></p></div>;
   const shared = choice && sharedPathLabel(root, choice.path);
   const storage = config && storageSectionView(config, writingStorage, home);
-  // The thread's settings radio rows outside the thread (draft frames settings-modes, settings-changes, settings-disabled).
+  // The settings radio rows, as the thread draws them.
   const storageSection = storage && <section>
     <div className="settings-section-header"><div>
       <h2 className="settings-section-title" id="project-settings-storage-title">Doan files</h2>

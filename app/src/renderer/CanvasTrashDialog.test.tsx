@@ -127,8 +127,8 @@ test("while the move is out the confirm is busy and Cancel and Escape are refuse
   expect(confirm).not.toHaveBeenCalled();
 });
 
-// Chromium closes a modal dialog on a repeated Escape even when its cancel is prevented (SettingsDialog,
-// ConversationDeleteDialog): the keydown itself is handled, so a busy alert stays open.
+// Chromium closes a modal dialog on a repeated Escape even when its cancel is prevented: the keydown itself is handled,
+// so a busy alert stays open.
 test("Escape's keydown is taken by the alert: refused while the move is out, a cancel otherwise, and left alone while composing", () => {
   const key = (view: ReturnType<typeof trashDialogView>, isComposing = false) => {
     const cancel = vi.fn(), event = { key: "Escape", nativeEvent: { isComposing }, preventDefault: vi.fn() };

@@ -7,9 +7,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ProjectOverviewProps } from "./ProjectOverview";
 
-// App subscribes to conversation:stage and hands each signal to the store both screens share,
-// so a pushed stage reaches the Overview thread's turn indicator. App runs with hooks as plain state
-// (App.conversationPanel.test.tsx); the Overview it shows is then drawn as static markup with React's own hooks.
+// App hands each conversation:stage signal to the store both screens share, so a pushed stage reaches the Overview
+// thread's turn indicator. App runs with hooks as plain state; the Overview is drawn with React's own hooks.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false, actual: false,

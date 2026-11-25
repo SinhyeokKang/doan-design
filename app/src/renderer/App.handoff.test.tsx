@@ -4,8 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 
-// App's handling of conversation:handoff. Driven with hooks as plain
-// state and a stub controller, as App.replyChips.test.tsx is.
+// App's handling of conversation:handoff, with hooks as plain state and a stub controller.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -248,7 +247,7 @@ test("a locked page shows the toast instead of moving", async () => {
   expect(harness.toast.show).toHaveBeenCalledWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
 });
 
-// a person's choice while the read is awaited is never replaced by the move (POSTMORTEM 2026-10-26).
+// A person's choice while the read is awaited is never replaced by the move (POSTMORTEM 2026-10-26).
 test("a panel choice of the person's while the read is awaited turns the move into the toast", async () => {
   await onDrafts(listA([drafts]));
   clearController();

@@ -18,9 +18,8 @@ const LEADS: Record<SettingsSection, string> = {
   about: "Versions on this Mac, for checking an update or reporting a problem.",
 };
 
-// The Settings page: the shell's header and sidebar around Home's white panel, which
-// scrolls a 48rem column of the category's title, lead and sections. App owns navigation, the lock and the queue;
-// a category only reports whether it holds a confirmation or a write.
+// Home's white panel scrolls a 48rem column of the category's title, lead and sections. App owns navigation, the lock and the
+// queue; a category only reports whether it holds a confirmation or a write.
 export function SettingsPage({ header, sidebar, section, arrival, onState, agents, buddy, mcp, announcement }: {
   header: ReactNode; sidebar: ReactNode; section: SettingsSection; arrival: SettingsArrival | null;
   onState(report: { locked: boolean }): void;

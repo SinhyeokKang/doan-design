@@ -161,8 +161,8 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
-// The turn ended and main still works on the conversation (holding): nothing runs to stop, so an empty field is a
-// disabled Send; text queues by Enter and by Control+Enter (no Send now while holding); queue rows bring Stop back.
+// Holding: nothing runs to stop, so an empty field is a disabled Send; text queues by Enter and Control+Enter (no Send now
+// while holding); queue rows bring Stop back.
 test("while holding, an empty field is a disabled Send, text queues by Enter and Control+Enter, and queue rows show Stop", async () => {
   const { send, queue, props, render, store } = setup({ turn: "holding" });
   expect(() => button(render(), "Stop")).toThrow("not found");
@@ -429,7 +429,6 @@ test("unlocked, the same drop and paste reach the host as files", () => {
   expect(onFiles).toHaveBeenCalledTimes(2);
 });
 
-// U16: the host's attachment refusals (limit, choose and settle) show under the composer, as Home's do, not as a toast.
 test("an attachment refusal the host reports shows as the composer's notice and goes with the next edit", () => {
   let notice: (text: string) => void = () => {};
   const onAttach = vi.fn((report: (text: string) => void) => { notice = report; });
@@ -445,8 +444,8 @@ test("an attachment refusal the host reports shows as the composer's notice and 
   expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(false);
 });
 
-// The host reports a refusal and changes the chips in the same batch (the limit with the accepted chips; a refused
-// chip taken out): the composer's shape follows the chips, and that alone must not drop the notice.
+// The host reports a refusal and changes the chips in the same batch, so the composer's shape follows the chips, and that
+// alone must not drop the notice.
 test("an attachment refusal stays when the host's chips turn the composer into a box or back into a capsule", () => {
   let notice: (text: string) => void = () => {};
   const file = { key: "f", id: "f", name: "a.txt", kind: "file" as const, pasted: false, status: "checking" as const };
@@ -478,7 +477,7 @@ test("a dropped or pasted file's refusal lands on the draft it was added to, eve
   expect(has(render(), "Only 10 attachments can be added.")).toBe(true);
 });
 
-// U39: the reason line sits on the white column, not in a notice, so its buttons are subtle (Home's Open is).
+// The reason line sits on the white column, not in a notice, so its buttons are subtle.
 test("the reason line's buttons are subtle", async () => {
   const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
   // Each composer below is a fresh one: the harness's hook slots are shared.
@@ -580,8 +579,7 @@ test("a chosen agent that cannot run still shows its line", () => {
   expect(has(render(), "Claude Code can’t run right now. Choose another agent.")).toBe(true);
 });
 
-// a refusal goes to the composer's lasting live region; the same refusal again changes its text, so it is
-// read again.
+// A refusal goes to the composer's lasting live region; the same refusal again changes its text, so it is read again.
 test("a repeated Send now refusal changes the composer's status text each time", () => {
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also this" }] });
   const announce = () => find(render(), props => typeof props.announce === "function").announce as (text: string) => void;
@@ -596,9 +594,8 @@ test("a repeated Send now refusal changes the composer's status text each time",
   expect(second).not.toBe(first);
 });
 
-// A press outside the `/` list and its field closes it as Escape does, for the draft on screen, until that field is empty
-// again; a press in the field or the list keeps it. A press in the canvas, which the app's document never sees, closes
-// both preset lists through the canvas page's signal.
+// A press outside the `/` list and its field closes it as Escape does; a press in the field or the list keeps it. A press in
+// the canvas, which the app's document never sees, closes both preset lists through the canvas page's signal.
 function pressDocument() {
   const listeners: ((event: { target: unknown }) => void)[] = [];
   vi.stubGlobal("document", {
@@ -657,8 +654,8 @@ test("the canvas's press signal closes the / list and the Presets popover", () =
   expect(subscribers.size).toBe(0);
 });
 
-// The composer's Pick from canvas starts the same pick as the toolbar Picker and ⌘L, so its tooltip shows ⌘L like the
-// toolbar's; an unavailable Pick shows only its reason.
+// Pick from canvas starts the same pick as the toolbar Picker and ⌘L, so its tooltip shows ⌘L; an unavailable Pick shows
+// only its reason.
 test("Pick from canvas shows ⌘L in its tooltip, and only the reason while unavailable", () => {
   const pickButton = (node: ReactNode): ReactElement<Record<string, unknown>> | null => {
     for (const child of Children.toArray(node)) {
@@ -855,10 +852,8 @@ test.each(["idle", "running"] as const)("Control+Enter without a Send now handle
   expect(turn === "idle" ? queue : send).not.toHaveBeenCalled();
 });
 
-// Keys go through ComposerField's own keydown (POSTMORTEM
-// 2026-10-27 'typeahead'): the field element's onKeyDown calls the composer's onKey before Enter's send. The handle
-// stands in for ChipField, whose insertText hands the new value back through onChange as one undo step; that step,
-// the caret and real keys and IME are checked in the real app.
+// Keys go through ComposerField's own keydown (POSTMORTEM 2026-10-27 'typeahead'). The handle stands in for ChipField; its undo
+// step, the caret, real keys and IME are checked in the real app.
 const SUGGESTION = "Make the header lighter";
 const HINT = "Press Tab or Right Arrow to use the suggestion.";
 const arrowRight = (patch: Record<string, unknown> = {}) => ({ key: "ArrowRight", shiftKey: false, altKey: false, metaKey: false, ctrlKey: false, keyCode: 39, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), ...patch });
@@ -1048,8 +1043,7 @@ test("a suggestion is not announced on the first list read, a switch, a refill a
   expect(typed.said()).toBe("");
 });
 
-// a suggestion is plain text, so one that starts with / does not open the preset list when
-// Right Arrow puts it in; the list opens again once the field is emptied and / is typed.
+// A suggestion is plain text, so one that starts with / does not open the preset list when Right Arrow puts it in.
 test("a suggestion that starts with / goes in as text and leaves the preset list closed", () => {
   const { render, handle } = suggestionSetup({ suggestion: "/compact the thread" });
   press(render(), arrowRight());
@@ -1074,9 +1068,8 @@ test("a skill ending at an anchor chip sends the same names as its field highlig
   expect(send.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy{{1}}" });
 });
 
-// usage-limit-resume.html queue-button / scheduled-rows / sending: while the conversation's Doan connection is at its
-// usage limit, Send is Queue though no turn runs, and a press hands the message to main's send, which queues it for
-// the reset. The rows that wait have a status line under the list; no Send now, so Control+Enter acts as Enter.
+// At the usage limit, Send is Queue though no turn runs, and a press hands the message to main's send, which queues it for the
+// reset. Waiting rows have a status line; no Send now, so Control+Enter acts as Enter.
 const IN_3H = () => new Date(Date.now() + 3 * 3_600_000).toISOString();
 const scheduleLine = (tree: Record<string, unknown>[]) => find(tree, props => props.className === "queue-schedule");
 const lineText = (tree: Record<string, unknown>[]) => {
@@ -1216,8 +1209,7 @@ test("the preset popover's Retry stays, busy and described by the notice, until 
   expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe(`${text} `);
 });
 
-// The run mode Claude Code's settings ran the conversation's last Ask first turn in: a new value for the conversation on
-// screen is said once through the composer's status line. `previous` is the value this composer last saw for that same
+// A new run mode for the conversation on screen is said once. `previous` is what this composer last saw for that same
 // conversation, so the first list read (undefined), a switch, a cleared value or the same value says nothing.
 function runModeSetup(patch: Partial<DockedComposerProps> = {}) {
   // Each setup is its own composer: hook slots start empty, as on a fresh mount.
@@ -1268,8 +1260,8 @@ test("a run mode is not announced on the first list read, a switch, a cleared va
   expect(cleared.said()).toBe("");
 });
 
-// The status line is the composer's, shared by the conversations it shows: when another conversation turns to the
-// value just said for the first, the text still changes, so a screen reader reads it again.
+// The status line is shared by the conversations it shows, so the same text said for another conversation still changes and
+// is read again.
 test("the same run mode text is announced again for another conversation", () => {
   const { props, said, settle } = runModeSetup({ runMode: null });
   settle();

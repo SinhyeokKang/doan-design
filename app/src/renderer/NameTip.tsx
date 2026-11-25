@@ -9,12 +9,8 @@ export function isCut(node: Element | null): boolean {
   return over(node) || [...node.querySelectorAll("*")].some(over);
 }
 
-// DESIGN 'Tooltip': a name shows in full in the shared tooltip only while it is cut. The open state is the person's
-// hover or focus checked against the cut at that moment, never `hover && cut` (a hover kept from before would reopen
-// it with nobody pointing: POSTMORTEM 2026-11-01 'A frame drawer list closed by a disabled trigger reopened by itself').
-// Inside a modal dialog the capsule is portalled into it, or it would be drawn under the dialog's top layer.
-// `onEscape`: the host's Escape for an open name tooltip (TooltipContent's onEscapeKeyDown), where the name sits over a
-// page whose Esc matters.
+// The open state is hover or focus checked against the cut at that moment, never `hover && cut`, which would reopen it with
+// nobody pointing (POSTMORTEM 2026-11-01). In a modal dialog the capsule is portalled into it, above the top layer.
 export function NameTip({ text, side, onEscape, children }: { text: string; side?: "top" | "bottom"; onEscape?: (event: KeyboardEvent) => void; children: ReactElement }) {
   const [tip, setTip] = useState<{ container: Element | undefined } | null>(null);
   // Radix types the trigger as a button; asChild hands the ref to whatever element the name is.

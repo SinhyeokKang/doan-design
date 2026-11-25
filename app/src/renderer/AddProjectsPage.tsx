@@ -24,8 +24,6 @@ function shouldFocusHeading(origin: Element | null) {
   return !active || active === document.body || active === origin || active.closest(".add-panel") !== null;
 }
 
-// The Add Projects page: the shell's header and sidebar around first run's Project screen, over the
-// page's own main instance. Each opening starts at choose; leaving drops an inspection in flight with the session.
 export function AddProjectsPage({ header, sidebar, projects, homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
   header: ReactNode; sidebar: ReactNode; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean;
   // Raised by File > Add Projects… while the page shows; it runs Choose folder.

@@ -8,7 +8,6 @@ import { TooltipContent } from "./components/ui/tooltip";
 import { ConversationDeleteDialog, ConversationDeleteItem, unsentDraft } from "./ConversationDeleteDialog";
 import { EMPTY_DRAFT } from "./dockedRules";
 
-// Row Delete (draft frames row-button, row-unavailable) and its confirmation (draft frame delete-dialog).
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
@@ -54,8 +53,7 @@ test("an unavailable row Delete stays reachable, reads its reason and does nothi
   expect(onDelete).not.toHaveBeenCalled();
 });
 
-// Runtime probe (T4 step 0): the highlighted Delete's tooltip is the top dismissable layer, so its Escape must close
-// the title menu as well, or the first Escape only hides the tooltip.
+// The highlighted Delete's tooltip is the top dismissable layer, so its Escape must close the title menu as well.
 test("Escape on the row Delete's tooltip closes the title menu", () => {
   const onEscape = vi.fn();
   (tooltip(item({ conversationId: "c1", title: "t", deletable: { available: true }, onDelete: vi.fn(), onEscape })).props["onEscapeKeyDown"] as () => void)();
@@ -106,7 +104,7 @@ test("Delete is unavailable while its request is out, and when the conversation 
   expect(pending.deleteButton.props["aria-disabled"]).toBe(true);
   (pending.deleteButton.props["onClick"] as () => void)();
   expect(pending.confirm).not.toHaveBeenCalled();
-  // Busy, not unavailable (D1): the fill stays, the spinner shows first, and aria-busy says it is working.
+  // Busy, not unavailable: the fill stays, the spinner shows first, and aria-busy says it is working.
   expect(pending.deleteButton.props["aria-busy"]).toBe(true);
   expect(pending.deleteButton.props["data-disabled"]).toBeUndefined();
   expect(renderToStaticMarkup(pending.deleteButton)).toMatch(/^<button[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Delete<\/button>$/);
@@ -136,9 +134,8 @@ test("while the request is out Cancel and Escape (a link's dismissal too) are re
   expect(pending.cancelButton.props["aria-disabled"]).toBe(true);
 });
 
-// C2a runtime probe: a Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip is still
-// exiting, and that tooltip's dismissable layer takes the next Escape and prevents its default, so the dialog never
-// gets its cancel event. The alert closes on the Escape keydown itself, whoever prevented its default.
+// A keyboard Delete opens the alert while its tooltip is still exiting; that layer takes the next Escape and prevents its
+// default, so the alert closes on the Escape keydown itself, whoever prevented it.
 test("Escape pressed in the alert cancels it even when an exiting layer already prevented the key's default", () => {
   const key = (props: Record<string, unknown>) => ({ key: "Escape", defaultPrevented: true, preventDefault: vi.fn(), nativeEvent: { isComposing: false }, ...props });
   const open = dialog();
@@ -164,8 +161,7 @@ test("an unsent draft is text or chips, a preset or an attachment", () => {
   expect(unsentDraft({ ...EMPTY_DRAFT, attachments: [{ key: "k" }] } as never)).toBe(true);
 });
 
-// The draft's CSS for the hidden Delete button, the row highlight and the hairline; POSTMORTEM 2026-11-03 (display: none dropped
-// Radix's focus return).
+// POSTMORTEM 2026-11-03: display: none on the hidden Delete button dropped Radix's focus return.
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 test("the hidden row Delete is clipped to 1px, never display: none", () => {
   expect(css).toContain(".conv-row:not(:hover, :has([data-highlighted])) > .conv-delete { width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }");
@@ -176,7 +172,7 @@ test("the row keeps its fill while its Delete is highlighted, and the hairline s
   expect(css).toContain('.conv-list .conv-row + .conv-row > .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }');
   expect(css).not.toContain(".conv-list .conv-item + .conv-item::before");
 });
-// design-sync: the draft's keyboard ring sits 2px outside the button, the shared icon button ring; an own offset broke it.
+// The keyboard ring sits 2px outside the button, the shared icon button ring.
 test("the row Delete is 24px in subtle ink and keeps the shared icon button focus ring", () => {
   expect(css).toContain(".conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); }");
   expect(css).not.toMatch(/\.conv-delete[^{]*\{[^}]*outline/);
@@ -186,8 +182,8 @@ test("while the row Delete shows, the time's visible text is clipped and its spo
   expect(css).toContain('.conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }');
 });
 
-// Review notes: an unavailable button paints no pressed fill either, and a row without a time (an unreadable
-// conversation) keeps a spot for the Delete so it never covers the title or the status mark.
+// An unavailable button paints no pressed fill, and a row without a time keeps a spot for the Delete so it never covers
+// the title or the status mark.
 test("unavailable header and row buttons paint no hover or pressed fill", () => {
   expect(css).toContain(':is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');
   expect(css).toContain('.conv-list .conv-row > .conv-delete.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');

@@ -3,9 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// A project in a problem state shows its Overview (or the canvas page it was on) under an
-// overlay that holds the recovery actions. Driven with hooks as plain state (App.settings.test.tsx); timers are fake
-// wherever the 300 ms reading rule or the busy state is involved (POSTMORTEM 2026-10-30).
+// A project in a problem state shows its Overview (or canvas page) under an overlay that holds the recovery
+// actions. Timers are fake wherever the 300 ms reading rule or the busy state is involved (POSTMORTEM 2026-10-30).
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -190,9 +189,8 @@ test("an open Overview whose project goes missing stays, under the overlay, with
   expect(overlay()).toBeUndefined();
 });
 
-// The overlay and the Overview it covers are siblings in the workspace grid. With the same key React cannot tell them
-// apart: entering a problem project from Home remounted the Overview on every render until the renderer stopped with
-// "Maximum update depth exceeded" (found by /design-sync in the real app).
+// The overlay and the Overview it covers are siblings in the workspace grid; with the same key React remounted
+// the Overview on every render until "Maximum update depth exceeded".
 test("the overlay and the Overview under it never share a key", () => {
   render(); folders([notFound()]);
   toOverview();
@@ -377,8 +375,8 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
   }
 });
 
-// The overlay's Remove from Doan is the project's, as the sidebar's and Project Settings' are (PRODUCT §5 item 1): every
-// registered worktree of the group goes, and the confirmation names the project, not one worktree of it.
+// The overlay's Remove from Doan is the project's (PRODUCT §5 item 1): every registered worktree of the group goes,
+// and the confirmation names the project.
 test("Remove from Doan on the overlay removes the whole project group", async () => {
   const git = (branch: string) => ({ common: "/w/a/.git", main: "/w/a", branch, worktrees: ["/w/a", "/w/b"] });
   const worktree = (path: string, branch: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA], git: git(branch) });
@@ -563,9 +561,8 @@ test("reading: a list read within 300 ms shows nothing and moves no focus; past 
   expect(overlay()?.view).toMatchObject({ kind: "problem", entryKind: "error", busy: false });
 });
 
-// The covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer
-// after it, not the sidebar row. The fake DOM keeps the inert state its toggle sets, and focus falls to the page only
-// because the overlay (and the Retry button in it) left the tree (POSTMORTEM 2026-10-24).
+// The covered Overview's inert comes off in the same commit the overlay goes; focus must reach the composer after
+// it, not the sidebar row (POSTMORTEM 2026-10-24).
 test("Retry that clears the problem lands focus in the Overview's composer once it is no longer inert", () => {
   render(); folders([configError()]);
   toOverview();
@@ -796,8 +793,8 @@ test("Back to a project now in a problem enters its Overview with the overlay in
   }
 });
 
-// A panel-level failure is DESIGN's status block: the alert icon, a title, a line and a centred action. The block is
-// white, so Reload is subtle (a panel button would lose its fill on it).
+// A panel-level failure is DESIGN's status block; the block is white, so Reload is subtle (a panel button would
+// lose its fill on it).
 test("a canvas that failed to load shows the status block with the alert icon, its title and line, and Reload", async () => {
   const { AlertIcon } = await import("./AlertIcon");
   render(); folders([listed("/w/a")]);
@@ -813,8 +810,8 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Retry" });
 });
 
-// DESIGN 'Busy action': the reload Retry starts turns the status to loading at once; the line and a busy Retry stay
-// until it answers, and only a load that succeeds clears them (POSTMORTEM 2026-11-17 'Retry cleared its own failure line').
+// DESIGN 'Busy action': the line and a busy Retry stay until the reload answers, and only a load that succeeds
+// clears them (POSTMORTEM 2026-11-17).
 test("the canvas load failure's Retry keeps its line and itself, busy, while the reload runs", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();
@@ -840,7 +837,7 @@ test("the canvas load failure's Retry keeps its line and itself, busy, while the
   expect(block()).toBeUndefined();
 });
 
-// D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
+// The status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
 test("a loading canvas keeps its status region and leaves the Loading line to the delayed CanvasLoading", async () => {
   const { CanvasLoading } = await import("./App");
   render(); folders([listed("/w/a")]);

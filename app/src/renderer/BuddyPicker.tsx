@@ -6,15 +6,12 @@ import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
 import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, WHEEL_QUIET } from "./coverFlow";
 
-// The buddy picker (.doan/canvases/buddy-choice.html): first run's Cover Flow row and Settings > General's rows. Both
-// are a radio group named by the visible heading, each radio named by the buddy's name and described by its line.
-// `name` is the radio group's name and the prefix of the label ids.
+// Both rows are a radio group named by the visible heading, each radio named by the buddy's name and described by its
+// line. `name` is the radio group's name and the prefix of the label ids.
 export interface BuddyPickerProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; select(id: BuddyId): void }
 
-// First run's row, in its own order with Doany in the middle. A card click and an arrow land on one buddy through
-// `select`; the row stops at its ends, so arrows override the native radio wrap. A horizontal scroll moves the row
-// continuously (the cards' transforms are written directly, a frame at a time) and, once the wheel events stop, snaps
-// to the nearest card and selects only that one, so the cards passed over are never saved.
+// Arrows override the native radio wrap, since the row stops at its ends. A horizontal scroll writes the cards'
+// transforms directly and, once the wheel stops, snaps and selects only that card, so cards passed over are never saved.
 interface Scroll { target: number; shown: number; frame: number | null; time: number; quiet: ReturnType<typeof setTimeout> | null; snap: { from: number; to: number; start: number } | null; landed: boolean }
 export function BuddyFlow({ name, labelledBy, selected, disabled, select }: BuddyPickerProps) {
   const group = useRef<HTMLDivElement | null>(null);
@@ -126,11 +123,8 @@ export function rowFocusTarget(ids: readonly BuddyId[], current: BuddyId, key: s
   return ids[(at + step + ids.length) % ids.length] ?? null;
 }
 
-// Settings > General: one preference row per buddy in the default order. The whole row is the label, so the picture
-// or the name picks too. A switch is confirmed first (PRODUCT §5 item 0 'General'), so a radio never turns checked on
-// its own: a click (Space reaches the radio as one) or Return asks for the buddy through `request`, and the arrows only
-// move focus, still going round as native radios do. Nothing moves and there is no accent ring. `inert`: under the
-// lock overlay.
+// A switch is confirmed first (PRODUCT §5 item 0 'General'), so a radio never turns checked on its own: a click or
+// Return asks through `request`, and the arrows only move focus. `inert`: under the lock overlay.
 export interface BuddyRowsProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; inert?: boolean; request(id: BuddyId): void }
 export function BuddyRows({ name, labelledBy, selected, disabled, inert, request }: BuddyRowsProps) {
   const group = useRef<HTMLDivElement | null>(null);
@@ -157,11 +151,8 @@ export function BuddyRows({ name, labelledBy, selected, disabled, inert, request
   </div>;
 }
 
-// A failed save: the picked buddy, the one that stays, and Retry, named by its visible word and described by the
-// sentence. No live role: the screen's own live region reads the failure once. `className` places it (first run's
-// notice under the row, or Settings' notice above the group). `panel`: first run's white panel notice, where Retry is
-// subtle; on Settings' inset notice a subtle fill would match the notice's, so Retry is panel there. `running`: a save
-// is out, so Retry stays, busy, and keeps focus (DESIGN 'Busy action').
+// No live role: the screen's own live region reads the failure once. `panel`: first run's white panel notice, where
+// Retry is subtle; on Settings' inset notice it is panel. `running`: Retry stays busy and keeps focus.
 export function BuddyFailureNotice({ failure, id, className, panel = false, running = false, retry }: { failure: BuddyFailure; id: string; className: string; panel?: boolean; running?: boolean; retry(): void }): ReactNode {
   return <div className={`doan-notice error${panel ? " doan-panel" : ""} ${className}`}>
     <AlertIcon /><span className="selectable" id={id}>{buddyFailureText(failure)}</span>

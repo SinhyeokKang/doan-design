@@ -1,8 +1,8 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { expect, test, vi } from "vitest";
 
-// NameTip with hooks as plain state (FrameMenu.interaction.test.tsx style): a name's tooltip opens only while the name
-// is cut short, checked each time it would open, and inside a modal dialog it is portalled into that dialog.
+// Hooks as plain state: a name's tooltip opens only while the name is cut short, checked each time it would open, and inside a
+// modal dialog it is portalled into that dialog.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();

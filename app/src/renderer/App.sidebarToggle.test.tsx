@@ -4,9 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { WorkItem } from "../main/workState";
 
-// App hides and shows the sidebar on every screen from the header button and the
-// menu, remembers it after the startup read, and names the hidden button by the sidebar's signals. Driven with hooks as
-// plain state so App's own wiring runs (App.settings.test.tsx).
+// App hides and shows the sidebar on every screen from the header button and the menu, remembers it after the
+// startup read, and names the hidden button by the sidebar's signals. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -168,8 +167,8 @@ test("the hidden state is saved beside the width only after the startup read; a 
   expect(saved()?.sidebar).toEqual({ hidden: true });
 });
 
-// The viewed canvas's conversation list fold: one value per device, saved beside the width and the hidden flag through
-// the same startup-read merge (POSTMORTEM 2026-11-01).
+// The viewed canvas's conversation list fold: one value per device, saved beside the width and the hidden flag
+// through the same startup-read merge (POSTMORTEM 2026-11-01).
 type Conversations = { folded: boolean; fold(folded: boolean): void };
 const conversations = () => sidebars()[0]!.props.conversations as Conversations;
 const resize = () => sidebars()[0]!.props.resize as { onResize(width: number | undefined): void };
@@ -275,8 +274,8 @@ test("⌘B in the composer toggles the sidebar instead of Bold, once; other keys
   expect(sidebars().length).toBeGreaterThan(0);
 });
 
-// Runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
-// unmounted they fell into the empty first column (0px wide). Hidden, they are placed explicitly.
+// The page panels and the workspace's right column are auto-placed after the sidebar, so with it unmounted they
+// fell into the empty first column; hidden, they are placed explicitly.
 test("a hidden sidebar places the auto-placed panels in their own columns", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -287,8 +286,7 @@ test("a hidden sidebar places the auto-placed panels in their own columns", asyn
   expect(css).not.toMatch(/:root\[data-sidebar="hidden"\] \.workspace > [^{]*(doan-conv-column|right-stack|doan-insp-column)[^{]*\{ grid-column/);
 });
 
-// main's fullscreen value (its initial read, then each change) marks the root element,
-// and the header's traffic-light space collapses under it.
+// main's fullscreen value marks the root element, and the header's traffic-light space collapses under it.
 test("fullscreen marks the root element so the header drops the traffic-light space", async () => {
   const attributes = new Map<string, string>();
   const root = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name), style: { setProperty: vi.fn() } };
@@ -307,6 +305,6 @@ test("fullscreen marks the root element so the header drops the traffic-light sp
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(":root[data-fullscreen] .shell-top .traffic-space { width: 0; }");
-  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16 (probe).
+  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16.
   expect(css).toContain(":root[data-fullscreen] .shell-top.top { padding-left: 0; }");
 });

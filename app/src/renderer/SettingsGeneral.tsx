@@ -13,12 +13,8 @@ const ROWS = ".settings-panel .buddy-rows";
 const LOCK = ".settings-panel .buddy-lock";
 const TIME_ID = "settings-buddy-time", RULE_ID = "settings-buddy-rule";
 
-// Settings > General (.doan/canvases/buddy-choice.html 'settings-general', .doan/canvases/buddy-change-cooldown.html):
-// today one Buddy group. Another buddy's row opens an alert first, and the switch saves with its change time through
-// App's buddy selection, so Home, the working notice and the accent follow without a restart. While the alert is open
-// the page is locked (`onLock`). A saved switch covers the rows for 24 hours (PRODUCT §5 item 0 'General'): the current
-// buddy over a countdown. A failed save shows the notice above the group, under any newer or broken notice; the
-// category's live region reads it once. Leaving the category clears it.
+// A switch asks first, then saves with its change time through App's buddy selection, so Home and the accent follow without a
+// restart; the page is locked while the alert is open. A saved switch covers the rows for 24 hours (PRODUCT §5 item 0 'General').
 export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: PreferencesSnapshot | null; buddy: BuddySelection; onLock(locked: boolean): void }) {
   // The selection object is new on every render; the latest dismiss is the one to call on leaving.
   const dismiss = useRef(buddy.dismiss);

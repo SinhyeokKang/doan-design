@@ -8,8 +8,7 @@ import * as Parts from "./ComposerParts";
 import { emptyComposer, HeroComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 
-// Home's composer with provider commands (draft `.doan/canvases/provider-commands.html`). Hooks run as plain state
-// (HomeComposerView.interaction).
+// Home's composer with provider commands; hooks run as plain state.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[], deps: [] as (unknown[] | undefined)[], redraw: () => {} }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -54,8 +53,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-// The composer's own primitives (ComposerParts) are drawn in place, so their elements and handlers are found as they
-// were before the split; any other component stays an element with its props.
+// The composer's own primitives are drawn in place, so their elements and handlers are found directly; any other component
+// stays an element with its props.
 const PRIMITIVES = new Set<unknown>(Object.values(Parts));
 function expand(type: unknown, props: Record<string, unknown>): ReactNode {
   if (typeof type === "function") return (type as (p: unknown) => ReactNode)(props);

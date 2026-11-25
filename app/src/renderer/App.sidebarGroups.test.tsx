@@ -4,8 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import { initialCanvasState } from "./CanvasController";
 
-// App keeps a project's closed groups in ui-state and opens the group of
-// each newly shown canvas, driven with hooks as plain state so App's own wiring runs (App.settings.test.tsx).
+// App keeps a project's closed groups in ui-state and opens the group of each newly shown canvas, with hooks as
+// plain state so App's own wiring runs.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,

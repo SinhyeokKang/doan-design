@@ -4,10 +4,8 @@ import { DropdownMenu } from "radix-ui";
 import { expect, test, vi } from "vitest";
 import type { CanvasConversationRow } from "../../canvasConversationRows";
 
-// Unavailable controls name their reason with their own aria-describedby (an sr-only sibling, so
-// it is read while the tooltip is closed too). While the tooltip was open, Radix added its content id to that
-// attribute, and the same reason was read twice. Every tooltip here is drawn open (no DOM: static markup), and each
-// unavailable control must keep its own id alone; an available one still gets the open tooltip's id from Radix.
+// Unavailable controls name their reason with their own sr-only aria-describedby; Radix adding its open content id read the reason
+// twice. No DOM: every tooltip is drawn open, and each unavailable control must keep its own id alone.
 vi.mock("./tooltip", async original => {
   const actual = await original<typeof import("./tooltip")>();
   return { ...actual, Tooltip: (props: ComponentProps<typeof actual.Tooltip>) => <actual.Tooltip {...props} open /> };

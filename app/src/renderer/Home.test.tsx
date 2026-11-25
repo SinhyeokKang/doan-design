@@ -73,7 +73,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
   expect(html).toContain('<span class="tray-path selectable">/code/doan-design</span>');
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
-  // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
+  // A prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
   expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
   expect(html).not.toContain("suggestion doan-button");
   // The canvas name is a highlighted inline value; the button keeps the full sentence as its text.
@@ -151,14 +151,13 @@ test("near the limit a counter shows what is left; over it Send is disabled and 
   expect(over).toContain("<span>Shorten the message to send it.</span>");
 });
 
-// design-sync V2 (2026-10-30): values measured against the confirmed draft in the real app, pinned where a later edit
-// would silently move them. Each was a measured mismatch or a value the draft relies on.
+// Values pinned where a later edit would silently move them; each is a value the confirmed draft relies on.
 test("Home CSS keeps the draft's measured icon sizes, popover status type, chip ink and shared button paddings", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   // Effort and tray chevrons step down to 14px with their icons; the model and project chevrons stay 16px.
   expect(css).toContain(".composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
   expect(css).toContain(".composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
-  // Lucide's default 24px made menu rows 40px instead of 32px and the search glyph 24px.
+  // Lucide's default 24px would make menu rows 40px instead of 32px and the search glyph 24px.
   expect(css).toContain(".check-slot > svg { height: var(--size-icon); }");
   expect(css).toContain(":is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toContain(".doan-menu-item .check { flex: none; width: 12px;");
@@ -213,8 +212,8 @@ test("typing keeps the suggestions' place, out of the accessibility tree and the
   expect(css).toContain(".home-stage .home-suggestions[inert] { visibility: hidden; }");
 });
 
-// home-credits draft: the credit is the stage's last child, in its flow, so a short panel scrolls to it instead of it
-// covering the suggestions or the composer.
+// The credit is the stage's last child, in its flow, so a short panel scrolls to it instead of it covering the suggestions or
+// the composer.
 test("the credit line ends the stage, after the suggestions, or after the composer when there are none", () => {
   const ending = /<footer class="home-credit">(?:(?!<footer).)*<\/footer><\/div><\/section><\/main>$/;
   const html = render([project("/code/doan-design")]);
@@ -247,8 +246,7 @@ test("Doany (114px) is the stage's first child, above the greeting; the stage ha
   expect(stage).toContain("padding: var(--space-8);");
 });
 
-// suggested-prompt-variants C (confirmed): full-width rows, 32px under the Home composer; an accent icon tile and an
-// arrow shown on hover or keyboard focus.
+// Full-width rows, 32px under the Home composer; an accent icon tile and an arrow shown on hover or keyboard focus.
 test("suggestion CSS: full-width rows with an accent icon tile, Home's group 32px under the composer", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.home-suggestions \{[^}]*flex-direction: column;[^}]*width: min\(680px, 100%\);[^}]*margin-top: var\(--space-8\);/);

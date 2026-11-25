@@ -4,9 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { DEFAULT_PREFERENCES, type PreferencesSnapshot } from "../main/preferences";
 import type { BuddySelection } from "./buddySelection";
 
-// Settings > General's confirmed switch and its 24-hour lock (.doan/canvases/buddy-change-cooldown.html), with hooks
-// as plain state (SettingsPage.test.tsx style): there is no DOM here, so handlers are called on the element tree and
-// `document` is a stub that records focus.
+// Settings > General's confirmed switch and 24-hour lock, hooks as plain state: no DOM, so handlers are called on the element
+// tree and `document` is a stub that records focus.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, changed: 0,
@@ -194,7 +193,7 @@ describe("asking before a switch", () => {
     render(buddy);
     (button("Switch to Popo").props.onClick as () => void)();
     await settle();
-    // The alert is still drawn, modal, until the next render: focus moved now would not land (runtime probe).
+    // The alert is still drawn, modal, until the next render: focus moved now would not land.
     expect(rowFocus("popo")).toBeUndefined();
     const failed = selection({ failure: { picked: "popo", kept: "doany", cooldown: true } });
     render(failed); effects();

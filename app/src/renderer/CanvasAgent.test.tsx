@@ -7,8 +7,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { crossesBoundary, NoticeTyping, typesOn, type TypedText } from "./noticeTyping";
 import { TooltipProvider } from "./components/ui/tooltip";
 
-// The board's agent indicator (.doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'), drawn
-// from main's conversation list for the open canvas.
+// The board's agent indicator, drawn from main's conversation list for the open canvas.
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", owner: "doan", provider: "codex", fromHome: true,
@@ -22,9 +21,8 @@ const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') =>
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
 // Without an indicator the column stays, empty, for the canvas notices.
 const COLUMN = '<div class="doan-canvas-top"></div>';
-// Doany in the notice's mark slot (.doan/canvases/doany-family.html): one of three variants, picked when the notice
-// mounts. Its GIF while the agent works, its first frame when still (waiting, a hidden workspace) and, through the
-// picture source, under reduced motion. Math.random is pinned to the painter unless a test picks another.
+// Doany in the notice's mark slot: one of three variants, picked when the notice mounts; its GIF while working, its
+// first frame when still or under reduced motion. Math.random is pinned to the painter unless a test picks another.
 const VARIANTS = { painting: ["artist-painting.gif", "artist-rest.png"], typing: ["artist-typing.gif", "artist-typing-rest.png"], reading: ["artist-reading.gif", "artist-reading-rest.png"] } as const;
 type Variant = keyof typeof VARIANTS;
 // Math.random values that land on each variant with equal thirds.
@@ -46,8 +44,8 @@ describe("CanvasAgent", () => {
     expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST_STILL);
   });
 
-  // The board has no Stop (user decision): with several conversations on a canvas it was ambiguous, so stopping is the
-  // composer's, tied to one conversation. Working shows the terminal notice's button-less capsule.
+  // The board has no Stop: with several conversations on a canvas it was ambiguous, so stopping is the composer's. Working
+  // shows the terminal notice's button-less capsule.
   test("working: the edge glow with the dot field, and the notice with Doany painting and the label, no button", () => {
     const html = markup([summary({})]);
     const glow = tag(html, 'class="doan-agent-glow"');
@@ -67,7 +65,7 @@ describe("CanvasAgent", () => {
     expect(tag(html, 'aria-label="Open the request"')).toMatch(/^<button/);
     // Open has no glyph.
     expect(html).toMatch(/aria-label="Open the request">Open<\/button>/);
-    // The notice's first size: a 32px action with body-sm wording (dogfooding found the 40px one too large).
+    // The notice's first size: a 32px action with body-sm wording.
     expect(tag(html, 'aria-label="Open the request"')).toContain('data-ui-size="sm"');
   });
 
@@ -87,8 +85,8 @@ describe("CanvasAgent", () => {
     expect(markup("error")).toBe(COLUMN);
   });
 
-  // Draft terminal-notice: a terminal session shows the glow, the dot field
-  // and the app notice's text with no button; the text is the status itself.
+  // A terminal session shows the glow, the dot field and the app notice's text with no button; the text is the status
+  // itself.
   test("a terminal session: the glow and the notice with Doany painting and text, and no button", () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
     const html = markup([], { work });
@@ -105,8 +103,8 @@ describe("CanvasAgent", () => {
     expect(html).toContain('aria-label="Open the request">Open</button>');
   });
 
-  // docs/design/canvas.md 'Terminal work in another worktree' (draft frame sibling-notice): another worktree of this project works on this
-  // canvas's path while this checkout has nothing on it. One notice, no glow or dot field, Open named for the worktree.
+  // docs/design/canvas.md 'Terminal work in another worktree': one notice, no glow or dot field, Open named for the
+  // worktree.
   describe("another worktree's work on this path", () => {
     const COMMON = "/repo/.git";
     const git = (branch?: string) => ({ common: COMMON, main: "/w/a", worktrees: ["/w/a", "/w/b"], ...(branch === undefined ? {} : { branch }) });
@@ -158,7 +156,7 @@ describe("CanvasAgent", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
     const column = source.slice(source.indexOf("<CanvasAgent {...agent}>"), source.indexOf("</CanvasAgent>"));
     const notices = column.match(/<div className="doan-notice[^"]*"[^>]*>.*?<\/div>/g) ?? [];
-    // The selection-lost notice left the column for a toast (dogfooding); the error and unlisted notices stay.
+    // The selection-lost notice is a toast; the error and unlisted notices stay.
     expect(notices).toHaveLength(2);
     for (const notice of notices) expect(notice).toMatch(/^<div className="doan-notice doan-panel" role="status"><AlertIcon \/><span className="grow-text( selectable)?">.*<\/span><\/div>$/);
   });
@@ -174,15 +172,13 @@ describe("CanvasAgent", () => {
   });
 });
 
-// The indicator was hard to notice; the edge band is three times its earlier size (12/36px → 36/108px).
 test("the glow is a 36px and a 108px accent band at 85% and 50%, pulsing between .7 and 1", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain("box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent);");
   expect(css).toContain("@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }");
 });
 
-// Dogfooding: the tools were small and tight to the board's edges, so they grew (40px controls) and both sit 8px further
-// in: the tools 20px above the bottom, the notice 28px under the top. The notice itself went back to its first size.
+// The tools are 40px controls 20px above the bottom; the notice sits 28px under the top.
 test("the tools are larger and both overlays sit further from the board's edges", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*bottom: var\(--space-5\);/);
@@ -196,18 +192,16 @@ test("the tools are larger and both overlays sit further from the board's edges"
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });
 
-// Draft terminal-notice: every capsule in the column, the button-less terminal
-// notice and the picking hint included, takes the app notice's 40px height; the terminal notice has an even inline inset.
+// Every capsule in the column, the terminal notice and the picking hint included, takes the app notice's 40px height;
+// the terminal notice has an even inline inset.
 test("the agent notices and the picking hint are 40px tall; the terminal notice's inset is even", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-agent \{[^}]*min-height: var\(--size-control\);/);
   expect(css).toMatch(/\.doan-agent\.doan-agent-terminal \{[^}]*padding: var\(--space-1\) var\(--space-4\);/);
 });
 
-// docs/design/canvas.md 'Terminal work in another worktree' (draft frame picking-hint): the picking hint left the top column for the bottom
-// one, 8px (its gap) above the Canvas tools, so agent notices coming and going never move it. It leads with the
-// composer pick button's Crosshair at the icon size; the rest is unchanged. App's CanvasPane needs a DOM, so its markup
-// is read from the source as the canvas-notice test does.
+// The picking hint sits in the bottom column 8px above the Canvas tools, so agent notices never move it, led by the
+// Crosshair. App's CanvasPane needs a DOM, so its markup is read from the source.
 test("the picking hint sits in the bottom column before the Canvas tools, led by the Crosshair; the top column has none", () => {
   const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
   const top = source.slice(source.indexOf("<CanvasAgent {...agent}>"), source.indexOf("</CanvasAgent>"));
@@ -227,8 +221,7 @@ test("the picking hint sits in the bottom column before the Canvas tools, led by
   expect(css).toMatch(/\.doan-picking-icon \{ flex: none; width: var\(--size-icon-sm\); height: var\(--size-icon-sm\); \}/);
 });
 
-// Draft frames notice-states and notice-typing: the working notice's words
-// from `doan work update`, its caret, its live region and its erase-and-type change.
+// The working notice's words from `doan work update`, its caret, its live region and its erase-and-type change.
 describe("the working notice's words", () => {
   const term = (patch: Record<string, unknown> = {}) => [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path, touched: 10, turn: "t1", ...patch }];
   test("a terminal note is the visible text and the status; the caret follows it, out of the status", () => {
@@ -359,8 +352,7 @@ describe("NoticeTyping", () => {
   });
 });
 
-// The caret's look and the marker's; the draft's always-on slide
-// is only on a frame change.
+// The caret's look and the marker's; the slide is only on a frame change.
 test("the caret blinks in two steps once a second, not while typing or under reduced motion, and is CanvasText in forced colours", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-agent-caret \{[^}]*width: 1\.5px; height: var\(--type-body-sm-size\); background: currentColor; animation: doan-agent-blink 1s step-end infinite;/);
@@ -404,8 +396,7 @@ describe("typing across a canvas or visibility boundary", () => {
   });
 });
 
-// .doan/canvases/doany-artist.html: a 32px window in the 40px card, the card's start inset 8px beside it;
-// .doan/canvases/doany-family.html: the three variants in that window.
+// A 32px window in the 40px card, the card's start inset 8px beside it, with the three variants in that window.
 describe("Doany the artist", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   test("the artist window is 32px, the notice starts 8px from it, and no dot rule is left", () => {

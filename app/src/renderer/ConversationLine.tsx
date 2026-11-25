@@ -4,9 +4,8 @@ import { providerLogo } from "./homeComposer";
 import type { ConversationLine, ConversationStatus } from "./overviewConversation";
 import { NameTip } from "./NameTip";
 
-// The first line shared by the Overview's dropdown items and its right panel's canvas rows:
-// provider logo (its name as alt text), the name, the status mark the sidebar slot draws (hand, spinner, the clock of messages waiting for a usage limit's reset, or the speech bubble of an unread finished conversation), the short time flush
-// right, spelled out for screen readers.
+// The first line shared by the Overview's dropdown items and its right panel's canvas rows; the time is spelled out for
+// screen readers.
 
 export function StatusMark({ status }: { status: ConversationStatus }) {
   return <span className={`row-slot ${status.kind === "unseen" ? "ended" : status.kind}`} role="img" aria-label={status.label}>

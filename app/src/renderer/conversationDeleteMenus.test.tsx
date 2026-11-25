@@ -5,9 +5,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 
-// Both title menus (the Overview's Conversation menu, the canvas panel's Title menu): the row Delete, and the
-// header's New conversation, unavailable on the new conversation state. Radix menus render nothing closed under static markup, so the menu parts are drawn inline here
-// and record their props for the test to press; Tooltip stays real.
+// Both title menus: the row Delete, and the header's New conversation, unavailable on the new conversation state. Radix menus
+// render nothing closed under static markup, so the menu parts are drawn inline and record their props.
 const menu = vi.hoisted(() => ({ items: [] as Record<string, unknown>[], contents: [] as Record<string, unknown>[] }));
 vi.mock("radix-ui", async original => {
   const actual = await original<typeof import("radix-ui")>();
@@ -25,9 +24,8 @@ vi.mock("radix-ui", async original => {
     RadioItem: part("div", "menuitemradio", menu.items), Item: part("div", "menuitem", menu.items), Separator: part("div", "separator"), Label: part("div"),
   } };
 });
-// State setters record their calls, so the menu's open setter can be watched under static markup. The title menu's
-// onOpenChange wraps its setter (it ignores opens while the list loads), so the setters are kept by the state they
-// started from.
+// State setters record their calls, so the menu's open setter can be watched; the title menu's onOpenChange wraps its setter, so
+// the setters are kept by the state they started from.
 const setters = vi.hoisted(() => [] as { initial: unknown; calls: unknown[] }[]);
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -176,7 +174,7 @@ test.each(screens)("%s: an unavailable Delete does nothing when pressed", (_name
   void run;
 });
 
-// Runtime probe (T4 step 0): the title menus are controlled so the Delete tooltip's Escape closes them.
+// The title menus are controlled so the Delete tooltip's Escape closes them.
 test.each(screens)("%s: the title menu is controlled, so a closing Escape can come from the Delete's tooltip", (_name, draw) => {
   draw();
   const root = menu.contents.find(item => item.className === "doan-floating doan-menu conv-menu")!.root as Record<string, unknown>;
@@ -238,8 +236,8 @@ test("canvas panel: New conversation stays available on a shown conversation", (
   expect(onPicked).toHaveBeenCalledOnce();
 });
 
-// Review note: the host may refuse to open the alert (another modal, a locked page); the closing menu then returns
-// focus to its trigger as usual instead of leaving it on the body.
+// The host may refuse to open the alert (another modal, a locked page); the closing menu then returns focus to its trigger instead
+// of leaving it on the body.
 test.each([
   ["Overview", () => { const drawn = overview(projectList(), A); drawn.onDeleteConversation.mockReturnValue(false); return drawn; }],
   ["canvas panel", () => { const drawn = canvas(canvasList(), A); drawn.onDelete.mockReturnValue(false); return drawn; }],
@@ -253,8 +251,8 @@ test.each([
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
 
-// U10: while the list is read each title trigger is unavailable but focusable (aria-disabled, not disabled), and its
-// menu stays closed: an open asked for meanwhile is ignored.
+// While the list is read each title trigger is unavailable but focusable (aria-disabled, not disabled), and its menu stays closed:
+// an open asked for meanwhile is ignored.
 test.each([["Overview Conversation menu", () => overview("loading", null)], ["canvas panel Title menu", () => canvas("loading", null)]] as const)("%s: while the list is read the trigger is aria-disabled and opens nothing", (_name, draw) => {
   setters.length = 0;
   const { html } = draw();

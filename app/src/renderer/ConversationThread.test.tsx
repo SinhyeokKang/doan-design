@@ -62,8 +62,7 @@ describe("agent Markdown", () => {
     expect(html([agent("Done.")])).not.toContain("caret");
   });
 
-  // The caret follows the last character of the last text block, as the drafts draw it (turn-activity.html frame
-  // `states`, tile 6): a caret beside the blocks is a flex-column item of .msg-agent and sits on its own line.
+  // A caret beside the blocks is a flex-column item of .msg-agent and sits on its own line, so it ends the last text block.
   test("the streaming caret ends the last text block, whatever block the Markdown renders last", () => {
     const caret = '<span class="caret" aria-hidden="true"></span>';
     const cases: [string, RegExp][] = [
@@ -114,8 +113,7 @@ describe("thread items", () => {
     expect(out).toMatch(/<div class="msg-files"><span class="attach-chip" data-state="closed" data-slot="tooltip-trigger"><span class="file-icon" aria-hidden="true"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><span class="attach-text"><b>references<\/b><small>Folder<\/small><\/span><\/span><\/div>/);
   });
 
-  // Draft frame thread-notice: the line sits in its turn, under the reply and before a failed turn's end,
-  // and a reread of the history draws it again.
+  // The line sits in its turn, under the reply and before a failed turn's end, and a reread of the history draws it again.
   test("a turn that did not run Fast keeps its line in the turn, live and when read again", () => {
     let seq = 0;
     const ev = (payload: Record<string, unknown>) => ({ v: 1, conversationId: "c1", seq: ++seq, turnId: "t1", at: "2026-11-06T00:00:00Z", ...payload }) as ConversationEvent;
@@ -222,8 +220,8 @@ describe("thread items", () => {
     expect(out).not.toContain("Answered ·");
   });
 
-  // The turn ended before it did any work, so no file warning and nothing to resend; a reopened
-  // history reads the model from the stored end.
+  // The turn ended before it did any work, so no file warning and nothing to resend; a reopened history reads the model from
+  // the stored end.
   test("a turn end's text is selectable and its end-action buttons are not", () => {
     const failed: ThreadItem = { kind: "end", key: "e3", seq: 3, end: { kind: "failed", code: "not_logged_in" } };
     const user: ThreadItem = { kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "go" }], attachments: [] };
@@ -266,8 +264,8 @@ describe("thread items", () => {
     expect(endView({ kind: "failed", code: "process_exited" }, "codex")).toMatchObject({ title: "Codex stopped unexpectedly", body: "It may have changed files before it stopped." });
   });
 
-  // Draft frame prompt-unread (choice 3): the message stays in the thread above the notice, so Edit and resend brings it
-  // back to the composer as for any failed turn that began with the person's message.
+  // The message stays in the thread above the notice, so Edit and resend brings it back to the composer as for any failed
+  // turn that began with the person's message.
   test("a message Claude Code never picked up fails with its own title, the send-again body and Edit and resend", () => {
     expect(endView({ kind: "failed", code: "prompt_unread" }, "claude")).toEqual({ title: "Claude Code didn’t pick up your message", body: "Send it again.", tone: "error", signIn: false });
     const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Now make the total row sticky" }], attachments: [] },
@@ -278,8 +276,8 @@ describe("thread items", () => {
     expect(out).not.toContain("Sign in again");
   });
 
-  // usage-limit-resume.html failed-line: only the last turn's limit end, while the connection's limit state is live,
-  // says that messages sent now go out at the reset; its time wins over the time Claude's detail names.
+  // Only the last turn's limit end, while the connection's limit state is live, says that messages sent now go out at the
+  // reset; its time wins over the time Claude's detail names.
   test("the last usage-limit end names the live reset and says messages sent now go out then", () => {
     const phrase = "at 3:00\u202fPM";
     expect(endView({ kind: "failed", code: "rate_limited" }, "claude", phrase)).toMatchObject({ title: "Claude Code reached a usage limit", body: "Resets at 3:00\u202fPM. Messages you send now go out then." });
@@ -342,7 +340,7 @@ describe("thread items", () => {
     const out = html(items, { turn: { turnId: "t1", status: { kind: "tool", activity: "read", text: "Reading x" }, at: "2026-11-06T10:00:00.000Z" } });
     expect(out).toContain('<div class="msg-agent"><p class="muted">No reply.</p></div>');
     expect(out).toContain('data-item="n4"');
-    // The status says the turn indicator's stage kind, without its path (it said "is working" before).
+    // The status says the turn indicator's stage kind, without its path.
     expect(out).toContain('<div class="sr-only" role="status">Claude Code is reading files</div>');
     expect(html(items)).toContain('<div class="sr-only" role="status"></div>');
   });
@@ -360,8 +358,8 @@ describe("loading and read errors", () => {
   });
 });
 
-// Tailwind's preflight and styles.css's own `ol { list-style: none; }` would hide the markers; static markup cannot
-// show that, so the rules are pinned here (their look is compared when the project Overview places the thread).
+// Tailwind's preflight and styles.css's own `ol { list-style: none; }` would hide the markers; static markup cannot show
+// that, so the rules are pinned here.
 test("agent reply lists keep their bullets and numbers", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const rules = [".conversation-thread .md ul { list-style: disc; }", ".conversation-thread .md ol { list-style: decimal; }", ".conversation-thread .md ul ul { list-style: circle; }"];
@@ -388,7 +386,7 @@ describe("sent message chips", () => {
     expect(out).toContain('aria-label="Show Checkout payment on canvas"');
     expect(out).toContain('aria-label="Show button “Pay $42.00” on canvas"');
     expect(out).toContain('aria-label="Show Point in Checkout payment on canvas"');
-    // The chip's detail is in its tooltip now, not a native title.
+    // The chip's detail is in its tooltip, not a native title.
     expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="frame" aria-label="Show Checkout payment on canvas" data-state="closed" data-slot="tooltip-trigger">/);
     expect(out).toContain('<span class="bubble-anchor">{{4}}</span>');
     expect(out).not.toContain("{{1}}");
@@ -411,8 +409,8 @@ describe("sent message chips", () => {
     expect(asked).toHaveLength(1);
   });
 
-  // Only a target the canvas no longer has shows the note; a canvas that did not answer, or
-  // could not be asked, ends silently (a timeout is not "missing").
+  // Only a target the canvas no longer has shows the note; a canvas that did not answer, or could not be asked, ends silently
+  // (a timeout is not "missing").
   test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
     const shown: string[] = [];
     const chip = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
@@ -498,10 +496,8 @@ describe("reply chips", () => {
     expect(out).toContain('aria-label="Open checkout and show gone"');
   });
 
-  // A runtime test against the draft: an other-canvas chip is at most 180px like every
-  // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
-  // suffix alone does not fit, and never past the reply block. Pure CSS, which jsdom does not lay out, so this pins only
-  // the structure the CSS needs.
+  // A chip is at most 180px, the label ellipsizes first and the suffix is never cut; it grows past 180px only for a suffix
+  // that alone does not fit. Pure CSS, which jsdom does not lay out, so this pins only the structure the CSS needs.
   test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
     const out = html([agent("[c](doan:checkout/frame/payment)")], panel);
     // Icon, label and suffix are the chip's three direct children: the grid's three columns, in that order.
@@ -516,7 +512,7 @@ describe("reply chips", () => {
     // The plain chip keeps its 180px cap, which a reply chip shares; min-width beats it only for a long suffix.
     expect(css).toMatch(/\.anchor-chip \{ display: inline-flex; align-items: center; gap: var\(--space-1\); max-width: 180px; margin: 0 var\(--space-half\); padding: 0 var\(--space-1h\);/);
     expect(css.indexOf(chip)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
-    // An earlier growth past 180px for every suffix chip is gone.
+    // A growth past 180px for every suffix chip must not come back.
     expect(css).not.toContain("> span:not(.chip-canvas) { max-width:");
     expect(css).not.toMatch(/\.anchor-chip:has\(> span\.chip-canvas\) \{[^}]*max-width/);
     expect(css).toContain(".conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }");
@@ -564,13 +560,13 @@ test("a permission answer counts as sent only when main took it", async () => {
   expect(await answerReached(() => Promise.reject(new Error("ipc")))).toBe(false);
 });
 
-// Two windows can answer one request; main answers the later one stale. That answer was not lost: the first one won
-// and permission.resolved folds the card, so the late window shows no failure (as settleQuestionSend does).
+// Two windows can answer one request; main answers the later one stale. The first one won and permission.resolved folds the
+// card, so the late window shows no failure (as settleQuestionSend does).
 test("a stale permission answer counts as reached: another window answered first", async () => {
   expect(await answerReached(async () => ({ error: "stale" }))).toBe(true);
 });
 
-// Draft frame `sending`: the message Send now has in flight, with one caption line under it.
+// The message Send now has in flight, with one caption line under it.
 describe("a message Send now has in flight", () => {
   const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file", path: "/Users/ada/notes.pdf" }] };
   test("is the person's message with its files, then a spinner and Sending; it has no actions", () => {
@@ -687,7 +683,7 @@ describe("canvas cards and the handoff card", () => {
   });
 
   // One line at every width, so neither the width nor the minute's new time changes a card's height (PRODUCT §5 'Canvas
-  // cards'). The folder gives way first, down to an ellipsis, and shows whole in the shared tooltip while cut; the time last.
+  // cards'); the folder gives way first, the time last.
   test("the meta line never wraps: the folder shrinks first and cuts with an ellipsis, the time cuts last", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     const rule = (selector: string) => new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`, "m").exec(css)?.[1] ?? "";
@@ -716,8 +712,8 @@ describe("canvas cards and the handoff card", () => {
     expect(out).not.toMatch(/aria-label="[^"]*frames/);
   });
 
-  // A request names a path alone, and the hosts judge and open a canvas by ID once its row has one (sameCanvas): the
-  // root's row with that path lends its ID, or an existing canvas reads as gone and its Open could not find it.
+  // A request names a path alone, and the hosts judge and open a canvas by ID (sameCanvas): the root's row with that path
+  // lends its ID, or an existing canvas reads as gone and its Open could not find it.
   test("a card that names a path alone takes the ID of the root's row with that path, for its tail and its Open", () => {
     const rows: CanvasRow[] = [{ path: CHECKOUT.path, id: CHECKOUT.id, url: "" }, { path: DRAFTS.path, id: DRAFTS.id, url: "" }];
     const listed = (canvas: { path: string; id?: string }) => rows.some(row => sameCanvas(canvas, row));
@@ -830,8 +826,8 @@ function findButton(node: unknown): ReactElement | null {
   return null;
 }
 
-// A turn the handoff card started was not the person's
-// message, so its end never offers Edit and resend; Sign in again stays, and a later turn of the person's resends.
+// A turn the handoff card started was not the person's message, so its end never offers Edit and resend; Sign in again
+// stays, and a later turn of the person's resends.
 describe("the end of a handoff card's turn", () => {
   const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
   const failed = (code: "process_exited" | "not_logged_in", key = "e3"): ThreadItem => ({ kind: "end", key, seq: 3, end: { kind: "failed", code } });
@@ -859,8 +855,8 @@ test("a chip ends a preceding skill word but cannot start a following one", () =
   expect(out).toContain('/deploy <span class="skill-word">/deploy</span>');
 });
 
-// A reply link the browser does not open says so in a toast, in the star card's form: what failed, then the address
-// last with no period, so selecting it copies only the address. An opened link says nothing.
+// A reply link the browser does not open says so in a toast: what failed, then the address last with no period, so
+// selecting it copies only the address.
 describe("openReplyLink", () => {
   const url = "https://developer.mozilla.org/en-US/docs/Web/CSS/clamp";
   const text = `Couldn’t open the link in your browser. Try again, or open it at ${url}`;
@@ -879,8 +875,8 @@ describe("openReplyLink", () => {
   });
 });
 
-// DESIGN 'Busy action' and 'Accessible names': the read error's Retry is named Retry, described by the notice's text,
-// and busy while its read runs; a repeat failure changes the line by a no-break space so the alert reads it again.
+// DESIGN 'Busy action' and 'Accessible names': Retry is described by the notice's text and busy while its read runs; a
+// repeat failure changes the line by a no-break space so the alert reads it again.
 describe("the read error's Retry", () => {
   test("is named Retry and described by the notice text", () => {
     const out = html("error");
@@ -900,8 +896,7 @@ describe("the read error's Retry", () => {
   });
 });
 
-// The person's lists in the bubble (spec: sent bubble lists). Blocks carry role="list"/"listitem", never ul/ol, so the
-// marker and depth spaces are text Chromium copies.
+// Blocks carry role="list"/"listitem", never ul/ol, so the marker and depth spaces are text Chromium copies.
 describe("a sent list", () => {
   const user = (text: string, extra: Partial<Extract<ThreadItem, { kind: "user" }>> = {}): ThreadItem =>
     ({ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, attachments: [], parts: [{ text }], ...extra });
@@ -916,9 +911,8 @@ describe("a sent list", () => {
     throw new Error("no bubble");
   }
   const decode = (text: string) => text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
-  // Chromium's copy of a selection over the bubble, as measured in Electron for this markup: a block element (div, or
-  // the display:block .bubble-text) starts a new line once, and a block's own last line break is neither drawn nor
-  // copied. Inline spans (marker, depth, body, skill word, chip label) add no break.
+  // Chromium's copy of a selection over the bubble: a block element starts a new line once, and a block's own last line break
+  // is neither drawn nor copied. Inline spans add no break.
   function copied(markup: string): string {
     let out = "", lineBreak = false, sinceBreak = "";
     const blocks: boolean[] = [];
@@ -998,9 +992,8 @@ describe("a sent list", () => {
   });
 });
 
-// Forced colours replace every background with Canvas and drop shadows, so a shape drawn only by its fill reads as
-// plain text and a floating button sits on the reply with no edge. Pure CSS that jsdom cannot emulate, so this pins
-// the rules; the look is checked in the real app with emulated forced colours.
+// Forced colours replace every background with Canvas and drop shadows, so a fill-only shape reads as plain text. Pure CSS
+// that jsdom cannot emulate, so this pins the rules.
 test("under forced colours the sent bubble, fill-only blocks and Jump to latest keep a visible edge", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const block = css.match(/@media \(forced-colors: active\) \{\n  \.conversation-thread [\s\S]*?\n\}/)?.[0] ?? "";

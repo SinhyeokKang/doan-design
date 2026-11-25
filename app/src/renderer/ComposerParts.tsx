@@ -24,8 +24,7 @@ import {
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 import type { CommandCard, CommandCardTarget } from "./commandView";
 
-// The composer's shared primitives: Home's HeroComposer assembles them today and the
-// docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
+// Each primitive keeps Home's markup, so Home's computed styles and DOM order stay.
 
 const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles, terminal: Terminal };
 // A suggested prompt's sentence with its project and canvas names highlighted; the text itself is unchanged, so the
@@ -50,9 +49,8 @@ export function IconTip({ label, children }: { label: string; children: ReactNod
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }
 
-// A chip's × sits inside the chip, whose own tooltip (its path) is an ancestor trigger: one capsule at a time. The ×
-// keeps its pointer and focus events from the chip's trigger, and the pointer reaching it closes the chip's capsule;
-// Radix's trigger opens that one again only after the pointer leaves the chip.
+// The × sits inside the chip, whose tooltip is an ancestor trigger: one capsule at a time. The × keeps its pointer and focus
+// events from the chip's trigger, and the pointer reaching it closes the chip's capsule.
 export function RemoveTip({ label, children }: { label: string; children: ReactElement }) {
   return <Tooltip><TooltipTrigger asChild onPointerMove={event => event.stopPropagation()} onFocus={event => event.stopPropagation()}>{children}</TooltipTrigger>
     <TooltipContent>{label}</TooltipContent></Tooltip>;
@@ -118,11 +116,8 @@ export function ComposerChips(props: {
   </div>;
 }
 
-// The text field: typed text and inline anchor chips, drawn by
-// ChipField into one contenteditable element that both shapes keep (remounting would drop focus and IME composition).
-// The value is segments: {text, anchors} cannot tell a typed {{1}} from a chip's marker, so hosts convert at send time
-// (anchorField.ts toMessage). Enter sends unless an IME is composing; `onKey` sees every key first and returns true when
-// it handled one.
+// ChipField draws one contenteditable element both shapes keep (remounting would drop focus and IME composition). Segments,
+// since {text, anchors} cannot tell a typed {{1}} from a chip's marker (anchorField.ts toMessage).
 export interface ComboboxProps { listId: string; activeId: string | undefined }
 export interface ComposerFieldHandle {
   focus(caret?: "end"): void;
@@ -210,18 +205,15 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     <FieldChipTip field={node} /></>;
 });
 
-// Tab and Shift+Tab indent a list item when the host left the key alone (a shown suggestion and the `/` list take Tab
-// first). Ctrl+Tab and Ctrl+Shift+Tab always move focus, as in a macOS text view; Chromium moves focus only on a Tab
-// without Ctrl, so the field moves it itself.
+// Ctrl+Tab and Ctrl+Shift+Tab always move focus, as in a macOS text view; Chromium moves focus only on a Tab without Ctrl,
+// so the field moves it itself.
 export function fieldTabKey(event: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): "indent" | "focus" | null {
   if (event.key !== "Tab" || event.metaKey || event.altKey) return null;
   return event.ctrlKey ? "focus" : "indent";
 }
 
-// A chip's detail in the field. The chips are DOM the field draws, so no React trigger can wrap them: the tooltip
-// anchors to a box portalled to the body over the chip under the pointer (the body has no transform, so a fixed box
-// sits where the chip is). It waits the provider's first-open delay itself; Radix's skip window does not reach it.
-// Typing, a press or a scroll closes it, as a pointer leaving the chip does.
+// The chips are DOM the field draws, so the tooltip anchors to a fixed box portalled to the body over the chip. It waits
+// the provider's first-open delay itself; Radix's skip window does not reach it.
 const CHIP_TIP_DELAY_MS = 700;
 function FieldChipTip({ field }: { field: RefObject<HTMLDivElement | null> }) {
   const [tip, setTip] = useState<{ text: string; box: DOMRect } | null>(null);
@@ -280,9 +272,8 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 
 type PresetView = ReturnType<typeof presetListView>;
 interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string, kind: PresetRow["kind"]): void; retry: ListRetry; onRetry(pressed: HTMLElement | null): void; onTab?(key: string): void }
-// Once focus is on a row of the list (arrow keys), the pointer carries it along as in the frame list. With focus elsewhere
-// (the popover opens in the search box) a row only fills on hover (ds/surfaces.css), so typing and Space keep their target.
-// focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
+// Once focus is on a row the pointer carries it; with focus elsewhere a row only fills on hover, so typing and Space keep
+// their target. focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
 function pointerFocus(event: PointerEvent<HTMLElement>) {
   const row = event.currentTarget;
   const active = row.ownerDocument.activeElement;
@@ -298,7 +289,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id, row.kind); }
     }}>
-    {/* A card: the preset's name over its one-line description (dogfooding); the full text stays in the tooltip. */}
+    {/* A card: the preset's name over its one-line description; the full text stays in the tooltip. */}
     <span className={`suggestion-icon${row.kind === "skill" ? " project-skill-icon" : row.kind === "command" ? " project-skill-icon command-icon" : ""}`}><GroupIcon name={row.icon} /></span>
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div></TooltipTrigger><TooltipContent>{row.tooltip}</TooltipContent></Tooltip>;
@@ -349,9 +340,8 @@ export type CanvasPress = (listener: () => void) => () => void;
 // The design presets read's Retry, owned by the composer: the popover and the / list show the one read it started.
 export type PresetsRetry = ReturnType<typeof useRetry>;
 
-// The Presets button and its popover. Picking a preset closes the popover and hands focus to
-// the field through `onPicked`; a list that failed is read again when the popover opens. A press outside it in the
-// app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
+// Picking a preset closes the popover and hands focus to the field through `onPicked`. A press in the app's document closes
+// it by Radix's rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
   skills?: readonly SkillSummary[];
   reply: PresetListReply | undefined; project: string; suggested: readonly PresetSummary[]; listId: string; disabled: boolean;
@@ -520,10 +510,8 @@ export function useOlderFold(groups: readonly { provider: string; rows: readonly
 export function TriggerLabel({ text, placeholder }: { text: string; placeholder: boolean }) {
   return <span className={placeholder ? "label placeholder" : "label"}>{text}</span>;
 }
-// The agent and model picker: a group per provider, its fix in Settings when it
-// cannot run. `onPick` gets the provider and a model id, or null for the Default row shown before the list is read:
-// Claude Code's own default model has the id "default", so that word cannot stand for the row.
-// `size`: Home's tools row uses sm; the docked row under the card steps down to xs.
+// `onPick` gets the provider and a model id, or null for the Default row shown before the list is read: Claude Code's own
+// default model has the id "default", so that word cannot stand for the row.
 export function AgentPicker(props: {
   picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean; size?: "sm" | "xs";
   onOpen(): void; onPick(provider: Provider, value: string | null): void; onSettings(target: SettingsTarget): void;
@@ -567,10 +555,8 @@ export function AgentPicker(props: {
   </DropdownMenu.Root>;
 }
 
-// The effort picker, shown only when the chosen model has effort steps.
-// In the docked tray (xs) the label can hide at a narrow width (styles.css container steps), so the trigger keeps
-// its name in a tooltip there. With a Fast row the tooltip shows at both sizes: the trigger's
-// Fast icon is its only mark, and the name says whether Fast is on.
+// In the docked tray (xs) the label can hide at a narrow width, so the trigger keeps its name in a tooltip there; with a
+// Fast row at both sizes, since the Fast icon is its only mark.
 export function EffortPicker({ view, effort, disabled, onPick, onPickFast, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; onPickFast?(on: boolean): void; size?: "sm" | "xs" }) {
   const { fast } = view;
   // The row's name is its Fast span alone, so the description is read once, as a description.
@@ -609,8 +595,8 @@ export function PermissionIconView({ name, className }: { name: PermissionIcon; 
   return <Icon className={className} aria-hidden="true" />;
 }
 
-// The permission mode menu's rows (draft frame picker-menu): the mode's icon, its name over a one-line description,
-// and the check. Shared by the composer picker and Settings' Permission row.
+// The permission mode menu's rows: the mode's icon, its name over a one-line description, and the check. Shared by the
+// composer picker and Settings' Permission row.
 export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerView; onPick(mode: PermissionModeId): void }) {
   return <>
     <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
@@ -623,10 +609,8 @@ export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerVi
   </>;
 }
 
-// The permission mode picker, after Effort. Full access keeps its name, its
-// warning icon and the danger ink (data-warning, also when Claude Code's settings run it under a stored Ask first); in
-// the docked tray its label may hide, so the tooltip and aria-label keep the name. data-run-mode: the trigger names a
-// run mode, whose longer label hides at a wider tray than plain Ask first.
+// Full access keeps its name, warning icon and danger ink (data-warning, also under a stored Ask first); in the docked tray
+// the label may hide, so the tooltip and aria-label keep the name. data-run-mode: a longer label hides at a wider tray.
 export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {
   const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel}
     data-warning={view.trigger.warning ? "" : undefined} data-run-mode={view.runMode} disabled={disabled}>
@@ -642,10 +626,8 @@ export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view
 // The Send slot. While a start is pending it keeps its place with a spinner. While a turn runs the docked composer puts
 // Stop or Queue in the same place (composerAction), so the slot never moves.
 const SLOT_LABELS: Record<ComposerAction, string> = { send: "Send", stop: "Stop", queue: "Queue" };
-// `hint` is why Send is off when no line says so (no ready agent): a native title, since a disabled button gets no
-// Radix tooltip, and a description for assistive tech.
-// tip and description: the usage limit's reset, in the tooltip and as the button's sr-only description; the name stays
-// the slot's label, and no native title shows beside the tooltip.
+// `hint`: a native title, since a disabled button gets no Radix tooltip. tip and description: the usage limit's reset in
+// the tooltip and sr-only description; no native title shows beside the tooltip.
 export function SendButton({ enabled, sending, onSend, action = "send", hint, tip, description }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction; hint?: string | undefined; tip?: string | undefined; description?: string | undefined }) {
   const label = SLOT_LABELS[action];
   const hintId = useId();
@@ -661,9 +643,8 @@ export function SendButton({ enabled, sending, onSend, action = "send", hint, ti
 }
 
 
-// The card of a built-in Doan does not run (draft provider-commands frame unsupported-card): the shipped neutral thread
-// notice with an info icon, the action that leads to Doan's own control, and Dismiss. The composer that showed it said it
-// as status, so the card itself is no live region.
+// The card of a built-in command Doan does not run. The composer that showed it said it as status, so the card itself is no
+// live region.
 export function CommandCardNotice({ card, onAction, onDismiss }: { card: CommandCard; onAction(target: CommandCardTarget): void; onDismiss(): void }) {
   return <div className="doan-notice thread-notice command-card">
     <Info className="doan-alert-icon" aria-hidden="true" />
@@ -675,8 +656,8 @@ export function CommandCardNotice({ card, onAction, onDismiss }: { card: Command
   </div>;
 }
 
-// Where a card's action leads within the composer it came from: its model or permission picker takes focus (draft:
-// "moves focus to the composer's model picker"); Settings > Agents is the host's.
+// Where a card's action leads within the composer it came from: its model or permission picker takes focus; Settings >
+// Agents is the host's.
 export function focusPicker(composer: ParentNode | null | undefined, target: Exclude<CommandCardTarget, "agentsSettings">): void {
   composer?.querySelector<HTMLElement>(target === "modelPicker" ? ".composer-agent" : ".composer-permission")?.focus();
 }

@@ -56,9 +56,8 @@ import { defaultPermission, permissionChoices, permissionPickerView } from "./pe
 import { dropAttachment } from "./conversationStore";
 import { NameTip } from "./NameTip";
 
-// The project Overview as the project conversation screen: the header with the
-// project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
-// which conversation shows; this component draws it and makes the calls to main the thread and composer ask for.
+// The project conversation screen. OverviewRun decides which conversation shows; this component draws it and makes the calls to
+// main the thread and composer ask for.
 
 export interface ProjectOverviewProps {
   run: OverviewRun;
@@ -78,7 +77,7 @@ export interface ProjectOverviewProps {
   seen: ReadonlySet<string>;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
-  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
   now: number;
   onWorktree(root: string): void;
@@ -200,7 +199,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const prompts = mode.kind === "new" && !waiting && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
   const started = draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0;
 
-  // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
   const commands = conversationId && provider && thread ? threadCommands(provider, thread.events, run.store.boundaries(conversationId)) : null;
   const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live, commands ?? undefined), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
@@ -292,7 +290,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     });
   };
 
-  // Send, queue and the rest of the composer's calls.
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
   const changedFast = fastToSend(pick.fast, summary?.owner === "legacy-external" ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -346,7 +343,6 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     return { ok: true, itemId: reply.itemId };
   };
 
-  // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
   // A command does not name the conversation (main leaves one a command started untitled until a message).
   const firstMessage = thread && provider ? firstTitleMessage(provider, thread.events) : undefined;

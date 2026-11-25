@@ -8,8 +8,6 @@ import { UsagePanel, UsageView, type UsageViewProps } from "./AgentUsageButton";
 import { ringViews, rowView } from "./agentUsageView";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 
-// The confirmed draft .doan/canvases/provider-usage.html (frames place-header,
-// ring-states, popover, popover-live): the button and the popover body as drawn, without state.
 const NOW = Date.UTC(2026, 10, 5, 12, 0, 0);
 const MIN = 60_000;
 const win = (over: Partial<UsageWindow> = {}): UsageWindow => ({ id: "five_hour", label: "5-hour", usedPercent: 42, resetsAt: NOW + 130 * MIN, ...over });
@@ -126,8 +124,8 @@ describe("UsagePanel", () => {
     expect(rest[1]).toMatch(/^<svg/);
   });
 
-  // measurement: the shared tooltip opens above by default, which put Agent settings' and Refresh usage's over the
-  // header button the popover hangs from; the confirmed draft draws every Agent usage tooltip below its button.
+  // The shared tooltip opens above by default, which put these tooltips over the header button the popover
+  // hangs from.
   it("opens every tooltip below its button", () => {
     const tips = [...all(UsageView(props(four))), ...all(UsagePanel(props(four)))].filter(element => typeof element.type === "function" && element.type.name === "IconTip");
     expect(tips.map(tip => tip.props.label)).toEqual(["Agent usage", "Agent settings", "Refresh usage"]);
@@ -137,8 +135,8 @@ describe("UsagePanel", () => {
     }
   });
 
-  // real app: Tab to Agent settings or Refresh usage shows its tooltip, the top dismissable layer, so the first
-  // Escape closed only the tooltip and a second one the popover (as the conversation Delete dialog's tooltip did).
+  // A focused title-row button's tooltip is the top dismissable layer, so without onEscape the first Escape
+  // closed only the tooltip.
   it("closes the popover with the Escape a title-row tooltip takes", () => {
     const view = props(four, { open: true });
     const tips = all(UsagePanel(view)).filter(element => typeof element.type === "function" && element.type.name === "IconTip");
@@ -159,16 +157,16 @@ describe("UsagePanel", () => {
     expect(view.onRefresh).toHaveBeenCalledOnce();
   });
 
-  // The header drags the window; the open popover lifts that inline (AgentUsageButton), since Electron ignored an
-  // app-region change made through a :has() rule (real app, 2026-11-06).
+  // The header drags the window; the open popover lifts that inline (AgentUsageButton), since Electron ignores an
+  // app-region change made through a :has() rule.
   it("keeps the header a drag region in CSS, with no :has() rule for the open popover", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     expect(css).toMatch(/\.top \{[^}]*-webkit-app-region: drag;[^}]*\}/);
     expect(css).not.toContain(".top:has(");
   });
 
-  // measurement: the app body's tabular figures widened every "1" in the relative times ("Updated 1m ago" by 2.6px,
-  // "12d 4h") against the confirmed draft; the popover is portalled to <body>, so it sets its own.
+  // The app body's tabular figures widen every "1" in the relative times; the popover is portalled to <body>, so
+  // it sets its own.
   it("draws plain numerals in the popover", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
     expect(css).toMatch(/\.usage-pop \{[^}]*font-variant-numeric: normal;[^}]*\}/);

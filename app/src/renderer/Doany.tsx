@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
-// The buddy on Home (Doany by default): the WebGL shell of the buddy draft .doan/assets/buddies/motion-preview.js
-// (MIT, Doan contributors), run with the chosen buddy's registry entry. Context options, shaders, mesh, blend,
-// texture parameters and texture units are the draft's, unchanged (Doany.test.tsx compares the WebGL calls with
-// the golden that app/scripts/doanyGolden.mjs records from the draft, and doanyRender.test.ts checks each buddy's
-// shader anchors against its artwork); the drawn pose is bounded per buddy (drawnPose). Motion lives in
-// doanyMotion.ts and the frame loop in doanyRig.ts.
+// The WebGL shell of .doan/assets/buddies/motion-preview.js (MIT, Doan contributors); context options, shaders, mesh, blend
+// and textures stay the draft's, pinned by Doany.test.tsx against the golden from app/scripts/doanyGolden.mjs.
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { EYE_TEXTURE, buddy as registry, type Buddy, type BuddyId, type BuddyRig } from "./buddies";
 import type { Pose } from "./doanyMotion";
@@ -68,12 +64,8 @@ export const fragmentFor = (c: BuddyRig) => `
       }
       gl_FragColor = col;
     }`;
-// The draft bounds the drawn pose per buddy while it writes the uniforms; the motion model stays unbounded
-// (doanyMotion.ts, pinned by the golden logs). The hop is drawn lower (Doany .9: the V2 beret had no headroom at the
-// apex with the pointer far left) and the accessory's tilt is held to its range: a scarf or headphones wrap the body,
-// glasses would leave the eyes. A single hop with the pointer anywhere stays inside Doany's range (about -.19 to +.13),
-// so only a burst of presses meets it. Together they keep at least 1.4 device px between the drawing and Home's 228 px
-// canvas edge for any press sequence (doanyRender.test.ts). The rest frame has no lift or tilt.
+// The motion model stays unbounded (pinned by the golden logs); the hop is drawn lower and the accessory's tilt held to its
+// range, keeping at least 1.4 device px between the drawing and Home's 228 px canvas edge (doanyRender.test.ts).
 export function drawnPose(pose: Pose, rig: BuddyRig): Pose {
   return { ...pose, lift: pose.lift * rig.liftScale, hatTilt: Math.max(rig.accessoryTilt[0], Math.min(rig.accessoryTilt[1], pose.hatTilt)) };
 }
@@ -160,9 +152,8 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
 interface BuddyWatch { failed(ready: boolean): void; restored(): void }
 const UNWATCHED: BuddyWatch = { failed: () => {}, restored: () => {} };
 
-// Everything the draft did on load, undone by dispose. React StrictMode runs effects twice in
-// development and a canvas keeps its released (lost) context for life, so each mount draws on a fresh
-// copy of React's canvas and puts React's back when it is disposed.
+// React StrictMode runs effects twice in development and a canvas keeps its released (lost) context for life, so each mount
+// draws on a fresh copy of React's canvas and puts React's back on dispose.
 export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement, watch = UNWATCHED): { rig: DoanyRig | null; dispose(): void } {
   const canvas = placeholder.cloneNode(false) as HTMLCanvasElement;
   placeholder.replaceWith(canvas);
@@ -233,13 +224,8 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
   return { rig, dispose() { rig.dispose(); canvas.removeEventListener("webglcontextrestored", restored); restore(); } };
 }
 
-// After a buddy that drew loses its context (a GPU process reset loses every context), it is mounted again once the
-// GPU is back: a context made while the GPU process restarts can fail or be lost again. webglcontextrestored says it
-// is back; when none comes, a mount is tried after RETRY_MS and again after each failed try, each wait twice the one
-// before, at most RETRIES times. Two GPU resets in a row make Chromium refuse WebGL to the page for about two minutes
-// with no restore event (measured in Electron 45), so the last try comes about four minutes after the loss. A buddy
-// that never drew is not tried again here: Home mounts it again on its next visit. The docked buddy
-// (dockedBuddyShell.ts) recovers on the same schedule.
+// A buddy that drew and lost its context mounts again on webglcontextrestored, else after waits doubling from RETRY_MS, at
+// most RETRIES tries (ARCHITECTURE §7 'Buddy (mascot)'); dockedBuddyShell.ts recovers on the same schedule.
 export const RETRY_MS = 1000;
 export const RETRIES = 8;
 
@@ -261,9 +247,8 @@ export function keepBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImag
   return { get rig() { return mounted.rig; }, dispose() { clearTimeout(retry); mounted.dispose(); } };
 }
 
-// `size` is the drawing slot in CSS px (Home 114, Welcome 142.5); it includes the hop headroom. A new buddy is a new
-// mount (a context of its own, released on unmount), so the slot is keyed by the buddy. describedBy: the ids of text
-// beside the slot that the button reads with its name (Settings > General's lock countdown).
+// `size` is the drawing slot in CSS px, hop headroom included. A new buddy is a new mount (its own context), so the slot is
+// keyed by the buddy. describedBy: ids of text beside the slot the button reads with its name.
 export function Buddy({ buddy, size, describedBy, ref }: { buddy: BuddyId; size: number; describedBy?: string; ref?: Ref<BuddyHandle> }) {
   return <BuddySlot key={buddy} buddy={registry(buddy)} size={size} describedBy={describedBy} ref={ref} />;
 }

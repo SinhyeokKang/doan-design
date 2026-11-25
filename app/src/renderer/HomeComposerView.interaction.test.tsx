@@ -58,8 +58,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-// The composer's own primitives (ComposerParts) are drawn in place, so their elements and handlers are found as they
-// were before the split; any other component stays an element with its props.
+// The composer's own primitives are drawn in place, so their elements and handlers are found directly; any other component
+// stays an element with its props.
 const PRIMITIVES = new Set<unknown>(Object.values(Parts));
 function expand(type: unknown, props: Record<string, unknown>): ReactNode {
   if (typeof type === "function") return (type as (p: unknown) => ReactNode)(props);
@@ -331,7 +331,7 @@ test("Home's Replace your draft? is an alertdialog named by its title and descri
   expect(body.id).toBe(dialog["aria-describedby"]);
 });
 
-// U4: Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
+// Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
 test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and focus returns to the field", () => {
   const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
   const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
@@ -517,8 +517,8 @@ test("a late refusal after leaving Home is shown on the next visit and keeps the
   expect(render().some(props => props.className === "doan-notice error doan-panel composer-notice")).toBe(true);
 });
 
-// U11: an unavailable project or worktree stays reachable by the arrow keys (aria-disabled, not Radix disabled), as the
-// canvas row menu's items do; choosing it does nothing and keeps the menu open, and a project reads its reason line.
+// An unavailable project or worktree stays reachable by the arrow keys (aria-disabled, not Radix disabled); choosing it does
+// nothing and keeps the menu open, and a project reads its reason line.
 test("projects and worktrees that are still being read stay reachable with their status chip; choosing one does nothing", () => {
   const loading = (path: string): FolderEntry => ({ kind: "loading", path, lastCommon: path === "/code/wt" ? "/code/doan-design/.git" : undefined } as FolderEntry);
   const mixed: FolderEntry = { ...ENTRY, lastCommon: "/code/doan-design/.git" };

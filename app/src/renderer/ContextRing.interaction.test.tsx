@@ -2,8 +2,8 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 
-// The ring's state — the drawer's reads, where focus goes when it closes, the tooltip around it, the usage row going
-// while open and the ring going — with hooks as plain state (AgentUsageButton.interaction.test.tsx style).
+// The ring's state (drawer reads, focus on close, the tooltip, the usage row going while open, the ring going) with hooks
+// as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0,

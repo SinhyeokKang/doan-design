@@ -7,8 +7,7 @@ interface HomeProps extends Omit<HeroComposerProps, "greeting"> {
   header: ReactNode;
   sidebar: ReactNode;
 }
-// Home is the workspace's shell with the composer as its body: the project cards, the setup
-// checklist and the connection banner are gone; projects live in the sidebar, connections in Settings.
+// Home is the workspace's shell with the composer as its body; projects live in the sidebar, connections in Settings.
 export function Home({ header, sidebar, ...composer }: HomeProps) {
   // One greeting per visit, never the previous one; it does not animate.
   const [greeting] = useState(() => {

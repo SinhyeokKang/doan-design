@@ -27,9 +27,8 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     if (!node) return;
     return () => { stopLeftFocused.current = document.activeElement === node; stop.current = null; };
   }).current;
-  // A turn that ends while Stop has focus (an answer that finishes it at once, Stop itself, a send's arrival focus)
-  // takes Stop away; focus moves on to Dismiss instead of falling to the page. The turn can end while the person is in
-  // another app, so the move is made again on activation (POSTMORTEM 2026-11-17).
+  // A turn that ends while Stop has focus takes Stop away; focus moves to Dismiss instead of the page, again on activation
+  // since it can end while the person is in another app (POSTMORTEM 2026-11-17).
   const handFocus = useActivationFocus();
   useEffect(() => {
     if (!stopLeftFocused.current) return;
@@ -80,8 +79,8 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       {errorText && <span className="strip-error" role="alert"><AlertIcon />{errorText}</span>}
     </span>
     <span className="strip-actions">{view.actions.map(action => {
-      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Skip and Edit on Home rest on the panel
-      // white, since the strip's inset fill is subtle's own grey.
+      // Allow is filled; the other answers, Skip and Edit on Home rest on the panel white, since the strip's inset fill is
+      // subtle's own grey.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "skip" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer.

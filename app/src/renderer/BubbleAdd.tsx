@@ -5,12 +5,8 @@ import { INSPECTOR_PANEL_ID } from "./InspectorPanel";
 import { Crosshair, SlidersHorizontal } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
-// Add to message in the size bubble (PRODUCT §5 item 6). The bubble is the controller's DOM; it hands App a
-// fixed host at its end and App renders this button there, so availability, the reason and the tooltip are React's.
-// The press is not: the host's native click listener stops it before the viewport's listeners see it and calls App
-// (CanvasController.bubbleAdd), so the button has no onClick. aria-disabled, not disabled: it keeps focus and its
-// tooltip, and its unavailable reason is also an sr-only description, read while the tooltip is closed. The tooltip's
-// Escape goes to the controller's tooltip Escape, as the toolbar's do (ARCHITECTURE §3 'Actions and focus').
+// The host's native click listener stops the press before the viewport's listeners and calls App
+// (CanvasController.bubbleAdd), so the button has no onClick (ARCHITECTURE §3 'Actions and focus').
 const REASON_ID = "canvas-bubble-add-reason";
 
 interface BubbleAddProps { enabled: boolean; reason: string | null; button: RefObject<HTMLButtonElement | null>; onEscape(event: KeyboardEvent): void }

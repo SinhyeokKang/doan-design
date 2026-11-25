@@ -70,8 +70,8 @@ test("a send main scheduled becomes a row and carries no picker change; main's s
   expect(store.queue("now").map(row => row.id)).toEqual(["s0", "s1"]);
 });
 
-// Fix round 1: leaving the canvas while its schedule goes out and comes back at the same time and count still reads
-// main's rows again on return; the list reads in between run while the canvas is not shown.
+// A schedule that goes out and comes back at the same time and count while the canvas is away is still read again on
+// return; the list reads in between run while the canvas is not shown.
 test("a schedule that went out and came back while the canvas was away is read again on return", async () => {
   const OTHER: Canvas = { path: ".doan/canvases/cart.html", id: "cart" };
   let list: ListView = [summary("now", { queued: 1, limitResetsAt: AT, scheduledAt: AT })];
@@ -108,7 +108,6 @@ test("the panel's waiting send carries no pick, and the next ordinary send still
 });
 
 
-// U16: a refusal of a chosen file goes to the composer's own notice, not the window's toast.
 test("a chosen file main refuses is reported to the composer, not as a toast", async () => {
   const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
   doan.chooseAttachments = vi.fn(async () => [{ ok: false, name: "brief.pdf", error: "not_found" }]);

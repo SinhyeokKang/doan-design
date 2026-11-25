@@ -139,7 +139,7 @@ describe("the headless body in the prototype window", () => {
     expect(render().props.blocked).toBe("Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.");
   });
 
-  // Spec: a failed list read no longer holds Send in this window; the failure line offers Retry.
+  // A failed list read does not hold Send in this window; the failure line offers Retry.
   test("a failed list read shows the failure line with Retry, and the composer can still send", async () => {
     calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
     run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
@@ -199,8 +199,8 @@ describe("main-window-only buttons go to main as reveals", () => {
   });
 });
 
-// Spec: a send to a conversation another sign-in owns offers "Start a new conversation" here too, as the main window
-// does; a new conversation no longer ends another one.
+// A send to a conversation another sign-in owns offers "Start a new conversation" here too, as the main window does; a new
+// conversation does not end another one.
 describe("refusals in the prototype window", () => {
   test("a conversation refused for a sign-in mismatch offers a new conversation", async () => {
     await playing();
@@ -238,9 +238,8 @@ describe("Last used from the prototype composer", () => {
   });
 });
 
-// Spec: the head's title is the canvas's conversation menu, the main window's menu model (draft frame
-// prototype-head-menu). Its trigger uses aria-disabled, never disabled, so the head keeps a focus target while the list
-// is read or the canvas is blocked.
+// The head's title is the canvas's conversation menu; its trigger uses aria-disabled, never disabled, so the head keeps a focus
+// target while the list is read or the canvas is blocked.
 describe("the head's conversation menu", () => {
   let onPicked: Mock<() => void>, onDelete: Mock<(target: unknown, trigger: HTMLElement | null) => boolean>;
   beforeEach(() => { onPicked = vi.fn<() => void>(); onDelete = vi.fn((_target: unknown, _trigger: HTMLElement | null) => true); });
@@ -321,8 +320,8 @@ describe("the head's conversation menu", () => {
     expect(rows(head())).toEqual(["", "c", "a", "b"]);
   });
 
-  // Review: rows added while the menu is open keep the place they were drawn at, also when later reads change their
-  // activity; only closing sorts again.
+  // Rows added while the menu is open keep the place they were drawn at, also when later reads change their activity; only closing
+  // sorts again.
   test("rows added one after another while open keep their drawn order", async () => {
     let answerList!: (list: ConversationSummary[]) => void;
     let changedList!: (change: { root: string }) => void;
@@ -363,7 +362,7 @@ describe("the head's conversation menu", () => {
     expect((calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length).toBe(reads + 1);
   });
 
-  // D11: the row runs while its read is out, the panel's thread Retry with it, and a second failure is read out again.
+  // The row runs while its read is out, the panel's thread Retry with it, and a second failure is read out again.
   test("a failed read's Retry runs until the read settles, and a repeated failure changes the line", async () => {
     let fail: (reply: { error: string }) => void = () => {};
     calls.listConversations = vi.fn(async () => ({ error: "unknown" }));

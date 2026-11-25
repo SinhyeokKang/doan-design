@@ -8,7 +8,6 @@ import { Tooltip, TooltipContent, TooltipProvider } from "./components/ui/toolti
 import { contextDrawerView } from "./contextDrawer";
 import { ContextDrawerPanel, ContextRingView, type ContextRingViewProps } from "./ContextRing";
 
-// The confirmed draft .doan/canvases/context-ring-drawer.html (frames trigger and drawer), drawn without state.
 const NOW = Date.UTC(2026, 10, 16, 12, 0, 0);
 const MIN = 60_000, HOUR = 60 * MIN;
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
@@ -127,8 +126,8 @@ describe("ContextDrawerPanel", () => {
   });
 });
 
-// Draft frame trigger: the visible box stays the shipped 16px ring with its 2px start margin; an invisible ::before
-// 4px out on every side is the hit box and carries hover, pressed and focus, so no layout box moves.
+// The visible box stays the 16px ring with its 2px start margin; an invisible ::before 4px out on every side is the hit
+// box and carries hover, pressed and focus, so no layout box moves.
 describe("context ring CSS", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   it("keeps the visible box and clears the button's own box", () => {

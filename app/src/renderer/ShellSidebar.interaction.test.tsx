@@ -58,7 +58,7 @@ function key(props: Record<string, unknown>, value: string, nested = false) {
   props.onKeyDown(event);
   return event;
 }
-// project-row-disclosure draft: ←/→ only fold and unfold, the loaded project included; Enter is the row's move.
+// ←/→ only fold and unfold, the loaded project included; Enter is the row's move.
 it("folds the current project on ArrowLeft without moving and ignores keys from its menu trigger", () => {
   const { props, project } = fixture();
   key(project, "ArrowLeft");
@@ -152,7 +152,7 @@ it.each([
   for (const [label, action] of actions) {
     const repair = rendered.find(item => typeof item.onSelect === "function" && [item.children].flat().includes(label))!;
     expect(repair).toBeDefined();
-    // Retry and Details carry icons like the menu's other items (draft .doan/canvases/fixes-0-1-2.html, frame cli-error-elsewhere).
+    // Retry and Details carry icons like the menu's other items.
     const icon = { Retry: RotateCw, Details: Info }[label];
     if (icon) expect([repair.children].flat().some(child => isValidElement(child) && child.type === icon), label).toBe(true);
     (repair.onSelect as () => void)();
@@ -269,9 +269,8 @@ it("keeps the focused row on the same canvas when an mtime change reorders the l
   } finally { now.mockRestore(); }
 });
 
-// While the Add Projects page selects or clones, the moves are shown as unavailable
-// (aria-disabled keeps them in the focus order); App ignores their activation. Project Settings opens a page now, so it
-// is a move too.
+// While the Add Projects page selects or clones, the moves are aria-disabled (kept in the focus order) and App ignores their
+// activation. Project Settings opens a page, so it is a move too.
 it("marks Search, project and canvas rows, Overview, Project Settings and worktree items aria-disabled while the page is locked", () => {
   const { props } = fixture();
   hooks.cursor = 0;
@@ -723,7 +722,7 @@ describe("reading spinner", () => {
   });
 });
 
-// sidebar-canvas-conversations: the viewed canvas's conversation rows in the tree's keyboard order and their actions.
+// The viewed canvas's conversation rows in the tree's keyboard order and their actions.
 describe("the viewed canvas's conversation list", () => {
   const CHECKOUT = ".doan/canvases/checkout.html", PRICING = ".doan/canvases/pricing.html";
   const conversation = (conversationId: string, minutes: number, patch: Record<string, unknown> = {}) => ({ conversationId, canvas: { path: CHECKOUT }, title: `Title ${conversationId}`, owner: "doan", provider: "claude",
@@ -814,9 +813,8 @@ describe("the viewed canvas's conversation list", () => {
     expect(t.props.open).not.toHaveBeenCalled();
   });
 
-  // Runtime probe 9h: the chevron sits inside its canvas row, which stays, so row recovery never sees it go; with focus on
-  // it, its unmount (the canvas left with one conversation) must hand focus to the canvas row, not the page body
-  // (design '포커스'; POSTMORTEM 2026-11-03).
+  // The chevron sits inside its canvas row, which stays, so row recovery never sees it go; its unmount with focus must hand focus to
+  // the canvas row, not the page body (POSTMORTEM 2026-11-03).
   it("a chevron that unmounts while it holds focus hands focus to its canvas row", async () => {
     const props = conversations();
     const t = tree(props);
@@ -951,7 +949,7 @@ describe("the viewed canvas's conversation list", () => {
       expect(moved.indexOf("Title b1")).toBe(moved.indexOf("pricing") + 1);
     });
 
-    // Review R2: App decides a canvas row press from what that row shows, so the sidebar says whether its list shows there.
+    // App decides a canvas row press from what that row shows, so the sidebar says whether its list shows there.
     it("a canvas row press tells App whether that row's list shows: the held row yes, the viewed row below it no", () => {
       hooks.stable = true;
       const props = conversations();
@@ -971,7 +969,7 @@ describe("the viewed canvas's conversation list", () => {
       expect(calls).toEqual([[CHECKOUT, true], [PRICING, undefined], [PRICING, undefined], [CHECKOUT, true], [CHECKOUT, true]]);
     });
 
-    // Review R3: a list replaced by another canvas's sends no blur or pointerleave, so its hold must not pass to the new one.
+    // A list replaced by another canvas's sends no blur or pointerleave, so its hold must not pass to the new one.
     it.each([["focus", "onFocus"], ["pointer", "onPointerEnter"]])("a hold by %s in one canvas's list does not freeze the next canvas's list", (_name, handler) => {
       hooks.stable = true;
       const props = conversations();
@@ -997,8 +995,7 @@ describe("the viewed canvas's conversation list", () => {
       expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
     });
 
-    // Review R2-1: a held press belongs to the one move it caused; a later keyboard move or Back/Forward to the same
-    // canvas must not reuse it.
+    // A held press belongs to the one move it caused; a later keyboard move or Back/Forward to the same canvas must not reuse it.
     it("after a held press, keyboard moves back and to the pressed canvas again end with the list under it", () => {
       hooks.stable = true;
       const props = conversations();

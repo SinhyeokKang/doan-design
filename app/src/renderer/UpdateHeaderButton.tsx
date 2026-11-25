@@ -41,9 +41,8 @@ export function UpdateHeaderButtonView(props: UpdateHeaderButtonViewProps) {
   </Popover.Root></span>;
 }
 
-// The header's Restart to Update (PRODUCT §5 item 0), at its right end while a downloaded update waits. A press asks
-// main to restart, which reads the gate at that moment; a blocked answer, the Doan menu's blocked Restart to Update and
-// a restart that stopped open the popover under it. `disabled`: a locked page, a modal or first run.
+// A press asks main to restart, which reads the gate at that moment; a blocked answer, the Doan menu's blocked Restart to Update
+// and a stopped restart open the popover under it. `disabled`: a locked page, a modal or first run.
 export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolean; canvasPress?: CanvasPress | undefined }) {
   const [snapshot, setSnapshot] = useState<UpdateSnapshot | null>(null);
   const [shown, setShown] = useState<UpdateNotice | null>(null);
@@ -112,9 +111,8 @@ export function UpdateHeaderButton({ disabled, canvasPress }: { disabled: boolea
     onPress={press}
     onOpenChange={next => { if (!next) setShown(null); }}
     onOpenAutoFocus={event => { if (quiet.current) event.preventDefault(); }}
-    // Radix closes on any focus outside, also one that moved between two places outside a popover opened quietly.
-    // Agent usage's popover, open beside it, moves focus to the page tab when its last provider leaves (PRODUCT §5 item 0
-    // 'Agent usage'); this one stays (§5 item 0 'Updates': closing one keeps the other usable). Focus leaving it closes it.
+    // Radix closes on any focus outside, also a move between two places outside a quietly opened popover: Agent usage's popover moves
+    // focus to the page tab when its last provider leaves, and this one stays (PRODUCT §5 item 0 'Updates').
     onFocusOutside={event => {
       // focusin's relatedTarget: the element that lost focus, null from nowhere (a removed element, the body).
       const from = event.detail.originalEvent.relatedTarget as Node | null;

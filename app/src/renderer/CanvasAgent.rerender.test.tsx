@@ -1,9 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-// .doan/canvases/doany-family.html: Doany's variant is picked when the notice mounts and held while it stays, so
-// working, stopping, waiting and terminal show the same one; a change of buddy swaps the notice's picture at once. There is no DOM in these tests (no jsdom), so this is not
-// a real mounted re-render: the artist body runs several times with its hooks kept by call order, as React keeps them.
+// Doany's variant is picked when the notice mounts and held while it stays; a change of buddy swaps the picture at once.
+// No DOM here: the artist body runs several times with its hooks kept by call order, as React keeps them.
 const hooks = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();

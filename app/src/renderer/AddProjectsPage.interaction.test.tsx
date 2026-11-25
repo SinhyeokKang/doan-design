@@ -3,8 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { OnboardingOperation } from "../formats/types";
 
-// the page body's wiring to App and to its session, with hooks as plain
-// state so its effects and the session's own callbacks run (LocalFolderCard.interaction.test.tsx style).
+// The page body's wiring to App and to its session, with hooks as plain state so its effects and the
+// session's own callbacks run.
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps?: unknown[] | undefined } | undefined)[], pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -46,7 +46,6 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 type PageProps = Parameters<typeof AddProjectsPage>[0];
 const props = (over: Partial<PageProps> = {}): PageProps => ({ header: null, sidebar: null, projects: [], homeDirectory: "/Users/ada", mainCheckout: () => false, choose: 0, onState: vi.fn(), onCancel: vi.fn(), onAdded: vi.fn(), ...over });
-// Renders the page and, once the session id is read, its body, running the effects each render schedules.
 let pageTree: ReactNode;
 function render(page: PageProps, heading?: { focus(): void }) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];

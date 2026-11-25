@@ -4,10 +4,8 @@ import type { CanvasRow } from "../main/view";
 import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
-// The data that names and enables reply chips must reach replies the thread memoizes, so it travels in a
-// context whose value changes with it, apart from the stable Actions ref. There is no DOM in these tests (no jsdom),
-// so this is not a real mounted re-render: the thread body runs twice with its hooks kept by call order, as React keeps
-// them, and the chip is drawn from the provider values each run produced.
+// Reply chip data travels in a context whose value changes with it, apart from the stable Actions ref, so memoized replies
+// see it. No DOM here: the thread body runs twice with hooks kept by call order, as React keeps them.
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[], cursor: 0,
   contexts: new Map<unknown, unknown>(),

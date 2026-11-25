@@ -2,8 +2,8 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { UpdateSnapshot, UpdateState } from "../main/update/types";
 
-// The header's update button with hooks as plain state (AgentUsageButton.interaction.test.tsx style): the push
-// subscription, a press asking main at press time, the popover a blocked answer, the menu or a stopped restart opens.
+// The header's update button with hooks as plain state: the push subscription, a press asking main, and the popover a blocked
+// answer, the menu or a stopped restart opens.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0,
@@ -171,8 +171,7 @@ test("the popover closes when the update leaves the header, and on a press in th
   expect(render().open).toBe(false);
 });
 
-// (real app, 2026-11-08): the hidden workspace keeps its header mounted under [inert]; the menu's popover opened in
-// both headers and each closed the other at once, so none stayed open.
+// The hidden workspace keeps its header mounted under [inert]; a popover opening in both headers would close each other at once.
 test("only the shown header opens a popover nobody pressed for", () => {
   inert = true;
   render(); push(snap(READY, { gate: { kind: "blocked", reason: "conversation" } })); render();
@@ -223,9 +222,8 @@ test("a restart pressed here that stops or is held opens with focus; one started
   expect(quiet.preventDefault).toHaveBeenCalled();
 });
 
-// A quiet popover can open beside Agent usage's open one (PRODUCT §5 item 0: closing one keeps the other usable). When
-// Agent usage's last provider leaves, its popover closes and moves focus to the page tab: that focus never left this
-// popover, so it stays open. Focus that leaves this popover still closes it.
+// A quiet popover can open beside Agent usage's (PRODUCT §5 item 0). Agent usage's last provider leaving moves focus to the page
+// tab without leaving this popover, so it stays open; focus that leaves this popover closes it.
 test("only focus leaving the popover closes it; a focus move elsewhere keeps a quiet popover open", () => {
   render(); push(snap({ kind: "restarting", version: "0.1.1" })); render();
   push(snap({ kind: "restartAborted", version: "0.1.1" })); const view = render();
@@ -258,8 +256,8 @@ test("closing hands focus back to the button only when it would land on the body
   expect(node.focus).not.toHaveBeenCalled();
 });
 
-// POSTMORTEM 2026-11-17: a push that closes the popover can land with the window in the background; activation would
-// otherwise put focus back on the popover that went, or on the first focusable control.
+// POSTMORTEM 2026-11-17: a push that closes the popover can land in the background; activation would otherwise put focus back on the
+// popover that went.
 test("a popover a push closes with the window in the background focuses the button again when the window activates", () => {
   const win = Object.assign(new EventTarget(), { doan });
   vi.stubGlobal("window", win);
@@ -281,7 +279,7 @@ test("a popover a push closes with the window in the background focuses the butt
   } finally { vi.useRealTimers(); }
 });
 
-// The popover follows each push while open instead of keeping the words it opened with (draft frame popover-unblocked).
+// The popover follows each push while open instead of keeping the words it opened with.
 test("a popover open on a blocked press says it can restart once nothing blocks it, and stays open", async () => {
   render(); push(snap(READY, GATE_BLOCKED)); let view = render();
   doan.installUpdate!.mockResolvedValueOnce({ kind: "blocked", reason: "conversation" });
@@ -298,7 +296,7 @@ test("a popover open on a blocked press says it can restart once nothing blocks 
   expect(view.shown).toEqual(BLOCKED);
 });
 
-// Draft frame popover-stopped-blocked: the gate is why a press would fail now, so it ranks first, as header() gives it.
+// The gate is why a press would fail now, so it ranks first, as header() gives it.
 test("a stopped restart's popover takes the blocking reason while open, and goes back when it ends", () => {
   render(); push(snap({ kind: "restarting", version: "0.1.1" })); render();
   push(snap({ kind: "restartAborted", version: "0.1.1" })); let view = render();

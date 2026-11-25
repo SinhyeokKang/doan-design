@@ -12,27 +12,8 @@ import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedTe
 import { pickArtist, type BuddyId } from "./buddies";
 import { onDevicePixelRatio } from "./devicePixels";
 
-// The agent indicator on the board while one of this canvas's conversations works or waits (PRODUCT §5 item 2 'Agent indicator',
-// .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
-// no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
-// user described it (2026-11-01); its values live in a native view and were not read.
-// `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the
-// Overview covers the canvas, which pauses the dot field. `children` are the canvas notices: they stack in the same
-// top-centre column under the agent notice, so the column stays when no agent shows.
-// `work`: the canvases terminal sessions work on (draft frame terminal-notice); one on this
-// canvas shows the same indicator without a button.
-// `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
-// project shows a notice with Open and no glow (docs/design/canvas.md 'Terminal work in another worktree', draft frame sibling-notice).
-// `onOpenSibling` gets that worktree's root.
-// work-update (draft .doan/canvases/work-update.html 'notice-states', 'notice-typing'): `doan work update` content words
-// the notice. `conversationWork` is app conversations' content (a project conversation, or a canvas conversation naming
-// another canvas, shows the indicator too); `frames` is the open document's layout, for the frame's title.
-// `onWork` gets the open canvas's work for the controller's marker and following, once per change. `buddy` is the
-// chosen buddy, whose painter the notice shows.
-// .doan/canvases/canvas-concurrent-conversations.html 'board-notice', 'board-stop': the notice follows one conversation of the
-// canvas, the one the panel shows (`shown`, also while folded) while it works or waits, else another. Working shows no
-// button: stopping is the composer's Stop, tied to one conversation (user decision). Open gets the followed
-// conversation that waits.
+// The glow and the dot field take no pointer input. `running` is false while the workspace is hidden or the Overview
+// covers the canvas, which pauses the dot field. `children` are the canvas notices, stacked under the agent notice.
 export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onWork, children }: {
   list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown?: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
   conversationWork?: readonly ConversationWork[]; frames?: readonly CanvasFrameRect[] | null;
@@ -72,10 +53,8 @@ export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, 
         <WorkWords view={view} moment={moment} />
         {action && <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={() => { if (presence) onOpen(presence.conversationId); }}>{action.label}</button>}
       </div>}
-      {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. The tooltip opens below: the
-          notice sits near the board's top edge, and above it a two-line sentence crossed into the canvas header.
-          14 = the tooltip's usual 4px gap plus the 10px between the 20px text line and the 40px capsule's bottom, so it
-          clears the capsule instead of covering it. */}
+      {/* The tooltip opens below: above, a two-line sentence crossed into the canvas header. 14 = the usual 4px gap plus
+         the 10px between the 20px text line and the 40px capsule's bottom. */}
       {sibling && <div className="doan-agent doan-agent-sibling">
         <BuddyArtist buddy={buddy} still={!running} />
         <Tooltip><TooltipTrigger asChild><span className="doan-agent-text" role="status">{`Agent is working in ${sibling.label}`}</span></TooltipTrigger>
@@ -87,11 +66,8 @@ export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, 
   </>;
 }
 
-// The notice's words: the visible line is aria-hidden, the text with its caret right after
-// the last visible character; the live region beside it holds the final words from the first moment. A long text
-// ellipsizes and its tooltip shows it whole. While a change erases and types, the line keeps a floor of the shorter
-// text's width plus the caret, in px (a percentage resolves to 0 in the content-sized card) and capped by
-// the width the card can give the line.
+// The visible line is aria-hidden; the live region holds the final words from the first moment. While a change runs,
+// the line keeps a px floor of the shorter text plus the caret (a percentage resolves to 0 in the content-sized card).
 function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMoment }) {
   const [typed, setTyped] = useState<TypedText>({ text: view.text, minWidth: null, typing: false });
   const [tip, setTip] = useState(false);
@@ -142,12 +118,8 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
   </>;
 }
 
-// The chosen buddy in the notice's mark slot (.doan/canvases/doany-artist.html, doany-family.html, buddy-choice.html
-// 'notice'): Doany paints, types or reads, picked with equal odds when the notice mounts, and so does a friend.
-// The pick holds while the buddy stays, so working, stopping and waiting keep one picture; the next notice, or a change
-// of buddy while it shows, picks again. A GIF cannot pause, so a still buddy is the variant's first frame: waiting, and
-// while the workspace is hidden (the dot field pauses then too). The picture source keeps the first frame under
-// reduced motion in every state.
+// The pick holds while the buddy stays, so working, stopping and waiting keep one picture. A GIF cannot pause, so a still
+// buddy is the variant's first frame; the picture source keeps it under reduced motion.
 export function BuddyArtist({ buddy, still }: { buddy: BuddyId; still: boolean }) {
   const [picked, setPicked] = useState(() => pickArtist(buddy, null, Math.random));
   const current = pickArtist(buddy, picked, Math.random);
@@ -159,11 +131,8 @@ export function BuddyArtist({ buddy, still }: { buddy: BuddyId; still: boolean }
   </picture></span>;
 }
 
-// The board-wide dot field: canvas 2D, two virtual spots sweeping the board (the second walks the first's
-// path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
-// A module Worker runs the loop and draws on the transferred canvas (dotFieldWorker.ts); this side only reads the page
-// (size, device pixel ratio, colour, motion setting, shown) and sends it. `start` is injected in tests, which have no
-// Worker or transferControlToOffscreen.
+// Two virtual spots sweep the board, coloured by the element's computed `color`. A module Worker draws on the transferred
+// canvas (dotFieldWorker.ts); `start` is injected in tests, which have no Worker or transferControlToOffscreen.
 export interface DotFieldPort { post(message: Exclude<DotFieldMessage, { kind: "start" }>): void; close(): void }
 export type StartDotField = (canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }) => DotFieldPort;
 

@@ -54,11 +54,8 @@ import { defaultPermission, permissionChoices, permissionPickerView } from "./pe
 import type { PlayingFrameChip } from "./prototype/conversation";
 import { NameTip } from "./NameTip";
 
-// The canvas page's conversation panel body (draft frames
-// panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
-// conversation shows; this component draws it and makes the calls to main the thread and composer ask for, as the
-// Overview's does (ProjectOverview). The body has no head: the main window's panel puts its title menu, New
-// conversation and Hide above it, and the prototype window shows it bare.
+// CanvasRun decides which conversation shows; this body draws it and makes the calls to main, as ProjectOverview does. It
+// has no head: the main window's panel puts its title menu, New and Hide above it.
 
 // The body's calls to main: `window.doan` in the main window, the same members of `window.doanPrototype` in the
 // prototype window, which has no `window.doan`.
@@ -80,7 +77,7 @@ export interface CanvasConversationProps {
   seen: ReadonlySet<string>;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
-  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
   now: number;
   // Why the composer keeps its draft but takes no input: the page shows a canvas outside the list, or one whose ID
@@ -130,9 +127,8 @@ const NEW = "";
 const NO_ROWS: readonly CanvasRow[] = [];
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
-// Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
-// terminal session, which keeps its own model and effort, or shows a conversation an external agent started. A resume
-// held while its terminal still works is a new conversation. App reads it too.
+// Whether the shown composer refuses attachments (Attach, paste, drop, Capture area): a terminal session keeps its own
+// model and effort, or an external agent started it. A resume held while its terminal works is a new conversation.
 export function composerFixed(view: CanvasView, list: ListView, work: readonly WorkItem[]): boolean {
   if (view.kind === "new") return view.mode.kind === "resume" && !resumeHeld(view.resume, work);
   return view.kind === "conversation" && Array.isArray(list) && list.find(c => c.conversationId === view.conversationId)?.owner === "legacy-external";
@@ -153,9 +149,8 @@ export function linkedAt(at: string | undefined, now: number): string | null {
   return date.toDateString() === today.toDateString() ? clock : `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock}`;
 }
 
-// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On the
-// new conversation state it is unavailable (`aria-disabled`, still focusable with its tooltip) and does nothing; while
-// the list is read (nothing shown yet) it focuses the composer.
+// The header's New conversation button. On the new conversation state it is aria-disabled, still focusable with its
+// tooltip, and does nothing; while the list is read it focuses the composer.
 export function startNewConversation(current: string | null, isNew: boolean, select: (id: string | null) => void, focus: () => void): void {
   if (isNew) return;
   if (current !== null) select(null);
@@ -229,9 +224,8 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   const summary = Array.isArray(list) ? list.find(c => c.conversationId === view.conversationId) : undefined;
   const provider = summary?.provider ?? run.store.providerOf(view.conversationId);
   const events = run.store.thread(view.conversationId)?.events ?? [];
-  // Before a list names it, the first message stands in as main's title does: chips by name (messageLine). A command
-  // names nothing (main leaves one a command started untitled until a message), so the lists' "Conversation" stands in
-  // once the history shows only commands; while it is read the title stays empty.
+  // Before a list names it, the first message stands in as main's title does. A command names nothing, so "Conversation"
+  // stands in once the history shows only commands; while it is read the title stays empty.
   const first = provider ? firstTitleMessage(provider, events) : undefined;
   const untitled = events.some(event => event.type === "user.message") ? "Conversation" : "";
   return { title: summary?.title || (first ? messageLine(requestTitleText(first.text), first.anchors) : untitled), current: view.conversationId };
@@ -356,9 +350,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     run.takeScroll(conversationId);
     if (target.kind === "item") handle.current?.scrollToItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
-  // An entry's focus: a permission entry's first choice once its request draws, or a
-  // question's first option or answer input, else the composer. Each arrival is applied
-  // once; one whose request has nothing pending falls back to the composer.
+  // An entry's focus: a permission's first choice once its request draws, a question's first option or input, else the
+  // composer. Each arrival is applied once; one with nothing pending falls back to the composer.
   const arrived = useRef(0);
   // The canvas this render's view belongs to. Read here, not in the effect: the page's layout effect shows a newly
   // opened canvas before this effect runs, while the view and items below are still the canvas left behind.
@@ -450,9 +443,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     });
   };
 
-  // Send, start, resume and queue. Every reply carries the panel's revision from when it was sent, so a reply
-  // that lands after the person chose something else, or after another canvas opened, leaves that choice alone
-  // (POSTMORTEM 2026-10-26 late replies).
+  // Every reply carries the panel's revision from when it was sent, so a reply that lands after the person chose something
+  // else, or after another canvas opened, leaves that choice alone (POSTMORTEM 2026-10-26).
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
   const changedFast = fastToSend(pick.fast, fixed ? null : chosen, picker.effort?.fast ?? null);
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -619,9 +611,8 @@ export function canvasScope(target: CanvasTarget): string {
   return draftKey({ kind: "new", root: target.root, canvas: target.canvas });
 }
 
-// The terminal session choice (draft panel-resume): the shared choice cards with their start radio. `held`: the session
-// still works in a terminal (draft resume-disabled); its card is disabled and its line becomes
-// the reason, which describes the radio.
+// `held`: the session still works in a terminal; its card is disabled and its line becomes the reason, which describes
+// the radio.
 function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; held: boolean; onChoose(choice: "resume" | "new"): void }) {
   const at = linkedAt(reply && "available" in reply && reply.available ? reply.lastCheckAt : undefined, now);
   const reason = useId();

@@ -15,9 +15,8 @@ import { providerLogo } from "./homeComposer";
 import { ProgressRing, ringDanger } from "./ProgressRing";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
-// The conversation provider's usage for the drawer, from the host's one subscription. hidden: the conversation runs on
-// the person's CLI profile (a legacy external conversation or a resumed terminal session), so a Doan connection's
-// usage is not its usage.
+// hidden: the conversation runs on the person's CLI profile (a legacy external conversation or a resumed terminal
+// session), so a Doan connection's usage is not its usage.
 export interface RingUsage { entries: readonly UsageEntry[]; hidden: boolean; read(trigger: "open" | "refresh"): void }
 const NO_USAGE: RingUsage = { entries: [], hidden: true, read: () => {} };
 
@@ -44,9 +43,8 @@ function RefreshTip({ onEscape, children }: { onEscape(): void; children: ReactE
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>Refresh usage</TooltipContent></Tooltip>;
 }
 
-// The drawer body (draft frame drawer): the provider's header row lifted whole, head on top, then the Context window
-// line and the row's windows or reason. Without usage the head keeps only the logo and the name. Refresh comes after
-// the body so Tab goes body → Refresh (focus starts on the body); the grid draws it at the head's end.
+// The provider's header row lifted whole, then the Context window line and the row's windows or reason. Refresh comes
+// after the body so Tab goes body → Refresh; the grid draws it at the head's end.
 export function ContextDrawerPanel({ provider, view, titleId, bodyRef, onRefresh, onRefreshFocus, onOpenChange }: Pick<ContextRingViewProps, "provider" | "view" | "titleId" | "bodyRef" | "onRefresh" | "onRefreshFocus" | "onOpenChange">) {
   const { usage, busy } = view;
   return <>
@@ -65,8 +63,7 @@ export function ContextDrawerPanel({ provider, view, titleId, bodyRef, onRefresh
   </>;
 }
 
-// The ring button and its drawer, drawn from state (draft frames trigger and drawer). The ring is decoration inside
-// the button; the button carries its name and description.
+// The ring is decoration inside the button; the button carries its name and description.
 export function ContextRingView(props: ContextRingViewProps) {
   const { context, open } = props;
   // The host draws no tray on a status line, so only a missing value could leave the ring out here.
@@ -85,9 +82,8 @@ export function ContextRingView(props: ContextRingViewProps) {
   </Popover.Root>;
 }
 
-// The docked composer's context ring. The host keys it by conversation, so another conversation (or the ring going:
-// a delete, a status line) unmounts it and closes its drawer; a drawer that held focus then hands it to the composer
-// input (onLost) rather than the page body.
+// The host keys it by conversation, so another conversation (or the ring going) unmounts it and closes its drawer; a
+// drawer that held focus then hands it to the composer input (onLost) rather than the page body.
 export function ContextRing({ context, provider, usage = NO_USAGE, canvasPress, onLost }: {
   context: ContextUsage; provider: Provider | null; usage?: RingUsage | undefined; canvasPress?: CanvasPress | undefined; onLost?(): void;
 }) {
@@ -128,9 +124,8 @@ export function ContextRing({ context, provider, usage = NO_USAGE, canvasPress, 
     refreshFocused.current = false;
     body.current?.focus();
   }, [open, rowGone]);
-  // The window's header is a drag region whose presses never reach the page, so while the drawer is open it takes
-  // presses and one on its empty part closes the drawer (the ring is not in the header, so useHeaderNoDrag's
-  // closest("header") cannot find it).
+  // The header is a drag region whose presses never reach the page, so while the drawer is open it takes presses; the ring
+  // is not in the header, so useHeaderNoDrag's closest("header") cannot find it.
   const noDragOwner = useRef({}).current;
   useEffect(() => {
     const bar = open ? document.querySelector<HTMLElement>("header.top") : null;

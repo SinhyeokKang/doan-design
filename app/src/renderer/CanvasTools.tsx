@@ -14,25 +14,8 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
   { tool: "hand", label: "Hand", key: "H", Icon: Hand },
 ];
 
-// The bottom tools row (PRODUCT §5 item 2 'Toolbar'). Select and Hand are
-// pressed one at a time; pressing the pressed one keeps it. The pressed tool holds the toolbar's one Tab stop. In
-// Hand a canvas click does not select, so the pressed button is what tells the person why.
-// The Picker is not a tool that stays: it toggles the composer's one pick, and only it
-// shows pressed while picking. aria-disabled, not disabled, so its reason shows as a tooltip and ←/→ still reach it.
-// Export (spec 5) closes the row after a divider: an action on the open canvas, so it has no pressed state. `reason`
-// null: it can export; otherwise it stays aria-disabled, so it keeps focus through the save panel and the export.
-// `onExport` gets the button, where focus goes back when the save panel closes.
-// The unavailable Export's reason is also an sr-only sibling it names: Radix links the tooltip only while it is open, so
-// without it the reason is gone once the tooltip closes. One canvas area, so one id.
-// Capture area follows the Picker: a mode, pressed only during capture mode, with no
-// shortcut, and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
-// once it could not start again (a paste filled the draft meanwhile), so a pressed button is never a dead one.
-// Play prototype sits before Export: like Export it is an action with no pressed state, reached with ←/→. Its name stays
-// "Play prototype"; its tooltip says what a press does now and is also its sr-only description. It plays a frame, opens
-// the frame drawer above it, or is unavailable with its reason. It is one element in every state (POSTMORTEM
-// 2026-11-13), always the popover's trigger: outside the drawer state Radix's popup attributes are taken off and its
-// open request is ignored. `button` lets App focus it when the size bubble's Play goes away or the prototype window
-// closes.
+// The pressed tool holds the toolbar's one Tab stop. Unavailable controls stay aria-disabled to keep focus, with an sr-only
+// reason: Radix links the tooltip only while it is open. Play is one element in every state (POSTMORTEM 2026-11-13).
 const EXPORT_REASON_ID = "canvas-export-reason";
 const PLAY_REASON_ID = "canvas-play-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";
@@ -50,10 +33,8 @@ export interface PlayTool {
   drawer: { label: string; groups: DrawerGroup[]; onPick(row: DrawerRow): void } | null;
   button?: RefObject<HTMLButtonElement | null>;
 }
-// An open tooltip takes the Escape first (Radix prevents it), so each tooltip's Escape also runs `onEscape`, the
-// canvas's next Escape step; the tooltip still closes on that press (ARCHITECTURE §3 'Actions and focus').
-// A pointer press on a tool takes no focus, so focus stays on the canvas area and Space still pans; Tab still reaches
-// the tools. On each button, not the toolbar: the frame list's portal content bubbles React events through it.
+// Each tooltip's Escape also runs `onEscape`, the canvas's next step (ARCHITECTURE §3 'Actions and focus'). A pointer press
+// takes no focus so Space still pans; set per button, since the frame list's portal bubbles React events through the toolbar.
 const keepFocus = (event: MouseEvent) => event.preventDefault();
 export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, player, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool; onEscape(event: globalThis.KeyboardEvent): void }) {
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;

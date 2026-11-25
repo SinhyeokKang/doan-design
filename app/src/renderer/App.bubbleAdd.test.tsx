@@ -3,9 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 
-// The size bubble's Add to message on the canvas page: its availability, the chip it puts in the panel's composer, the
-// folded panel it unfolds, and where focus goes. Driven with hooks as plain state (App.settings.test.tsx), with the
-// harness of App.conversationPanel.test.tsx.
+// The size bubble's Add to message on the canvas page: availability, the chip it puts in the panel's composer,
+// the folded panel it unfolds, and where focus goes. Hooks run as plain state.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -298,10 +297,8 @@ test("the controller reads App's Add to message button", async () => {
   expect(hook().button()).toBe(add);
 });
 
-// A pick clears the selection, so a bubble button it starts from goes away and the controller hands focus to the
-// toolbar (its onFocusLost). A cancel then sends focus to the composer field, never back to the hidden button and
-// never the page body, whether the panel was open or folded (a folded panel's field takes no focus until it unfolds).
-// Add to message's button stays in the DOM, hidden; Play's is removed.
+// A pick clears the selection, so the bubble button goes and the controller hands focus to the toolbar; a cancel
+// then sends focus to the composer field, never to the hidden button or the page body.
 test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "open"], ["Play", "folded"], ["Show inspector", "open"]] as const)(
   "a pick started with ⌘L from the bubble's %s, panel %s, ends in the composer field when cancelled", async (which, shown) => {
     const { link, field } = await bubbleWithComposer({ panel: shown === "open" });
