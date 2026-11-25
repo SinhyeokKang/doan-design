@@ -11,7 +11,7 @@
 - provider별 통과 기준:
   - Claude: 편집 결과의 user 프레임에 `tool_use_result.structuredPatch`가 있고, 그 `+`/`-` 줄 수가 실제 파일 변화와 같다.
   - Codex: `item/completed` fileChange의 `changes[].diff`가 hunk를 가진 unified diff이고, `+`/`-` 줄 수가 실제 변화와 같다.
-  - ACP: 완료까지 받은 갱신 중 하나에 `type: "diff"` content가 있고, `oldText`/`newText`가 편집 전후 파일 내용과 같다. 그 content가 몇 번째 갱신에 오는지도 기록한다.
+  - ACP: 완료까지 받은 갱신 중 하나에 `type: "diff"` content가 있고, 그 `oldText`/`newText`를 줄 단위로 비교한 `+`/`-` 줄 수가 실제 파일 변화와 같다. diff가 파일 전체일 필요는 없다. 그 content가 몇 번째 갱신에 오는지도 기록한다.
   - 기준을 만족하지 못한 provider는 범위에서 빼고 BACKLOG 항목으로 옮긴다.
 - 결과를 design.md '데이터 흐름'과 spec.md 완료 조건 1(고정된 목록)에 반영한다.
 - 검증: 녹화한 프레임이 `app/src/main/conversation/fixtures/`에 더미 경로로 들어가고, 각 provider의 관찰 결과(통과·실패, 버전, 날짜)가 design.md에 적혀 있다. 녹화 실행 명령은 정해져 있지 않다 — 사용자 확인 필요. `/orchestrate`의 PoC 배치를 시작할 때 conductor가 사용자에게 묻는다.
