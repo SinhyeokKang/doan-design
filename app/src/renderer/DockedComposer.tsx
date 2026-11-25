@@ -45,7 +45,8 @@ import { useActivationFocus } from "./activationFocus";
 
 // files: the attachments' names, sizes and kinds, for the thread to draw a queued message Send now moves there; main
 // takes only the ids.
-export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
+// command: the request is a provider command, which goes out alone.
+export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[]; command?: true }
 
 // The canvas page's way into the shown composer's field. `insert` puts a chip at the field's
 // caret and shows the 32-place line itself when the chip would pass the limit.
@@ -423,7 +424,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = draft.attachments.flatMap((a): SentFile[] => !a.id || a.path === undefined ? []
       : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path, ...(a.lines === undefined ? {} : { lines: a.lines }), ...(a.excerpt === undefined ? {} : { excerpt: a.excerpt }) }]);
     // A command goes out alone: no preset or skill line, chip or playing frame, and no attachments, which stay here.
-    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [] }
+    const request: DockedRequest = plan && plan.kind !== "message" && plan.kind !== "unsupported" ? { text: plan.text, anchors: [], attachments: [], command: true }
       : { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
     // Queue with no turn running is the usage limit's: main's send queues the message for the reset.

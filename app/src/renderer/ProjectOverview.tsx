@@ -299,7 +299,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         root, mode: "newDesign", runtime: chosen, text: request.text,
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
-      const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      // A command remembers only its text, as Home's does: its preset and attachments stay in this draft.
+      const last: LastRequest = request.command ? { root, text: request.text, preset: null, attachments: [], provider: chosen, model, effort }
+        : { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) {

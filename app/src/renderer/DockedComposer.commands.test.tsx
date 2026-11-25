@@ -95,7 +95,7 @@ test("a command goes out alone: no preset line, no attachments, which stay in th
   const { store, send, render } = setup({}, [[KEY, draft("/compact", { preset: POLISH, attachments: [FILE], shape: "box" })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   const left = store.current.get(KEY)!;
   expect(plainText(left.segments)).toBe("");
   expect(left.preset).toBe(POLISH);
@@ -106,7 +106,7 @@ test("an alias goes out as its command, with its argument after one space", asyn
   const { send, render } = setup({}, [[KEY, draft("/compact해줘")]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact 해줘", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact 해줘", anchors: [], attachments: [], command: true });
 });
 
 test("a skill word is still a message with its fixed line", async () => {
@@ -120,7 +120,7 @@ test("a command while a turn runs queues alone, as its own row", async () => {
   const { queue, render } = setup({ turn: "running" }, [[KEY, draft("/compact", { preset: POLISH })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
 });
 
 test("a built-in Doan does not run sends nothing, shows its card and keeps the text, announced as status", async () => {
@@ -160,7 +160,7 @@ test("an unconfirmed ACP command is sent as written, alone", async () => {
     [[KEY, draft("/share the plan", { preset: POLISH, attachments: [FILE] })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/share the plan", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/share the plan", anchors: [], attachments: [], command: true });
 });
 
 test("while the field starts with a command the preset chip leaves for the notice, and comes back with the word gone", () => {
@@ -265,7 +265,7 @@ test("Control+Enter on a command in the field queues it and does not send it now
   const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, onQueue: queue }, [[KEY, draft("/compact")]]);
   (input(render(true)).onSteerKey as () => void)();
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   expect(onSendQueuedNow).not.toHaveBeenCalled();
 });
 
@@ -287,7 +287,7 @@ test("a missing or checking attachment does not hold a command or its card", asy
   const { send, render } = setup({}, [[KEY, draft("/compact", { attachments: [MISSING], shape: "box" })]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
-  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [], command: true });
   const card = setup({}, [[KEY, draft("/model opus", { attachments: [CHECKING], shape: "box" })]]);
   (field(card.render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
