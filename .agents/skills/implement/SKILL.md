@@ -22,7 +22,7 @@ Make `/tdd`'s tests green or implement the tasks in `docs/features/<slug>/tasks.
 
 - Pure functions first, I/O shells later.
 - Surgically. Do not touch adjacent code outside the request.
-- Comments in English, "why" only. Record non-obvious constraints and pitfalls.
+- Comments follow AGENTS.md 'Commit conventions': English, one or two lines, only a non-obvious constraint or pitfall; no restated "what", no history or draft narrative. Shorten stale comments in the lines you touch.
 - If a format changes, fix the JSON Schema source and fixtures first, and bring TS and Go in line in the same piece of work. Do not hand-edit only one side.
 - Do not create `package.json`, `go.mod`, build settings, or directory structure without being asked. Ask if needed.
 

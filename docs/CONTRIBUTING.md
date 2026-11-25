@@ -35,7 +35,7 @@ CI runs the same gate (without `--eval`), split into three parallel shard jobs, 
 ## Commits
 
 - [Conventional Commits](https://www.conventionalcommits.org/), in English (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, optionally with a scope).
-- Code comments are in English and explain only the "why": constraints and pitfalls the code cannot say. Comments do not cite the planning documents under `docs/features/`, which are deleted when a feature is done; state the reason, or point to PRODUCT or ARCHITECTURE.
+- Code comments are in English, one or two lines, and explain only what the code cannot say: a non-obvious constraint or pitfall. No restated "what" and no history; a longer reason goes in ARCHITECTURE. Comments do not cite the planning documents under `docs/features/`, which are deleted when a feature is done; state the reason, or point to PRODUCT or ARCHITECTURE.
 
 ## Working with agents
 
