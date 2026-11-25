@@ -179,7 +179,6 @@ const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Pro
   ["attachmentsFromPaths", a => a.attachmentsFromPaths(["/tmp/a.png"])],
   ["releaseAttachments", a => a.releaseAttachments(["a"])],
   ["designSkills", a => a.designSkills.list()],
-  ["designSkills", a => a.designSkills.get("clarify")],
   ["readAgentUsage", a => a.readAgentUsage()],
   ["readAgentUsage", a => a.readAgentUsage("open")],
   ["readAgentUsage", a => a.readAgentUsage("refresh")],

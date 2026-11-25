@@ -816,7 +816,7 @@ const mcp: Record<Exclude<keyof typeof MCP_CHANNELS, "changed">, Call> = {
 const onboarding: Record<Exclude<keyof typeof ONBOARDING_CHANNELS, "check" | "changed">, Call> = {
   start: a => a.startOnboardingSession(), status: a => a.readOnboardingSession({ sessionId: "s" }), cancel: a => a.cancelOnboardingOperation({ ...ids, operationId: "o" }),
   inspect: a => a.inspectOnboardingProject({ ...ids, path: "/p" }), select: a => a.selectOnboardingProject({ ...ids, inspectionId: "i", path: "/p", initialize: true }),
-  clone: a => a.cloneOnboardingProject({ ...ids, inspectionId: "i", destination: "/p" }), complete: a => a.completeOnboarding({ ...ids, root: "/p" }),
+  clone: a => a.cloneOnboardingProject({ ...ids, inspectionId: "i", destination: "/p" }), complete: a => a.completeOnboarding(ids),
 };
 const addPage: Record<Exclude<keyof typeof ADD_PAGE_CHANNELS, "changed" | "open">, Call> = {
   read: a => a.readAddPage(), inspect: a => a.inspectAddPageProject({ ...ids, path: "/p" }), select: a => a.selectAddPageProject({ ...ids, inspectionId: "i", path: "/p", initialize: true }),
@@ -830,7 +830,7 @@ const conversation: Record<ConversationMethod, Call> = {
   resumeTarget: a => a.conversationResumeTarget({ root: "/r", canvas: { path: "a" } }), start: a => a.startConversation({ root: "/r", mode: "new", runtime: "claude", text: "x" }),
   send: a => a.sendConversation({ ...request, text: "x" }), interrupt: a => a.interruptConversation(request),
   answerPermission: a => a.answerConversationPermission({ ...request, requestId: "r", optionId: "o" }),
-  answerQuestion: a => a.answerConversationQuestion({ ...request, requestId: "r", answers: [] }), read: a => a.readConversation(request),
+  answerQuestion: a => a.answerConversationQuestion({ ...request, requestId: "r", outcome: "skipped" }), read: a => a.readConversation(request),
   models: a => a.listConversationModels({ root: "/r", runtime: "claude" }), skills: a => a.listConversationSkills({ root: "/r", provider: "claude" }),
   list: a => a.listConversations({ root: "/r" }), markSeen: a => a.markConversationSeen({ ...request, seq: 1 }), queue: a => a.queueConversation({ ...request, text: "x" }),
   removeQueued: a => a.removeQueuedMessage({ ...request, itemId: "i" }), sendQueuedNow: a => a.sendQueuedNow({ ...request, itemId: "i" }),

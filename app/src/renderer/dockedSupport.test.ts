@@ -45,7 +45,7 @@ test("a pending pick is dropped when the stored mode changes from the one it was
 
 // A just-started conversation's mode shows until its summary arrives; it is no pick, so it is not sent or remembered.
 test("a just-started conversation's mode shows until its summary arrives", () => {
-  const support = new DockedSupport(() => {}, { designSkills: { list: vi.fn(), get: vi.fn() }, listConversationModels: vi.fn(), setConversationPermissionMode: vi.fn() });
+  const support = new DockedSupport(() => {}, { designSkills: { list: vi.fn() }, listConversationModels: vi.fn(), setConversationPermissionMode: vi.fn() });
   support.startedIn("conversation:c1", "bypass");
   expect(support.started["conversation:c1"]).toBe("bypass");
   expect(support.picks["conversation:c1"]).toBeUndefined();

@@ -15,10 +15,10 @@ import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentMeta, PastedTextMeta, AttachmentResult, RecheckResult } from "../main/attachments";
-import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
+import type { DesignSkillList, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, BoundarySignal, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type {
-  OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
+  OnboardingCancelRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
 } from "../formats/types";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -291,8 +291,6 @@ const api = {
   // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI sign-in is owned by this window too.
   startOnboardingSession: (): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:start", {}),
   readOnboardingSession: (request: SessionRequest<OnboardingStatusRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:status", request),
-  // A Copilot check spends one model request, so it needs spendCopilotRequest: true.
-  checkOnboardingAgent: (request: SessionRequest<OnboardingCheckRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:check", request),
   cancelOnboardingOperation: (request: SessionRequest<OnboardingCancelRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:cancel", request),
   inspectOnboardingProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:inspect", request),
   // initialize: true is the user's consent to the inspection's planned changes.
@@ -306,10 +304,9 @@ const api = {
     return () => ipcRenderer.removeListener("onboarding:changed", receive);
   },
   // Replies are the CLI's v1 envelope, CLI failures unchanged; app failures: request_refused, or cli_error with reason.
-  // A list usage_error means no preset support; a get usage_error after a good list is an unknown id.
+  // A list usage_error means no preset support.
   designSkills: {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
-    get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
   // Hidden: closed with the app running, or the whole app hidden (⌘H).
@@ -454,8 +451,7 @@ const api = {
   // Main writes what About last read; resolves after the clipboard write settled.
   copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
   // App updates: Settings > About's update row, the header button and the Doan menu item. Requests carry no data; main
-  // decides from its own state. null: main refused the caller.
-  readUpdate: (): Promise<UpdateSnapshot | null> => ipcRenderer.invoke("update:get"),
+  // decides from its own state.
   // Snapshots carry no revision, so the first read is delivered only if no change event came before it.
   onUpdate(listener: (snapshot: UpdateSnapshot) => void): () => void {
     let active = true, changed = false;
