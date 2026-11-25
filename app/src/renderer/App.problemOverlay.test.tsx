@@ -383,6 +383,38 @@ test("first run finished by an agent's CLI with the window in the background foc
   expect(focused).toEqual(["homeComposer", "homeComposer"]);
 });
 
+// `doan open` can arrive while the window is behind: the renderer moves to the screen before main raises the window, and
+// activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window activation put focus on Hide
+// sidebar'). Each screen's entry focus is made again on activation.
+test("going Home with the window in the background focuses Home's composer again on activation", () => {
+  render(); folders([listed("/w/a")]);
+  toOverview();
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { ".home-shell .composer-input": element("homeComposer", ["home-shell"]) }, false);
+  focused.length = 0;
+  (find<{ goHome(): void }>(ShellSidebar)[0]!.props).goHome(); render();
+  expect(focused).toEqual(["homeComposer"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["homeComposer", "homeComposer"]);
+});
+
+test("entering a workspace with the window in the background focuses its sidebar row again on activation, only while it is still shown", () => {
+  render(); folders([listed("/w/a"), listed("/w/c")]);
+  const win = activatableWindow();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  dom(BODY, { '.side [role="treeitem"][tabindex="0"]': element("row", ["side"]) }, false);
+  focused.length = 0;
+  toOverview();
+  expect(focused).toEqual(["row"]);
+  focused.length = 0;
+  win.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(focused).toEqual(["row", "row"]);
+});
+
 test("Remove from Doan on the overlay asks first, then goes Home from the Overview and from the canvas page", async () => {
   for (const onCanvas of [false, true]) {
     reset(); render(); folders([listed("/w/a"), listed("/w/c")]);

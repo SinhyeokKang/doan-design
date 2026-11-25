@@ -52,6 +52,8 @@ beforeEach(() => {
     readAgentUsage: vi.fn(async () => []),
   };
   vi.stubGlobal("window", { doan });
+  // A focused window: the activation hand-off focuses once and waits for nothing.
+  vi.stubGlobal("document", { hasFocus: () => true, querySelectorAll: () => [] });
   vi.stubGlobal("ResizeObserver", class { constructor(run: () => void) { observed = run; } observe() {} disconnect() { observed = null; } });
   vi.stubGlobal("getComputedStyle", () => ({ paddingRight: "8px" }));
 });
@@ -252,6 +254,23 @@ test("when the last provider signs out the popover closes and focus goes to the 
   expect(tab.focus).toHaveBeenCalledOnce();
   deliver([ok("codex")]);
   expect(render()!.open).toBe(false);
+});
+
+// A usage push can sign the last provider out while the window is behind; activation then restores the gone popover's
+// focus to the first control (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the hand-off to
+// the current tab is made again.
+test("when the last provider signs out with the window in the background, the current tab takes focus again on activation", () => {
+  render(); deliver([ok("claude")]);
+  let view = render()!; const { tab } = mountButton(view); view.onOpenChange(true); view = render()!;
+  const target = Object.assign(new EventTarget(), { doan });
+  vi.stubGlobal("window", target);
+  vi.stubGlobal("document", { hasFocus: () => false, querySelectorAll: () => [] });
+  deliver([{ provider: "antigravity", inFlight: false }]);
+  expect(render()).toBeNull();
+  expect(tab.focus).toHaveBeenCalledOnce();
+  target.dispatchEvent(new Event("focus"));
+  vi.runAllTimers();
+  expect(tab.focus).toHaveBeenCalledTimes(3);
 });
 
 test("a press in the canvas closes it and keeps focus in the canvas", () => {

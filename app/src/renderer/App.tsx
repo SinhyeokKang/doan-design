@@ -705,22 +705,26 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   };
   useEffect(() => {
     controller.current?.setWorkspaceActive(screen === "workspace");
+    // `doan open` can move the screen while the window is behind, so each entry focus is made again on activation, and
+    // only while the same screen shows.
     if (screen === "home") {
-      document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
+      handFocus.current(() => { if (currentScreen.current === "home") document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus(); });
     } else if (screen === "workspace") {
+      const root = loadedRoot;
+      const hand = (focus: () => void) => handFocus.current(() => { if (currentScreen.current === "workspace" && loadedRootRef.current === root) focus(); });
       // A problem scene takes focus first: what it covers is inert (PRODUCT §5 item 3 'Problem states'); the scene's
       // own effect gives it to the heading.
       if (sceneRef.current) { homeRun.current.takeFocus(); chipFocus.current = false; return; }
       // A Home send lands in the Overview's composer field.
-      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
+      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { hand(() => document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus()); return; } }
       // A worktree picked from the Overview's branch chip lands on the new Overview's chip.
-      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
+      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { hand(() => document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip")?.focus()); return; } }
       // An entry to a waiting request focused its card in the same commit; child effects run first, so this default
       // would otherwise take the focus to the sidebar row right after.
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.isConnected && active.closest(".workspace .conversation-thread")) return;
       const previous = workspaceFocus.current;
-      (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
+      hand(() => (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus());
     }
   }, [screen, loadedRoot]);
   useEffect(() => {

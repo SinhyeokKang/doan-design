@@ -87,7 +87,7 @@ beforeEach(() => {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 });
@@ -382,7 +382,7 @@ test("Escape on a focused radio leaves the page, and an open tooltip takes the E
   expect(onPage()).toBe(false);
   beforeEachReset();
   openFromWorkspace();
-  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: (selector: string) => selector.includes('[role="tooltip"]') ? {} : null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { hasFocus: () => true, documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: (selector: string) => selector.includes('[role="tooltip"]') ? {} : null, querySelectorAll: () => [] });
   windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render();
   expect(onPage()).toBe(true);
 });
