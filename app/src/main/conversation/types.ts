@@ -43,6 +43,7 @@ export type HandoffResolution = { outcome: "started"; target: { conversationId: 
 // the provider's built-in commands Doan runs (providerCommands.ts). Type-only here, since the renderer imports it: the
 // parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
+export interface EditLines { added: number; removed: number }
 export type FastUnusedReason = "plan" | "extra_usage" | "model" | "policy" | "cooldown";
 export type EventPayload =
   | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; origin?: HandoffOrigin }
@@ -54,7 +55,7 @@ export type EventPayload =
   | { type: "activity"; kind: "edit" | "read" | "command" | "other"; path?: string; insideDesign?: boolean; summary: string; callId?: string }
   // The lines an applied edit added and removed, keyed by its activity's callId (and path, since one Codex call edits
   // several files). An earlier build fails a whole history that holds one.
-  | { type: "activity.result"; callId: string; path?: string; lines: { added: number; removed: number } }
+  | { type: "activity.result"; callId: string; path?: string; lines: EditLines }
   | PermissionRequest
   | { type: "permission.resolved"; requestId: string; optionId: string }
   | QuestionRequest
