@@ -13,6 +13,7 @@ import type { ThreadItem } from "./threadItems";
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[], cursor: 0,
   layout: [] as ({ deps: unknown[] | undefined } | undefined)[], layoutCursor: 0, pending: [] as (() => void)[],
+  handle: null as { focusItem(key: string): boolean } | null,
 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -29,7 +30,7 @@ vi.mock("react", async original => {
     },
     useRef: (value: unknown) => hooks.slots[slot(() => ({ current: value }))],
     useMemo: (factory: () => unknown) => factory(),
-    useEffect: () => {}, useImperativeHandle: () => {},
+    useEffect: () => {}, useImperativeHandle: (_ref: unknown, make: () => { focusItem(key: string): boolean }) => { hooks.handle = make(); },
     useLayoutEffect: (run: () => void, deps?: unknown[]) => {
       const index = hooks.layoutCursor++, previous = hooks.layout[index];
       if (previous && deps && previous.deps && deps.every((dep, i) => Object.is(dep, previous.deps![i]))) return;
@@ -39,7 +40,7 @@ vi.mock("react", async original => {
     useId: () => "k",
   };
 });
-const { ConversationThread, QuestionCard, ThreadEntry } = await import("./ConversationThread");
+const { ConversationThread, HandoffCard, QuestionCard, ThreadEntry } = await import("./ConversationThread");
 
 const question: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
 const permission = (requestId: string, status: "pending" | "answered" | "expired" = "pending"): ThreadItem => ({ kind: "permission", key: `p${requestId}`, seq: 1, requestId, summary: `Run ${requestId}`,
@@ -59,7 +60,7 @@ beforeEach(() => {
   vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
-    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+    conversationId: "c1", items: [], provider: "claude", project: "acme", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
     onAnswer: () => new Promise(() => {}), onAnswerQuestion: () => new Promise(() => {}), onFocusComposer: composer,
     onStop: vi.fn(), onEditAndResend: () => {}, onSignIn: () => {}, onRetry: () => {}, onOpenCanvas: () => {}, onOpenLink: () => {}, onCopy: async () => true,
   };
@@ -241,4 +242,21 @@ test("focus is not brought back to a card when the person moved it elsewhere or 
   active = inCard("ct1:a.html");
   draw([permission("p", "expired")], toBody);
   expect(focusedOption()).toEqual([]);
+});
+
+// After a handoff's move the panel focuses the receiving card itself (a labelled group, tabindex -1), whose next Tab is
+// its Open; the card keeps the .handoff-card class that focus and scrolling find it by.
+test("focusItem on a handoff card focuses the card itself, which is a focusable group", () => {
+  const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
+  const selectors: string[] = [];
+  draw([handoff]);
+  const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: { querySelector(selector: string): unknown } };
+  const query = scroller.current.querySelector.bind(scroller.current);
+  scroller.current.querySelector = (selector: string) => { selectors.push(selector); return query(selector); };
+  const card = tree.find(element => element.type === HandoffCard)!;
+  const group = all((card.type as (props: unknown) => ReactNode)(card.props)).find(element => typeof element.props.className === "string" && (element.props.className as string).split(" ").includes("handoff-card"))!;
+  expect(group.props).toMatchObject({ role: "group", tabIndex: -1, "aria-label": "drafts.html, Handed off to this conversation" });
+  expect(hooks.handle!.focusItem("u1")).toBe(true);
+  expect(selectors).toEqual(['[data-item="u1"] :is(.q-card input, .strip-actions button, .handoff-card)']);
+  expect(focusedOption()).toEqual(["u1"]);
 });

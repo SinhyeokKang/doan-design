@@ -28,7 +28,7 @@ afterAll(async () => { await dom?.close(); }, 30_000);
 const noop = () => {};
 const sent = (text: string) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...{
   items: [{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, attachments: [], parts: [{ text }] }] as unknown as ConversationThreadProps["items"],
-  conversationId: "c1", provider: "claude", project: "p", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} },
+  conversationId: "c1", provider: "claude", project: "p", liveAfter: 0, canvasListed: () => true, visibility: { onWindowVisible: () => () => {} }, now: 0,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true,
 }} /></TooltipProvider>);
 

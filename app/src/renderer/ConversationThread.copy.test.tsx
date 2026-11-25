@@ -18,7 +18,7 @@ for (const pressable of [false, true]) {
       items: texts.map((text, i) => ({ kind: "user", key: `u${i}`, seq: i + 1, anchors: [{ frame: { id: "hero", title: "Hero" } }], preset: null, attachments: [],
         parts: text.split(/(\{\{1\}\})/).map(part => part === "{{1}}" ? { anchor: 1 } : { text: part }) })),
       conversationId: "copy", provider: "claude", project: "copy", liveAfter: 0, canvasListed: () => true,
-      visibility: { onWindowVisible: () => noop }, onAnswer: noop, onStop: noop, onEditAndResend: noop,
+      visibility: { onWindowVisible: () => noop }, now: 0, onAnswer: noop, onStop: noop, onEditAndResend: noop,
       onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true,
       ...(pressable ? { onLocate: async () => "shown" as const } : {}),
     };
