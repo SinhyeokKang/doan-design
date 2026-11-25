@@ -130,6 +130,9 @@ export type ReadModels = ReadListing<ModelList>;
 // A start's composer: Home's for its root, or a canvas's (by path, which a start pressed during the quit names before
 // any listing resolves its id).
 function startComposer(request: { root: string; canvas?: Canvas }): string { return `start\0${request.root}\0${request.canvas?.path ?? ""}`; }
+// An open that failed before its spawn callback registered a stop (openRunner) left no process whose exit would release
+// the session.
+function unspawned(live: Live): boolean { return !live.runner && !live.cleanup; }
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
@@ -384,7 +387,7 @@ export class ConversationService {
       if (!this.quitting) this.drafts.release(id);
       else if (!handoff && !this.quitHolds.has(startComposer(request))) this.quitHolds.set(startComposer(request), id);
       this.changed(request.root);
-      if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
+      if (!opening || unspawned(live)) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
       throw error instanceof Error && error.message === "outside_root" ? new Error("session_unavailable") : error;
     }
@@ -492,14 +495,15 @@ export class ConversationService {
       if (!live.terminal) this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
-      if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
+      if (reserved && (opening ? unspawned(live) : !live.runner)) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
       // A send the person stopped hands them back as stopped.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the send awaits
       if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
-      if (opening && !this.closeRemovalRunner(live)) void live.runner?.close();
+      // Closed, as switchCodexServer does: the next send waits for its exit instead of reusing it.
+      if (opening && !this.closeRemovalRunner(live)) { live.closed = true; void live.runner?.close(); }
       throw error;
     }
   }
@@ -889,7 +893,7 @@ export class ConversationService {
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
       // A held end is written once the group is gone, after the steers the transcript shows.
       if (live.accepted && !live.held) { live.terminal = true; live.busy = false; delete live.stage; }
-      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+      if (live.runner) { live.closed = true; closing.push(live.runner.close()); } else if (live.cleanup) closing.push(live.cleanup());
     }
     // A handoff waiting for its judgement or its start would start a turn on the provider the person chose to stop
     // (a sign-out cancels it). After the loop above, which handed its queue back.
