@@ -1485,6 +1485,60 @@ describe("independent pending selection and hover commands", () => {
   });
 });
 
+// location.reload(), href="" or a link to its own file: a new document token at the same href starts both channels at 0.
+describe("a canvas replacing its own document at the same URL", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
+  const altTap = (h: ReturnType<typeof selectionHarness>) => { h.key("Alt"); h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" })); };
+
+  it("reanchors the selection from seq 1, and the new document's click selects and its hover shows", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      h.select(3);
+      h.key("Escape");
+      altTap(h);
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before).filter(m => m.type === "select-anchor")).toEqual([{ type: "select-anchor", doanId: "cta", selector: '[data-doan-id="cta"]', seq: 1 }]);
+      expect(h.markOf("selected")?.hidden).toBe(true);
+      h.receive({ type: "hover", seq: 0, rect: h.target.rect });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      h.select(2, { target: { ...h.target, tag: "button" } });
+      expect(h.state().selection?.tag).toBe("button");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("without a selection sends nothing, and the new document's first click selects", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      h.controller.selectFrame(1, "hero");
+      h.key("Escape");
+      altTap(h);
+      h.receive({ type: "hover", seq: 2, rect: h.target.rect });
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before)).toEqual([]);
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      h.select(1);
+      expect(h.state().selection?.tag).toBe("span");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("resends a held ⌥ to the new document from hover seq 1", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      altTap(h);
+      h.key("Alt");
+      const before = posted(h).length;
+      h.layout({ document: "doc2" });
+      expect(posted(h).slice(before)).toEqual([{ type: "hover-alt", alt: true, seq: 1 }]);
+    } finally { h.controller.dispose(); }
+  });
+});
+
 it("resets both channels on reload and rejects old-window, href and viewport hover", () => {
   const h = selectionHarness();
   try {
@@ -6004,6 +6058,18 @@ describe("⌘ for the canvas's direct-selection hover", () => {
       expect(h.state().tool).toBe("select");
       h.host.dispatchEvent(keyEvent("keydown", "Escape", { metaKey: true }));
       expect(posted(h).at(-1)).toMatchObject({ type: "select-parent" });
+    } finally { h.controller.dispose(); }
+  });
+
+  // ⌘ released inside a focused canvas never reaches the app as a keyup; the app's own pointer moves say whether it is held.
+  it.each([false, true])("a reload resends ⌘ only as the app's last pointer move saw it (metaKey %s)", (metaKey) => {
+    const h = selectionHarness();
+    try {
+      if (!metaKey) h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true }));
+      h.host.dispatchEvent(Object.assign(new Event("pointermove"), { metaKey, altKey: false }));
+      h.controller.command("reload");
+      h.layout({ document: "doc2" });
+      expect(posted(h).filter(m => m.type === "hover-meta")).toEqual(metaKey ? [{ type: "hover-meta", meta: true, seq: 1 }] : []);
     } finally { h.controller.dispose(); }
   });
 });
