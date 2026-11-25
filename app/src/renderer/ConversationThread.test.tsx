@@ -686,13 +686,28 @@ describe("canvas cards and the handoff card", () => {
     expect(html([card()], { canvasRows: [bare] })).toContain('<span class="cc-meta"><span>No frames</span></span>');
   });
 
-  // A deep folder at the panel's 280 minimum is wider than the text column: it must shrink and cut, not run under Open.
-  test("the folder item can shrink below its text and cuts with an ellipsis", () => {
+  // One line at every width, so neither the width nor the minute's new time changes a card's height (PRODUCT §5 'Canvas
+  // cards'). The folder gives way first, down to an ellipsis, and shows whole in the shared tooltip while cut; the time last.
+  test("the meta line never wraps: the folder shrinks first and cuts with an ellipsis, the time cuts last", () => {
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-    const rule = /\.conversation-thread \.card-head \.cc-meta \.cc-folder \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/min-width: 0;/);
-    expect(rule).toMatch(/overflow: hidden;/);
-    expect(rule).toMatch(/text-overflow: ellipsis;/);
+    const rule = (selector: string) => new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`, "m").exec(css)?.[1] ?? "";
+    const meta = rule(".conversation-thread .card-head .cc-meta");
+    expect(meta).toMatch(/display: flex;/);
+    expect(meta).not.toMatch(/flex-wrap: wrap;/);
+    expect(meta).toMatch(/overflow: hidden;/);
+    expect(rule(".conversation-thread .card-head .cc-meta > span")).toMatch(/flex: none;/);
+    // A zero basis: the folder takes only the room the frames and time leave, up to its own text, never less than an ellipsis.
+    const folder = rule(".conversation-thread .card-head .cc-meta .cc-folder");
+    expect(folder).toMatch(/flex: 1 1 0;/);
+    expect(folder).toMatch(/max-width: max-content;/);
+    expect(folder).toMatch(/min-width: (?!0;)/);
+    expect(folder).toMatch(/overflow: hidden;/);
+    expect(folder).toMatch(/text-overflow: ellipsis;/);
+    const time = rule(".conversation-thread .card-head .cc-meta > span:has(> time)");
+    expect(time).toMatch(/flex: 0 1 auto;/);
+    expect(time).toMatch(/min-width: 0;/);
+    expect(time).toMatch(/overflow: hidden;/);
+    expect(time).toMatch(/text-overflow: ellipsis;/);
   });
 
   test("the group's name is the file and the status only; the meta never enters it", () => {
