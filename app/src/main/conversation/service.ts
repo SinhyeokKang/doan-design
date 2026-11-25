@@ -131,8 +131,8 @@ export type ReadModels = ReadListing<ModelList>;
 // any listing resolves its id).
 function startComposer(request: { root: string; canvas?: Canvas }): string { return `start\0${request.root}\0${request.canvas?.path ?? ""}`; }
 // An open that failed before its spawn callback registered a stop (openRunner) left no process whose exit would release
-// the session.
-function unspawned(live: Live): boolean { return !live.runner && !live.cleanup; }
+// the session. One whose spawn failure already reported exited() was released there; a later send may hold it now.
+function unspawned(live: Live): boolean { return !live.runner && !live.cleanup && !live.exited; }
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
