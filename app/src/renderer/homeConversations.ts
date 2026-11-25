@@ -45,8 +45,6 @@ export function removalConfirm(running: readonly { conversationId: string; waiti
   };
 }
 
-// Built here from the card rows: the renderer never imports main's modules as values, or the built app's window goes
-// blank.
 export function removalQuestionLabel(cards: readonly HomeCard[], paths: readonly string[], names: ReadonlyMap<string, string>): string {
   const card = cards.find(card => card.rows.some(row => paths.includes(row.path)));
   if (!card) return names.get(paths[0] ?? "") ?? "";
