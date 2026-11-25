@@ -126,11 +126,13 @@
 
   --red-3: #feebec;
   --red-9: #e5484d;
+  --red-11: #ce2c31;
   --red-12: #641723;
   --amber-3: #fff7c2;
   --amber-11: #ab6400;
   --amber-12: #4f3422;
   --green-3: #e6f6eb;
+  --green-11: #218358;
   --green-12: #193b2d;
 
   /* Malmoi's project fallback palette, Tailwind 600; kept apart from status hues. */
@@ -231,6 +233,10 @@
   --text-danger: var(--red-12);
   --text-warning: var(--amber-12);
   --text-success: var(--green-12);
+  /* Line counts of an agent's edit in the thread: lighter than success/danger so added and removed tell apart from
+     neutral text at a glance; both still clear 4.5:1 on white (4.72 and 5.21). */
+  --text-diff-added: var(--green-11);
+  --text-diff-removed: var(--red-11);
 
   --identity-project-rose: var(--rose-600);
   --identity-project-orange: var(--orange-600);
