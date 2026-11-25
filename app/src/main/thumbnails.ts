@@ -203,9 +203,13 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     const target = known.get(key);
     const row = target === undefined ? undefined : listedRow(deps.entries(), target);
     let png: Buffer | null = null;
+    // A job with nothing to capture when it starts (no width, no file, or forgotten while get read the cache) made no
+    // attempt, so it is not kept as failed: the next get decides again.
+    let attempted = false;
     if (target !== undefined && row?.width !== undefined) {
       const meta = await current(target);
       if (meta !== null) {
+        attempted = true;
         basis.set(key, meta);
         const captured = await deps.capturer.capture(row.url, row.width);
         png = captured;
@@ -226,7 +230,7 @@ export function createThumbnails(deps: ThumbnailDeps): Thumbnails {
     }
     const stale = queue.activeStale;
     running = false;
-    dispatch({ type: png === null ? "fail" : "done", key });
+    dispatch({ type: png === null && attempted ? "fail" : "done", key });
     if (target !== undefined && !stale && !disposed) deps.changed(target);
   };
 
