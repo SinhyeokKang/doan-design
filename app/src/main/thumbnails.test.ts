@@ -539,6 +539,39 @@ test("visibility updates demote queued cards without scheduling new captures", a
   expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
 });
 
+// The main window and the prototype window can both show a canvas's card: one window's card leaving the screen does
+// not demote a canvas the other window still shows.
+test("a canvas stays visible while any window shows it", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await started(f, 1);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", true, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", false, "prototype");
+  thumbnails.visible(f.root, ".doan/canvases/c.html", false, "prototype");
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("c.html")).toBe(true);
+});
+
+// A window that closes reports nothing more; what it showed stops counting as visible.
+test("a closed window's visibility no longer counts", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/c.html"]);
+  f.hold = true;
+  const thumbnails = make(f.deps);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await started(f, 1);
+  await thumbnails.get(f.root, ".doan/canvases/b.html", false, "main");
+  await thumbnails.get(f.root, ".doan/canvases/c.html", false, "main");
+  thumbnails.visible(f.root, ".doan/canvases/c.html", true, "prototype");
+  thumbnails.viewerClosed("prototype");
+  f.release();
+  await started(f, 2);
+  expect(f.captures.at(-1)?.endsWith("b.html")).toBe(true);
+});
+
 test("startup collection leaves an active temporary write intact while removing orphan temps", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   mkdirSync(f.dir);

@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import type { ThumbnailReply } from "../main/thumbnails";
 import type { CanvasRow } from "../main/view";
-import { applyVisibility, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./thumbnails";
+import { applyVisibility, ThumbnailHub, ThumbnailRequests, thumbnailView, type ThumbnailCalls, type ThumbnailState } from "./thumbnails";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [
@@ -120,4 +120,116 @@ test("thumbnails: a rejected request leaves the card failed, not pending", async
   thumbs.onVisible([a.path]);
   await vi.waitFor(() => expect(shown.get(a.path)).toEqual({ kind: "failed" }));
   expect(thumbnailView(a, shown.get(a.path))).toEqual({ kind: "failed" });
+});
+
+// One root's requests shared by the Overview list and the canvas panel: an image stays while any viewer lists its
+// canvas, and goes when the last one stops listing it.
+test("thumbnails: a canvas another viewer still lists keeps its image", async () => {
+  const h = requests();
+  const [a, b] = [rows[0]!, rows[1]!];
+  h.thumbs.setRows([a, b], "overview");
+  h.thumbs.setRows([a], "panel");
+  h.thumbs.onVisible([a.path], "panel");
+  await h.asks.find(ask => ask.path === a.path)!.reply(h.ready);
+  h.thumbs.setRows([], "panel");
+  expect(h.revoked).not.toHaveBeenCalled();
+  expect(h.shown().get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+  h.thumbs.setRows([a], "panel");
+  h.thumbs.release("overview");
+  expect(h.revoked).not.toHaveBeenCalled();
+  expect(h.shown().get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+  expect(h.shown().has(b.path)).toBe(false);
+  h.thumbs.release("panel");
+  expect(h.revoked).toHaveBeenCalledExactlyOnceWith("blob:1");
+  expect(h.shown().has(a.path)).toBe(false);
+});
+
+// The hub keeps one request set per root for every viewer of that root in a window.
+function hub() {
+  const asks: { root: string; path: string; visible: boolean; reply: (reply: ThumbnailReply) => Promise<void> }[] = [];
+  const visibility: [string, string, boolean][] = [];
+  const listeners = new Set<(target: { root: string; path: string }) => void>();
+  let urls = 0;
+  const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:${++urls}`);
+  const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  const calls: ThumbnailCalls = {
+    getThumbnail: (root, path, visible) => new Promise(resolve => { asks.push({ root, path, visible, reply: async reply => { resolve(reply); await Promise.resolve(); } }); }),
+    setThumbnailVisibility: async (root, path, visible) => { visibility.push([root, path, visible]); },
+    onThumbnailChanged: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+  };
+  const ready: ThumbnailReply = { kind: "ready", png: new Uint8Array([1]) };
+  return { hub: new ThumbnailHub(calls), asks, visibility, listeners, created, revoked, ready };
+}
+
+test("thumbnail hub: viewers of one root share its images, and a late viewer starts with them", async () => {
+  const h = hub();
+  const a = rows[0]!;
+  let overview: ReadonlyMap<string, ThumbnailState> = new Map();
+  let panel: ReadonlyMap<string, ThumbnailState> = new Map();
+  const first = h.hub.acquire("/code/acme-web", items => { overview = items; });
+  first.setRows([a]);
+  first.onVisible([a.path]);
+  await h.asks[0]!.reply(h.ready);
+  const second = h.hub.acquire("/code/acme-web", items => { panel = items; });
+  expect(panel.get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+  second.setRows([a]);
+  second.onVisible([a.path]);
+  expect(h.asks).toHaveLength(1);
+  expect(h.listeners.size).toBe(1);
+  second.release();
+  expect(h.revoked).not.toHaveBeenCalled();
+  expect(overview.get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+  first.release();
+  expect(h.revoked).toHaveBeenCalledExactlyOnceWith("blob:1");
+  expect(h.listeners.size).toBe(0);
+});
+
+test("thumbnail hub: one viewer leaving the screen leaves another viewer's visibility alone", () => {
+  const h = hub();
+  const a = rows[0]!;
+  const first = h.hub.acquire("/code/acme-web", () => {});
+  const second = h.hub.acquire("/code/acme-web", () => {});
+  first.setRows([a]); second.setRows([a]);
+  first.onVisible([a.path]);
+  second.onVisible([a.path]);
+  first.onVisible([]);
+  expect(h.visibility).toEqual([]);
+  second.release();
+  expect(h.visibility).toEqual([["/code/acme-web", a.path, false]]);
+  first.release();
+});
+
+test("thumbnail hub: each root has its own requests, and a change reaches only its root's", async () => {
+  const h = hub();
+  const a = rows[0]!;
+  const seen = new Map<string, ReadonlyMap<string, ThumbnailState>>();
+  const one = h.hub.acquire("/code/one", items => seen.set("one", items));
+  const two = h.hub.acquire("/code/two", items => seen.set("two", items));
+  one.setRows([a]); two.setRows([a]);
+  one.onVisible([a.path]); two.onVisible([a.path]);
+  expect(h.asks.map(ask => ask.root)).toEqual(["/code/one", "/code/two"]);
+  for (const listener of h.listeners) listener({ root: "/code/two", path: a.path });
+  expect(h.asks.map(ask => ask.root)).toEqual(["/code/one", "/code/two", "/code/two"]);
+  await h.asks[0]!.reply(h.ready);
+  expect(seen.get("one")?.get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+  expect(seen.get("two")?.has(a.path)).toBe(false);
+  one.release();
+  expect(h.revoked).toHaveBeenCalledExactlyOnceWith("blob:1");
+  two.release();
+  expect(h.listeners.size).toBe(0);
+});
+
+test("thumbnail hub: a released viewer's late calls do nothing", async () => {
+  const h = hub();
+  const a = rows[0]!;
+  const seen: ReadonlyMap<string, ThumbnailState>[] = [];
+  const lease = h.hub.acquire("/code/acme-web", items => seen.push(items));
+  lease.setRows([a]);
+  lease.release();
+  const before = seen.length;
+  lease.setRows([a]);
+  lease.onVisible([a.path]);
+  lease.release();
+  expect(h.asks).toEqual([]);
+  expect(seen).toHaveLength(before);
 });

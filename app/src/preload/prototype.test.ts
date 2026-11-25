@@ -183,10 +183,13 @@ const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Pro
   ["readAgentUsage", a => a.readAgentUsage()],
   ["readAgentUsage", a => a.readAgentUsage("open")],
   ["readAgentUsage", a => a.readAgentUsage("refresh")],
+  ["getThumbnail", a => a.getThumbnail("/r", ".doan/canvases/proto.html", true)],
+  ["setThumbnailVisibility", a => a.setThumbnailVisibility("/r", ".doan/canvases/proto.html", false)],
 ];
 const SHARED_EVENTS: [SharedWithMain, string][] = [
   ["onConversationEvent", "conversation:event"], ["onConversationStage", "conversation:stage"], ["onConversationBoundary", "conversation:boundary"],
   ["onConversationListChanged", "conversation:listChanged"], ["onConversationHandoff", "conversation:handoff"],
+  ["onThumbnailChanged", "thumbnails:changed"],
 ];
 
 // The context ring's drawer reads usage on the main window's channels: entries carry no account identity
@@ -329,4 +332,24 @@ test("pasted text and restored metadata use the shared attachment channels", asy
   expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:add-pasted-text", { text: "first\nsecond", lines: 2, excerpt: "first" });
   await api.attachmentsFromPaths(["/tmp/pasted-text-x.txt"], [{ lines: 2, excerpt: "first" }]);
   expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:fromPaths", { paths: ["/tmp/pasted-text-x.txt"], metadata: [{ lines: 2, excerpt: "first" }] });
+});
+
+// Thread cards show the playing root's thumbnails: the main window's thumbnail calls on the same channels, which main
+// answers for the playing root only.
+test("thumbnails are asked for and followed on the main window's channels", async () => {
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValueOnce({ kind: "pending" });
+  expect(await api.getThumbnail("/r", ".doan/canvases/a.html", true)).toEqual({ kind: "pending" });
+  await api.setThumbnailVisibility("/r", ".doan/canvases/a.html", false);
+  expect(mocks.invoke.mock.calls).toEqual([
+    ["thumbnails:get", { root: "/r", path: ".doan/canvases/a.html", visible: true }],
+    ["thumbnails:visible", { root: "/r", path: ".doan/canvases/a.html", visible: false }],
+  ]);
+  const seen = vi.fn();
+  const stop = api.onThumbnailChanged(seen);
+  emitter.emit("thumbnails:changed", {}, { root: "/r", path: ".doan/canvases/a.html" });
+  stop();
+  emitter.emit("thumbnails:changed", {}, { root: "/r", path: ".doan/canvases/b.html" });
+  expect(seen.mock.calls).toEqual([[{ root: "/r", path: ".doan/canvases/a.html" }]]);
+  expect(emitter.listenerCount("thumbnails:changed")).toBe(0);
 });
