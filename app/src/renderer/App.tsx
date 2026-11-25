@@ -186,6 +186,20 @@ export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record
   return merged;
 }
 
+// The read sidebar projects under the run's: a project the run holds keeps its roots, selection, fold and groups, and
+// unfolds when either unfolded it, as reconcileProjects merges a rejoined group.
+export function mergeShellProjects(saved: Readonly<Record<string, ShellProject>>, current: Readonly<Record<string, ShellProject>>): Record<string, ShellProject> {
+  const merged = { ...saved };
+  for (const [key, project] of Object.entries(current)) {
+    const read = saved[key];
+    if (!read) { merged[key] = project; continue; }
+    const { selectedRoot, selectedAt, ...rest } = read;
+    const selection = !project.selectedRoot && selectedRoot && project.roots.includes(selectedRoot) ? { selectedRoot, ...(selectedAt !== undefined ? { selectedAt } : {}) } : {};
+    merged[key] = { ...rest, ...project, ...selection, expanded: project.expanded || read.expanded };
+  }
+  return merged;
+}
+
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard.
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
@@ -742,6 +756,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (active) {
         conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current);
         conversationByCanvas.current = mergeCanvasMemory(state?.conversationByCanvas, conversationByCanvas.current, canvasMemoryRemoved.current);
+        // Merged here, not in the restore, which a navigation before the read cancels.
+        const read = afterRemoved({ shellProjects: state?.shellProjects ?? {}, expanded: state?.expanded ?? {}, history: emptyHistory() }, [...canvasMemoryRemoved.current]);
+        setExpanded(previous => ({ ...read.expanded, ...previous }));
+        setShellProjects(previous => mergeShellProjects(read.shellProjects, previous));
+        const remembered = controller.current?.memory() ?? {};
+        for (const [root, item] of Object.entries(state?.lastByRoot ?? {})) if (!(root in remembered) && !canvasMemoryRemoved.current.has(root)) controller.current?.remember(root, item);
         memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
       }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
@@ -766,11 +786,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return () => clearTimeout(timer);
     }
     setRestore("done");
-    if (!restore.state) return;
-    setExpanded(restore.state.expanded);
-    setShellProjects(restore.state.shellProjects ?? {});
-    for (const [root, item] of Object.entries(restore.state.lastByRoot)) controller.current?.remember(root, item);
-    if (plan.kind === "home") return;
+    if (!restore.state || plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
     controller.current?.remember(plan.root, plan.canvas?.view ? { canvas: plan.canvas.path, view: plan.canvas.view } : null);
     const listed = allEntries.find(entry => entry.path === plan.root);

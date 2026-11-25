@@ -371,3 +371,39 @@ for (const [name, open] of pages) {
     expect(sidebar().loaded).toBeNull();
   });
 }
+
+const savedState = () => doan.saveUiState!.mock.lastCall?.[0] as { expanded: Record<string, string[]>; conversationByRoot?: Record<string, string>; shellProjects?: Record<string, ShellProject> } | undefined;
+
+// A navigation before the startup read cancels the restore; the read's sidebar memory is still merged, not dropped
+// by the first save (POSTMORTEM 2026-11-01 'A ui-state save sent before the startup read').
+test("a restore cancelled before the startup read still keeps the read's projects, expanded folders and last canvases", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({
+    screen: "workspace", root: OTHER, expanded: { [OTHER]: [".doan/canvases"], [MAIN]: [".doan/ds"] }, lastByRoot: { [OTHER]: { canvas: A, view: VIEW } },
+    shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: OTHER, selectedAt: 5, groups: { ds: false } }, "/gone": { roots: ["/x/gone"], expanded: true } },
+  });
+  await flush(); render();
+  getWork([]); await flush(); render();
+  expect(controller().remember!).toHaveBeenCalledWith(OTHER, { canvas: A, view: VIEW });
+  const saved = savedState()!;
+  expect(saved.expanded).toEqual({ [OTHER]: [".doan/canvases"], [MAIN]: [".doan/ds"] });
+  // The person's own move keeps its selection; the read's fold state and closed groups join it.
+  expect(saved.shellProjects?.[KEY]).toMatchObject({ roots: [MAIN, OTHER, W], expanded: true, selectedRoot: MAIN, groups: { ds: false } });
+  expect(sidebar().loaded).toBe(MAIN);
+});
+
+test("a root removed before the startup read gets none of the read's sidebar memory back", async () => {
+  render();
+  folders([main(), other(), wt()]);
+  enter(MAIN);
+  folders([main(), wt()]);
+  readUiState({ screen: "home", expanded: { [OTHER]: [".doan/canvases"] }, lastByRoot: { [OTHER]: { canvas: A, view: VIEW } }, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: OTHER, selectedAt: 5 } } });
+  await flush(); render();
+  getWork([]); await flush(); render();
+  expect(controller().remember!).not.toHaveBeenCalledWith(OTHER, { canvas: A, view: VIEW });
+  expect(savedState()?.expanded[OTHER]).toBeUndefined();
+  expect(savedState()?.shellProjects?.[KEY]?.roots).not.toContain(OTHER);
+});
