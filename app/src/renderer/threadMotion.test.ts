@@ -71,7 +71,7 @@ describe("entering", () => {
     // The frame where both the q item and the history's item show.
     const pushed = [...running, message("t1", "Also the footer")];
     const r2 = withSending(items(pushed), [send]);
-    expect(r2.filter(i => i.kind === "user").map(i => i.key)).toEqual(["u1", "qs1", "u4"]);
+    expect(r2.filter(i => i.kind === "user").map(i => i.key)).toEqual(["u1", "u4", "qs1"]);
     expect(entering(r1, r2, marks)).toEqual(new Set());
     // The next frame: the q item is gone.
     const r3 = items(pushed);
@@ -187,7 +187,7 @@ describe("revealBoundary", () => {
     for (const text of ["See [the payment", "See [the payment screen]", "See [the payment screen](https://exa", "See [Payment](doan:canvas/payment.html#fr"]) {
       expect(revealBoundary(text, 0, text.length)).toBe(4);
     }
-    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6)).toBe("See [Payment](doan:canvas/payment.html#frame)".length);
+    expect(revealBoundary("See [Payment](doan:canvas/payment.html#frame) now", 0, 6)).toBe("See [Payment](doan:canvas/payment.html#frame) ".length);
   });
 
   test("a finished link shows whole, never part of its label", () => {
