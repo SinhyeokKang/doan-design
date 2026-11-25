@@ -274,6 +274,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Fast switch | [design/conversation.md](design/conversation.md) |
 | Sent bubble lists | [design/conversation.md](design/conversation.md) |
 | Turn indicator | [design/conversation.md](design/conversation.md) |
+| Edit line counts | [design/conversation.md](design/conversation.md) |
 | Older model disclosure | [design/conversation.md](design/conversation.md) |
 | Project skill drawer | [design/conversation.md](design/conversation.md) |
 | Folder attachments | [design/conversation.md](design/conversation.md) |
