@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { createCanvasExport, createPrototypeExport, exportName, interpretExport, prototypeExportName, type ExportTarget } from "./canvasExport";
 import type { CliRun } from "./folderState";
@@ -65,6 +68,25 @@ describe("interpretExport", () => {
     // Any case, as the CLI compares it: on a case-insensitive disk `.DOAN` is the same directory.
     for (const output of ["/repo/.DOAN/a.html", "/repo/.Doan/out/a.html"]) expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), output)).toEqual({ kind: "failed", reason: "insideDoan" });
     expect(interpretExport(fail("usage_error", "no such directory"), "/repo/.DOAN.d/a.html")).toEqual({ kind: "failed", reason: "failed" });
+  });
+
+  // As the CLI's `UnderDoan`: where the chosen folder really leads counts too.
+  test("a folder that leads into .doan through a symlink is inside .doan", () => {
+    const base = realpathSync(mkdtempSync(join(tmpdir(), "doan-export-")));
+    try {
+      mkdirSync(join(base, "repo/.doan/canvases"), { recursive: true });
+      mkdirSync(join(base, "plain"));
+      symlinkSync(join(base, "repo/.doan/canvases"), join(base, "linked"));
+      symlinkSync(join(base, "plain"), join(base, "elsewhere"));
+      symlinkSync(join(base, "gone"), join(base, "dangling"));
+      const interpret = (folder: string) => interpretExport(fail("usage_error", "-o must not be inside .doan"), join(base, folder, "a.html"));
+      expect(interpret("linked")).toEqual({ kind: "failed", reason: "insideDoan" });
+      // A folder that cannot be resolved is judged by its path alone.
+      for (const folder of ["elsewhere", "dangling", "missing"]) expect(interpret(folder), folder).toEqual({ kind: "failed", reason: "failed" });
+      expect(interpret("missing/.doan")).toEqual({ kind: "failed", reason: "insideDoan" });
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 
   // `doan export --frame <id> --prototype`'s static frame judgement.
