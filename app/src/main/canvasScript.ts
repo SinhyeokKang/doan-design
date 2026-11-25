@@ -1,5 +1,5 @@
-// Shipped as the source text of the functions below (WebFrameMain.executeJavaScript), so each must be self-contained:
-// no imports, no module-level names. It runs in the canvas's main world, so the canvas can fake what it posts.
+// Shipped as source text (WebFrameMain.executeJavaScript): self-contained, no imports or module-level names. It runs in
+// the canvas's main world, so the canvas can fake what it posts and the renderer validates it.
 
 import type { ElementKind } from "../renderer/canvasMessage";
 
@@ -11,7 +11,7 @@ export interface HeightState {
 }
 
 // A `min-height: 100vh` document that still outgrows the viewport right after our resize is chasing it, so the last
-// sent height is kept, except after a sent 0 and once per web font load (`fonts`), which grows a document the same way.
+// sent height is kept, except after a sent 0 and once per web font load (`fonts`) (ARCHITECTURE §3 'Canvas view').
 export function nextHeight(prev: HeightState | null, measured: number, inner: number, fonts: number): HeightState {
   if (prev === null || prev.fonts !== fonts) return { sent: measured, inner, frozen: false, fonts };
   if (prev.frozen) return prev;
@@ -20,8 +20,8 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
   return { sent: measured, inner, frozen: false, fonts };
 }
 
-// Not scrollHeight alone: it never drops below the viewport. With `html { height: 100% }` only scrollHeight tells the
-// content height, and absolutely positioned frames need `framesBottom`, or such a canvas alternates 0 and its extent.
+// Not scrollHeight alone (never below the viewport), but only it tells the height under `html { height: 100% }`.
+// `framesBottom` stops absolute-frame canvases alternating; its scrollHeight cap bounds clipping misses (`contain: paint`).
 export function documentHeight(rect: number, scrollHeight: number, inner: number, framesBottom: number): number {
   return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.min(Math.ceil(framesBottom), scrollHeight));
 }
@@ -1186,8 +1186,8 @@ export function canvasScript(lib: CanvasLib): void {
     { capture: true },
   );
 
-  // The press never reaches the canvas: the script keeps its own Range and posts its Text line rects for the app's
-  // overlay; the canvas's Selection is touched only within one task to read the text. `remote`: Hand's drag (pointerId -1).
+  // The press never reaches the canvas: the script posts its own Range's Text line rects for the app's overlay and reads
+  // the text through the canvas's Selection within one task, so nothing is painted. `remote`: Hand's drag (pointerId -1).
   type TextDrag = { pointerId: number; node: Text; offset: number; screen: { x: number; y: number }; boundary: Element; state: TextDragState; remote: boolean };
   let textDrag: TextDrag | null = null;
   let textRange: Range | null = null;

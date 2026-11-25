@@ -256,8 +256,8 @@ export function localSeenText(roots: ReadonlyMap<string, RootRecord>): string {
   return `${JSON.stringify({ v: 3, roots: value })}\n`;
 }
 
-// A root's one read of `.doan/seen/` into its local record, so every canvas shows the same dot as before. Shared records
-// are copied only with this device's older memory of the root; otherwise its v2 verdict or old mtimes carry, else seen.
+// A root's one read of `.doan/seen/`, keeping each dot. Valid records under a present marker are copied only if this
+// device remembers the root; every other row carries its v2 verdict or old mtime, else starts seen.
 export function migrateRoot(memory: RootMemory | undefined, reads: SeenReads, rows: readonly SeenRow[], last: (row: SeenRow) => Verdict | undefined): RootRecord {
   const ids = uniqueIds(rows);
   // Only a root this device knew under an older Doan carries its shared records over: a new worktree or another machine

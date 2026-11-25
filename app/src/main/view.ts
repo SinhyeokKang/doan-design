@@ -153,8 +153,8 @@ export function revealTarget(entry: FolderEntry, exists: (path: string) => boole
 
 export type OpenDecision = { store: string } | { refuse: string };
 
-// A picked subfolder is stored as the repo root the CLI found. A failing run has no root, so `asRepo` (`doan ls
-// --repo <picked>`) stores the pick only when Go reads it as a root; root detection stays in Go. null: no second run.
+// Stores the CLI's repo root. When `ls` failed, `asRepo` (`ls --repo <picked>`) admits the pick only if Go reads it as a
+// root: a stored subfolder would read as not initialized and invite a nested `doan init`. null: no second run.
 export function openDecision(state: FolderState, realPicked: string, asRepo: FolderState | null): OpenDecision {
   switch (state.kind) {
     case "list":

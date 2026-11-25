@@ -472,7 +472,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 }
 
 // The chip field keeps its own undo history and refuses Chromium's, so the Redo role never reached it. A focused chip
-// field (data-chip-field) gets the history beforeinput; anything else the WebContents undo or redo.
+// field gets the history beforeinput, anything else WebContents undo/redo; a key the page handles is no menu key.
 function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOptions["click"]> {
   const script = `(() => { const field = document.activeElement; if (!(field instanceof HTMLElement) || !field.hasAttribute("data-chip-field") || !field.isContentEditable) return false;
     field.dispatchEvent(new InputEvent("beforeinput", { inputType: "${kind === "undo" ? "historyUndo" : "historyRedo"}", bubbles: true, cancelable: true })); return true; })()`;
@@ -774,7 +774,7 @@ function revealForStart(window: BrowserWindow): void {
   }
 }
 
-// Resolves to the stored root so the setup wizard can show the project it opened.
+// Resolves to the stored root so first run can show the project it opened.
 async function openProject(): Promise<string | null> {
   const window = win;
   const ready = shell;

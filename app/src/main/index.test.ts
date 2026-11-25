@@ -2024,7 +2024,7 @@ describe("canvas trash on main's grounds", () => {
     mkdirSync(join(dir, ".doan/canvases"), { recursive: true });
     mkdirSync(join(dir, ".doan/comments"));
     writeFileSync(join(dir, path), "<!doctype html>");
-    // Left from before comments were removed, named after the canvas id: Move to Trash leaves it.
+    // A leftover comments file named after the canvas id: Move to Trash leaves it.
     writeFileSync(join(dir, ".doan/comments/a.jsonl"), "{}\n");
     return dir;
   };

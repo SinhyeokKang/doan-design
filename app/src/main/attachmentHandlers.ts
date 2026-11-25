@@ -1,5 +1,5 @@
-// An attachment id in a draft belongs to the window that holds it now; once main accepts a start, send or queue
-// carrying it, the id is the conversation's and no window's close touches it. Electron-free.
+// An attachment id belongs to the window holding its draft until main accepts it into a conversation. Ids issued
+// outside these handlers (a canvas capture, a reissue) are the main window's only. Electron-free.
 import type { AttachmentResult, AttachmentStore, RecheckResult } from "./attachments";
 
 // The window that asked: "main", or the prototype window by its webContents id, so a closed window's late reply is

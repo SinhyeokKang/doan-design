@@ -31,7 +31,7 @@ export async function readFoldersFile(file: string): Promise<string[]> {
 }
 
 // A run starts only on a root that is its own real path (ARCHITECTURE §7 'Identity and admission'), so a root saved
-// through a symlink is read as its real path; one that cannot be resolved now keeps its spelling, so it shows as missing.
+// through a symlink is read as its real (on-disk spelling) path; an unresolvable one keeps its spelling, shown missing.
 async function realRoots(spellings: readonly string[]): Promise<Map<string, string>> {
   const unique = [...new Set(spellings)];
   const real = await Promise.all(unique.map(path => realpath(path).catch(() => path)));

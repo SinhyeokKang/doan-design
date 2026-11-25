@@ -794,7 +794,7 @@ describe("viewer files", () => {
   });
 });
 
-// The values are the app's; these rules were missing from this page or lost a cascade tie.
+// The values are the app's; each rule must exist on this page and win its cascade tie.
 describe("header rules the draft's measurement pinned", () => {
   const rule = (selector: string): string => new RegExp(`^${selector.replace(/[.[\]()]/g, "\\$&")} \\{([^}]*)\\}$`, "m").exec(shellCss)?.[1] ?? "";
 

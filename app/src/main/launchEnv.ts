@@ -18,8 +18,8 @@ export function launchEnv(inherited: Record<string, string | undefined>): Record
   return { ...env, PATH: LAUNCHD_PATH };
 }
 
-// The fuse being off, Electron removes NODE_EXTRA_CA_CERTS before Node reads it, so the value `launchctl setenv` gave
-// GUI apps is read back from launchd; a terminal's value is replaced too, so every launch passes on the same CA.
+// With the enableNodeOptionsEnvironmentVariable fuse off, Electron drops NODE_EXTRA_CA_CERTS before Node reads it, so
+// launchd's `launchctl setenv` value is read back; a terminal's is replaced too, so every launch passes the same CA.
 export function restoreLaunchdCaCerts(env: Record<string, string | undefined>, getenv: (name: string) => string): void {
   let value = "";
   // Unreadable launchd: pass no CA rather than a terminal's, and say so, since agents' TLS errors would not.

@@ -10,8 +10,8 @@ export type InstallChoice = TerminalChoice | { kind: "page" };
 
 // Main's names for the four providers it writes commands for; the renderer has its own table.
 export const INSTALL_NAMES: Record<ExternalTarget, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", copilot: "GitHub Copilot" };
-// Each provider's install page command (Copilot's needs neither Node nor Homebrew; Cursor runs as cursor-agent). Copilot
-// has no update: it also replaces a cached package Doan's Copilot (HOME=<profileDir>) never selects.
+// Each provider's install page command (Copilot's needs no Node or Homebrew; Cursor runs as cursor-agent). No Copilot
+// update: `copilot update` also replaces a cached package that Doan's Copilot (HOME=<profileDir>) never selects.
 const COMMANDS: Record<ExternalTarget, { install: string; update: { command: string; floor: string } | null }> = {
   claude: { install: "curl -fsSL https://claude.ai/install.sh | bash", update: { command: "claude update", floor: "2.0.67" } },
   codex: { install: "curl -fsSL https://chatgpt.com/codex/install.sh | sh", update: { command: "codex update", floor: "0.126.0" } },

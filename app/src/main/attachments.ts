@@ -6,7 +6,7 @@ import type { AttachmentRecord } from "./conversation/types";
 // Attachments are local paths the agent reads with its own tools. Path-less images, pasted text and canvas captures
 // are written under <userData>/attachments/<id>/.
 export const MAX_ATTACHMENTS = 10;
-// The paste cap is Orca's; local files are not capped, but no image above it is decoded for a thumbnail.
+// The paste cap; local files are not capped, but no image above it is decoded for a thumbnail.
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 const MAX_PATH = 4096;
 const SENT = "sent";

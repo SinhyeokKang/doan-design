@@ -1,5 +1,5 @@
-// Inspector logic over CDP's matched and computed styles: CDP orders the rules; importance, shorthand parts, var() and
-// token chains, inheritance and display are ours. Known gaps (`inherit`, invalid var(), logical props) read as unknown.
+// Inspector logic over CDP's styles (ARCHITECTURE §3 'Resolver limits'): logical props read as horizontal-tb LTR,
+// `:not(:hover)` counts as hover, and a value it cannot place is unknown, never default.
 
 export type InspectGroup = "layout" | "box" | "typography" | "colors" | "radius" | "shadow";
 export type InspectState = "token" | "hardcoded" | "unknown" | "default";

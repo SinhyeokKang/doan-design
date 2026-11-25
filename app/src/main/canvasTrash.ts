@@ -37,8 +37,8 @@ export function trashTarget(entries: readonly FolderEntry[], request: TrashReque
   return { root: entry.path, path: row.path, ...(id ? { id } : {}) };
 }
 
-// Check 5, main's own grounds (the renderer's trashBlock is display only), over this root's conversations and starts
-// not accepted yet. Worktrees share ids and paths, so nothing of another root counts.
+// Check 5, main's grounds over this root only (worktrees share ids and paths). A project conversation's drawing or a
+// handoff's target is deliberately not held (ARCHITECTURE §7 'Canvas row menu IPC').
 export function trashBusy(
   target: Pick<TrashTarget, "root" | "path" | "id">,
   conversations: readonly ConversationSummary[],
@@ -55,8 +55,8 @@ export function trashBusy(
 
 const code = (error: unknown): unknown => typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
 
-// Checks 3 and 4, on the disk now (ARCHITECTURE §13 'Paths inside the repo'). A segment can still become a link before
-// `shell.trashItem`, which takes only a path; accepted for one person-confirmed action on a row the person chose.
+// Checks 3 and 4 on the disk now: no symlinked segment, a regular file inside the root (ARCHITECTURE §7 'Canvas row
+// menu IPC'). The check-then-trashItem gap is accepted for one person-confirmed action.
 export async function checkCanvasFile(root: string, path: string): Promise<"ok" | TrashRefusal> {
   const segments = path.split("/");
   try {

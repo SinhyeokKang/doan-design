@@ -76,8 +76,8 @@ function executable(path: string): boolean {
   try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; }
 }
 
-// Not `execFile`: its 1 MiB maxBuffer is below a large repo's `ls` output. stdin is ignored so the CLI never waits; the
-// launchd environment keeps the terminal's session IDs from the CLI, and PATH is the login shell's only for git init.
+// Not `execFile` (1 MiB maxBuffer); stdin ignored so the CLI never waits; the launchd env drops terminal session IDs.
+// spawn searches the child's PATH, so with git init's login PATH a bare `doan` is first resolved on the app's own.
 function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number, git: CliEnv = {}): Promise<CliRun> {
   return new Promise((resolve) => {
     const own = process.env.PATH ?? "";
