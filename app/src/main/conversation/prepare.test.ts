@@ -310,5 +310,15 @@ describe("claudeSessionExists", () => {
     const read = await withFifo(join(dir, `${ID}.jsonl`), () => claudeSessionExists(config, ID));
     expect(read.value).toBe(false);
     expect(read.ms).toBeLessThan(PROMPT_MS);
+  });  // Finder and other tools leave plain files beside the project directories, in any listing order.
+  it("skips plain files in projects/ but never follows a linked project directory", () => {
+    const { config, dir } = profile();
+    for (const name of [".DS_Store", "!", "0", "A", "_", "a", "~", "-", "-a"]) writeFileSync(join(config, "projects", name), "");
+    writeFileSync(join(dir, `${ID}.jsonl`), "{}\n");
+    expect(claudeSessionExists(config, ID)).toBe(true);
+    rmSync(join(dir, `${ID}.jsonl`));
+    const elsewhere = temp(); writeFileSync(join(elsewhere, `${ID}.jsonl`), "{}\n");
+    symlinkSync(elsewhere, join(config, "projects", "linked"));
+    expect(claudeSessionExists(config, ID)).toBe(false);
   });
 });

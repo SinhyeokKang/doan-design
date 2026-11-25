@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { readSessionTail, claudeOccupancy, codexOccupancy, codexSessionExists, fileHolders, type FileHolder } from "./io";
+import { readSessionTail, claudeOccupancy, claudeTranscript, codexOccupancy, codexSessionExists, fileHolders, type FileHolder } from "./io";
 import { ConversationStore } from "./store";
 const hooks = vi.hoisted(() => ({ open: undefined as undefined | ((path: unknown, flags: number) => void), truncate: false, beforeWrite: undefined as undefined | (() => void), oversizedList: false }));
 vi.mock("node:fs", async original => {
@@ -397,4 +397,16 @@ it("appends to the verified object if its pathname is replaced after reading", (
 it("fails closed when the Codex storage enumeration budget is exhausted", () => {
   const root = realpathSync(temp()); mkdirSync(join(root, "sessions")); hooks.oversizedList = true;
   expect(codexSessionExists(root, "01a178ba-f9dc-7161-9544-f20f656064a1", root)).toBe(false);
+});
+// Finder and other tools leave plain files beside the project directories, in any listing order.
+it("finds a Claude transcript past plain files in projects/ but never through a linked project directory", () => {
+  const config = realpathSync(temp()), id = "11111111-1111-4111-8111-111111111111", dir = join(config, "projects", "-repo");
+  mkdirSync(dir, { recursive: true });
+  for (const name of [".DS_Store", "!", "0", "A", "_", "a", "~", "-", "-a"]) writeFileSync(join(config, "projects", name), "");
+  writeFileSync(join(dir, `${id}.jsonl`), "{}\n");
+  expect(claudeTranscript(config, id)).toBe(join(dir, `${id}.jsonl`));
+  rmSync(join(dir, `${id}.jsonl`));
+  const elsewhere = realpathSync(temp()); writeFileSync(join(elsewhere, `${id}.jsonl`), "{}\n");
+  symlinkSync(elsewhere, join(config, "projects", "linked"));
+  expect(claudeTranscript(config, id)).toBeNull();
 });
