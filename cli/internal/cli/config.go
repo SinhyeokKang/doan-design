@@ -151,7 +151,11 @@ func configPath(root, path string, token bool) (string, *Error) {
 			return "", usageError("Token CSS must be a regular file")
 		}
 	} else {
-		if relative == "." || repo.MetadataPath(relative) || repo.Withheld(relative) || withheldAsTyped(root, path) {
+		typed, err := withheldAsTyped(root, path)
+		if err != nil {
+			return "", internal(err)
+		}
+		if relative == "." || repo.MetadataPath(relative) || repo.Withheld(relative) || typed {
 			return "", usageError("Serve paths must not be the repository root, .doan metadata, a .git directory or .env file, or inside one")
 		}
 		if !info.Mode().IsRegular() && !info.IsDir() {
@@ -162,13 +166,15 @@ func configPath(root, path string, token bool) (string, *Error) {
 }
 
 // withheldAsTyped judges the path as typed below root, so a link named .env-docs is refused even when it resolves to an
-// allowed directory; a path spelled through another form of root has no typed name below it.
-func withheldAsTyped(root, path string) bool {
+// allowed directory. The lexical form goes first: belowRoot would drop a typed in-repo link that points back to root.
+func withheldAsTyped(root, path string) (bool, error) {
 	typed, err := filepath.Rel(root, path)
 	if err != nil || typed == ".." || strings.HasPrefix(typed, ".."+string(filepath.Separator)) {
-		return false
+		if typed, err = belowRoot(root, path); err != nil {
+			return false, err
+		}
 	}
-	return repo.Withheld(filepath.ToSlash(typed))
+	return repo.Withheld(filepath.ToSlash(typed)), nil
 }
 
 func writeConfig(path string, data []byte) error {
