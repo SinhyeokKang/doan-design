@@ -148,6 +148,8 @@ interface FakeMark {
   prepend(...children: FakeMark[]): void;
   remove(): void;
   focus(): void;
+  closest(selector: string): FakeMark | null;
+  readonly isConnected: boolean;
   // The pointers a fake element holds (the capture layer's drag).
   captured?: Set<number>;
 }
@@ -173,6 +175,7 @@ function selectionHarness() {
   // The hand tool reads which element has focus and whether the app window has it;
   // the root element carries the capture snapshot's attribute.
   const rootAttributes = new Map<string, string>();
+  const removed = new WeakSet<FakeMark>();
   const doc = {
     activeElement: null as unknown,
     hasFocus: () => true,
@@ -188,14 +191,19 @@ function selectionHarness() {
         const captured = new Set<number>();
         const attributes = new Map<string, string>();
         // Children know their parent, so moving or removing one takes it out of the old parent's list as the DOM does.
-        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[],
-          append: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.push(...children); },
-          prepend: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], isConnected: true,
+          append: (...children: FakeMark[]) => { for (const child of children) { detach(child); removed.delete(child); } for (const child of children) parents.set(child, mark); mark.children.push(...children); },
+          prepend: (...children: FakeMark[]) => { for (const child of children) { detach(child); removed.delete(child); } for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
           setAttribute: vi.fn((key: string, value: string) => attributes.set(key, value)), getAttribute: (key: string) => attributes.get(key) ?? null,
-          closest: (selector: string) => selector === "[data-bubble-action]" && attributes.has("data-bubble-action") ? mark : null,
-          remove: vi.fn(() => detach(mark)), focus: vi.fn(() => { doc.activeElement = mark; }),
+          closest: (selector: string) => {
+            if (selector === "[hidden]") { for (let node: FakeMark | undefined = mark; node; node = parents.get(node)) if (node.hidden) return node; return null; }
+            return selector === "[data-bubble-action]" && attributes.has("data-bubble-action") ? mark : null;
+          },
+          remove: vi.fn(() => { detach(mark); removed.add(mark); }), focus: vi.fn(() => { doc.activeElement = mark; }),
           captured, setPointerCapture: (id: number) => { captured.add(id); }, releasePointerCapture: (id: number) => { captured.delete(id); }, hasPointerCapture: (id: number) => captured.has(id) });
 
+        // Removed marks are out of the page until put back; top-level marks sit in the overlay.
+        Object.defineProperty(mark, "isConnected", { configurable: true, get: () => { for (let node: FakeMark | undefined = mark; node; node = parents.get(node)) if (removed.has(node)) return false; return true; } });
         marks.push(mark);
         return mark;
       }
@@ -337,7 +345,8 @@ describe("selection", () => {
     // moves focus to the toolbar's Play when the whole bubble goes.
     it("hands focus to Add to message when Play alone goes, to App when the bubble goes, and nowhere when it went unfocused", () => {
       const { h, play, button } = setup();
-      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }), get isConnected() { return h.markOf("bubble-host")?.isConnected ?? false; },
+        closest: (selector: string) => h.markOf("bubble-host")?.closest(selector) ?? null };
       h.controller.bubbleAdd = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn() };
       try {
         h.select(1, { target: frameTarget("intro") });
@@ -382,7 +391,9 @@ describe("selection", () => {
     const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
     const setup = () => {
       const h = selectionHarness();
-      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      // App renders it into the bubble's host, so it is shown and connected as the host is.
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }), get isConnected() { return h.markOf("bubble-host")?.isConnected ?? false; },
+        closest: (selector: string) => h.markOf("bubble-host")?.closest(selector) ?? null };
       const add = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
       // Where App's onFocusLost puts focus: the toolbar's Picker.
       const holder = { name: "Picker" };
@@ -560,6 +571,71 @@ describe("selection", () => {
           expect(h.doc.activeElement, which).toEqual({ name: "sidebar row" });
         } finally { h.controller.dispose(); }
       }
+    });
+    // An agent's write reloads the canvas while the prototype window is in front, so these moves run with the window
+    // behind; activation then restores the focus it had before, on a button that may be gone (POSTMORTEM 2026-11-17
+    // 'Window activation put focus on Hide sidebar'), so each is made again on activation while the button still shows.
+    describe("with the window in the background", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      const behind = (h: ReturnType<typeof selectionHarness>) => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        Object.assign(h.doc, { hasFocus: () => false, querySelectorAll: () => [] });
+        return () => { h.host.dispatchEvent(new Event("focus")); vi.runAllTimers(); };
+      };
+      afterEach(() => vi.useRealTimers());
+
+      it("hands focus from a Play that went to Add to message again on activation", () => {
+        const { h, addButton, playButton } = setup();
+        try {
+          h.select(1, { target: frameTarget("intro") });
+          h.doc.activeElement = playButton();
+          const activate = behind(h);
+          h.select(2, { target: frameTarget("hero") });
+          expect(addButton.focus).toHaveBeenCalledOnce();
+          activate();
+          expect(addButton.focus).toHaveBeenCalledTimes(3);
+        } finally { h.controller.dispose(); }
+      });
+
+      it("brings focus back to the same button again on activation, unless the bubble went again", () => {
+        for (const which of ["add", "play"] as const) {
+          const { h, addButton, holder, play, playButton } = setup();
+          play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
+          try {
+            const target = which === "play" ? frameTarget("intro") : h.target;
+            h.select(1, { target });
+            const button = which === "play" ? playButton()! : addButton;
+            h.doc.activeElement = button;
+            const activate = behind(h);
+            h.controller.command("reload");
+            h.layout({ frames });
+            h.select(1, { target });
+            expect(button.focus, which).toHaveBeenCalledOnce();
+            activate();
+            expect(button.focus, which).toHaveBeenCalledTimes(3);
+            // Found again, then lost again before activation: the gone button is not focused.
+            vi.mocked(button.focus).mockClear();
+            h.controller.command("reload");
+            h.layout({ frames });
+            h.select(1, { target });
+            expect(button.focus, which).toHaveBeenCalledOnce();
+            h.receive({ type: "clear", seq: 2 });
+            activate();
+            expect(button.focus, which).toHaveBeenCalledOnce();
+          } finally { h.controller.dispose(); vi.useRealTimers(); }
+        }
+      });
+
+      it("drops a waiting hand-off when the controller goes", () => {
+        const { h, addButton, playButton } = setup();
+        h.select(1, { target: frameTarget("intro") });
+        h.doc.activeElement = playButton();
+        const activate = behind(h);
+        h.select(2, { target: frameTarget("hero") });
+        h.controller.dispose();
+        activate();
+        expect(addButton.focus).toHaveBeenCalledOnce();
+      });
     });
   });
 
