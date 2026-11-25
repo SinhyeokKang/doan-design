@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { connect } from "node:net";
 import { join } from "node:path";
@@ -109,7 +109,7 @@ const signedOutDto = (provider: string) => ({ provider, phase: "disconnected", r
 const CHANGES = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
 
 // Every reply the fake gives must itself be a valid app-socket v2 response.
-function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => void) {
+function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => boolean) {
   const app = onboardingApp(script, root, initialize);
   const token = "t".repeat(64);
   return (request: Record<string, unknown>, sentToken = token): any => {
@@ -159,7 +159,7 @@ test("a project is inspected, selected with --initialize and completed through s
 // only reports it, and serveFakeApp writes the files.
 test("a select with --initialize sets the folder up once, when it succeeds", () => {
   const initialized: string[][] = [];
-  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] }, "/r", changes => initialized.push(changes));
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] }, "/r", changes => { initialized.push(changes); return true; });
   ask({ op: "start" });
   ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
   ask({ op: "status", ...S });
@@ -172,7 +172,7 @@ test("a select with --initialize sets the folder up once, when it succeeds", () 
   assert.deepEqual(initialized, [CHANGES]);
 
   const setUp: string[][] = [];
-  const again = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r", changes => setUp.push(changes));
+  const again = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r", changes => { setUp.push(changes); return true; });
   again({ op: "start" });
   again({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
   again({ op: "status", ...S });
@@ -319,6 +319,47 @@ test("the fake initialize adds only the missing .gitattributes lines, like doan 
     assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n*.lock -diff\r\n.doan/** linguist-documentation\r\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The app's select runs doan init, which refuses a setup path that leaves the repository or is a dangling link
+// (cli/internal/cli/init.go); the app then fails the select with init_failed (app/src/main/onboarding/projects.ts).
+test("a select whose setup would follow a link out of the folder fails with init_failed and selects nothing", () => {
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] }, "/r", () => false);
+  ask({ op: "start" });
+  ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
+  ask({ op: "status", ...S });
+  const select = ask({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r", initialize: true }).result.operation;
+  const settled = ask({ op: "status", ...S, operationId: select.operationId }).result;
+  assert.deepEqual(settled.operations[0], { ...select, state: "failed", error: { code: "init_failed", message: "Doan could not set up the project." } });
+  assert.equal(settled.project, null);
+});
+
+test("the fake initialize writes nothing through a link that leaves the folder or dangles, like doan init", () => {
+  const base = mkdtempSync(join(tmpdir(), "doan-fake-init-links-"));
+  try {
+    const outside = join(base, "outside");
+    mkdirSync(outside);
+    const cases: [string, (root: string) => void][] = [
+      [".doan linked outside", root => symlinkSync(outside, join(root, ".doan"))],
+      [".doan/config.json linked outside", root => { mkdirSync(join(root, ".doan")); symlinkSync(join(outside, "config.json"), join(root, ".doan/config.json")); }],
+      [".doan/canvases linked outside", root => { mkdirSync(join(root, ".doan")); symlinkSync(join(outside, "canvases"), join(root, ".doan/canvases")); }],
+      [".gitattributes dangling", root => symlinkSync(join(root, "missing"), join(root, ".gitattributes"))],
+    ];
+    for (const [name, plant] of cases) {
+      const root = join(base, name.replaceAll(/\W/g, "-"));
+      mkdirSync(root);
+      plant(root);
+      assert.equal(initializeRepo(root, CHANGES, join(base, `${name.replaceAll(/\W/g, "-")}.json`)), false, name);
+      assert.deepEqual(readdirSync(outside), [], name);
+      assert.equal(existsSync(join(root, "missing")), false, name);
+    }
+    const plain = join(base, "plain");
+    mkdirSync(plain);
+    assert.equal(initializeRepo(plain, CHANGES, join(base, "plain.json")), true);
+    assert.equal(readFileSync(join(plain, ".doan/config.json"), "utf8"), '{\n  "v": 1\n}\n');
+  } finally {
+    rmSync(base, { recursive: true, force: true });
   }
 });
 

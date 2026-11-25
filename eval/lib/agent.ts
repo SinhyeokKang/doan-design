@@ -11,8 +11,10 @@ import { toolCalls, type ToolCalls } from "./transcript.ts";
 // cross-provider work signals ambiguous and leak into fixture evidence.
 export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const child = { ...env };
-  // DOAN_HANDOFF names a Doan conversation; a runner started inside one must not pass its key to every scenario.
-  for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "DOAN_HANDOFF"]) delete child[key];
+  // A runner started inside a Doan conversation must not pass its identity: the CLI would refuse onboarding and remove
+  // and hold back work signals there. A Claude or Codex conversation's home is Doan's profile for it, not the user's.
+  const homes = env.DOAN_APP_CONVERSATION === "1" ? ["CLAUDE_CONFIG_DIR", "CODEX_HOME"] : [];
+  for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID", "DOAN_HANDOFF", "DOAN_APP_CONVERSATION", "DOAN_CONVERSATION_ID", ...homes]) delete child[key];
   return child;
 }
 
@@ -102,8 +104,11 @@ export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.Proce
 // Process groups still running, so an interrupted runner can take them down;
 // detached children do not get the terminal's SIGINT.
 const running = new Set<number>();
+let stopping = false;
 
+// Also refuses later spawns, so an interrupted run cannot start its judge while the runner unwinds.
 export function killRunning(): void {
+  stopping = true;
   for (const pid of running) {
     try { process.kill(-pid, "SIGKILL"); } catch { /* already gone */ }
   }
@@ -114,6 +119,7 @@ export interface ProcessResult { code: number | null; signal: string | null; tim
 // stdin is /dev/null so an agent waiting on it cannot hang (POSTMORTEM 2026-10-21); output goes to files, not
 // pipes, so nothing fills up and stalls the child.
 export function runProcess(o: { cmd: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; timeoutSec: number; stdoutPath: string; stderrPath: string }): Promise<ProcessResult> {
+  if (stopping) return Promise.reject(new Error("the runner is stopping"));
   const out = openSync(o.stdoutPath, "w");
   const err = openSync(o.stderrPath, "w");
   const started = performance.now();

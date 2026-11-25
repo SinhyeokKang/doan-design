@@ -127,22 +127,26 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // A worktree scenario stands for an instruction copied from the running app, so the app is up even without a
     // selection; `doan active` from the second worktree then gets project_not_open.
     const app = o.scenario.selectionValue || o.scenario.worktree || o.scenario.onboardingValue || handoff || o.scenario.workOthers
-      ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
+      ? await startFakeApp({ dir: join(base, "rt"), root: repo, cli: o.cli, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, workOthers: o.scenario.workOthers, handoff })
       : null;
     return {
       base, codexHome, repo, cwd, env, doanLog, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES), canvasLog,
       stopCanvasWatch: () => watch.stop(),
+      // Each removal runs even when an earlier step throws: the Codex home links the user's sign-in.
       async dispose() {
-        await watch.stop();
-        await app?.close();
-        rmSync(base, { recursive: true, force: true });
-        if (codexHome) rmSync(codexHome, { recursive: true, force: true });
+        try {
+          try { await watch.stop(); await app?.close(); } finally { rmSync(base, { recursive: true, force: true }); }
+        } finally {
+          if (codexHome) rmSync(codexHome, { recursive: true, force: true });
+        }
       },
     };
   } catch (error) {
-    await canvasWatch?.stop();
-    rmSync(base, { recursive: true, force: true });
-    if (codexHome) rmSync(codexHome, { recursive: true, force: true });
+    try {
+      try { await canvasWatch?.stop(); } finally { rmSync(base, { recursive: true, force: true }); }
+    } finally {
+      if (codexHome) rmSync(codexHome, { recursive: true, force: true });
+    }
     throw error;
   }
 }

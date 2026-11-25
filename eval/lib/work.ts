@@ -14,7 +14,8 @@ export function workChecks(ctx: CheckContext): Check[] {
   const done = log.findLast(entry => entry.request.action === "done");
   return [
     { id: "start_before_edit", pass: changed.length > 0 && starts.every(({ path, first }) => first !== undefined && path in first.hashes && first.hashes[path] === contentHash(ctx.seed(path))), detail: JSON.stringify(starts) },
-    { id: "done_at_end", pass: changed.length > 0 && done !== undefined && changed.every(path => path in done.hashes && done.hashes[path] === contentHash(ctx.read(path))), detail: JSON.stringify(done ?? "no done received") },
+    // done hashes only canvases a start or update named, so one never started is start_path's failure alone.
+    { id: "done_at_end", pass: changed.length > 0 && done !== undefined && starts.every(({ path, first }) => first === undefined || (path in done.hashes && done.hashes[path] === contentHash(ctx.read(path)))), detail: JSON.stringify(done ?? "no done received") },
     { id: "start_path", pass: changed.length > 0 && starts.every(({ first }) => first !== undefined), detail: JSON.stringify(starts.map(({ path, first }) => ({ path, started: first !== undefined }))) },
   ];
 }
