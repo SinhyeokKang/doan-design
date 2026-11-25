@@ -362,7 +362,7 @@ function fadeRuns(runs: readonly RevealRun[], now: number, source: string) {
     const walk = (node: HastNode, inherited: number | null, inPre = false) => {
       let start = inPre ? inherited : offset(node) ?? inherited;
       // A fenced block's text starts on the line after its fence.
-      if (node.tagName === "pre" && start !== null) start = source.indexOf("\n", start) + 1;
+      if (node.tagName === "pre" && start !== null) { const line = source.indexOf("\n", start); start = line < 0 ? null : line + 1; }
       const kids = node.children;
       if (!kids) return;
       for (let i = 0; i < kids.length; i++) {
@@ -394,7 +394,7 @@ const MarkdownText = memo(function MarkdownText({ text, prefix, streaming, runs 
   return <Markdown remarkPlugins={PLUGINS} rehypePlugins={plugins} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
 });
 
-// The reveal's fade runs over --time-thread-enter with the draft's cubic ease-out; the opacity is drawn from each run's
+// The reveal's fade runs over --time-thread-enter with a cubic ease-out; the opacity is drawn from each run's
 // age, so a render for any other reason never restarts a fade.
 export const FADE_MS = 400;
 export function fadeOpacity(age: number): number {
@@ -405,7 +405,7 @@ export function fadeOpacity(age: number): number {
 // character's age. doneAt: when message.done came, for the finishing tail. at: the last frame.
 export interface RevealRun { from: number; to: number; at: number }
 export interface RevealState { shown: number; runs: readonly RevealRun[]; arrivals: readonly { end: number; at: number }[]; doneAt: number | null; at: number | null }
-// flush: Stop, a failure or the turn's end, an item after the reply, a selection in it.
+// flush: a Stop, a failure or an interrupt (an end item follows), any other item after the reply, a selection in it.
 export type RevealMode = "streaming" | "done" | "flush";
 export const revealStart = (shown: number): RevealState => ({ shown, runs: [], arrivals: [], doneAt: null, at: null });
 export function revealMode(streaming: boolean, flush: boolean): RevealMode {
@@ -433,14 +433,13 @@ export function revealFrame(state: RevealState, text: string, mode: RevealMode, 
   return { shown, runs: grew ? [...runs, { from: state.shown, to: shown, at: now }] : runs, arrivals: arrivals.filter(arrival => arrival.end > shown), doneAt, at: now };
 }
 const prefersReduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-// The thread's motion its replies share: a reply that revealed more this frame (the follow then sticks to the bottom
-// instead of easing), and whether motion is reduced.
-// revealed: the rAF time of the frame that showed more.
+// The thread's motion its replies share. revealed: the rAF time of a frame that showed more, in which the follow sticks
+// to the bottom instead of easing.
 interface ThreadMotion { revealed(at: number): void; reduced(): boolean }
 const Motion = createContext<ThreadMotion>({ revealed: () => {}, reduced: prefersReduced });
 // A reply mounts at the text it already has, so a remount never types it again; one that arrived while the thread was
-// open (fresh) reveals from its start. Each frame renders the whole reply
-// synchronously (flushSync), so the follow measures its new height before the frame paints.
+// open (fresh) reveals from its start. Each frame renders the whole reply synchronously (flushSync), so the follow
+// measures its new height before the frame paints.
 function useReveal(text: string, streaming: boolean, flush: boolean, fresh: boolean, host: RefObject<HTMLElement | null>): { length: number; runs: readonly RevealRun[]; now: number } | null {
   const motion = useContext(Motion);
   const [state, setState] = useState(() => revealStart(fresh ? 0 : text.length));
