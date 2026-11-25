@@ -23,6 +23,9 @@ describe("chipLabel", () => {
     expect(chipLabel(payment)).toEqual({ kind: "frame", label: "Payment", title: "Frame · payment" });
     expect(chipLabel(payment, [{ id: "payment", title: "Checkout" }])).toMatchObject({ label: "Checkout" });
     expect(chipLabel({ frame: { id: "hero" } })).toMatchObject({ label: "hero", title: "Frame · hero" });
+    // A blank listed title is no title, so the carried one still names the frame (canvasTree.ts frameTitle).
+    expect(chipLabel(payment, [{ id: "payment", title: "   " }])).toMatchObject({ label: "Payment" });
+    expect(chipLabel({ frame: { id: "hero", title: " " } }, [{ id: "hero", title: "" }])).toMatchObject({ label: "hero" });
   });
 
   test.each([
