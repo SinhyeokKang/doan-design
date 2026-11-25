@@ -7,6 +7,8 @@ import codexHome from "./fixtures/codex-home.json";
 import codexModelNotFound from "./fixtures/codex-model-not-found.json";
 import askFixture from "./fixtures/claude-ask-user-question.json";
 import runMode from "./fixtures/claude-run-mode.json";
+import claudeEdits from "./fixtures/claude-edit-results.json";
+import codexEdits from "./fixtures/codex-file-changes.json";
 import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeModeReport, steerTransport, endSteerWait, claudeQuestion, claudeQuestionResult, claudeUnansweredSupport, storedAnswers, claudeFastOutcome } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
@@ -716,5 +718,182 @@ describe("Fast outcome", () => {
     // The read wait ran out: the turn ends done with the last result it saw.
     const waited = run(asked(), [{ steer: "u1" }, off]);
     expect(endSteerWait(waited.state).events).toEqual([{ type: "fast.unused", reason: "plan", turnedOff: true }, { type: "turn.done" }]);
+  });
+});
+
+// Edit line counts (activity.callId and activity.result), pinned by the frames recorded per provider version
+// (fixtures/claude-edit-results.json, fixtures/codex-file-changes.json; README 'thread-edit-lines'). A trail line is
+// "activity <kind> <callId|-> <path|->" or "result <callId> <path|-> +<added> -<removed>".
+function trail(events: readonly EventPayload[]): string[] {
+  return events.flatMap(e => e.type === "activity" ? [`activity ${e.kind} ${e.callId ?? "-"} ${e.path ?? "-"}`]
+    : e.type === "activity.result" ? [`result ${e.callId} ${e.path ?? "-"} +${e.lines.added} -${e.lines.removed}`] : []);
+}
+type Recorded = Record<string, { frames: unknown[] }>;
+const CODEX_THREAD = "00000000-0000-4000-8000-000000000001", CODEX_TURN = "00000000-0000-4000-8000-000000000002";
+function replayCodex(frames: readonly unknown[]) {
+  let state: TransportState = initialTransport();
+  const events: EventPayload[] = [];
+  for (const frame of frames) {
+    // The client's own approval reply is recorded beside the server's frames; the runner never normalizes it.
+    if (typeof frame === "object" && frame !== null && "reply" in frame) continue;
+    const next = normalizeCodex(state, frame, { root: "/repo", sessionId: CODEX_THREAD, turnId: CODEX_TURN });
+    state = next.state; events.push(...next.events);
+  }
+  return { state, events };
+}
+const read = (_id: string, path: string) => `activity read - ${path}`;
+const edit = (id: string, path: string) => `activity edit ${id} ${path}`;
+const lines = (id: string, path: string | null, added: number, removed: number) => `result ${id} ${path ?? "-"} +${added} -${removed}`;
+
+describe("Claude edit line counts from recorded frames", () => {
+  const recorded = claudeEdits as unknown as Record<"2.1.284" | "2.1.332", Recorded>;
+  const t = (n: number) => `toolu_synthetic0${n}`;
+  const notes = "/repo/notes.txt", colors = "/repo/colors.txt", config = "/repo/config.txt", hello = "/repo/hello.txt";
+  const expected: Record<"2.1.284" | "2.1.332", Record<string, string[]>> = {
+    "2.1.284": {
+      edit: [read(t(1), notes), edit(t(2), notes), lines(t(2), notes, 1, 1)],
+      replaceall: [read(t(1), colors), edit(t(2), colors), lines(t(2), colors, 3, 3)],
+      // A new file's structuredPatch is empty; its content's lines are the added ones (no newline after the last here).
+      write: [edit(t(1), hello), lines(t(1), hello, 3, 0)],
+      overwrite: [read(t(1), config), edit(t(2), config), lines(t(2), config, 2, 4)],
+      // The first two edits failed (is_error) before the files were read, then both went through.
+      parallel: [edit(t(1), notes), edit(t(2), colors), read(t(3), notes), read(t(4), colors), edit(t(5), notes), lines(t(5), notes, 1, 1), edit(t(6), colors), lines(t(6), colors, 1, 1)],
+      deny: [read(t(1), notes), edit(t(2), notes)],
+      fail: [edit(t(1), notes)],
+      delete: ["activity command - -"],
+    },
+    "2.1.332": {
+      edit: [edit(t(1), notes), lines(t(1), notes, 1, 1)],
+      replaceall: [edit(t(1), colors), lines(t(1), colors, 3, 3)],
+      write: [edit(t(1), hello), lines(t(1), hello, 3, 0)],
+      overwrite: [read(t(1), config), edit(t(2), config), lines(t(2), config, 2, 4)],
+      parallel: [edit(t(1), notes), lines(t(1), notes, 1, 1), edit(t(2), colors), lines(t(2), colors, 1, 1)],
+      deny: [edit(t(1), notes)],
+      fail: [edit(t(1), "notes.txt")],
+      delete: ["activity command - -"],
+    },
+  };
+  for (const version of ["2.1.284", "2.1.332"] as const) {
+    it.each(Object.keys(expected[version]))(`Claude Code ${version} %s`, name => {
+      const { events } = collect("claude", recorded[version][name]!.frames);
+      expect(trail(events)).toEqual(expected[version][name]);
+      expect(events.at(-1)).toEqual({ type: "turn.done" });
+    });
+  }
+  it("puts each result right after its call's last frame, before the next call starts", () => {
+    const { events } = collect("claude", recorded["2.1.332"].edit!.frames);
+    expect(events.map(e => e.type)).toEqual(["activity", "activity.result", "message.done", "turn.done"]);
+  });
+});
+
+describe("Claude edit line counts: synthetic frames", () => {
+  const use = (id: string, name = "Edit", path = "/repo/a.txt") => ({ type: "assistant", message: { id: `m-${id.length}`, content: [{ type: "tool_use", id, name, input: { file_path: path, old_string: "a", new_string: "b" } }] } });
+  const patch = { structuredPatch: [{ lines: ["-a", "+b"] }] };
+  const result = (id: string, over: Record<string, unknown> = {}, block: Record<string, unknown> = {}) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: "ok", ...block }] }, tool_use_result: { ...patch, ...over } });
+  const done = { type: "result", subtype: "success", is_error: false };
+  it("counts nothing from a user frame with two tool_results, since its tool_use_result could be either one's (synthetic)", () => {
+    const two = { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "e1", content: "ok" }, { type: "tool_result", tool_use_id: "e2", content: "ok" }] }, tool_use_result: patch };
+    const { events, state } = collect("claude", [use("e1"), use("e2", "Edit", "/repo/b.txt"), two, done]);
+    expect(trail(events)).toEqual([edit("e1", "/repo/a.txt"), edit("e2", "/repo/b.txt")]);
+    expect(state.running).toBeUndefined();
+  });
+  it("counts only an edit call's result, never another tool's (synthetic)", () => {
+    const readUse = { type: "assistant", message: { id: "r", content: [{ type: "tool_use", id: "r1", name: "Read", input: { file_path: "/repo/a.txt" } }] } };
+    expect(trail(collect("claude", [readUse, result("r1"), done]).events)).toEqual(["activity read - /repo/a.txt"]);
+  });
+  it("counts nothing for an error result or a result with no structuredPatch array (synthetic)", () => {
+    expect(trail(collect("claude", [use("e1"), result("e1", {}, { is_error: true }), done]).events)).toEqual([edit("e1", "/repo/a.txt")]);
+    expect(trail(collect("claude", [use("e1"), result("e1", { structuredPatch: "x" }), done]).events)).toEqual([edit("e1", "/repo/a.txt")]);
+    expect(trail(collect("claude", [use("e1"), { type: "user", message: { content: [{ type: "tool_result", tool_use_id: "e1", content: "ok" }] }, tool_use_result: "Error: no" }, done]).events)).toEqual([edit("e1", "/repo/a.txt")]);
+  });
+  it("counts an edit once, however often its result frame repeats (synthetic)", () => {
+    expect(trail(collect("claude", [use("e1"), result("e1"), result("e1"), done]).events)).toEqual([edit("e1", "/repo/a.txt"), lines("e1", "/repo/a.txt", 1, 1)]);
+  });
+  it.each([
+    ["empty", ""],
+    ["past the label limit", "x".repeat(513)],
+    ["holding a NUL", "toolu\0x"],
+  ])("gives an id %s no callId and no result, and the turn goes on (synthetic)", (_name, id) => {
+    const { events } = collect("claude", [use(id), result(id), done]);
+    expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "edit", path: "/repo/a.txt", insideDesign: false, summary: "a.txt" }]);
+    expect(events.some(e => e.type === "activity.result")).toBe(false);
+    expect(events.at(-1)).toEqual({ type: "turn.done" });
+  });
+  it("keeps an id at the label limit and one holding a newline (synthetic)", () => {
+    for (const id of ["x".repeat(512), "call\nfc_1"]) expect(trail(collect("claude", [use(id), result(id), done]).events)).toEqual([edit(id, "/repo/a.txt"), lines(id, "/repo/a.txt", 1, 1)]);
+  });
+  it("records nothing once the turn ended (synthetic)", () => {
+    const ended = collect("claude", [use("e1"), done]);
+    expect(normalizeClaude(ended.state, result("e1"), "/repo").events).toEqual([]);
+    const stopped = collect("claude", [use("e1"), { ...done, terminal_reason: "aborted_tools" }], "user");
+    expect(normalizeClaude(stopped.state, result("e1"), "/repo").events).toEqual([]);
+  });
+});
+
+describe("Codex edit line counts from recorded frames", () => {
+  const recorded = codexEdits as unknown as Record<"0.158.0" | "0.171.0", Recorded>;
+  const item = (n: number) => `exec-00000000-0000-4000-8000-00000000000${n}`;
+  const notes = "/repo/notes.txt", config = "/repo/config.txt";
+  const cases: Record<string, string[]> = {
+    edit: [edit(item(4), notes), lines(item(4), notes, 1, 1)],
+    // add and delete carry the file's whole content, not a hunk.
+    write: [edit(item(4), "/repo/hello.txt"), lines(item(4), "/repo/hello.txt", 3, 0)],
+    delete: [edit(item(4), "/repo/old.txt"), lines(item(4), "/repo/old.txt", 0, 3)],
+    overwrite: ["activity command - -", edit(item(5), config), lines(item(5), config, 2, 4)],
+    // One item, two paths: one activity and one result per path, keyed by the item id and the path.
+    multipath: [edit(item(4), config), edit(item(4), notes), lines(item(4), config, 1, 1), lines(item(4), notes, 1, 1)],
+    // declined still carries the diff.
+    deny: [edit(item(4), notes)],
+    // No fileChange item came for the failed patch.
+    fail: [],
+  };
+  for (const version of ["0.158.0", "0.171.0"] as const) {
+    it.each(Object.keys(cases))(`Codex ${version} %s`, name => {
+      const { events } = replayCodex(recorded[version][name]!.frames);
+      expect(trail(events)).toEqual(cases[name]);
+      expect(events.at(-1)).toEqual({ type: "turn.done" });
+    });
+  }
+});
+
+describe("Codex edit line counts: synthetic frames", () => {
+  const ctx = { root: "/repo", sessionId: CODEX_THREAD, turnId: CODEX_TURN };
+  const change = (path: string, type: string, diff: string) => ({ path, kind: { type }, diff });
+  const frame = (method: string, id: string, status: string, changes: unknown[]) => ({ method, params: { threadId: CODEX_THREAD, turnId: CODEX_TURN, item: { type: "fileChange", id, status, changes } } });
+  const done = { method: "turn/completed", params: { threadId: CODEX_THREAD, turn: { id: CODEX_TURN, status: "completed" } } };
+  const hunk = "@@ -1 +1 @@\n-a\n+b\n";
+  it("gives the same path twice in one item two results (synthetic)", () => {
+    const changes = [change("/repo/a.txt", "update", hunk), change("/repo/a.txt", "update", "@@ -1,2 +1 @@\n-a\n-b\n+c\n")];
+    const { events } = replayCodex([frame("item/started", "f1", "inProgress", changes), frame("item/completed", "f1", "completed", changes), done]);
+    expect(trail(events)).toEqual([edit("f1", "/repo/a.txt"), edit("f1", "/repo/a.txt"), lines("f1", "/repo/a.txt", 1, 1), lines("f1", "/repo/a.txt", 1, 2)]);
+  });
+  it("records nothing for a failed item (synthetic)", () => {
+    const changes = [change("/repo/a.txt", "update", hunk)];
+    expect(trail(replayCodex([frame("item/started", "f1", "inProgress", changes), frame("item/completed", "f1", "failed", changes), done]).events)).toEqual([edit("f1", "/repo/a.txt")]);
+  });
+  it("emits the activity and then its results when the item's completion is the first frame it comes in (synthetic)", () => {
+    const changes = [change("/repo/a.txt", "update", hunk)];
+    expect(normalizeCodex(initialTransport(), frame("item/completed", "f1", "completed", changes), ctx).events.map(e => e.type)).toEqual(["activity", "activity.result"]);
+  });
+  it("leaves out only a change it cannot count (synthetic)", () => {
+    const changes = [change("/repo/a.png", "update", "Binary files a/a.png and b/a.png differ\n"), change("/repo/b.txt", "move", "x"), change("/repo/c.txt", "add", "")];
+    expect(trail(replayCodex([frame("item/completed", "f1", "completed", changes), done]).events))
+      .toEqual([edit("f1", "/repo/a.png"), edit("f1", "/repo/b.txt"), edit("f1", "/repo/c.txt"), lines("f1", "/repo/c.txt", 0, 0)]);
+  });
+  it("counts the lines of an added file's content whether or not it ends in a newline (synthetic)", () => {
+    for (const diff of ["one\ntwo", "one\ntwo\n", "one\r\ntwo\r\n"]) {
+      expect(trail(replayCodex([frame("item/completed", "f1", "completed", [change("/repo/a.txt", "add", diff)]), done]).events).at(-1)).toBe(lines("f1", "/repo/a.txt", 2, 0));
+    }
+  });
+  it.each([["empty", ""], ["past the label limit", "x".repeat(513)], ["holding a NUL", "exec\0x"]])("gives an item id %s no callId and no result, and the turn goes on (synthetic)", (_name, id) => {
+    const changes = [change("/repo/a.txt", "update", hunk)];
+    const { events } = replayCodex([frame("item/started", id, "inProgress", changes), frame("item/completed", id, "completed", changes), done]);
+    expect(events.some(e => e.type === "activity.result" || (e.type === "activity" && "callId" in e))).toBe(false);
+    expect(events.at(-1)).toEqual({ type: "turn.done" });
+  });
+  it("records nothing once the turn ended (synthetic)", () => {
+    const changes = [change("/repo/a.txt", "update", hunk)];
+    const ended = replayCodex([frame("item/started", "f1", "inProgress", changes), done]);
+    expect(normalizeCodex(ended.state, frame("item/completed", "f1", "completed", changes), ctx).events).toEqual([]);
   });
 });
