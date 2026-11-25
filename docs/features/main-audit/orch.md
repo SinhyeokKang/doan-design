@@ -24,8 +24,8 @@
 |---|---|---|---|---|---|---|
 | A | M5, M-G2-14, M-G2-13 메뉴 화면 목록, W2-PCR-2 | `main/index.ts`(+test), `main/shell.ts`(주석), `main/shellActivity.ts`(+test), `main/menuState.ts` | 없음 | Opus medium — 제거 정리 재발과 성능 측정 판단이 필요하다 | `npm --prefix app test`, typecheck, lint | 대기 |
 | B | L-G2-3, L-G2-4, L-G2-8(두 트리거) | `main/watch.ts`, `main/configBridge.ts`, `main/thumbnails.ts`, `main/thumbnailQueue.ts` (+tests) | 없음 | Opus high — 파일 감시·비동기 경합 수정이라 틀리면 live reload와 썸네일이 멈춘다 | `npm --prefix app test`, typecheck, lint, L-G2-3 FSEvents probe | 대기 |
-| C | M-G2-2, M-G3-5 | `preload/index.ts`, `preload/index.test.ts`, `main/senderAllowed.ts`(+test) | 없음 | Sonnet medium — 테스트 고정과 미사용 코드 제거로 기계적이다 | `npm --prefix app test`, typecheck, lint | 대기 |
-| D | M-G2-5, M-G2-10, M-G2-11, M-G2-12 | `main/canvasExport.ts`, `main/deepLinks.ts`, `main/folderState.ts`, `main/onboarding/projects.ts`, `main/onboarding/operations.ts`, `cli/internal/cli/storage.go`(+test), 새 `schema/fixtures` 파일 (+tests) | 없음 | Sonnet high — 문구와 판정 규칙 통합으로 동작이 바뀌지 않게 해야 한다 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...` | 대기 |
+| C | M-G2-2, M-G3-5 | `preload/index.ts`, `preload/index.test.ts`, `main/senderAllowed.ts`(+test) | 없음 | Sonnet medium — 테스트 고정과 미사용 코드 제거로 기계적이다 | `npm --prefix app test`, typecheck, lint | 통합 `9d12e9274..f4ab62526`, 리뷰 1회 🔴0 🟡0 |
+| D | M-G2-5, M-G2-10, M-G2-11, M-G2-12 | `main/canvasExport.ts`, `main/deepLinks.ts`, `main/folderState.ts`, `main/onboarding/projects.ts`, `main/onboarding/operations.ts`, `cli/internal/cli/storage.go`(+test), 새 `schema/fixtures` 파일 (+tests) | 없음 | Sonnet high — 문구와 판정 규칙 통합으로 동작이 바뀌지 않게 해야 한다 | `npm --prefix app test`, typecheck, lint, `go test ./...`, `go vet ./...` | 통합 `0f2bc9720..aaf72f23c`, 리뷰 1회 🔴0 🟡0, M-G2-12 재현 안 됨 |
 | E | M-G2-13(메뉴 목록과 다른 conductor 몫 제외), M-G2-15, W2-PCR-1, M-G2-3 | `main/inspector.ts`, `main/installCommand.ts`, `main/prototype/conversationScope.ts`, `main/seenRecords.ts`, `main/conversation/skills.ts`, `main/conversation/skills.commands.test.ts`, `app/scripts/verifySignedPackage.mjs`, `app/scripts/releaseChecks.mjs`, 새 고정 테스트 파일 (+tests) | 없음 | Sonnet medium — 상수 고정 테스트와 스크립트 종료 코드 확인으로 기계적이다 | `npm --prefix app test`, typecheck, lint | 대기 |
 
 ## 파일 겹침과 순서
@@ -35,4 +35,7 @@
 
 ## 리뷰·통합 기록
 
-(진행하며 채운다)
+- C: 리뷰 ⚪만. main 쪽 `design-skills` get 핸들러와 `onboarding:check` 핸들러는 이제 호출처가 없지만 남긴다. 지우려면 ARCHITECTURE §7 'Design preset reads'를 바꿔야 하므로 후속 항목으로 PR에 적는다. renderer 테스트 mock 한 토큰(`dockedSupport.test.ts`) 수정은 리드에게 알렸다.
+- D: M-G2-12는 `projects.test.ts:104-117`이 이미 `storage.go` 값을 읽어 대조하므로 재현되지 않았다(probe 4건). M-G2-11 문구는 두 경로가 원래 같았고 그대로 유지했다.
+- E: 리뷰 🟡1(spawn-helper·Helper app이 없으면 검사 줄이 없음, 같은 "대상 없음 통과" 유형)과 ⚪1(Go 소비처 고정)을 수정 라운드로 보냈다. `QUIT_WAIT_MS`는 auth-audit 몫이다.
+- C·D worktree는 cherry 확인 뒤 제거했고 브랜치는 남겼다. handoff와 리뷰는 conductor 체크아웃 `.scratch/main-audit/`에 복사했다.
