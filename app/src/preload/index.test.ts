@@ -800,7 +800,7 @@ test("offers no call the renderer does not use", () => {
 });
 
 // A sandboxed preload cannot import main's values, so it spells each channel; these tables pin the spelling. A new key in
-// a table's constant fails the typecheck until it is covered here or excluded.
+// a request table's constant fails the typecheck until it is covered here or excluded.
 type Call = (target: DoanApi) => unknown;
 type Listen = (target: DoanApi) => () => void;
 const ids = { sessionId: "s", requestId: "r" };
@@ -838,7 +838,7 @@ const conversation: Record<ConversationMethod, Call> = {
   setPermissionMode: a => a.setConversationPermissionMode({ ...request, permissionMode: "plan" }), delete: a => a.deleteConversation(request), scheduled: a => a.scheduledMessages(request),
 };
 const prototype: [string, Call][] = [[PROTOTYPE_CHANNELS.play, a => a.playPrototype({ root: "/r", path: "p", frame: "f", mark: "1x1" })], [PROTOTYPE_CHANNELS.playing, a => a.readPrototypePlaying()]];
-const pinned = <K extends string>(channels: Record<K, string>, calls: Record<NoInfer<K>, Call> | Partial<Record<K, Call>>): [string, Call][] =>
+const pinned = <K extends string>(channels: Record<K, string>, calls: Partial<Record<NoInfer<K>, Call>>): [string, Call][] =>
   (Object.entries(calls) as [K, Call][]).map(([key, call]) => [channels[key], call]);
 
 test("every request goes to the channel main's constant names", async () => {
@@ -846,6 +846,8 @@ test("every request goes to the channel main's constant names", async () => {
     ...pinned(AUTH_CHANNELS, auth), ...pinned(MCP_CHANNELS, mcp), ...pinned(ONBOARDING_CHANNELS, onboarding), ...pinned(ADD_PAGE_CHANNELS, addPage),
     ...pinned(DESIGN_SKILL_CHANNELS, designSkills), ...pinned(USAGE_CHANNELS, usage),
     ...conversationMethods.map((method): [string, Call] => [`conversation:${method}`, conversation[method]]), ...prototype,
+    // A second caller of a channel.
+    ["conversation:interrupt", a => a.interruptProjectTurn({ conversationId: "c", turnId: "t" })],
   ];
   for (const [channel, call] of table) {
     mocks.invoke.mockClear();
@@ -868,9 +870,13 @@ test("every event is subscribed on the channel main's constant names", () => {
     [PROTOTYPE_CHANNELS.revealRequest, a => a.onPrototypeReveal(() => {})], [PROTOTYPE_CHANNELS.playing, a => a.onPrototypePlaying(() => {})],
     [PROTOTYPE_CHANNELS.lastUsed, a => a.onPrototypeLastUsed(() => {})], ...Object.entries(broadcasts),
   ];
+  // The read some subscriptions start with.
+  const reads: Record<string, string> = { [AUTH_CHANNELS.changed]: AUTH_CHANNELS.read, [MCP_CHANNELS.changed]: MCP_CHANNELS.list, [USAGE_CHANNELS.changed]: USAGE_CHANNELS.read };
   for (const [channel, listen] of table) {
+    mocks.invoke.mockClear();
     const stop = listen(api);
     expect(emitter.eventNames(), channel).toEqual([channel]);
+    expect(mocks.invoke.mock.calls.map(call => call[0]), channel).toEqual(channel in reads ? [reads[channel]] : []);
     stop();
   }
 });

@@ -287,7 +287,7 @@ const api = {
   cancelMcpConnect: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:cancel", { provider, name }),
   openMcpLink: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:open-link", { provider, name }),
   removeMcpServer: (name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:remove", { name }),
-  // The first-run session the CLI shares: same state, revision and operations as app-socket v2 (the reply DTO is
+  // The first-run session the CLI shares: same state and revision as app-socket v2 (the reply DTO is
   // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI sign-in is owned by this window too.
   startOnboardingSession: (): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:start", {}),
   readOnboardingSession: (request: SessionRequest<OnboardingStatusRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:status", request),
