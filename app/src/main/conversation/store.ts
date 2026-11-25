@@ -8,8 +8,9 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
+import { CANVAS_ID } from "./replyAnchor";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
-import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
+import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
 // canvasesAtStart: an earlier build's, still read, never written. fromHome: a Home newDesign whose turns carry Home's
@@ -33,7 +34,7 @@ function insideCanvasDir(path: string): boolean {
 export function validCanvas(value: unknown): value is Canvas {
   return object(value) && typeof value.path === "string" && insideCanvasDir(value.path) && value.path.length <= 4096 &&
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
-    (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
+    (value.id === undefined || (typeof value.id === "string" && CANVAS_ID.test(value.id)));
 }
 function label(value: unknown): value is string { return str(value) && value.length > 0; }
 type IndexVersion = 1 | 2 | 3;
@@ -107,7 +108,7 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     // A handoff's first message holds the earlier agent's text as written, so its markers are not anchor tokens.
     case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) &&
       (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : origin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
-      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
+      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(validAttachment)));
     case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
     case "handoff.resolved":
       if (value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) return false;
@@ -125,17 +126,18 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "question.request": return str(value.requestId) && Array.isArray(value.questions) && questions([...value.questions]);
     case "question.resolved": return str(value.requestId) && ["answered", "skipped", "expired"].includes(String(value.outcome)) &&
       (value.answers === undefined || (value.outcome === "answered" && storedAnswers(value.answers)));
-    case "fast.unused": return (value.reason === undefined || (typeof value.reason === "string" && ["plan", "extra_usage", "model", "policy", "cooldown"].includes(value.reason))) &&
+    case "fast.unused": return (value.reason === undefined || oneOf(FAST_UNUSED_REASONS, value.reason)) &&
       (value.turnedOff === undefined || (value.turnedOff === true && value.reason !== undefined && value.reason !== "cooldown"));
     case "context.usage": return Number.isSafeInteger(value.used) && (value.used as number) >= 0 && Number.isSafeInteger(value.size) && (value.size as number) >= 1;
-    case "interrupted": return ["user", "appQuit", "crashed"].includes(String(value.reason));
-    case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "model_unavailable", "prompt_unread", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail)) &&
+    case "interrupted": return oneOf(INTERRUPT_REASONS, value.reason);
+    case "turn.failed": return oneOf(FAILURE_CODES, value.code) && (value.detail === undefined || str(value.detail)) &&
       (value.code === "model_unavailable" ? str(value.model) && value.model !== "" : value.model === undefined);
     default: return false;
   }
 }
 // The limits the runners read with: a line past them came from no build that reads it.
 function bounded(value: unknown, max: number, empty = false): value is string { return str(value) && value.length <= max && (empty || value.length > 0); }
+function oneOf(list: readonly string[], value: unknown): boolean { return typeof value === "string" && list.includes(value); }
 function count(value: unknown): boolean { return Number.isSafeInteger(value) && (value as number) >= 0; }
 function questions(list: unknown[]): boolean {
   const L = QUESTION_LIMITS;
@@ -150,7 +152,8 @@ function storedAnswers(value: unknown): boolean {
   return object(value) && Object.keys(value).length <= L.questions && Object.values(value).every(a => object(a) &&
     Array.isArray(a.selected) && a.selected.length <= L.options && [...a.selected].every(s => bounded(s, L.label)) && (a.other === undefined || bounded(a.other, L.text)));
 }
-function attachment(value: unknown): boolean {
+// drafts.ts reads its attachments with this check too, so a draft keeps whatever a history keeps.
+export function validAttachment(value: unknown): value is AttachmentRecord {
   if (!object(value) || !label(value.name) || typeof value.path !== "string" || !absolutePath(value.path)) return false;
   if (value.kind === "directory") return !("size" in value);
   return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");

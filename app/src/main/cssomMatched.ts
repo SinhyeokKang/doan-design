@@ -637,7 +637,7 @@ function levelOf(el: Element, c: Collected): Level {
   return out;
 }
 
-function ancestorLabel(el: Element): string {
+export function ancestorLabel(el: Element): string {
   const frame = el.getAttribute("data-doan-frame");
   if (frame !== null) return el.getAttribute("data-doan-title")?.trim() || frame || el.localName;
   return el.getAttribute("data-doan-id") || el.localName;

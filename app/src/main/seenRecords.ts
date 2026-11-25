@@ -8,7 +8,7 @@ import { join } from "node:path";
 export const SEEN_DIR = ".doan/seen";
 export const MARKER = "_project.json";
 // `_` can never start a canvas ID, so the marker never collides with a record and IDs need no escaping.
-const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const CAP = 4096;
 // macOS refuses a symlink at any component of the path with this flag, not only the last one (Node has no constant).
@@ -28,7 +28,7 @@ export interface SeenSnapshot {
   records: Map<string, RecordRead>;
 }
 
-export const validCanvasId = (id: unknown): id is string => typeof id === "string" && ID.test(id);
+export const validCanvasId = (id: unknown): id is string => typeof id === "string" && CANVAS_ID.test(id);
 export const recordName = (id: string): string => `${id}.json`;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);

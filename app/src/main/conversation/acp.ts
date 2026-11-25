@@ -3,9 +3,9 @@ import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { QUESTION_LIMITS } from "./question";
 import { countTextChange } from "./editLines";
-import { callIdOf, contextBefore, contextValue, displayPath, editResult, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, transportError } from "./transport";
+import { callIdOf, contextBefore, contextValue, displayPath, editResult, GENERAL_STAGE, GENERIC_SUMMARY, PERMISSION_SUMMARY_MAX, permissionReason, storableText, transportError } from "./transport";
 import { clip, quoted } from "./cardText";
-import type { EventPayload, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
+import type { EventPayload, FailureCode, PermissionOption, TransportResult, TransportState, TurnStage } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
 // (`agent acp`), Copilot (`copilot --acp --stdio`) and Antigravity (agy_acp_server) speak it.
@@ -163,15 +163,18 @@ function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
 type AcpActivityKind = keyof typeof GENERIC_SUMMARY;
 const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command", terminal: "command" };
 function str(value: unknown): string { return typeof value === "string" ? value : ""; }
+// A path with U+0000 goes, and summaries escape it (storableText): the store refuses the character, and one refused
+// event fails the turn's whole write.
+const storable = (path: string) => path.includes("\0") ? "" : path;
 function toolPath(update: Record<string, unknown>): string {
-  if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return str(location.path);
+  if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return storable(str(location.path));
   const input = object(update.rawInput) ? update.rawInput : {};
-  return str(input.path) || str(input.fileName) || str(input.file_path);
+  return storable(str(input.path) || str(input.fileName) || str(input.file_path));
 }
 // One rule for a tool call's words, whether it still runs (its stage) or completed (its activity). A shell command's
 // title is the command itself; activity is stored and published, so it gets the generic phrase.
 function acpToolSummary(kind: AcpActivityKind, tool: AcpTool, root: string): string {
-  return kind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[kind]).slice(0, 512);
+  return kind === "command" ? GENERIC_SUMMARY.command : storableText(tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[kind]).slice(0, 512);
 }
 function acpToolStage(kind: AcpActivityKind, tool: AcpTool, root: string): TurnStage {
   return { kind: "tool", activity: kind, ...(tool.path ? { path: tool.path.slice(0, 512) } : {}), summary: acpToolSummary(kind, tool, root) };
@@ -262,7 +265,20 @@ export function acpPromptDone(state: AcpTransport, result: unknown): TransportRe
   if (typeof reason !== "string") return finishAcp(state, { type: "turn.failed", code: "unknown", detail: "ACP prompt returned no stopReason" });
   return finishAcp(state, { type: "turn.done" });
 }
+// One reading of a failure's text whether the session was opening or a prompt ran, for the words a recorded provider
+// message or Doan itself backs. The rest of transportError's patterns have no recorded ACP answer, so opening keeps
+// its earlier reading of them: a Cursor rate_limited refusal comes only from its usage read (limitReached).
+export function acpFailureCode(detail: string, phase: "open" | "prompt"): FailureCode {
+  // AcpConnection's own deadline for a request: "<method> timed out".
+  if (/^(?:initialize|authenticate|session\/[\w-]+) timed out$/.test(detail)) return "process_exited";
+  // Cursor's and Antigravity's "Authentication required", Copilot CLI's "Please sign in".
+  if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";
+  // cursor-agent's session/load for a session it never saved: "Session not found".
+  if (/session.*(not found|unavailable)/i.test(detail)) return "session_unavailable";
+  if (phase === "prompt") return transportError(detail);
+  return /timed out/i.test(detail) ? "process_exited" : "session_unavailable";
+}
 export function acpPromptFailed(state: AcpTransport, detail: string): TransportResult & { state: AcpTransport } {
-  return finishAcp(state, { type: "turn.failed", code: transportError(detail), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
+  return finishAcp(state, { type: "turn.failed", code: acpFailureCode(detail, "prompt"), ...(detail ? { detail: detail.slice(0, 4096) } : {}) });
 }
 export function acpEnded(state: AcpTransport): TransportResult & { state: AcpTransport } { return finishAcp(state, { type: "turn.failed", code: "process_exited" }); }

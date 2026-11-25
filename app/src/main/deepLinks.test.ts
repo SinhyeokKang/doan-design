@@ -3,6 +3,8 @@ import cases from "../../../schema/fixtures/open-link/cases.json";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { CANVAS_PATH, parseOpenLink, openLinkQueue, resolveOpenLink, resolveOpenTarget } from "./deepLinks";
+import { groupProjects } from "../renderer/homeCards";
+import type { FolderEntry } from "./view";
 
 for (const item of cases.build) test(`reads shared link: ${item.name}`, () => {
   expect(parseOpenLink(item.expected)).toEqual({ root: item.root, canvas: item.path, ...("frame" in item ? { frame: item.frame } : {}) });
@@ -42,6 +44,22 @@ test("an open target names a worktree's project by its main checkout, as the sid
   const git = { common: "/w/repo/.git", main: "/w/repo" };
   expect(resolveOpenTarget(link, [{ path: "/w/repo-wt", kind: "list", canvases: [], git }])).toEqual({ kind: "canvas-not-listed", project: "repo" });
   expect(resolveOpenTarget(link, [{ path: "/w/repo-wt", kind: "loading", lastCommon: "/w/repo/.git" }, { path: "/w/repo", kind: "list", canvases: [], git }])).toEqual({ kind: "loading", project: "repo" });
+});
+// The name is `groupProjects`'s, edges included: an empty `git.main` is a value there, and a root with no name segment
+// is shown as spelled.
+test("an open target's project name is the sidebar card's for every listed root", () => {
+  const canvas = ".doan/canvases/a.html";
+  const cases = [
+    [{ path: "/w/repo-wt", kind: "list" as const, canvases: [], git: { common: "/w/repo/.git", main: "", worktrees: [] } }],
+    [{ path: "/", kind: "list" as const, canvases: [] }],
+    [{ path: "/w/repo-wt", kind: "loading" as const, lastCommon: "/w/repo/.git" }, { path: "/w/other", kind: "list" as const, canvases: [], git: { common: "/w/repo/.git", main: "", worktrees: [] } }],
+  ];
+  for (const entries of cases) {
+    const root = entries[0]!.path;
+    const card = groupProjects(entries as unknown as FolderEntry[], new Map(entries.flatMap(entry => "lastCommon" in entry ? [[entry.path, entry.lastCommon]] : [])))
+      .find(candidate => candidate.rows.some(row => row.path === root))!;
+    expect(resolveOpenTarget({ root, canvas }, entries)).toMatchObject({ project: card.name });
+  }
 });
 test("a link to a root being read again is still refused as unlisted, as before the split", () => {
   const url = cases.build[0]!.expected, root = cases.build[0]!.root;

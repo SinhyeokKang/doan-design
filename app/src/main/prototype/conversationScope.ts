@@ -1,6 +1,6 @@
 // Main checks every conversation request, event and reveal of the prototype role against the target as it is now
 // (PRODUCT §5 item 2 'Prototype window'). No validators: the renderer imports these types (POSTMORTEM 2026-10-30).
-import type { UiState } from "../../restore/uiState";
+import { conversationCanvasKey, type UiState } from "../../restore/uiState";
 import type { AuthSnapshot } from "../agentAuth/ipc";
 import type { ConversationHandoffNotice } from "../conversation/handoff";
 import type { Preferences } from "../preferences";
@@ -200,16 +200,16 @@ export function prototypeComposerSettings(ui: UiState | null, preferences: Prefe
   return { home: kept, newConversation: preferences.newConversation, buddy: preferences.buddy ?? "doany" };
 }
 
-// ui-state's conversation ids (restore/uiState.ts CONVERSATION_ID).
+// ui-state's conversation ids (restore/uiState.ts CONVERSATION_ID, which it does not export).
 const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
-// `conversationByCanvas[root][key]` of the saved ui-state, keyed like the renderer's draftKey. Read field by field, so
+// `conversationByCanvas[root][key]` of the saved ui-state. Read field by field, so
 // an older ui-state reads as nothing remembered; null while the canvas cannot be judged.
 export function prototypeRememberedConversation(saved: unknown, playing: PlayingCanvas | null, entries: readonly FolderEntry[]): string | null {
   const row = playingRow(playing, entries);
   if (playing === null || row === null) return null;
   const byRoot = record(record(saved)?.conversationByCanvas)?.[playing.root];
-  const id = record(byRoot)?.["id" in playing.canvas ? playing.canvas.id : row];
+  const id = record(byRoot)?.[conversationCanvasKey({ path: row, ...("id" in playing.canvas ? { id: playing.canvas.id } : {}) })];
   return typeof id === "string" && CONVERSATION_ID.test(id) ? id : null;
 }
 
