@@ -1247,7 +1247,7 @@ describe("measure.js waits for linked stylesheets before its first layout", () =
       ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
       requestAnimationFrame: (fn: () => void) => frames.push(fn),
       getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible", position: "static", display: "block" }),
-      matchMedia: () => ({ matches: true }),
+      matchMedia: (query: string) => ({ matches: query !== "print" }),
       addEventListener: (type: string, fn: (event: unknown) => void) => listeners.push({ type, fn }),
     };
     runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
@@ -1289,10 +1289,17 @@ describe("measure.js waits for linked stylesheets before its first layout", () =
     expect(c.layouts().at(-1)?.height).toBe(c.html.height);
   });
 
-  test("a disabled or non-matching stylesheet does not hold the first layout", () => {
-    const disabled = new FakeLink();
-    disabled.disabled = true;
-    expect(canvas([disabled]).layouts()).toHaveLength(1);
+  test.each(["disabled", "for another medium"])("a stylesheet %s does not hold the first layout", kind => {
+    const link = new FakeLink();
+    if (kind === "disabled") link.disabled = true;
+    else link.media = "print";
+    expect(canvas([link]).layouts()).toHaveLength(1);
+  });
+
+  test("a stylesheet for the current medium holds the first layout", () => {
+    const link = new FakeLink();
+    link.media = "screen";
+    expect(canvas([link]).layouts()).toHaveLength(0);
   });
 });
 
