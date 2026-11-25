@@ -1277,6 +1277,36 @@ describe("sign-out", () => {
     expect(await run.done).toMatchObject({ phase: "disconnected", connection: null, error: null });
     expect(readFileSync(settings, "utf8")).toBe('{"storeTokenPlaintext":true}');
   });
+  // A fenced Claude turn may write .credentials.json (auth.json here), so it can create a folder there.
+  it("signs out a keychain provider whose plaintext path a fenced run replaced with a folder", async () => {
+    const m = manager(); await m.load();
+    keychain = { status: "connected", account: { id: "acct", workspace: null } };
+    const signIn = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0); await signIn.done;
+    const planted = join(storage.profileDir("claude"), "auth.json");
+    mkdirSync(join(planted, "nested"), { recursive: true });
+    keychain = { status: "disconnected" };
+    const run = started(await m.signOut("claude"));
+    await finish("logout", 0); await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "disconnected", connection: null, error: null });
+    expect(existsSync(planted)).toBe(false);
+  });
+  it("signs in a keychain provider over a folder a fenced run planted at its plaintext path", async () => {
+    const m = manager(); await m.load();
+    const planted = join(storage.profileDir("claude"), "auth.json");
+    mkdirSync(join(planted, "nested"), { recursive: true });
+    keychain = { status: "connected", account: { id: "acct", workspace: null } };
+    const run = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "connected", error: null, connection: { account: { id: "acct" } } });
+    expect(existsSync(planted)).toBe(false);
+  });
+  it("clears a folder planted at a keychain provider's plaintext path at start", async () => {
+    const planted = join(storage.profileDir("claude"), "auth.json");
+    mkdirSync(join(planted, "nested"), { recursive: true });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try { const m = manager(); await m.load(); expect(errors).not.toHaveBeenCalled(); }
+    finally { errors.mockRestore(); }
+    expect(existsSync(planted)).toBe(false);
+  });
   it("keeps blocking new runs when the dedicated credential cannot be deleted", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
