@@ -46,7 +46,7 @@ PRODUCT §3 In scope 6(Conversation)과 §5 item 3의 activity 행 규칙을 확
    - Stop을 누른 순간 진행 중이던 편집(턴이 끝난 뒤 도착한 결과는 버려진다)
    - 전후 텍스트를 비교해 세는 provider(ACP)에서, 두 텍스트의 줄 수 합이 20,000줄을 넘거나 편집 거리가 상한을 넘은 편집
    - 편집 결과를 주지 않는 provider
-5. 스크린리더 이름이 있다. 단계는 "12 lines added, 3 removed"이고, 단수형은 "1 line added, 1 removed"다. 머리는 "6 steps, 42 lines added, 10 removed"다. 단계 텍스트를 선택해 복사하면 화면에 보이는 그대로("Edited a.ts +12 −3") 복사되고, 스크린리더 이름은 섞이지 않는다.
+5. 스크린리더 이름이 있다. 단계는 "12 lines added, 3 removed"이고, 단수형은 "1 line added, 1 removed"다. 머리는 "6 steps, 42 lines added, 10 removed"다. 단계 텍스트를 선택해 복사하면, 지금의 복사 결과("Edited⏎a.ts", 동사와 경로 사이 줄바꿈)에 `+12 −3` 한 덩어리가 더해진다. 스크린리더 이름은 섞이지 않는다.
 6. 숫자가 늦게 도착해도 단계와 머리는 한 줄을 유지하고, 스레드의 스크롤 높이가 바뀌지 않는다.
 7. `activity.result`가 든 히스토리를 이 빌드가 다시 읽으면 같은 숫자가 나온다. 이 이벤트가 없는 기존 히스토리도 그대로 읽힌다.
 8. 줄 수를 세는 순수 함수가 unified diff, Claude `structuredPatch`, 전후 텍스트 비교에서 기대값과 같은 숫자를 낸다. 경계 사례는 tasks.md T2에 있다.
