@@ -66,3 +66,4 @@ lead는 링크 1을 시작하기 전에 아래를 사용자와 한 번에 확인
   - thread-edit-lines(#391): Codex와 Copilot 실제 편집 턴의 숫자가 `git diff --numstat`과 같다. 프로토타입 창 패널에도 같은 숫자가 보인다. 회전 중인 머리에는 합계가 없고 멈추면 나타난다(DOM 기록).
   - 증거: main checkout의 `.scratch/lead-verify-261125/`.
   - 주의: 공유 provider 프로필(`.scratch/provider-profile/userData`)을 복사하면 Claude Code와 Codex는 로그인이 만료된 것으로 보인다. 자격 증명이 프로필 경로의 해시가 붙은 Keychain 항목에 있기 때문이다. 이 두 provider의 probe는 원본 경로에서 돌리고, 바뀌는 작은 상태 파일은 백업했다 되돌린다.
+- 2026-11-25 새 lead: 시작 점검을 사용자와 확인했고 사용자가 승인했다. 확인한 항목: thread-edit-lines 머지(`46f91b070`)와 미검증 항목 확인 완료, handoff-card-emphasis T2의 결정 지점(설계 범위를 넘는 새 캡처 경로나 채널이 필요하면 conductor가 멈추고 묻는다), thread-motion T5의 실제 provider 턴(실제 HOME 로그인을 임시 홈에 복제해 쓰고 지운다, 새 로그인 없음), 두 기능 문서에 '확인 필요' 항목 없음. 링크 1을 시작한다.
