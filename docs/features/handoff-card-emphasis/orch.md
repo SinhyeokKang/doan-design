@@ -19,10 +19,10 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | B1 | T2 썸네일 공유, 프로토타입 창 IPC | `renderer/thumbnails.ts`, `renderer/App.tsx`(썸네일 연결만), `main/senderAllowed.ts`, `main/thumbnails*.ts`, `main/index.ts`의 썸네일 핸들러, `preload/prototype.ts`, `renderer/prototype/` 썸네일 훅 연결부(새 파일 가능), 각 테스트 | 없음 | Opus high — IPC 신뢰 경계와 두 소비자 간 가시성 병합이라 틀리면 보안·경합 결함이 된다 | `npm --prefix app test`, typecheck, lint | 진행 중 (`ctx_403cfa771c33`, worktree `hce-b1`) |
-| B2 | T3 `handoffCardView`, `canvasCardMeta` | `renderer/handoffView.ts`, `renderer/canvasCardText.ts`, 각 테스트 | 없음 | Sonnet medium — 경우가 정해진 순수 함수와 테스트 | `npm --prefix app test`, typecheck, lint | 진행 중 (`ctx_0721ad824019`, worktree `hce-b2`) |
+| B2 | T3 `handoffCardView`, `canvasCardMeta` | `renderer/handoffView.ts`, `renderer/canvasCardText.ts`, 각 테스트 | 없음 | Sonnet medium — 경우가 정해진 순수 함수와 테스트 | `npm --prefix app test`, typecheck, lint | 구현 완료 `ce925785d`·`5b1469d45`·`d68385905`, 리뷰 중 (`ctx_0721ad824019`, worktree `hce-b2`) |
 | B3 | T4 UI + T5 `/design-sync`·`/runtime-test` + T6 README 캔버스·이미지 | `ConversationThread.tsx`, `styles.css`, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `prototype/PrototypeConversation.tsx`, `App.tsx`(prop 전달), 테스트, `docs/design/conversation.md`, `.doan/canvases/readme-features.html`, `docs/assets/readme/` | B1, B2 통합 | Opus high — 세 화면의 prop, memo deps, 공유 CSS, 실제 앱 측정까지 판단이 많다 | `npm --prefix app test`, typecheck, lint, `/design-sync`, `/runtime-test` | 대기 |
 | R1 | B1 리뷰 | 보고만 | B1 | Opus medium — IPC 경계 리뷰 | `/code-review` 보고서 | 대기 |
-| R2 | B2 리뷰 | 보고만 | B2 | Sonnet medium — 작은 순수 함수 diff | `/code-review` 보고서 | 대기 |
+| R2 | B2 리뷰 | 보고만 | B2 | Sonnet medium — 작은 순수 함수 diff | `/code-review` 보고서 | 진행 중 (`ctx_a4b2e4684505`) |
 | R3 | B3 리뷰 | 보고만 | B3 | Opus medium — UI와 CSS 공유 구조 | `/code-review` 보고서 | 대기 |
 
 conductor 몫(T6): PRODUCT §5 item 2·3·'Overview', ARCHITECTURE §3·§7, BACKLOG 미검증 항목, `styles.css` 한쪽 규칙 확인, 기능 디렉터리 삭제, 최종 `/verify`.
@@ -35,4 +35,4 @@ conductor 몫(T6): PRODUCT §5 item 2·3·'Overview', ARCHITECTURE §3·§7, BAC
 
 ## 리뷰·검증 기록
 
-(진행하며 적는다)
+- B2 인계: `handoffCardView`에 `openLabel`, `canvasCardMeta`에 다섯째 인자 `{drawing, handedOffAt}`와 `handedOff`를 더했다. 핸드오프 카드에는 Edited가 없다(드래프트). B3는 `threadItems.ts`의 `handoffCard` 항목에 `at`을 싣고, `drawing`에는 `view.icon === "spinner"`를 넘기고, `handoffCardHead` 임시 wrapper를 지운다. gate: test 15653 통과, typecheck, lint 통과.
