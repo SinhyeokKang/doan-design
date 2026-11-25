@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkLatestMacYml,
   checkReleaseVersion,
+  checkSignedEntitlements,
   compareEntitlements,
   compareFuses,
   parseCodesignDetails,
@@ -170,6 +171,33 @@ describe("compareEntitlements", () => {
 
   it("treats a binary without entitlements as matching", () => {
     expect(compareEntitlements(committedEntitlements, "")).toEqual([]);
+  });
+});
+
+describe("checkSignedEntitlements", () => {
+  const read = (output, status = 0) => checkSignedEntitlements(committedEntitlements, { status, output });
+
+  it("accepts the committed entitlements after codesign's own lines", () => {
+    expect(read(`Executable=/tmp/Doan\n${signedEntitlements}`)).toEqual([]);
+  });
+
+  it("accepts a binary codesign read that carries no entitlements", () => {
+    expect(read("Executable=/tmp/spawn-helper\n")).toEqual([]);
+  });
+
+  it("reports a key the committed plist does not grant", () => {
+    const fallback = signedEntitlements.replace("</dict>", "<key>com.apple.security.cs.disable-library-validation</key><true/></dict>");
+    expect(read(fallback)).toEqual(["com.apple.security.cs.disable-library-validation"]);
+  });
+
+  it("fails when the binary does not exist", () => {
+    expect(checkSignedEntitlements(committedEntitlements, null)).toEqual(["not found"]);
+  });
+
+  it("fails when codesign cannot read the binary", () => {
+    expect(read("/tmp/doan: code object is not signed at all\n", 1)).toEqual([
+      "codesign exited 1: /tmp/doan: code object is not signed at all",
+    ]);
   });
 });
 
