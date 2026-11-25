@@ -27,7 +27,11 @@ func removeFailure(code, message string) *Error {
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
 		"conversation_running":  {"Tell the user a conversation is still running in this project in Doan; nothing was removed. Run `doan remove` again only when they ask again"},
 		"busy":                  {"Tell the user what Doan is waiting for (see the message) and ask them to finish it; run `doan remove` again only when they ask again"},
-		"project_not_open":      {"Tell the user Doan does not list this folder's project; nothing was removed"},
+		// Unlike notOpenSteps, adding the folder only to remove it is no recovery.
+		"project_not_open": {
+			"Tell the user Doan does not have the folder at the path in the message open; nothing was removed",
+			"If they say Doan already has a project with this name, ask them to compare its path (Project Settings shows it) with the path in the message: a different path is another checkout or worktree, which they remove with Remove from Doan in the app",
+		},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
@@ -76,7 +80,7 @@ func removeReply(line []byte, root string, secrets []string) (map[string]any, *E
 	case "bad_request":
 		return nil, internal(errors.New("Doan rejected the remove request as malformed"))
 	case "project_not_open":
-		return nil, removeFailure(code, "Doan does not list this folder's project")
+		return nil, removeFailure(code, notOpenMessage(root))
 	case "conversation_running":
 		return nil, removeFailure(code, "A conversation is running in this project in Doan")
 	default:
