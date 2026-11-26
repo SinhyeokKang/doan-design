@@ -1590,6 +1590,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .conversation-thread .ap-head .doan-icon-button { color: var(--text-subtle); }
 /* Only the body scrolls past the cap; the head and the buttons stay. */
 .conversation-thread .ap-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-2) var(--space-4) 0; }
+/* A body past the cap fades at its lower edge until it is scrolled to the end; a scroll timeline is inactive while
+   nothing overflows, so a body that fits draws no fade. */
+.conversation-thread .ap-body { animation: ap-body-fade linear both; animation-timeline: scroll(self); }
+@keyframes ap-body-fade { from, 99% { mask-image: linear-gradient(to bottom, black calc(100% - var(--space-6)), transparent); } to { mask-image: none; } }
 .conversation-thread .ap-question { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 .conversation-thread .ap-q { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .conversation-thread .ap-step { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-variant-numeric: tabular-nums; }
@@ -1629,7 +1633,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Unavailable Next and Send are aria-disabled to keep focus and tooltip, with the shared disabled fill. */
 .conversation-thread .ap .q-send[aria-disabled="true"]:not(:disabled, [aria-busy="true"]) { background: var(--affordance-disabled); color: var(--text-disabled); }
 .conversation-thread .ap.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
-.conversation-thread .ap [aria-disabled="true"]:not(.q-send, input, [aria-busy="true"]) { color: var(--text-disabled); cursor: default; }
+/* While an answer is out everything but Send reads as off: the option rows and the pressed permission button too. */
+.conversation-thread .ap.is-locked :is([aria-disabled="true"]:not(.q-send), .q-pref) { color: var(--text-disabled); cursor: default; }
 .conversation-thread .q-folded { display: flex; flex-direction: column; gap: var(--space-6); }
 .doan-conv-panel .conversation-thread .q-folded { gap: var(--space-5); }
 /* An invisible 8px strip on the panel's left border; only the bar shows, on hover, drag and keyboard focus. */

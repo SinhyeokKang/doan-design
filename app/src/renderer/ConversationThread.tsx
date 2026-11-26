@@ -963,11 +963,24 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // Focus the popover takes once it draws as asked: open after an entry or the bar, at the new step after Next or Back,
   // or the bar after Collapse. A render before the host's fold or draft moved does not take it.
   const popoverFocus = useRef<{ key: string; open: boolean; step?: number } | null>(null);
+  // The popover's running collapse or expand; a new one cancels it so two never fight over the height.
+  const motions = useRef<Animation[]>([]);
+  const stopMotion = () => { for (const run of motions.current) run.cancel(); motions.current = []; };
+  // The body and buttons fade out first, then the fold draws the bar and its height runs (the layout effect below).
   const collapse = (andThen: "bar" | "composer") => {
     if (!ask) return;
-    latest.current.onCollapse?.(waitingIds);
-    if (andThen === "bar") popoverFocus.current = { key: ask.key, open: false };
-    else latest.current.onFocusComposer?.();
+    const ids = waitingIds, key = ask.key, node = popover.current;
+    const fold = () => {
+      latest.current.onCollapse?.(ids);
+      if (andThen === "bar") popoverFocus.current = { key, open: false };
+      else latest.current.onFocusComposer?.();
+    };
+    if (!node || motion.reduced() || typeof node.animate !== "function") { fold(); return; }
+    stopMotion();
+    const duration = Number.parseFloat(getComputedStyle(node).getPropertyValue("--time-fast")) || 0;
+    const fades = [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 1 }, { opacity: 0 }], { duration, fill: "forwards" }));
+    motions.current = fades;
+    void Promise.all(fades.map(fade => fade.finished)).then(fold, () => {});
   };
   const expand = (key: string) => { popoverFocus.current = { key, open: true }; latest.current.onExpand?.(); };
   const expandRef = useRef(expand);
@@ -1216,10 +1229,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!node || !was || !shape || was === shape || motion.reduced() || typeof node.animate !== "function") return;
     const token = (name: string) => getComputedStyle(node).getPropertyValue(name).trim();
     const duration = Number.parseFloat(token("--time-thread-enter")) || 0;
+    stopMotion();
     node.style.overflow = "hidden";
     const run = node.animate([{ height: `${inset.current}px` }, { height: `${node.offsetHeight}px` }], { duration, easing: token("--ease-settle") || "ease" });
     run.onfinish = run.oncancel = () => { node.style.overflow = ""; };
-    if (shape === "open") for (const part of node.querySelectorAll(".ap-body, .ap-actions")) part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Number.parseFloat(token("--time-fast")) || 0, delay: duration, fill: "backwards" });
+    // Opening: the body and buttons appear last, once the height has run.
+    const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Number.parseFloat(token("--time-fast")) || 0, delay: duration, fill: "backwards" })) : [];
+    motions.current = [run, ...fades];
   }, [shape, motion]);
   // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll
   // anchoring is off on the scroller (styles.css), or it would move the view as a reply grows above.
