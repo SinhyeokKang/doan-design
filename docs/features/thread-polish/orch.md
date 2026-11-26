@@ -9,14 +9,15 @@
 
 - tasks 2(design.md 이름 대조): 지휘자가 했다. 24px 사용처가 `nextFollow` `frame`, `followResize`, `onScroll`로 바뀌었고 끝 여백 이름(`inset`, `--ap-inset`)과 `ENTRY_FOCUS`·`scrollToItem` 위치를 design.md에 고쳤다.
 - 배치 나누기: 지휘자 판단 — 4·5·6이 모두 `ConversationThread.tsx`를 고치고 5·6은 `styles.css`도 함께 고친다. 병렬로 돌리지 않고 A → B → C 순서로 돌린다. tasks 3의 `/tdd`는 각 배치의 `/deliver bypass` 안에서 그 배치 몫만 쓴다.
+- A 리뷰 뒤 사용자 결정(2026-11-26): 48px 규칙은 붙어 있던 따라가기를 끊은 입력에만 쓴다. 이미 끊긴 채 위에서 하는 입력은 `BOTTOM`(24px) 규칙만 쓴다. 그 입력이 판정되기 전에는 Jump to latest를 켜지 않고, 입력이 끝나 다시 붙지 않았을 때 판정한다. spec·design에 반영했다.
 - 리뷰: 각 구현 배치는 Codex `gpt-6.1-sol` 리뷰 워커가 `/code-review`로 본다(다른 계열의 눈).
 
 ## 배치
 
 | 배치 | 항목 | 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| A 따라가기 | tasks 3(따라가기 몫: `followBand`, `nextFollow`, `followResize`, `scrollFollow`, 포인터 눌림), 4 | `threadMotion.ts`, `threadItems.ts`, `ConversationThread.tsx`(따라가기 부분), 해당 테스트 | 없음 | Claude Opus high — 시간·입력 상태 기계이고 따라가기 회귀가 postmortem에 여러 번 있다 | test·typecheck·lint, `FOLLOW_DISTANCE` grep | 대기 |
-| A 리뷰 | A diff | 읽기만 | A | Codex Sol high — 판단이 많은 diff | 🔴 0 | 대기 |
+| A 따라가기 | tasks 3(따라가기 몫: `followBand`, `nextFollow`, `followResize`, `scrollFollow`, 포인터 눌림), 4 | `threadMotion.ts`, `threadItems.ts`, `ConversationThread.tsx`(따라가기 부분), 해당 테스트 | 없음 | Claude Opus high — 시간·입력 상태 기계이고 따라가기 회귀가 postmortem에 여러 번 있다 | test·typecheck·lint, `FOLLOW_DISTANCE` grep | 1차 `2c1db55df`·`7181755b7`, 리뷰 🟡1 ⚪2 → 고침 라운드 |
+| A 리뷰 | A diff | 읽기만 | A | Codex Sol high — 판단이 많은 diff | 🔴 0 | 1차 🔴0 🟡1(A1 성장 보정 순서) ⚪2, 제품 결정 2건 |
 | B 받은 handoff 버블 | tasks 3(버블 markup, `messageCommand`, `handoffView` 메타 뷰), 5 | `handoffView.ts`, `ConversationThread.tsx`(`HandoffCard`, `ENTRY_FOCUS`, `scrollToItem`, `cardBanners`), `styles.css`, 해당 테스트 | A 통합 | Claude Opus medium — 접근성·CSS container·잘림 순서 판단, 테스트 다시 쓰기가 많다 | test·typecheck·lint | 대기 |
 | B 리뷰 | B diff | 읽기만 | B | Codex Sol high — 접근성·CSS 규칙 판단 | 🔴 0 | 대기 |
 | C Open·Copy 토스트 | tasks 3(`cc-open` subtle, `onCopy` 토스트), 6 | `ConversationThread.tsx`(`cc-open`, `copied`), `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`(`.cc-open`), 해당 테스트 | B 통합 | Codex Sol medium — 정해진 바꾸기, 판단이 적다 | test·typecheck·lint | 대기 |
