@@ -37,7 +37,7 @@
 | B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 통합 `ebc627ecf`(ff) |
 | B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 통합 `68e55682e`, 고칠 거리 3차 진행 |
 | R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | R1 Codex Sol high, R2 Claude Opus high(아래 '모델 계열 교차') — Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
-| C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 대기 |
+| C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 진행(PRODUCT·ARCHITECTURE·BACKLOG·DESIGN 커밋, 기능 디렉터리 삭제는 마지막) |
 
 ## 겹침과 순서
 
@@ -66,3 +66,4 @@
 - R2: 🔴 0, 🟡 2(Y1: 팝오버가 요청이 바뀌어도 같은 컨트롤을 다시 써서, 포커스가 다음 요청의 같은 버튼에 남는다. 실제 DOM에서 재현했다. Y2: 캔버스 패널 arrival 경로와 PrototypeWindow 포커스의 효과 실행 테스트가 없다), ⚪ 4, 결정 1(U1, 사용자 답 반영). R1 고칠 거리는 모두 고쳐졌다. Y1·Y2와 ⚪1–3을 B2에 보냈다.
 - B2c: T5와 R2 고칠 거리(Y1, Y2, ⚪1–3)를 커밋 17개로 cherry-pick 통합했다(HEAD `68e55682e`). 워커의 `/verify`는 `98906e141`에서 PASS였다. 워커가 자기 리뷰 두 번(Claude)을 돌렸다. 실제 상태 확인은 실패로 보고됐다. 원인은 probe 밖이다(사용자의 `/Applications/Doan.app`과 주기적으로 도는 Antigravity CLI가 실제 상태를 썼다). 프로토타입 창 280×360은 결정한 하한으로도 버튼이 composer에 겹쳐 사용자에게 다시 물었다.
 - 고칠 거리 3차: 280×360 스크롤, 347×480에서 올라간 팝오버 위의 Jump to latest가 패널 제목줄과 겹치는 것, 프로토타입 창에서 팝오버 아래와 composer 사이에 스레드 글이 보이는 것을 B2에 보냈다.
+- C: T6 승격을 B2 고칠 거리 3차와 나란히 했다. PRODUCT §5 item 3의 'Questions'를 'Answer popover'로 다시 쓰고 spec 목록의 옛 문장을 바꿨다(`57f08153c`). ARCHITECTURE(`acf683872`), BACKLOG(`743e7e6e6`), DESIGN.md의 'question card' 두 곳(`9a2f2f158`)도 고쳤다. 3차 결과로 Jump to latest와 스크롤 규칙이 바뀌면 PRODUCT를 다시 맞춘다.
