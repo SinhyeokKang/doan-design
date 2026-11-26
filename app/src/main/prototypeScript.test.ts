@@ -832,4 +832,56 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
       expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
     });
   });
+
+  // PRODUCT §5 item 2 'Prototype window' 'Header': a plain Z the frame did not take for typing switches the viewport mode.
+  describe("the viewport key", () => {
+    const PLAYING = `<div data-doan-frame="a" data-doan-prototype="390x844"><button id="b">B</button><input id="text"><textarea id="area"></textarea>
+      <select id="pick"><option>1</option></select><div id="edit" contenteditable="true">E</div></div>`;
+    const press = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: KeyboardEventInit = {}) => {
+      await frame.evaluate(({ selector, options }) => {
+        const el = selector === null ? document.body : document.querySelector(selector)!;
+        el.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyZ", key: "z", bubbles: true, cancelable: true, ...options }));
+      }, { selector: target, options: init });
+    };
+    const after = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: KeyboardEventInit = {}) => {
+      const before = await dom.flush(frame) as Report[];
+      expect(before[0]).toMatchObject({ gen: 9, state: "ready" });
+      await press(frame, target, init);
+      return (await dom.flush(frame)).slice(before.length);
+    };
+
+    test("posts {gen, key} for a plain Z on the page or a button, also when a Korean layout reports ㅋ", async () => {
+      const frame = await dom.load(canvasDocument("a", PLAYING, 9));
+      expect(await after(frame, null)).toEqual([{ gen: 9, key: "z" }]);
+      expect(await after(frame, "#b")).toEqual([{ gen: 9, key: "z" }]);
+      expect(await after(frame, "#b", { key: "ㅋ" })).toEqual([{ gen: 9, key: "z" }]);
+    });
+
+    test("leaves Z to a text field, a select and an editable element", async () => {
+      const frame = await dom.load(canvasDocument("a", PLAYING, 9));
+      for (const target of ["#text", "#area", "#pick", "#edit"]) expect(await after(frame, target), target).toEqual([]);
+    });
+
+    test("ignores Z with a modifier, a repeat or an IME composition, and another key", async () => {
+      const frame = await dom.load(canvasDocument("a", PLAYING, 9));
+      for (const init of [{ shiftKey: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { code: "KeyX" }] as KeyboardEventInit[]) {
+        expect(await after(frame, null, init), JSON.stringify(init)).toEqual([]);
+      }
+    });
+
+    test("leaves Z to the canvas when its own handler cancels it, in any phase", async () => {
+      for (const listener of [`addEventListener("keydown", e => e.preventDefault())`, `addEventListener("keydown", e => e.preventDefault(), true)`, `document.addEventListener("keydown", e => e.preventDefault())`]) {
+        const frame = await dom.load(canvasDocument("a", `${PLAYING}<script>${listener}</script>`, 9));
+        expect(await after(frame, "#b"), listener).toEqual([]);
+      }
+    });
+
+    test("posts nothing while no frame plays", async () => {
+      const frame = await dom.load(canvasDocument("a", `<div data-doan-frame="a"></div>`, 9));
+      const before = await dom.flush(frame) as Report[];
+      expect(before[0]).toMatchObject({ gen: 9, state: "unmarked" });
+      await press(frame, null);
+      expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+    });
+  });
 });

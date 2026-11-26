@@ -612,6 +612,14 @@ describe("parseCanvasMessage: hand tool keys", () => {
     }
   });
 
+  test("accepts ⇧2 and ⇧Space", () => {
+    for (const key of ["Shift2", "ShiftSpace"]) {
+      const message = { type: "key", key, href: HREF, seq: 3, viewport: 150 };
+      expect(parseCanvasMessage({ ...message, down: true })).toEqual(message);
+    }
+    for (const key of ["shift2", "Digit2", "2", "@"]) expect(parseCanvasMessage({ type: "key", key, href: HREF, seq: 3, viewport: 150 })).toBeNull();
+  });
+
   test("rejects Space without a boolean down, other letters and a lowercase or code name", () => {
     for (const down of [undefined, null, 1, "true"]) expect(parseCanvasMessage({ type: "key", key: "Space", down, href: HREF, seq: 3, viewport: 150 })).toBeNull();
     for (const key of ["v", "h", "KeyV", "KeyH", " ", "B"]) expect(parseCanvasMessage({ type: "key", key, href: HREF, seq: 3, viewport: 150 })).toBeNull();
