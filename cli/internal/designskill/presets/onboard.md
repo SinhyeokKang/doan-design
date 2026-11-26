@@ -109,7 +109,7 @@ Design for the returning user: onboarding appears once, completion is remembered
 - When the user asks for flows or states on the canvas, draw each step or empty state as its own frame next to the screen it belongs to, with a stable id (for example `projects-empty-first-use` and `projects-empty-no-results` for `projects`) and a `data-doan-title` that names it. Reuse the product's components and reference token CSS variables instead of raw hex or rgb values.
 - When a step, message, hint, or component you draw is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the gaps and proposals without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what you added or changed, the placeholders and unconfirmed facts that need the user's input, and what you left unchanged on purpose.
 
 ## Verify

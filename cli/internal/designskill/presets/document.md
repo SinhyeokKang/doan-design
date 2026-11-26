@@ -146,7 +146,7 @@ The rules document and the canvases use the same token names and component list,
 ## Finish in Doan
 
 - Before finishing, look at each canvas rendered (in Doan or a browser) and fix overlapping or overflowing content, broken links, and missing fonts. Say which canvases you could not render.
-- After editing the canvases, make `doan check` pass.
+- After editing the canvases, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - Report the paths you wrote, or "No changes" with the files you checked.
 - Give a short system summary: palette, type ramp, and named rules.
 - Name the defects and drift you did not record as rules or did not repair, and why.
@@ -163,7 +163,7 @@ The rules document and the canvases use the same token names and component list,
 - Components and states shown on the canvases exist in code, or the canvas says they do not, and each unit with steps or phases shows every one.
 - Frames, element ids, and sections outside the request are unchanged.
 - The document and the canvases list the same tokens and components, and only the document holds open decisions. Each canvas discloses its own approximations and unconfirmed values, generic process notes are only in the document, and no frame repeats its canvas's top disclosure.
-- `doan check` passes.
+- `doan check <edited canvas, CSS and config paths> --json` passes.
 
 Report anything you could not check, such as contrast ratios, as unverified.
 
