@@ -943,8 +943,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
   const echo = useRef(false), own = useRef(false);
   // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move. keyDown: a scroll key
-  // pressed anywhere outside a field, which becomes this thread's input only if this thread then scrolls.
-  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number } | null>(null);
+  // pressed anywhere outside a field, which becomes this thread's input only if the next scroll of this thread that is
+  // not the follow's own moves it. itemAt: when the latest scroll to an item began.
+  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number } | null>(null), itemAt = useRef(-Infinity);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
@@ -1365,11 +1366,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     echo.current = false;
     if (!mine) {
       own.current = false;
-      // A key is this thread's only when it moved this thread: not a clamp or a re-read, and not during the thread's
-      // own scroll to an item. Its move starts where this scroll started, after any write of the follow's since the key.
+      // A key is this thread's only when this scroll moved it (not a clamp or a re-read) and the key came after any scroll
+      // to an item (an older key never takes the item's own scroll; a newer one interrupts it). Either way this scroll
+      // settles the key: a later move is never its. Its move starts where this scroll started.
       const pressed = keyDown.current, now = performance.now();
-      if (pressed && moved && !follow.current.item && now - pressed.at < WHEEL_HOLD_MS) {
-        keyDown.current = null;
+      keyDown.current = null;
+      if (pressed && moved && now - pressed.at < WHEEL_HOLD_MS && (!follow.current.item || pressed.at >= itemAt.current)) {
         apply({ type: "input", kind: "key", key: pressed.key, at: pressed.at, top: from });
       }
       apply({ type: "scroll", at: now, distance: distance.current, top: node.scrollTop, moved });
@@ -1390,7 +1392,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
       // Not following: the follow's next write would cancel this smooth scroll and pull the item back down.
-      if (node) latestFollow.current.apply({ type: "item", at: performance.now() });
+      if (node) {
+        itemAt.current = performance.now();
+        latestFollow.current.apply({ type: "item", at: itemAt.current });
+      }
       // A received handoff scrolls to its top: in a 280px panel a tall bubble's centre would leave its meta line out of view.
       node?.scrollIntoView({ block: node.querySelector(".from-agent") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },

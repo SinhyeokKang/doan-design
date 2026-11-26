@@ -624,3 +624,34 @@ test("the follow's own scroll and scrollend right after a scroll key neither tak
   draw([user]);
   expect(jump()).toBe(false);
 });
+
+// The key scrolled something else; this thread only clamped, then a focus or scrollIntoView moves it within 100 ms.
+test("a key candidate a scroll here passed over is never claimed by a later, unrelated move", () => {
+  draw([user]);
+  key();
+  layout.content = 995;
+  scrollBy(0);
+  frameUntil(48);
+  expect(atBottom()).toBe(0);
+  scrollBy(-40);
+  frameUntil(1000);
+  expect(atBottom()).toBe(40);
+});
+
+// The person's End interrupts the thread's scroll to a received handoff and brings the view back to the bottom.
+test("a key pressed during an item scroll that scrolls this thread to the bottom ends the item and follows again after growth", () => {
+  draw([user]);
+  hooks.handle!.scrollToItem("u1");
+  observed();
+  frameUntil(48);
+  expect(scroller.scrollTop).toBe(332);
+  key("End");
+  smooth = null;
+  scrollBy(300);
+  expect(atBottom()).toBe(0);
+  resize({ content: 1100 }, [user]);
+  expect(atBottom()).toBe(100);
+  on.get("scrollend")?.({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(0);
+});
