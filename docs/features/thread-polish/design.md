@@ -30,8 +30,8 @@
   - 시각 숨김: `.thread`를 inline-size container로 두고 `@container (max-width: 275px)`에서 시각과 그 앞 구분점을 숨긴다(draft와 같다).
   - Copy 실패 안내와 `chip-missing` 안내는 버블 아래(`.msg-user` 안, 오른쪽 정렬)에 둔다. 지금 카드용 위치 규칙(`styles.css`의 `.handoff-card .card-layout > :is(.chip-missing, .copy-failed)`)을 옮긴다.
 - 선택자를 옮긴다. 지금 `.handoff-card`에 묶인 곳은 다음과 같다.
-  - `ENTRY_FOCUS`: 옮겨 온 직후 포커스 대상.
-  - `scrollToItem`의 `block: "start"` 판정: 버블 위끝이 보이게.
+  - `ENTRY_FOCUS`(`ConversationThread.tsx`, `:is([data-entry], .ap-bar, .handoff-card)`): 옮겨 온 직후 포커스 대상.
+  - `ConversationThread`의 imperative `scrollToItem`(`node.querySelector(".handoff-card") ? "start" : "center"`): 버블 위끝이 보이게. `CanvasConversationPanel.tsx`가 옮겨 온 직후 이것을 부른다.
   - `styles.css`의 `.handoff-card:focus-visible`: `.msg-user:focus-visible > .bubble`로 쓴다.
   - 셋 모두 실제로 실행되는 테스트로 고정한다.
 - `cardBanners`에서 handoff를 빼서 썸네일을 더 요청하지 않는다.
@@ -40,14 +40,15 @@
 
 ### 따라가기
 
-- 지금 24px(`FOLLOW_DISTANCE`, `threadItems.ts`)을 쓰는 곳은 세 군데다.
-  - `followResize`의 `behind`: 바뀌기 전 거리를 본다.
-  - `resized`의 `setBehind(true)`: 바뀐 뒤 거리를 본다.
-  - `onScroll`의 `scrollFollow(false, distance)`: `behind`를 끈다.
+- 지금 24px(`FOLLOW_DISTANCE`, `threadItems.ts`)을 쓰는 곳은 세 군데다(answer-popover 머지 뒤 `69e7d71df` 기준).
+  - `threadMotion.ts`의 `nextFollow` `frame`: 붙지 않은 상태에서 `distance <= 24`이면 다시 붙는다.
+  - `threadMotion.ts`의 `followResize`의 `behind`: 내용이 자랐고 바뀌기 전과 뒤 거리 중 큰 쪽이 24보다 크면 켠다. `ConversationThread.tsx`의 `resized`는 이 결과(`change.behind`)를 그대로 `setBehind`에 넘긴다.
+  - `ConversationThread.tsx`의 `onScroll`의 `scrollFollow(false, distance)`: `behind`를 끈다.
+- 끝 여백은 `ThreadSize.inset`(`resized`의 `inset.current`, CSS `--ap-inset`)이다. 여백이 바뀌면 붙은 상태에서 `snap`한다.
 - 새 규칙은 세 값으로 나눈다.
   - `BOTTOM = 24`: 바닥에 있다고 보는 거리. 여기로 돌아오면 언제든 붙는다. 지금 규칙 그대로다.
   - `NUDGE = 48`: 입력이 끝났을 때 사람이 직접 움직인 양이 이 이하이면 다시 붙는다.
-  - `band(height) = max(120, height / 3)`: `behind`를 켜고 끄는 거리. `height`는 `.thread-scroll`의 clientHeight에서 answer-popover의 끝 여백을 뺀 값(사람에게 보이는 높이)이다.
+  - `band(height) = max(120, height / 3)`: `behind`를 켜고 끄는 거리. `height`는 `.thread-scroll`의 clientHeight에서 끝 여백(`inset.current`)을 뺀 값(사람에게 보이는 높이)이다.
 - `FollowState`
   - `wheelAt`을 `inputAt`으로 바꾸고 키 입력에도 같은 대기(`WHEEL_HOLD_MS`)를 둔다. 키 스크롤 애니메이션이 끝나기 전에 다시 붙지 않게 하기 위해서다. 대기 길이가 Chromium 키 스크롤 애니메이션을 덮는지는 runtime-test에서 본다.
   - `pressed`(포인터 눌림)를 둔다.
