@@ -42,6 +42,7 @@
   - 더하는 필드
     - `via: "handoff" | "send"`
     - `chain: string[]`: 1–5개의 대화 ID. 0단계 대화부터 보낸 대화까지이고, 마지막 항목은 `conversationId`와 같다. 각 항목의 길이 한도는 `LIMITS.label`이다.
+    - `provider`: 보낸 대화의 provider. 받은 쪽 메타와 큐 행의 로고에 쓴다. 보낸 대화가 나중에 지워져도 로고가 남도록 기록에 싣는다. 없는 기존 기록은 로고 없이 `forward`를 쓴다.
   - 단계는 `chain.length`다. 필드가 없는 기존 기록은 `via: "handoff"`, `chain: [conversationId]`로 읽는다.
 - 대화 기록 이벤트
   - `handoff.requested`/`handoff.resolved`에 `via`를 더한다.
@@ -101,7 +102,7 @@
 - `threadItems.ts`는 이미 위치와 상관없이 `origin`이 있는 모든 `user.message`를 받은 버블로 그린다. 바뀌는 것은 메타 문구와 아이콘, 그룹 이름을 `via`별로 나누는 일이다(`handoffView.ts`).
 - `summary.ts`의 `startedBy`는 첫 메시지만 본다. 대화 중간 `send`는 제목과 `startedBy`를 바꾸지 않는다.
 - canvas 카드(`canvasCardText.ts`): `send` 상태 문구와 아이콘, 연쇄 거절 문구, 대상 대화 제목과 그 대화가 지워진 경우. 기존 기록의 `not_new`와 `handoff_turn` 문구는 남긴다.
-- 큐 줄: 에이전트 행에 `send` 아이콘을 둔다. 출처 캔버스 이름은 화면에 쓰지 않고 접근성 이름에만 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
+- 큐 줄: 에이전트 행에 보낸 에이전트의 provider 로고(`providerLogo`, 보낸 대화의 provider)를 둔다. 출처 캔버스 이름은 화면에 쓰지 않고 접근성 이름에만 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
 - Edit and resend: `origin`이 있는 메시지로 시작한 턴에는 없다. handoff 첫 턴의 규칙을 `origin` 전체로 넓힌다.
 - 알림 토스트: send 변형의 문구(드래프트).
 
@@ -171,3 +172,8 @@
     - `send` 알림
     - 1단계 이상 `handoff` 알림
     - 섞인 묶음
+
+## 드래프트 확정
+
+- 2026-11-26 사용자가 `.doan/canvases/canvas-message.html`(`d2b5c9ab8`)의 네 프레임을 확정했다. draft 헤더 'Proposals to confirm'의 문구(send 토스트 넷, Sent·Queued 카드의 Open 이름, 받은 버블의 그룹 설명)와 provider 로고 사용, 큐 행의 출처 이름 없음을 포함한다.
+- draft가 낸 변경 요청(재시작 뒤 남은 에이전트 행이 왜 나가지 않는지 알리는 상태 줄)은 받아들이지 않았다. 문구가 정해지지 않아 이번에는 두지 않는다.

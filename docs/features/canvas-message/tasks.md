@@ -4,7 +4,7 @@
 
 `/agent-eval` 해당: 가이드, CLI 명령, 스킬 stub이 바뀐다. 실제 회차는 사용량 한도가 넉넉한 계정으로 돌린다(사용자 지정).
 
-1. `/design-draft canvas-message`: design '드래프트 요청'의 네 프레임. 사용자가 앱에서 확정한다.
+1. (완료, 2026-11-26 확정, design '드래프트 확정') `/design-draft canvas-message`: design '드래프트 요청'의 네 프레임.
    - 확인: `doan check --json --repo .` 새 error 없음, `doan ls --json --repo .`의 frame id가 `source-cards`, `received`, `queue`, `toasts`. `source-cards`에 send 상태 넷과 연쇄 거절 셋(handoff·send)이 모두 그려졌다.
    - 커밋 경계: `docs(design): canvas-message draft`.
 2. 스키마와 fixtures: `schema/app-socket.v8.schema.json`, `schema/fixtures/app-socket-v8/`, v5 `errorCode`에 `chain_one`·`chain_limit`, `formats/validate.go`, `schema/embed.go`.
