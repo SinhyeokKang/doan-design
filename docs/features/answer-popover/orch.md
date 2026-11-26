@@ -26,6 +26,7 @@
 - 이 링크에서 Codex를 쓴 범위: 아래 배치 표의 모델 열에 적는다. 리뷰 워커도 배치 워커로 본다.
 - 시작 시점 Codex 사용률: 5h 2%, 7d 1%.
 - R1(T3 리뷰): Codex `gpt-6.1-sol` `high`. 띄우기 전 사용률 5h 32%, 7d 5%.
+- R3(T5와 3차 리뷰): Claude Opus high. 사용자가 Codex 한도에 닿았다고 알렸다.
 - R2(T4 리뷰): Claude Opus high. 띄우기 전 Codex 5h가 52%였고, check-scope의 `/agent-eval`이 같은 Codex 한도를 쓰므로 Claude로 띄웠다.
 
 ## 배치
@@ -35,7 +36,7 @@
 | B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 통합 `2fd83aea6` |
 | B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 통합 `54c574aef` |
 | B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 통합 `ebc627ecf`(ff) |
-| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 통합 `68e55682e`, 고칠 거리 3차 진행 |
+| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 통합 `68e55682e`, 3차 `93712f11a` |
 | R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | R1 Codex Sol high, R2 Claude Opus high(아래 '모델 계열 교차') — Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
 | C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 진행(PRODUCT·ARCHITECTURE·BACKLOG·DESIGN 커밋, 기능 디렉터리 삭제는 마지막) |
 
@@ -67,3 +68,5 @@
 - B2c: T5와 R2 고칠 거리(Y1, Y2, ⚪1–3)를 커밋 17개로 cherry-pick 통합했다(HEAD `68e55682e`). 워커의 `/verify`는 `98906e141`에서 PASS였다. 워커가 자기 리뷰 두 번(Claude)을 돌렸다. 실제 상태 확인은 실패로 보고됐다. 원인은 probe 밖이다(사용자의 `/Applications/Doan.app`과 주기적으로 도는 Antigravity CLI가 실제 상태를 썼다). 프로토타입 창 280×360은 결정한 하한으로도 버튼이 composer에 겹쳐 사용자에게 다시 물었다.
 - 고칠 거리 3차: 280×360 스크롤, 347×480에서 올라간 팝오버 위의 Jump to latest가 패널 제목줄과 겹치는 것, 프로토타입 창에서 팝오버 아래와 composer 사이에 스레드 글이 보이는 것을 B2에 보냈다.
 - C: T6 승격을 B2 고칠 거리 3차와 나란히 했다. PRODUCT §5 item 3의 'Questions'를 'Answer popover'로 다시 쓰고 spec 목록의 옛 문장을 바꿨다(`57f08153c`). ARCHITECTURE(`acf683872`), BACKLOG(`743e7e6e6`), DESIGN.md의 'question card' 두 곳(`9a2f2f158`)도 고쳤다. 3차 결과로 Jump to latest와 스크롤 규칙이 바뀌면 PRODUCT를 다시 맞춘다.
+- 고칠 거리 3차: 커밋 8개를 `93712f11a`까지 cherry-pick 통합했다. 280×360은 머리줄 아래로 본문과 버튼 줄을 함께 스크롤해 composer와 겹치지 않는다. 끝 여백을 스크롤러 padding에서 spacer(`.thread-end`)로 옮겼다(padding이 프로토타입 창 스크롤러를 foot 아래로 36 px 늘려 스레드 글이 보였다). Jump to latest는 팝오버 위에 56 px가 남을 때만 보인다. 워커 `/verify`는 `2464a444d`에서 PASS였다. 남은 한계: 280×360에서 설명이 있는 선택지 줄(94 px)은 머리줄 아래 띠(68 px)보다 커서 진입 때 윗부분만 보이고, 펼친 팝오버가 패널 머리를 덮는다. PRODUCT와 ARCHITECTURE를 이에 맞췄다(`049ed6c88`, `4c6513f10`).
+- R3: T5와 3차 코드 리뷰를 새 child worktree `ap-r3`에서 시작했다(dispatch `ctx_eaae456a3031`).
