@@ -34,7 +34,18 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
 ## 상시 권한
 
 - lead는 각 링크의 PR을 리뷰와 gate 통과 뒤 링크 순서대로 develop에 머지한다(체인 기본값). 두 링크는 함께 시작하고, check-scope PR을 먼저, answer-popover PR을 나중에 머지한다.
-- conductor와 워커의 런타임은 Claude다(lead와 같은 모델 계열). 모델 계열을 넘는 허가는 없다. 단 `/agent-eval`은 AGENTS.md의 상시 예외대로 두 계열을 모두 돌린다.
+- conductor 런타임은 Claude다(lead와 같은 모델 계열).
+- 모델 계열 교차: 사용자가 두 링크의 **배치 워커**에 Codex를 허가했다. 모델은 `gpt-6.1-sol`만, reasoning effort는 `high`까지다(20달러 Plus 구독). conductor 세션은 Codex로 띄우지 않는다. Claude 워커도 그대로 쓸 수 있다.
+  - conductor는 링크를 시작할 때와 배치 워커를 띄우기 전마다 Codex 남은 한도를 확인한다: `node "$(ls -d ~/.claude/plugins/cache/claude-dashboard/claude-dashboard/*/dist/check-usage.js | sort -V | tail -1)" --json`의 `codex` 항목(5h·7d 사용률). 한도가 부족하면 Claude 워커로 띄우거나 사용자에게 묻는다.
+  - Codex 워커가 일찍 턴을 끝내면 모델이 Sol에서 바뀌지 않았는지(터미널 하단 `GPT-6-… · <effort>`) 먼저 본다. Sol이 아니면 워커를 멈추고 사용자에게 묻는다.
+  - 각 링크의 `orch.md`에 쓴 교차 범위(어느 배치가 Codex였는지, effort)를 적는다.
+- `/agent-eval`은 AGENTS.md의 상시 예외대로 두 계열을 모두 돌린다.
+
+## 로그인
+
+- 실제 HOME의 Claude 로그인은 로그아웃 상태다(2026-11-26 lead 확인, `loginEnded: time_limit`). 사용자가 직접 다시 로그인하기로 했다. Orca 프로필 토큰 복사는 쓰지 않는다.
+- 실제 Claude 턴이 필요한 단계(check-scope T5 `/agent-eval`, 필요하면 answer-popover T5)에 이르면 conductor는 먼저 `security find-generic-password -s "Claude Code-credentials" -w`의 `claudeAiOauth.expiresAt`가 0이 아닌지 확인한다. 아직 로그아웃이면 그 단계 전에 사용자에게 로그인을 요청하고 기다린다. 로그인 뒤에는 AGENTS.md 'Real agent sign-ins'대로 임시 홈에 복제해 쓰고 지운다.
+- Codex 로그인은 `~/.codex/auth.json`에 있다.
 
 ## 진행 규칙
 
@@ -61,3 +72,8 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
   - 로그인: 2026-11-26 subagent-progress PoC 때 실제 HOME의 Claude 로그인이 로그아웃 상태였다. 그래서 PoC는 Orca 프로필의 Keychain 항목(`Claude Code-credentials-36ffc8d1`)에서 refresh token을 비운 access token만 임시 홈에 복사해 썼다. 사용자는 그 PoC에 대해 이 방식을 허용했다. 이 체인에서 같은 방식을 쓸지는 시작 점검에서 다시 묻는다.
   - 체인 뒤 순서: canvas-chip(드래프트 확정, T1 PoC부터) → subagent-progress(T1·T1b PoC 완료, 드래프트 `.doan/canvases/subagent-progress.html` 확정, T3부터). subagent-progress의 PoC 스크립트와 기록은 main checkout의 `.scratch/subagent-progress/`에 있다.
   - subagent-progress에서 나눈 "Claude Code 프로세스를 대화 수명 동안 유지"는 아직 feature가 없다(`docs/BACKLOG.md` 'Undecided'). 사용자가 정한 방향이고, `/feature`로 시작해야 한다.
+- 2026-11-26 lead(새 세션): 사용자와 시작 점검을 확인했다.
+  - 로그인: 사용자가 실제 HOME의 Claude Code에 직접 다시 로그인한다. 토큰 복사는 쓰지 않는다('로그인').
+  - Codex: 배치 워커에만 허가, Sol `high`까지, 워커를 띄우기 전 한도 확인('상시 권한'). 시작 시점 Codex 사용률 5h 2%, 7d 1%.
+  - answer-popover T2 PoC 방식은 conductor가 design.md 기준으로 고르고 기록한다. 두 방식 모두 안 되면 멈추고 묻는다.
+  - 두 링크를 병렬 그룹으로 함께 시작한다.
