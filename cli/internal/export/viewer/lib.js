@@ -158,7 +158,7 @@ function parseKey(data) {
   const { key, down } = data;
   if (key === "Space") return typeof down === "boolean" ? { type: "key", key, down } : null;
   if (key === "Escape") return { type: "key", key, repeat: data.repeat === true };
-  if (key === "V" || key === "H") return { type: "key", key };
+  if (key === "V" || key === "H" || key === "Shift2") return { type: "key", key };
   return null;
 }
 
@@ -323,17 +323,21 @@ function inOpenOverlay(target) {
   return target.closest(OPEN_OVERLAY) !== null;
 }
 
-// By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools. A Space release
-// always counts, so a held Space never outlives the key. An open menu or list keeps every printable key.
+// By key position (`code`), so a Korean layout's ㅍ and ㅗ still switch tools and ⇧2 is one key on
+// every layout. A Space release always counts, so a held Space never outlives the key. An open menu or
+// list keeps every printable key. ⇧Space plays and never pans.
 function toolShortcut(event, context) {
   if (event.type === "keyup") return event.code === "Space" ? { kind: "space", down: false } : null;
   if (event.type !== "keydown") return null;
   const tool = TOOL_KEYS[event.code];
-  if (tool === undefined && event.code !== "Space") return null;
+  const zoom = event.code === "Digit2" && event.shiftKey;
+  if (tool === undefined && !zoom && event.code !== "Space") return null;
   if (!context.canvasPage || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return null;
   if (event.metaKey || event.ctrlKey || event.altKey || editableTarget(event.target) || inOpenOverlay(event.target)) return null;
   if (tool !== undefined) return { kind: "tool", tool };
-  return interactiveTarget(event.target) ? null : { kind: "space", down: true };
+  if (zoom) return { kind: "zoomSelection" };
+  if (interactiveTarget(event.target)) return null;
+  return event.shiftKey ? { kind: "play" } : { kind: "space", down: true };
 }
 
 function layerShown(tool, spaceHeld, dragging, boardDrawn) {
@@ -422,6 +426,7 @@ function drawerView(frames, total, current) {
 const ZOOM_ITEMS = [
   { id: "fit", label: "Fit", shortcut: "⇧1" },
   { id: "actual", label: "100%", shortcut: "⇧0" },
+  { id: "selection", label: "Zoom to selection", shortcut: "⇧2" },
   { id: "half", label: "50%", scale: 0.5 },
   { id: "double", label: "200%", scale: 2 },
 ];

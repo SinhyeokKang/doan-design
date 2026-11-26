@@ -428,6 +428,8 @@ function startPlayer() {
       const pressed = button.dataset.mode === mode;
       button.setAttribute("aria-pressed", String(pressed));
       button.tabIndex = pressed ? 0 : -1;
+      if (pressed) button.removeAttribute("aria-keyshortcuts");
+      else button.setAttribute("aria-keyshortcuts", "Z");
     }
     content.dataset.mode = mode;
     const exportState = viewerApp.exportAvailability({ phase: appPhase(current) }, exporting);
@@ -575,6 +577,14 @@ function startPlayer() {
     render();
   }
 
+  // Z presses the header's other mode button, never while the frame drawer is open.
+  const switchMode = () => {
+    if (!drawerOpen) setMode(viewerApp.otherMode(mode), true);
+  };
+  window.addEventListener("keydown", (event) => {
+    if (viewerApp.viewportKey(event)) switchMode();
+  });
+
   window.addEventListener("message", (event) => {
     if (event.source !== null && event.source === window.opener) {
       const message = boardMessage(event.data);
@@ -602,6 +612,11 @@ function startPlayer() {
     if ("state" in data) {
       const report = viewerApp.parseRunReport("prototype", data);
       if (report !== null && report.state !== "timeout") result(current, report);
+      return;
+    }
+    // The run script's Z, which the frame did not take for typing (view.ts viewportKey's rule).
+    if ("key" in data) {
+      if (data.key === "z") switchMode();
       return;
     }
     if ("goto" in data) return;
@@ -829,7 +844,18 @@ function startPlayer() {
       hideTip();
       return;
     }
+    // The other mode's button names Z, as the app's does.
+    const key = button.getAttribute("aria-keyshortcuts");
+    tip.classList.toggle("has-key", key !== null);
     tip.textContent = text;
+    if (key !== null) {
+      const chip = document.createElement("span");
+      chip.className = "doan-kbd";
+      chip.setAttribute("data-ui-variant", "on-prominent");
+      chip.setAttribute("data-ui-size", "sm");
+      chip.textContent = key;
+      tip.append(chip);
+    }
     tip.hidden = false;
     const panel = pw.getBoundingClientRect();
     const box = button.getBoundingClientRect();

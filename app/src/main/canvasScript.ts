@@ -1143,7 +1143,11 @@ export function canvasScript(lib: CanvasLib): void {
         postHover();
       }
       if (toolKeyAllowed(event)) {
-        if (event.code === "Space") {
+        // ⇧Space plays the prototype and never pans.
+        if (event.code === "Space" && event.shiftKey) {
+          event.preventDefault();
+          if (!event.repeat) postSelection("key", { key: "ShiftSpace" });
+        } else if (event.code === "Space") {
           event.preventDefault();
           if (!event.repeat) {
             spaceHeld = true;
@@ -1151,6 +1155,8 @@ export function canvasScript(lib: CanvasLib): void {
           }
         } else if (!event.repeat && (event.code === "KeyV" || event.code === "KeyH")) {
           postSelection("key", { key: event.code === "KeyV" ? "V" : "H" });
+        } else if (!event.repeat && event.code === "Digit2" && event.shiftKey) {
+          postSelection("key", { key: "Shift2" });
         }
       }
       if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;

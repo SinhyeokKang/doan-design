@@ -91,9 +91,15 @@ const setView = (view) => {
 
 const center = () => ({ x: board.clientWidth / 2, y: board.clientHeight / 2 });
 const zoomBy = (factor, point) => setView(zoomAt(readView(), factor, point || center()));
+// The selection fits whole, zooming in or out (the app's selectionView); nothing happens without one.
+const selectedRect = () => (selection.target !== null && boardDrawn() ? selection.selected : null);
 const commands = {
   fit: () => setView(fitWidth(meta.width, viewport())),
   actual: () => zoomBy(1 / scale),
+  selection: () => {
+    const rect = selectedRect();
+    if (rect !== null) setView(viewerApp.selectionView(rect, viewport(), FIT_INSET, readView()));
+  },
 };
 
 // ── Popup lists: the frame drawer and the zoom menu ───────────────────────────
@@ -227,9 +233,10 @@ const drawerPopup = createPopup({
   onPick: jumpTo,
 });
 
-// The zoom menu: Fit and 100% with their shortcuts, then two fixed percentages.
+// The zoom menu: Fit, 100% and Zoom to selection with their shortcuts, then two fixed percentages.
+const zoomSelectionItem = ZOOM_ITEMS.findIndex((item) => item.id === "selection");
 ZOOM_ITEMS.forEach((item, index) => {
-  if (index === 2) {
+  if (index === 3) {
     const separator = document.createElement("div");
     separator.className = "doan-menu-sep";
     separator.setAttribute("role", "separator");
@@ -254,9 +261,14 @@ const zoomPopup = createPopup({
   button: zoomButton,
   panel: zoomMenu,
   items: () => Array.from(zoomMenu.querySelectorAll('[role="menuitem"]')),
-  onOpen: () => ({ count: ZOOM_ITEMS.length, start: 0 }),
+  onOpen: () => {
+    // Zoom to selection is unavailable without a selection, as the app's item.
+    zoomMenu.querySelectorAll('[role="menuitem"]')[zoomSelectionItem].setAttribute("aria-disabled", String(selectedRect() === null));
+    return { count: ZOOM_ITEMS.length, start: 0 };
+  },
   onPick: (index) => {
     const item = ZOOM_ITEMS[index];
+    if (index === zoomSelectionItem && selectedRect() === null) return;
     if (item.scale !== undefined) zoomBy(item.scale / scale);
     else commands[item.id]();
   },
@@ -341,6 +353,7 @@ window.addEventListener("message", (event) => {
     if (message.key === "Space") {
       if (!message.down || document.activeElement === canvas) spaceKey(message.down);
     } else if (message.key === "Escape") escapeTool(false, false, message.repeat);
+    else if (message.key === "Shift2") commands.selection();
     else chooseTool(message.key === "V" ? "select" : "hand");
     return;
   }
@@ -490,6 +503,15 @@ document.addEventListener("keydown", (event) => {
   const shortcut = toolShortcut(event, { canvasPage: true });
   if (shortcut !== null) {
     if (inspector.blocks(event.target)) return;
+    if (shortcut.kind === "zoomSelection") {
+      if (selectedRect() !== null) { commands.selection(); event.preventDefault(); }
+      return;
+    }
+    if (shortcut.kind === "play") {
+      event.preventDefault();
+      pressPlay();
+      return;
+    }
     if (shortcut.kind === "tool" ? (chooseTool(shortcut.tool), true) : spaceKey(true)) event.preventDefault();
     return;
   }
@@ -928,12 +950,14 @@ function refreshPlay() {
   if (tipFor === playButton && !tip.hidden) showTip(playButton);
 }
 
-playButton.addEventListener("click", () => {
+// The toolbar's Play and the page's ⇧Space, which does what a press of it does.
+function pressPlay() {
   if (playKind === "play") {
     const request = viewerApp.playRequest(playState());
     if (request !== null) playPrototype(request.frame);
   } else if (playKind === "drawer") playPopup.toggle();
-});
+}
+playButton.addEventListener("click", pressPlay);
 
 // ── The size bubble and the Option measurement ────────────────────────────────
 // Drawn in the board's scrolled content over the scaled stage, in screen px as the app draws them, so

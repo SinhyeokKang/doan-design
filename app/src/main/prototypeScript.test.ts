@@ -837,13 +837,14 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
   describe("the viewport key", () => {
     const PLAYING = `<div data-doan-frame="a" data-doan-prototype="390x844"><button id="b">B</button><input id="text"><textarea id="area"></textarea>
       <select id="pick"><option>1</option></select><div id="edit" contenteditable="true">E</div></div>`;
-    const press = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: KeyboardEventInit = {}) => {
+    type Init = Record<string, string | boolean>;
+    const press = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: Init = {}) => {
       await frame.evaluate(({ selector, options }) => {
         const el = selector === null ? document.body : document.querySelector(selector)!;
-        el.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyZ", key: "z", bubbles: true, cancelable: true, ...options }));
+        el.dispatchEvent(new KeyboardEvent("keydown", Object.assign({ code: "KeyZ", key: "z", bubbles: true, cancelable: true }, options)));
       }, { selector: target, options: init });
     };
-    const after = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: KeyboardEventInit = {}) => {
+    const after = async (frame: Awaited<ReturnType<ElectronDom["load"]>>, target: string | null, init: Init = {}) => {
       const before = await dom.flush(frame) as Report[];
       expect(before[0]).toMatchObject({ gen: 9, state: "ready" });
       await press(frame, target, init);
@@ -864,7 +865,7 @@ describe("in a real DOM", { timeout: 60_000 }, () => {
 
     test("ignores Z with a modifier, a repeat or an IME composition, and another key", async () => {
       const frame = await dom.load(canvasDocument("a", PLAYING, 9));
-      for (const init of [{ shiftKey: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { code: "KeyX" }] as KeyboardEventInit[]) {
+      for (const init of [{ shiftKey: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true }, { repeat: true }, { isComposing: true }, { code: "KeyX" }] as Init[]) {
         expect(await after(frame, null, init), JSON.stringify(init)).toEqual([]);
       }
     });

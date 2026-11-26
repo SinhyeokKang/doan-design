@@ -13,6 +13,14 @@ const board = (scale: number, patch: Partial<BoardState> = {}): BoardState & { s
 });
 
 describe("zoomControlView", () => {
+  // PRODUCT §5 item 2 'Zoom controller': ⇧2 is listed with the View menu's commands and needs a selection.
+  test("lists Zoom to selection ⇧2 after 100%, unavailable without a selection", () => {
+    const items = (selected: boolean) => zoomControlView({ ...board(1), selected }).items;
+    expect(items(true).map(item => item.label)).toEqual(["Fit", "100%", "Zoom to selection", "50%", "200%"]);
+    expect(items(true)[2]).toEqual({ id: "zoomSelection", label: "Zoom to selection", shortcut: "⇧2", command: "zoomSelection", disabled: false });
+    expect(items(false)[2]).toMatchObject({ disabled: true });
+  });
+
   test("shows the integer percent and enables everything on a rendered board", () => {
     const view = zoomControlView(board(0.64));
     expect(view).toMatchObject({ enabled: true, value: "64%", triggerLabel: "Zoom 64%, zoom options", zoomOut: { disabled: false }, zoomIn: { disabled: false } });
@@ -68,10 +76,11 @@ describe("zoomControlView", () => {
     expect(zoomControlView(board(0.6449)).triggerLabel).toBe("Zoom 64%, zoom options");
   });
 
-  test("menu items: Fit and 100% reuse the View menu commands and shortcuts, 50% and 200% are scales", () => {
+  test("menu items: Fit, 100% and Zoom to selection reuse the view commands and shortcuts, 50% and 200% are scales", () => {
     expect(zoomControlView(board(1)).items).toEqual([
       { id: "fit", label: "Fit", shortcut: "⌘1", command: "fit" },
       { id: "actualSize", label: "100%", shortcut: "⌘0", command: "actualSize" },
+      { id: "zoomSelection", label: "Zoom to selection", shortcut: "⇧2", command: "zoomSelection", disabled: true },
       { id: "50", label: "50%", scale: 0.5 },
       { id: "200", label: "200%", scale: 2 },
     ]);

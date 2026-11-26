@@ -68,6 +68,8 @@ import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
+import { overlayOpen } from "./canvasTool";
+import { keptColumns, toggleUi, uiHidden, type UiColumns } from "./hideUi";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
@@ -131,9 +133,10 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast, withFastChanges, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing.
-export function menuCommand(name: MenuCommand | (string & {}), to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
+export function menuCommand(name: MenuCommand | (string & {}), to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void; toggleUi: () => void }): void {
   if (name === "home") to.home();
   else if (name === "toggleSidebar") to.toggleSidebar();
+  else if (name === "toggleUi") to.toggleUi();
   else if (name === "newConversation") to.newConversation();
   else if (name === "pickFromCanvas") to.pickFromCanvas();
   else if (name === "quickOpen") to.quickOpen();
@@ -646,6 +649,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    instance.playKey = () => live.current.playKey();
     // A reload can take the bubble while the prototype window is in front, so the hand-off is made again on activation,
     // unless the controller returned focus to a bubble button meanwhile (the selection found again). A bubble shown again
     // for another selection gets no focus back, so it does not end the hand-off.
@@ -1154,8 +1158,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // itself is not modal (POSTMORTEM 2026-10-25).
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, showBubbleInspector: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, addToMessage, showBubbleInspector, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, toggleHiddenUi: () => {}, playKey: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, showBubbleInspector: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, toggleHiddenUi, playKey, pickEnded, addToMessage, showBubbleInspector, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1743,6 +1747,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       newConversation: () => live.current.newConversation(),
       pickFromCanvas: () => live.current.pickFromCanvas(),
       toggleSidebar: () => live.current.toggleSidebar(),
+      toggleUi: () => live.current.toggleHiddenUi(),
     });
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings", onProjectSettings = screen === "projectSettings";
@@ -2140,6 +2145,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
   const menuPicker = canvasPageShown && pickerReady;
+  // View > Hide UI reads Show UI while the canvas page's three columns are all folded.
+  const shownColumns: UiColumns = { sidebar: !sidebarHidden, conversation: rightPanel.open, inspector: inspectorPanel.open };
+  const menuUiHidden = canvasPageShown && uiHidden(shownColumns);
   const exportTarget = state.open;
   const exportReason = canvasExportReason(exportTarget?.row ?? null, !!exportTarget && exporting.has(`${exportTarget.folder}\n${exportTarget.row.path}`), state.unlisted);
   const exporter: ExportTool = { reason: exportReason, onExport: button => {
@@ -2159,6 +2167,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const player: PlayTool = { kind: playable.kind, tooltip: playTooltip(state), button: playButton, onPlay: () => sendPlay(playNext.current),
     open: playOpen && playDrawerState, onOpenChange: setPlayOpen,
     drawer: playDrawerState ? { ...playDrawer(state, playing), onPick: row => { setPlayOpen(false); sendPlay(drawerPlayRequest(state, row.id)); } } : null };
+  // ⇧Space does what pressing the toolbar's Play prototype does: play, open its drawer, or nothing while unavailable.
+  function playKey() {
+    if (playable.kind === "play") sendPlay(playNext.current);
+    else if (playable.kind === "drawer") setPlayOpen(true);
+  }
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,
   // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
@@ -2301,8 +2314,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     // sentence. Under the overlay there are no canvas or Overview items (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
-      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}), ...(onProjectSettings ? { projectSettings: true } : {}) });
-  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid, onProjectSettings]);
+      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}), ...(menuUiHidden ? { uiHidden: true } : {}), ...(onProjectSettings ? { projectSettings: true } : {}) });
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, menuUiHidden, overlaid, onProjectSettings]);
   // A covered Overview's thread is not seen (PRODUCT §5 item 3 'Problem states').
   useLayoutEffect(() => { overviewRun.current!.show(overlaid ? null : shownOverview); }, [shownOverview, overlaid]);
   // The window's focus decides whether the shown conversation is seen; the focus listener is the
@@ -2492,6 +2505,55 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }
   const previewInspector = (width: number) => shellRoot.current?.style.setProperty("--doan-inspector-width", `${width}px`);
   const resizeInspector = (width: number | undefined) => changeInspector(previous => width === undefined ? { open: previous.open } : { ...previous, width });
+  // ⌘\ (PRODUCT §5 item 2 'Hide UI'). Showing any column by its own control forgets the columns Hide UI folded.
+  const uiSaved = useRef<UiColumns | null>(null);
+  const uiFocusReturn = useRef<HTMLElement | null>(null);
+  const uiFocusAfter = useRef<HTMLElement | null>(null);
+  useEffect(() => { uiSaved.current = keptColumns(shownColumns, uiSaved.current); });
+  function toggleHiddenUi() {
+    // An open menu or popover would stay over a column that folds away under it.
+    if (!canvasPageShown || overlaidRef.current || live.current.modal || overlayOpen(document)) return;
+    const next = toggleUi(shownColumns, uiSaved.current);
+    uiSaved.current = next.saved;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const within = (selector: string) => active?.closest(selector) != null;
+    if (uiHidden(next.shown)) {
+      // Focus in a folding column goes to its Show button, as that column's own Hide does; elsewhere it stays.
+      sidebarFocus.current = within(".shell-side, .doan-sidebar-handle, .shell-side-menu");
+      panelFocus.current = within(".doan-conv-panel") ? "show" : null;
+      inspectorFocus.current = within(".doan-insp-panel") ? "show" : null;
+      uiFocusReturn.current = sidebarFocus.current || panelFocus.current !== null || inspectorFocus.current !== null ? active : null;
+      if (rightPanel.open) controller.current?.cancelPick();
+    } else {
+      // Focus Hide UI moved, still on the Show button it went to, goes back where it was.
+      const back = uiFocusReturn.current;
+      uiFocusReturn.current = null;
+      const onShow = active === null || active === document.body || within(".shell-sidebar-toggle, .doan-panel-show");
+      uiFocusAfter.current = back !== null && onShow ? back : null;
+      // Otherwise a Show button that goes away hands focus to its Hide, as pressing it does.
+      const fallback = uiFocusAfter.current === null;
+      panelFocus.current = fallback && next.shown.conversation && within('.doan-panel-show[data-panel-target="conversation"]') ? "hide" : null;
+      inspectorFocus.current = fallback && next.shown.inspector && within('.doan-panel-show[data-panel-target="inspector"]') ? "hide" : null;
+    }
+    if (next.shown.sidebar === sidebarHidden) {
+      sidebarHiddenTouched.current = true;
+      sidebarMotion.current = true;
+      setSidebarHidden(!next.shown.sidebar);
+    }
+    if (next.shown.conversation !== rightPanel.open) {
+      setPanelMotion(true);
+      changePanel(previous => ({ ...previous, open: next.shown.conversation }));
+    }
+    if (next.shown.inspector !== inspectorPanel.open) {
+      setInspectorMotion(true);
+      changeInspector(previous => ({ ...previous, open: next.shown.inspector }));
+    }
+  }
+  useEffect(() => {
+    const to = uiFocusAfter.current;
+    uiFocusAfter.current = null;
+    if (to?.isConnected && to.closest("[inert]") === null) to.focus({ preventScroll: true });
+  }, [sidebarHidden, rightPanel.open, inspectorPanel.open]);
   useEffect(() => {
     const to = inspectorFocus.current;
     inspectorFocus.current = null;

@@ -21,7 +21,8 @@ import { applyBuddy } from "../buddyPaint";
 import { dockedBuddy } from "../dockedBuddyShell";
 import { useVisibleClock } from "../visibleClock";
 import { useToast } from "../Toast";
-import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, FIRST_READ_SCENE, linkMove, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type SceneIcon } from "./view";
+import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, FIRST_READ_SCENE, linkMove, liveText, LOADING_LABEL, modeTooltip, otherMode, RETRY, stateScene, viewportKey, windowTitle, type SceneIcon } from "./view";
+import { overlayOpen } from "../canvasTool";
 import { announcedAgain } from "../listRetry";
 import { FrameListBody } from "../FrameListBody";
 import { useHeaderNoDrag } from "../headerNoDrag";
@@ -243,6 +244,18 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     void api.goto(message);
   };
   const followRef = useRef(followLink); followRef.current = followLink;
+  // Z, from the page or from the frame, presses the header's other mode button; it does nothing before the first view
+  // (the buttons are disabled) or while a menu, list or dialog is open.
+  const switchMode = () => {
+    const current = viewRef.current;
+    if (current !== null && !overlayOpen(document)) void api.setMode(otherMode(current.mode));
+  };
+  const switchModeRef = useRef(switchMode); switchModeRef.current = switchMode;
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => { if (viewportKey(event)) switchModeRef.current(); };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
   // The first view after a move names the gen whose ready run is announced, if it is the frame the link moved to.
   useEffect(() => {
     const pending = moving.current;
@@ -266,6 +279,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
       if (forward === null) return;
       if (forward.kind === "result") void api.reportResult(forward.message);
       else if (forward.kind === "frames") void api.reportFrames(forward.message);
+      else if (forward.kind === "key") switchModeRef.current();
       else followRef.current(forward.message);
     };
     window.addEventListener("message", receive);
@@ -526,10 +540,14 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         <div className="doan-toggle-group" role="group" aria-label="Viewport" onKeyDown={moveBetweenTools}>
           {MODES.map(({ mode, label, icon: Icon }) => {
             const pressed = view?.mode === mode;
+            // Z presses the other button once the window has a view.
+            const keyed = view !== null && !pressed;
             return <Tooltip key={mode}><TooltipTrigger asChild>
               <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label={label} aria-pressed={pressed} tabIndex={pressed ? 0 : -1} disabled={view === null}
-                onMouseDown={keepFocus} onClick={() => { if (!pressed) onMode(mode); }}><Icon aria-hidden="true" /></button>
-            </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{modeTooltip(mode, view?.run)}</TooltipContent></Tooltip>;
+                aria-keyshortcuts={keyed ? "Z" : undefined} onMouseDown={keepFocus} onClick={() => { if (!pressed) onMode(mode); }}><Icon aria-hidden="true" /></button>
+            </TooltipTrigger>{!keyed
+              ? <TooltipContent onEscapeKeyDown={tipEscape}>{modeTooltip(mode, view?.run)}</TooltipContent>
+              : <TooltipContent className="has-key" onEscapeKeyDown={tipEscape}>{modeTooltip(mode, view.run)}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">Z</span></TooltipContent>}</Tooltip>;
           })}
         </div>
         <Tooltip><TooltipTrigger asChild>
