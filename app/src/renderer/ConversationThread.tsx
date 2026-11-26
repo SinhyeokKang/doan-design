@@ -988,7 +988,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const fit = { chrome, bodyPadding: style ? Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) : 0, room };
     const value = `${popoverFloor(fit)}px`, cramped = popoverCramped(fit);
     if (node.style.minHeight !== value) node.style.minHeight = value;
-    if (node.hasAttribute("data-cramped") !== cramped) node.toggleAttribute("data-cramped", cramped);
+    if (node.hasAttribute("data-cramped") !== cramped) {
+      node.toggleAttribute("data-cramped", cramped);
+      // An expand's run holds the floor off, so focus may already be on a choice the cramped scroll now hides.
+      const focused = document.activeElement;
+      if (cramped && focused && node.contains(focused)) focused.scrollIntoView({ block: "nearest" });
+    }
   };
   // The body and buttons fade out first, then the fold draws the bar and its height runs (the layout effect below).
   const collapse = (andThen: "bar" | "composer") => {
