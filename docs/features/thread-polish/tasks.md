@@ -2,7 +2,7 @@
 
 시작 조건: chain-261126-1 answer-popover가 develop에 머지된 뒤.
 
-1. 드래프트 `.doan/canvases/thread-polish.html`을 그리고 `handoff-received.html`을 지운다. 사용자가 앱에서 확정한다.
+1. (완료, `ea44c9787`·`cf3be347c`, 2026-11-26 확정) 드래프트 `.doan/canvases/thread-polish.html`을 그리고 `handoff-received.html`을 지운다.
    - 확인: `doan check --json --repo .` 새 error 없음, `doan ls --json --repo .`의 frame id가 `card-open`, `copy-toast`, `agent-bubble`, `follow`.
    - 커밋 경계: `docs(design): thread-polish draft`.
 2. `/tdd`: `followBand`, `nextFollow` frame 경우, `followResize`의 `behind`, 에이전트 입력 메타 뷰 테스트를 쓰고 red를 본다.
