@@ -104,6 +104,61 @@
   - 펼친 직후 마지막 항목이 가리는지
 - 결과와 고른 방식을 design.md 'PoC 결과'에 적는다.
 
+## PoC 결과
+
+**결론**: A를 권한다. 다만 두 방식 모두 지금 따라가기 코드 그대로는 항목 1, 3, 5를 채우지 못한다. A는 따라가기가 여백 변화를 바로 맞추게 바꾸면(대역으로 확인) 1, 2, 4, 5를 채운다. 3(거짓 Jump to latest)은 따라가기 코드를 바꿔야만 없앨 수 있어서 이 PoC에서는 확인하지 못했고, T4에서 구현하고 확인한다.
+
+### 실행과 조건
+
+- 명령: `node .scratch/answer-popover/measure.mjs`(2026-11-26). 빌드한 앱을 `app/runtime/` 격리(임시 userData, HOME, SHELL, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DOAN_RUNTIME`, 임시 디렉터리에 `go build`한 CLI)로 띄웠다. 실제 상태 확인은 매번 통과했다.
+- 스레드: 캔버스 대화 히스토리 8턴(항목 24개)을 userData에 심었다. 앱 코드는 바꾸지 않았다. 대역 팝오버(머리줄, 본문 줄, 버튼 줄)와 CSS를 `page.evaluate`로 renderer에 넣었다. renderer CSP가 인라인 `<style>`을 막으므로 constructed stylesheet로 넣었다.
+- 크기:
+  - 캔버스 패널 기본: 창 1280×800, 패널 358, 스레드 영역 536, 상한 375.
+  - 프로토타입 창 최소(근사): 프로토타입 창을 열지 않고 캔버스 패널의 스레드 영역을 150으로 맞췄다. 상한은 105다. 패널 280과 320에서 각각 한 번씩 돌렸고, 가려진 프레임 수 말고는 결과가 같았다.
+- 방식:
+  - **A**: 팝오버를 `.conversation-thread`에 absolute(`bottom: 0`, `max-height: min(70%, calc(100% − var(--space-10)))`)로 둔다. 팝오버의 ResizeObserver가 `--ap-inset`을 쓰고, `.thread-scroll`의 `padding-bottom`은 `calc(var(--space-8) + var(--ap-inset))`이다.
+    - A-snap: 따라가기 변경의 대역이다. 같은 콜백에서, 바뀌기 전에 바닥(거리 1px 이하)이었으면 scrollTop을 새 바닥으로 바로 맞춘다.
+    - 비교용으로 바로 맞추지 않는 A(A-raw)와, 여백을 `.thread` 안 spacer에 둔 A(A-spacer)도 쟀다.
+  - **B**: 팝오버를 `.thread`의 마지막 자식으로 `position: sticky; bottom: 0; margin-top: auto`, `.thread { min-height: 100% }`로 둔다. 상한은 `.conversation-thread`에 `container-type: size`를 주고 `min(70cqh, calc(100cqh − var(--space-10)))`로 건다. 따라가기 코드는 지금 그대로다.
+  - Jump to latest의 자리는 두 방식 모두 `bottom: calc(var(--ap-inset) + var(--space-3))`로 옮겨서 쟀다. B도 이 값을 쓰려면 팝오버 높이를 재는 observer가 필요하다.
+- "가려진 프레임"은 마지막 스레드 항목의 아래 끝이 팝오버 위 끝보다 아래에 그려진 프레임 수다. 바꾼 프레임의 다음 프레임부터 센다.
+
+### 항목별 결과
+
+| 항목 | A | B |
+|---|---|---|
+| 1. 바닥에 붙은 채 성장(본문 3 → 8 → 30줄) | A-snap: 두 크기 모두 가려진 프레임 0, 끝 거리 0. A-raw: 지금 따라가기의 ease로 맞추므로, 패널 기본에서 5프레임(약 90 ms) 동안 최대 111 px가 가린다 | 지금 따라가기의 ease로 맞춘다. 패널 기본에서 5프레임(약 85–100 ms) 동안 최대 123 px가 가린다. 끝 거리는 0으로 돌아온다 |
+| 2. 막대로 접을 때의 clamp | 바닥에서: 가림 0, 거리 0, Jump 없음. 접은 뒤 온 새 내용도 따라가므로 고정이 유지된다. 위로 올린 상태에서: 보이는 위치는 그대로이고, 바닥까지 거리만 줄어든다(400 → 73). Jump 없음 | A와 같다 |
+| 3. Jump to latest의 자리 | 팝오버 바로 위에 뜨고 겹치지 않는다. 최소 크기에서는 팝오버 위에 남는 45 px 띠의 1–33 px에 들어간다 | 같은 규칙으로도 팝오버와 겹친다. 팝오버가 스크롤러의 `padding-bottom`(32 px)만큼 위에 붙기 때문이다 |
+| 3. 여백만 바뀔 때의 거짓 표시 | 위로 올린 상태에서 펼치거나 단계를 바꾸면 Jump가 뜬다(A-snap 포함). `.thread-scroll`의 padding이 커지면 스크롤러의 content-box가 줄어 지금 observer가 알림을 받고, 늘어난 `scrollHeight`를 `grew`로 센다 | 위로 올린 상태에서 펼치거나 단계를 바꾸면 Jump가 뜬다. 팝오버 높이가 `.thread`의 높이에 들어 있기 때문이다 |
+| 3. 새 내용의 참 표시 | 위로 올린 상태에서 새 내용이 오면 뜬다 | 같다 |
+| 4. 팝오버 위 휠 | 스레드가 스크롤되지 않고 따라가기 리스너에도 가지 않는다. 위로 굴린 뒤에도 고정이 유지되어 새 내용을 따라갔다 | 위로 굴리면 스레드가 200 px 스크롤되고 고정이 풀린다. 그 뒤 새 내용이 오면 Jump가 뜬다. 아래로 굴린 결과는 실행마다 달라서 확인하지 못했다 |
+| 5. 펼친 직후 마지막 항목 | A-snap: 0프레임. A-raw: 4–6프레임, 최대 200 px(패널 기본), 73 px(최소). A-spacer: 3–4프레임 | 5–7프레임(약 90–130 ms), 최대 232 px(패널 기본), 105 px(최소) |
+| 그 밖 | 팝오버 아래 끝이 스레드 영역 바닥에 붙는다(간격 0). 상한은 `%`로 걸린다 | 팝오버가 스레드 영역 바닥보다 32 px 위에 붙고, 그 틈으로 스레드 글이 지나가 보인다(`s-proto-min-B-raw-jump.png`). 최소 크기에서는 팝오버 위에 13 px만 남는다. 상한에 container 단위가 필요하다 |
+
+- 팝오버가 펼쳐진 채 새 내용이 오면 두 방식 모두 2–4프레임 가린다. 지금 따라가기가 새 내용을 ease로 따라가는 것과 같은 동작이다.
+- '끝 여백과 따라가기'의 "padding-bottom을 바꿔도 알림이 오지 않는다"는 `.thread`의 padding에만 맞다. `.thread-scroll`은 높이가 정해져 있으므로 padding이 바뀌면 content-box가 바뀌고, 지금 observer가 알림을 받는다(A-raw가 ease로 따라간 것으로 확인).
+
+### A를 권하는 이유
+
+- 따라가기가 여백 변화를 바로 맞추면 펼침, 성장, 접기에서 마지막 항목이 한 프레임도 가리지 않았다.
+- 팝오버 위의 휠이 스레드의 고정을 풀지 않는다. B는 팝오버 위에서 휠을 굴리기만 해도 고정이 풀린다.
+- 팝오버가 드래프트처럼 스레드 영역 바닥에 붙고, 상한은 `%`로 걸린다. B는 32 px 틈이 생기고, 틈을 없애려면 팝오버가 있을 때 스크롤러의 끝 padding을 바꿔야 한다.
+- B도 거짓 Jump를 없애고 Jump 자리를 맞추려면 팝오버 높이를 따로 재야 한다. 그래서 B로 해도 observer를 줄일 수 없다.
+- 대가: A에서는 팝오버 위의 휠로 스레드를 스크롤할 수 없다. 최소 크기에서는 팝오버 위 45 px 띠에서만 휠로 스레드를 움직일 수 있다.
+
+### T4가 구현할 것(A)
+
+- 팝오버는 `.conversation-thread`의 자식으로 `.thread-scroll` 뒤에 둔다. `position: absolute; inset-inline: 0; bottom: 0; max-height: min(70%, calc(100% − var(--space-10)))`, z-index는 2 이하다.
+- 따라가기의 ResizeObserver가 팝오버도 본다(border-box). 콜백은 먼저 여백(팝오버 높이, 없으면 0)을 `--ap-inset`으로 쓰고, `.thread-scroll`의 `padding-bottom`을 `calc(var(--space-8) + var(--ap-inset, 0px))`로 둔다.
+- 바뀌기 전에 고정이었으면 `write(node, bottomOf(node))`로 바로 맞춘다. ease하지 않는다. `write`를 거쳐야 `onScroll`이 자기 스크롤로 안다. 대역은 scrollTop을 직접 썼으므로 `onScroll`이 사람의 스크롤로 보고 고정을 풀었고, 다음 프레임에 거리 0이라 다시 고정됐다.
+- 여백 변화는 `grew`에서 뺀다. 여백을 쓸 때 `contentHeight.current`를 여백 차이만큼 옮기거나, `scrollHeight − 여백`으로 비교한다. 그래야 여백만 바뀐 알림에서 `followResize`가 `behind`를 만들지 않는다. 여백과 새 내용이 같은 프레임에 바뀌면 새 내용 몫으로 `behind`가 생겨야 한다. design '순수 함수로 뺄 부분'의 표 테스트로 고정한다.
+- 기다리는 요청이 모두 끝나 팝오버가 사라지면 여백을 0으로 쓴다.
+- Jump to latest: `bottom: calc(var(--ap-inset, 0px) + var(--space-3))`.
+- `/runtime-test`에서 확인할 것: 위로 올린 상태에서 펼침, 단계 변경, 접기에 Jump가 뜨지 않는지(이 PoC에서 확인하지 못한 항목), 최소 크기에서 Jump가 팝오버 위 띠 안에 들어가는지.
+- 이 PoC에 들어가지 않은 것: 실제 팝오버 컴포넌트, 등장·접기·펼치기 모션(400 ms), 실제 프로토타입 창. 모션이 transform이나 opacity라면 observer가 보는 높이는 처음부터 최종값이지만, 높이를 애니메이션하면 프레임마다 여백이 바뀐다. T4와 T5에서 확인한다.
+- 근거: `.scratch/answer-popover/measure.json`(마지막 실행, 패널 320), `measure-run3.json`(패널 280), `summary.txt`, `summary-run3.txt`, 스크린샷 `s-<크기>-<방식>-<expanded|cap|collapsed|jump>.png`.
+
 ## postmortem에서 가져온 주의점
 
 - 2026-11-23 "An Overview row waiting for a permission answer scrolled to the request but left focus on the row": 진입점마다 권한과 질문 둘 다, 효과가 실행되는 테스트로 포커스를 확인한다. 스크롤은 없어지지만 포커스 이동은 남는다.
