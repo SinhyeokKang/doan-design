@@ -925,7 +925,9 @@ body:has(.shell-top) { background: transparent; }
 .strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-text b { font-weight: var(--type-weight-medium); }
 .strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+.strip-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* One line, so ConversationStrip can measure whether the actions fit beside it. */
+.convo-strip .strip-text > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A refused Skip or answer takes its own line; it keeps the strip's ink, so the alert mark is what marks it. */
 .strip-main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-error { display: flex; align-items: flex-start; gap: var(--space-1h); }
@@ -1233,8 +1235,9 @@ button.wt-chip.doan-chip[aria-disabled="true"]:is(:hover, :active) { background:
 button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu.wt-menu { width: 280px; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
-/* The title gives way first in a narrow window. */
 .ov-title-wrap { display: flex; min-width: 0; }
+/* The title gives way first in a narrow window. */
+.ov-head > .ov-title-wrap { flex: 0 1e8 auto; }
 .ov-new-conv { flex: none; margin-left: auto; }
 /* Unavailable on the new conversation state, but still focusable for its tooltip. */
 :is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }

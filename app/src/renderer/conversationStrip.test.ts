@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { asksPerson, focusAfterStop, stripErrorText, stripSendFailed, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
+import { asksPerson, focusAfterStop, stripErrorText, stripSendFailed, stripStacks, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -174,4 +174,13 @@ test("a refusal fails the send, except a stale Skip", () => {
   expect(stripSendFailed("answer", "stale")).toBe(true);
   expect(stripSendFailed("skip", "unknown")).toBe(true);
   expect(stripSendFailed("skip", "stale")).toBe(false);
+});
+
+// The actions stay beside the text while the title keeps its one line next to them (DESIGN 'Alignment').
+test("the strip stacks its actions only when the icon, the title and the action row do not fit on one line", () => {
+  const fits = { content: 618, icon: 16, gap: 6, title: 205, actions: 345 };
+  expect(stripStacks(fits)).toBe(false);
+  expect(stripStacks({ ...fits, actions: 618 - 16 - 6 - 205 - 6 })).toBe(false);
+  expect(stripStacks({ ...fits, actions: 618 - 16 - 6 - 205 - 6 + 1 })).toBe(true);
+  expect(stripStacks({ ...fits, actions: 633 })).toBe(true);
 });
