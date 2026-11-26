@@ -50,7 +50,8 @@
   - `NUDGE = 48`: 입력이 끝났을 때 사람이 직접 움직인 양이 이 이하이면 다시 붙는다.
   - `band(height) = max(120, height / 3)`: `behind`를 켜고 끄는 거리. `height`는 `.thread-scroll`의 clientHeight에서 끝 여백(`inset.current`)을 뺀 값(사람에게 보이는 높이)이다.
 - `FollowState`
-  - `wheelAt`을 `inputAt`으로 바꾸고 키 입력에도 같은 대기(`WHEEL_HOLD_MS`)를 둔다. 키 스크롤 애니메이션이 끝나기 전에 다시 붙지 않게 하기 위해서다. 대기 길이가 Chromium 키 스크롤 애니메이션을 덮는지는 runtime-test에서 본다.
+  - `wheelAt`을 `inputAt`으로 바꾼다. 키 입력은 그 키가 만든 스크롤이 멈출 때(Chromium `scrollend`, 스크롤이 없으면 `WHEEL_HOLD_MS` 대기) 끝난다. runtime-test에서 Chromium 키 스크롤 애니메이션이 148~164ms라 100ms 대기로는 덮지 못했다(사용자 결정).
+  - 스크롤 키는 `window`에서 받는다. 답 본문을 클릭하면 포커스가 스레드 밖(패널 section, Overview body)에 남아 스레드의 keydown이 키를 보지 못한다. 편집 칸 밖에서 눌린 스크롤 키가 스레드를 스크롤하면 사람의 입력으로 센다(사용자 결정).
   - `pressed`(포인터 눌림)를 둔다.
   - `origin`: 붙어 있던 따라가기를 끊은 입력이 시작된 시점의 `scrollTop`(`top`)을 기억한다. `.thread-scroll`은 `overflow-anchor: none`이라 아래에서 자라는 내용은 `scrollTop`을 바꾸지 않으므로, 자란 높이를 따로 빼지 않아도 사람이 움직인 양만 잰다. 이미 끊긴 상태에서 시작한 입력은 `origin`을 만들지 않는다(그때는 `BOTTOM` 규칙만 쓴다). 판정이 끝나면 지운다.
 - `FollowEvent`
@@ -89,8 +90,8 @@
 ## PoC
 
 - 별도 PoC는 없다. 다음 두 가지는 runtime-test에서 실제 앱으로 확인하고, 맞지 않으면 멈추고 묻는다.
-  - 스크롤바 썸을 창 밖에서 놓았을 때 `pointerup`/`pointercancel`/`blur` 중 하나가 오는가.
-  - 키 스크롤 애니메이션이 입력 대기 안에 끝나는가.
+  - 스크롤바 썸을 창 밖에서 놓았을 때 `pointerup`/`pointercancel`/`blur` 중 하나가 오는가. 합성 입력으로는 `pointerup`이 왔다. OS 수준 놓기는 사용자가 확인한다.
+  - 키 스크롤 애니메이션이 입력 대기 안에 끝나는가. 끝나지 않는다(148~164ms). 위 '따라가기'의 `scrollend` 규칙으로 바꿨다.
 
 ## postmortem에서 가져온 주의
 
