@@ -163,10 +163,8 @@ export function nextFollow(state: FollowState, event: FollowEvent): FollowState 
 // height: the scroller's scrollHeight; inset: the end inset inside it that keeps the popover off the last item.
 export interface ThreadSize { height: number; inset: number }
 export type FollowMove = "snap" | "ease" | "none";
-// distance: from the bottom before the change. While a reply reveals, the view sticks to the bottom each frame (an ease
-// would keep the line being written below the fold); a one-time growth eases. An inset change is no new content, so it
-// never shows Jump to latest, and it lands at once: the popover appears whole, and an ease would leave the last item
-// under it for a moment.
+// distance: from the bottom before the change. A revealing reply or an inset change snaps (an ease would leave the line
+// being written, or the last item under the popover, out of view); an inset change is no new content for Jump to latest.
 export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
   const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
   const grew = change.after.height - change.after.inset > change.before.height - change.before.inset;
