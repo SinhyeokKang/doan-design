@@ -46,7 +46,9 @@ const asked = (requestId: string, status: "pending" | "answered" | "skipped" | "
 
 const body = { tagName: "BODY" };
 let active: unknown;
-let controls: Map<string, { focus: ReturnType<typeof vi.fn> }>;
+let controls: Map<string, { focus: ReturnType<typeof vi.fn>; scrollIntoView: ReturnType<typeof vi.fn>; closest(selector: string): unknown }>;
+// Whether the drawn popover is cramped (its body and buttons scroll under its head).
+let cramped = false;
 let composer: ReturnType<typeof vi.fn<() => void>>;
 let tree: ReactElement<Record<string, unknown>>[];
 let props: ConversationThreadProps;
@@ -55,7 +57,7 @@ let fold: { collapsed: boolean };
 
 beforeEach(() => {
   hooks.slots = []; hooks.layout = [];
-  active = body; controls = new Map(); composer = vi.fn<() => void>(); fold = { collapsed: false };
+  active = body; controls = new Map(); composer = vi.fn<() => void>(); fold = { collapsed: false }; cramped = false;
   vi.stubGlobal("document", { get activeElement() { return active; }, body, hasFocus: () => true });
   vi.stubGlobal("CSS", { escape: (value: string) => value });
   props = {
@@ -89,7 +91,7 @@ function draw(items: ThreadItem[], commit?: () => void): void {
     contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: (selector: string) => {
       const key = /data-item="([^"]+)"/.exec(selector)?.[1] ?? "";
-      if (!controls.has(key)) controls.set(key, { focus: vi.fn(() => { active = { key }; }) });
+      if (!controls.has(key)) controls.set(key, { focus: vi.fn(() => { active = { key }; }), scrollIntoView: vi.fn(), closest: (selector: string) => cramped && selector.includes("data-cramped") ? {} : null });
       return controls.get(key);
     },
   };
@@ -398,6 +400,17 @@ test("a new request opening a collapsed popover leaves focus where it was", () =
 
 // The surface's motion with stand-in animations: finished and cancel events arrive only when the test says, as a browser
 // dispatches them on a later frame.
+// focusItem focuses without scrolling the thread; in a cramped popover the choice may sit below what shows, so it is
+// scrolled into view within the popover.
+test("an entry's focus in a cramped popover brings the choice into view; elsewhere it scrolls nothing", () => {
+  draw([permission("a")]);
+  expect(hooks.handle!.focusItem("pa")).toBe(true);
+  expect(controls.get("pa")!.scrollIntoView).not.toHaveBeenCalled();
+  controls = new Map(); cramped = true;
+  expect(hooks.handle!.focusItem("pa")).toBe(true);
+  expect(controls.get("pa")!.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+});
+
 describe("the popover's motion", () => {
   type Run = { cancel: ReturnType<typeof vi.fn>; finished: Promise<void>; finish(): void; onfinish: null | (() => void); oncancel: null | (() => void) };
   let runs: Run[];
