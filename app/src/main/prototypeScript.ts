@@ -1,5 +1,5 @@
 // Injected into the run's canvas document before its own scripts and serialized with toString(), so self-contained.
-// Placement, late frames and link clicks follow ARCHITECTURE §3 'Prototype window'.
+// Placement, late frames, link clicks and the viewport key follow ARCHITECTURE §3 'Prototype window'.
 export function prototypeScript(target: string, gen: number, url: string): void {
   // Only the prototype window's direct child, and only the run's own document: a nested iframe or a document the
   // canvas moved to (the navigation gate refuses those anyway) gets nothing.
@@ -143,6 +143,18 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
     setTimeout(() => {
       if (!event.defaultPrevented) post({ gen, goto: value.length <= MAX_STRING ? value : null });
+    }, 0);
+  }, true);
+
+  // Z switches the window's viewport mode unless the frame takes it: a text field, a select, an editable element (read
+  // from the composed path, so one in a shadow root counts) or the canvas's own handler, read one task later as for links.
+  window.addEventListener("keydown", event => {
+    if (playing === null || event.code !== "KeyZ" || event.repeat || event.isComposing || event.keyCode === 229) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    const target = event.composedPath()[0] ?? event.target;
+    if (target instanceof Element && (["input", "textarea", "select"].includes(target.localName) || (target instanceof HTMLElement && target.isContentEditable))) return;
+    setTimeout(() => {
+      if (!event.defaultPrevented) post({ gen, key: "z" });
     }, 0);
   }, true);
 

@@ -96,6 +96,53 @@ describe("toolShortcut", () => {
   });
 });
 
+// PRODUCT §5 item 2 'Toolbar' and 'Zoom controller': ⇧2 zooms to the selection and ⇧Space plays the prototype, with the
+// tool keys' rules; ⇧Space never pans.
+describe("toolShortcut, Figma view keys", () => {
+  test("takes ⇧2 by event.code whatever character the layout makes", () => {
+    for (const key of ["@", "\"", "2"]) expect(toolShortcut(press("Digit2", { key, shiftKey: true }), onPage)).toEqual({ kind: "zoomSelection" });
+  });
+
+  test("takes ⇧Space as Play, never as a pan", () => {
+    expect(toolShortcut(press("Space", { key: " ", shiftKey: true }), onPage)).toEqual({ kind: "play" });
+  });
+
+  test("ignores 2 without ⇧, and the numpad's 2", () => {
+    expect(toolShortcut(press("Digit2", { key: "2" }), onPage)).toBeNull();
+    expect(toolShortcut(press("Numpad2", { key: "2", shiftKey: true }), onPage)).toBeNull();
+  });
+
+  test.each([
+    ["⌘", { metaKey: true }], ["⌃", { ctrlKey: true }], ["⌥", { altKey: true }],
+    ["an IME composition", { isComposing: true }], ["keyCode 229", { keyCode: 229 }],
+    ["a repeat", { repeat: true }], ["a handled key", { defaultPrevented: true }],
+  ])("ignores ⇧2 and ⇧Space with %s", (_, over) => {
+    for (const code of ["Digit2", "Space"]) expect(toolShortcut(press(code, { shiftKey: true, ...over }), onPage), code).toBeNull();
+  });
+
+  test("ignores ⇧2 and ⇧Space in an editable target and off the canvas page", () => {
+    for (const target of [element("INPUT"), element("TEXTAREA"), element("SELECT"), { ...element("DIV"), isContentEditable: true }]) {
+      for (const code of ["Digit2", "Space"]) expect(toolShortcut(press(code, { shiftKey: true, target }), onPage), code).toBeNull();
+    }
+    for (const code of ["Digit2", "Space"]) expect(toolShortcut(press(code, { shiftKey: true }), { canvasPage: false }), code).toBeNull();
+  });
+
+  test.each(OPEN_SURFACES)("ignores ⇧2 and ⇧Space from inside %s", (_, chain) => {
+    for (const code of ["Digit2", "Space"]) expect(toolShortcut(press(code, { shiftKey: true, target: drawn(chain) }), onPage), code).toBeNull();
+  });
+
+  test("leaves ⇧Space to an interactive control, but not ⇧2", () => {
+    for (const target of [element("BUTTON"), element("DIV", { role: "menuitem" })]) {
+      expect(toolShortcut(press("Space", { shiftKey: true, target }), onPage)).toBeNull();
+      expect(toolShortcut(press("Digit2", { shiftKey: true, target }), onPage)).toEqual({ kind: "zoomSelection" });
+    }
+  });
+
+  test("a Space released with ⇧ held still ends a pan", () => {
+    expect(toolShortcut(release("Space", { shiftKey: true }), onPage)).toEqual({ kind: "space", down: false });
+  });
+});
+
 describe("escapeStep", () => {
   test("cancels a pick first, then turns Hand back to Select, then steps the selection back", () => {
     expect(escapeStep({ picking: true, capturing: false, hand: true, editable: false, canvasText: false })).toBe("cancelPick");

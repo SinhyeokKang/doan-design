@@ -18,6 +18,7 @@ import {
   fitWidth,
   panBy,
   screenToBoard,
+  selectionView,
   wheelAction,
   zoomAt,
   type View,
@@ -343,5 +344,43 @@ describe("elementView", () => {
   it("keeps the view for values that aren't finite", () => {
     const current = { x: 1, y: 2, scale: 1 };
     expect(elementView({ x: Number.NaN, y: 0, width: 1, height: 1 }, viewport, inset, current)).toBe(current);
+  });
+});
+
+// PRODUCT §5 item 2 'Zoom controller': ⇧2 fits the selection whole in the safe area, zooming in or out.
+describe("selectionView", () => {
+  const viewport = { width: 800, height: 600 };
+  const inset = { top: 10, right: 20, bottom: 30, left: 40 };
+  const safe = { x: 40, y: 10, width: 740, height: 560 };
+  const center = (view: View, rect: { x: number; y: number; width: number; height: number }) =>
+    ({ x: view.x + (rect.x + rect.width / 2) * view.scale, y: view.y + (rect.y + rect.height / 2) * view.scale });
+
+  it("fits a large selection whole by its tighter side and centres it", () => {
+    const rect = { x: 100, y: 200, width: 1480, height: 280 };
+    const view = selectionView(rect, viewport, inset, { x: 0, y: 0, scale: 1 });
+    expect(view.scale).toBe(0.5);
+    expect(center(view, rect)).toEqual({ x: safe.x + safe.width / 2, y: safe.y + safe.height / 2 });
+  });
+
+  it("zooms in on a small selection, up to the maximum scale", () => {
+    const rect = { x: 10, y: 10, width: 370, height: 100 };
+    expect(selectionView(rect, viewport, inset, { x: 0, y: 0, scale: 0.5 }).scale).toBe(2);
+    expect(selectionView({ x: 0, y: 0, width: 4, height: 4 }, viewport, inset, { x: 0, y: 0, scale: 1 }).scale).toBe(MAX_SCALE);
+  });
+
+  it("never goes below the minimum scale", () => {
+    expect(selectionView({ x: 0, y: 0, width: 1e9, height: 10 }, viewport, inset, { x: 0, y: 0, scale: 1 }).scale).toBe(MIN_SCALE);
+  });
+
+  it("centres a zero-size selection at the current scale", () => {
+    const rect = { x: 300, y: 400, width: 0, height: 0 };
+    const view = selectionView(rect, viewport, inset, { x: 0, y: 0, scale: 1.5 });
+    expect(view.scale).toBe(1.5);
+    expect(center(view, rect)).toEqual({ x: safe.x + safe.width / 2, y: safe.y + safe.height / 2 });
+  });
+
+  it("keeps the view for a rect that is not finite", () => {
+    const current = { x: 1, y: 2, scale: 1 };
+    expect(selectionView({ x: Number.NaN, y: 0, width: 10, height: 10 }, viewport, inset, current)).toBe(current);
   });
 });

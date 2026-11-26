@@ -51,7 +51,7 @@ export function CanvasHeader({ navigation, state, view, canvasKey = null, comman
       {crumbs.length > 0 && <span className={canvas ? "ov-sep" : "ov-sep doan-canvas-sep-root"} aria-hidden="true">/</span>}
       <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={canvas ? `Frames in ${canvas.label}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
     </nav>
-    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
+    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale, selected: state.selection !== null })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
       <IconTip label="Reload canvas" shortcut="⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {shows.separator && <span className="doan-canvas-head-sep" aria-hidden="true" />}
@@ -180,7 +180,7 @@ function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view
           const split = previous !== undefined && "command" in previous && "scale" in item;
           return <Fragment key={item.id}>
             {split && <DropdownMenu.Separator className="doan-menu-sep" />}
-            <DropdownMenu.Item className="doan-menu-item" onSelect={() => "command" in item ? command(item.command) : zoomTo(item.scale)}>
+            <DropdownMenu.Item className="doan-menu-item" disabled={"disabled" in item && item.disabled === true} onSelect={() => "command" in item ? command(item.command) : zoomTo(item.scale)}>
               {item.label}{"shortcut" in item && <span className="sub doan-zoom-key">{item.shortcut}</span>}
             </DropdownMenu.Item>
           </Fragment>;

@@ -507,9 +507,9 @@ describe("zoom view and shortcuts", () => {
     expect(v.zoomView(0.052, true)).toMatchObject({ value: "5%", zoomOutDisabled: false });
   });
 
-  test("the menu is Fit ⇧1, 100% ⇧0, then 50% and 200%", () => {
+  test("the menu is Fit ⇧1, 100% ⇧0, Zoom to selection ⇧2, then 50% and 200%", () => {
     expect(v.ZOOM_ITEMS.map((item: { label: string; shortcut?: string; scale?: number }) => [item.label, item.shortcut ?? null, item.scale ?? null])).toEqual([
-      ["Fit", "⇧1", null], ["100%", "⇧0", null], ["50%", null, 0.5], ["200%", null, 2],
+      ["Fit", "⇧1", null], ["100%", "⇧0", null], ["Zoom to selection", "⇧2", null], ["50%", null, 0.5], ["200%", null, 2],
     ]);
   });
 
@@ -595,7 +595,7 @@ describe("tool keys are the app's", () => {
     // Targets with closest(), inside and outside an open menu, list, popover or dialog (the app's open-overlay rule).
     ...[...OPEN_SURFACES, ...NOTHING_OPEN].map(([name, chain]): [string, unknown] => [`inside ${name}`, drawn(chain)]),
   ];
-  const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"]];
+  const keys: [string, string][] = [["KeyV", "v"], ["KeyH", "h"], ["KeyV", "ㅍ"], ["KeyH", "ㅗ"], ["KeyV", "V"], ["Space", " "], ["KeyB", "v"], ["KeyA", "a"], ["Escape", "Escape"], ["Digit1", "!"], ["Digit2", "@"], ["Digit2", "2"]];
   const flags: [string, Partial<ShortcutEvent>][] = [
     ["plain", {}], ["a repeat", { repeat: true }], ["an IME composition", { isComposing: true }], ["keyCode 229", { keyCode: 229 }],
     ["⌘", { metaKey: true }], ["⌃", { ctrlKey: true }], ["⌥", { altKey: true }], ["⇧", { shiftKey: true }], ["a handled key", { defaultPrevented: true }],
@@ -616,7 +616,8 @@ describe("tool keys are the app's", () => {
     }
     // The table reaches every answer, a held Space's release on any target included.
     const answers = new Set(events.map(([, event]) => JSON.stringify(v.toolShortcut(event, { canvasPage: true }))));
-    expect([...answers].sort()).toEqual([JSON.stringify({ kind: "space", down: false }), JSON.stringify({ kind: "space", down: true }), JSON.stringify({ kind: "tool", tool: "hand" }), JSON.stringify({ kind: "tool", tool: "select" }), "null"].sort());
+    expect([...answers].sort()).toEqual([JSON.stringify({ kind: "space", down: false }), JSON.stringify({ kind: "space", down: true }), JSON.stringify({ kind: "tool", tool: "hand" }), JSON.stringify({ kind: "tool", tool: "select" }),
+      JSON.stringify({ kind: "zoomSelection" }), JSON.stringify({ kind: "play" }), "null"].sort());
     for (const [where, target] of targets) expect(v.toolShortcut(press({ type: "keyup", code: "Space", key: " ", metaKey: true, isComposing: true, repeat: true, target }), { canvasPage: true }), where).toEqual({ kind: "space", down: false });
   });
 
@@ -734,6 +735,12 @@ describe("key messages from the canvas", () => {
     expect(v.parseMessage({ type: "key", key: "Escape", down: true })).toEqual({ type: "key", key: "Escape", repeat: false });
     expect(v.parseMessage({ type: "key", key: "Escape", repeat: true })).toEqual({ type: "key", key: "Escape", repeat: true });
     expect(v.parseMessage({ type: "key", key: "Escape", repeat: "yes" })).toEqual({ type: "key", key: "Escape", repeat: false });
+  });
+
+  // ⇧2 is passed on; ⇧Space never is, since the page opens the player only from its own handlers.
+  test("keeps ⇧2 and drops ⇧Space", () => {
+    expect(v.parseMessage({ type: "key", key: "Shift2", down: true })).toEqual({ type: "key", key: "Shift2" });
+    expect(v.parseMessage({ type: "key", key: "ShiftSpace" })).toBeNull();
   });
 
   test.each([

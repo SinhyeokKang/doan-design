@@ -247,8 +247,8 @@ addEventListener(
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
 else start();
 
-// The tool keys pressed while focus is in the canvas go to the page, decided by the same rules as
-// there (lib.js toolShortcut): not in a text field, with ⌘/⌃/⌥, while composing, and a focused
+// The tool keys and ⇧2 pressed while focus is in the canvas go to the page, decided by the same rules
+// as there (lib.js toolShortcut): not in a text field, with ⌘/⌃/⌥, while composing, and a focused
 // control's Space presses it. Bubble phase, so a key the canvas's own scripts handled stays theirs.
 let spaceHeld = false;
 const releaseSpace = () => {
@@ -264,6 +264,12 @@ addEventListener("keydown", (event) => {
       post({ type: "key", key: shortcut.tool === "select" ? "V" : "H" });
       return;
     }
+    if (shortcut.kind === "zoomSelection") {
+      post({ type: "key", key: "Shift2" });
+      return;
+    }
+    // ⇧Space is not passed on: the page opens the player only from its own handlers, never from a canvas message.
+    if (shortcut.kind === "play") return;
     // The page pans: the canvas must not scroll or take a space.
     event.preventDefault();
     spaceHeld = true;

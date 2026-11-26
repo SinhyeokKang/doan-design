@@ -128,7 +128,7 @@ export interface ClearMessage extends SelectionMessageBase {
 
 // Only from a canvas that has focus after an ⌥-click.
 export type KeyMessage = SelectionMessageBase & { type: "key" } & (
-  { key: "Escape" } | { key: "Alt"; alt: boolean } | { key: "Space"; down: boolean } | { key: "V" | "H" }
+  { key: "Escape" } | { key: "Alt"; alt: boolean } | { key: "Space"; down: boolean } | { key: "V" | "H" | "Shift2" | "ShiftSpace" }
 );
 
 export type SelectionMessage = HoverMessage | SelectMessage | ClearMessage | KeyMessage;
@@ -258,7 +258,7 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
     case "clear": return data.answer === "select-parent" ? { type, ...base, answer: data.answer } : { type, ...base };
     case "key":
       if (data.key === "Escape") return { type, ...base, key: "Escape" };
-      if (data.key === "V" || data.key === "H") return { type, ...base, key: data.key };
+      if (data.key === "V" || data.key === "H" || data.key === "Shift2" || data.key === "ShiftSpace") return { type, ...base, key: data.key };
       if (data.key === "Space") return typeof data.down === "boolean" ? { type, ...base, key: "Space", down: data.down } : null;
       return data.key === "Alt" && typeof data.alt === "boolean" ? { type, ...base, key: "Alt", alt: data.alt } : null;
     case "hover": {

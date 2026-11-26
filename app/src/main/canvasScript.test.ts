@@ -1307,6 +1307,30 @@ describe("canvasScript selection input", () => {
     })));
   });
 
+  // A canvas focused by an ⌥-click hands ⇧2 and ⇧Space on to the app as it does V and H; ⇧Space never pans.
+  test("forwards ⇧2 and ⇧Space outside editable elements, without a Space down", () => {
+    const { canvas, span, field } = heroCanvas();
+    for (const { code, key } of [{ code: "Digit2", key: "@" }, { code: "Space", key: " " }]) {
+      for (const target of [span, canvas.body, field, node("textarea"), node("select"), node("div", {}, [], { isContentEditable: true })]) {
+        canvas.fireWindow("keydown", input({ target, code, key, shiftKey: true }));
+      }
+      for (const ignored of [{ repeat: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+        canvas.fireWindow("keydown", input({ target: span, code, key, shiftKey: true, ...ignored }));
+      }
+    }
+    canvas.fireWindow("keydown", input({ target: span, code: "Digit2", key: "2" }));
+    expect(ofType(canvas, "key")).toEqual(["Shift2", "Shift2", "ShiftSpace", "ShiftSpace"].map(key => ({
+      type: "key", href: HREF, seq: 0, viewport: 150, key,
+    })));
+  });
+
+  test("prevents ⇧Space scrolling the canvas", () => {
+    const { canvas, span } = heroCanvas();
+    const event = input({ target: span, code: "Space", key: " ", shiftKey: true });
+    canvas.fireWindow("keydown", event);
+    expect(event.prevented).toBe(true);
+  });
+
   test("selects an SVG element itself and keeps its tag case in the selector", () => {
     const stop = node("stop", {}, [], { namespaceURI: SVG_NS });
     const gradient = node("linearGradient", {}, [stop], { namespaceURI: SVG_NS });

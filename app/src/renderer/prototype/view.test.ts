@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
-import { covered, drawerGroups, drawerLabel, exportAvailability, linkMove, linkToast, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
+import { covered, drawerGroups, drawerLabel, exportAvailability, linkMove, linkToast, liveText, LOADING_LABEL, modeTooltip, otherMode, stateScene, TIMEOUT_DETAIL, viewportKey, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
@@ -170,5 +170,42 @@ describe("exportAvailability", () => {
     for (const phase of ["ready", "loading", "init-failed", "read-failed", "frame-unavailable", "prototype-unavailable"] as const) {
       expect(exportAvailability(view({ phase }), true), phase).toEqual({ available: false, reason: "Exporting" });
     }
+  });
+});
+
+// PRODUCT §5 item 2 'Prototype window' 'Header': Z switches Fit and Responsive as the header toggle does.
+describe("viewportKey", () => {
+  const key = (over: Record<string, unknown> = {}) => ({ type: "keydown", code: "KeyZ", key: "z", repeat: false, isComposing: false, keyCode: 90, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, target: null, ...over });
+  const element = (tagName: string, over: Record<string, unknown> = {}) => ({ tagName, isContentEditable: false, getAttribute: () => null, hasAttribute: () => false, closest: () => null, ...over });
+
+  test("takes a plain Z by event.code, also when a Korean layout reports ㅋ", () => {
+    expect(viewportKey(key())).toBe(true);
+    expect(viewportKey(key({ key: "ㅋ" }))).toBe(true);
+    expect(viewportKey(key({ target: element("BUTTON") }))).toBe(true);
+    expect(viewportKey(key({ target: element("BODY") }))).toBe(true);
+  });
+
+  test.each([
+    ["⇧", { shiftKey: true }], ["⌘", { metaKey: true }], ["⌃", { ctrlKey: true }], ["⌥", { altKey: true }],
+    ["an IME composition", { isComposing: true }], ["keyCode 229", { keyCode: 229 }],
+    ["a repeat", { repeat: true }], ["a handled key", { defaultPrevented: true }], ["a keyup", { type: "keyup" }],
+    ["another key", { code: "KeyX", key: "z" }],
+  ])("ignores Z with %s", (_, over) => {
+    expect(viewportKey(key(over))).toBe(false);
+  });
+
+  test("ignores Z in a text field", () => {
+    for (const target of [element("INPUT"), element("TEXTAREA"), element("SELECT"), element("DIV", { isContentEditable: true })]) expect(viewportKey(key({ target }))).toBe(false);
+  });
+
+  test("ignores Z inside an open menu, list or dialog, such as the frame drawer", () => {
+    expect(viewportKey(key({ target: element("DIV", { closest: () => ({}) }) }))).toBe(false);
+  });
+});
+
+describe("otherMode", () => {
+  test("switches Fit and Responsive", () => {
+    expect(otherMode("fit")).toBe("responsive");
+    expect(otherMode("responsive")).toBe("fit");
   });
 });

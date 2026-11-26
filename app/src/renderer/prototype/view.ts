@@ -1,5 +1,7 @@
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type GotoMessage, type PrototypeMode, type PrototypePhase, type PrototypeView } from "../../main/prototype/ipc";
 import { frameName } from "../canvasTree";
+import { inOpenOverlay, type ShortcutEvent } from "../canvasTool";
+import { editableTarget } from "../selection";
 import { groupDrawer, type DrawerGroup } from "../frameDrawerList";
 
 // Pure, so every state's copy and rule is tested without a window.
@@ -59,6 +61,18 @@ export function covered(phase: PrototypePhase): boolean {
 }
 
 // Fit names the frame's size so it does not read as resizing the window to that size.
+// Z switches the viewport mode, as Figma's presentation view does: a plain key, by `code` so a Korean layout's ㅋ counts,
+// never in a text field or an open menu, list or dialog (the frame drawer and the head menus type-ahead).
+export function viewportKey(event: ShortcutEvent): boolean {
+  if (event.type !== "keydown" || event.code !== "KeyZ" || event.repeat || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return false;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+  return !editableTarget(event.target) && !inOpenOverlay(event.target);
+}
+
+export function otherMode(mode: PrototypeMode): PrototypeMode {
+  return mode === "fit" ? "responsive" : "fit";
+}
+
 export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markHeight: number } | null | undefined): string {
   if (mode === "responsive") return "Responsive";
   return run != null && run.markWidth > 0 && run.markHeight > 0 ? `Fit ${run.markWidth} × ${run.markHeight} to the window` : "Fit to the window";

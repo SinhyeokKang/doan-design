@@ -10,7 +10,7 @@ import { bubbleAction, type BubbleAction } from "./bubbleItems";
 import { sizeBubblePlay } from "./prototypePlay";
 import { focusThroughActivation } from "./activationFocus";
 import { acceptSelectionMessage, anchorRequest, canvasPx, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, selectionView, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
@@ -537,6 +537,8 @@ export class CanvasController {
   // Pans do not publish state, so persistence listens here.
   viewChanged: (() => void) | null = null;
   linkedCanvas: ((root: string) => void) | null = null;
+  // ⇧Space: App does what the toolbar's Play prototype would.
+  playKey: (() => void) | null = null;
   // `onFocusLost`: the button had focus and the whole bubble is going away, so App can move focus to another visible
   // control first.
   bubblePlay: { onPlay(): void; onFocusLost(): void } | null = null;
@@ -924,6 +926,9 @@ export class CanvasController {
       // cannot raise the layer over clicks by itself; its release always counts.
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
       else if (message.key === "V" || message.key === "H") this.shortcut({ kind: "tool", tool: message.key === "V" ? "select" : "hand" }, !this.onCanvasPage());
+      else if (message.key === "Shift2") this.shortcut({ kind: "zoomSelection" }, !this.onCanvasPage());
+      // Playing activates the prototype window, so a ⇧Space the canvas forged must not count, as for Space down.
+      else if (message.key === "ShiftSpace") this.shortcut({ kind: "play" }, !this.onCanvasPage() || document.activeElement !== this.frame || !document.hasFocus());
       // Unlike Escape, an old modifier snapshot must not override a newer press.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- the key check narrows the message to its Alt variant, which TypeScript cannot do after the V/H branch
       else if (message.key === "Alt" && message.seq >= this.hoverSeq) {
@@ -1376,6 +1381,8 @@ export class CanvasController {
     // The key is still the canvas's, so nothing else acts on it.
     if (this.textDragging) return true;
     if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
+    if (shortcut.kind === "zoomSelection") return this.zoomToSelection();
+    if (shortcut.kind === "play") { this.playKey?.(); return true; }
     // A Space held from here does not pan the board that comes later.
     if (!this.boardDrawn()) return false;
     this.spaceHeld = true;
@@ -1851,8 +1858,18 @@ export class CanvasController {
       case "zoomOut": this.view = zoomAt(this.view, 1 / ZOOM_STEP, center, ZOOM_LIMITS); break;
       case "actualSize": this.view = zoomAt(this.view, 1 / this.view.scale, center, ZOOM_LIMITS); break;
       case "fit": this.view = fitWidth(this.frameWidth, size, FIT_INSET); break;
+      case "zoomSelection": this.zoomToSelection(); return;
     }
     this.applyView();
+  }
+
+  // Nothing happens without a selection.
+  private zoomToSelection(): boolean {
+    const rect = this.state.selection === null ? null : this.selectedRect;
+    if (this.frame === null || rect === null) return false;
+    this.view = selectionView(rect, this.viewportSize(), FIT_INSET, this.view);
+    this.applyView();
+    return true;
   }
 
   // The canvas loads while the Overview still lays out the page, so the renderer calls this once the canvas page's
