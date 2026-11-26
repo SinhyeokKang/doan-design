@@ -33,7 +33,7 @@ import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedRequest } from "./DockedComposer";
-import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, waitingAsk, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import type { RowAction } from "./homeCards";
 import {
@@ -469,7 +469,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} asks={conversationId ? waitingAsk(thread?.events ?? null) : null} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: false }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.

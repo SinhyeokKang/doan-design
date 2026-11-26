@@ -95,7 +95,7 @@ test.each([["question", "Answer the question first"], ["permission", "Answer the
   const send = /<button type="button"[^>]*class="doan-button queue-send"[^>]*>Send now<\/button>/.exec(html)?.[0] ?? "";
   expect(send).toContain('aria-disabled="true"');
   expect(send).toContain('data-disabled=""');
-  const ids = /aria-describedby="([^"]+)"/.exec(send)?.[1].split(" ") ?? [];
+  const ids = /aria-describedby="([^"]+)"/.exec(send)?.[1]?.split(" ") ?? [];
   const described = ids.map(id => new RegExp(`id="${id}"[^>]*>([^<]*)<`).exec(html)?.[1]);
   expect(described).toContain(reason);
   expect(described).toContain("Also the caption");

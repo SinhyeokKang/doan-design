@@ -19,7 +19,7 @@ import {
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, steerAllPlan, type ComposerAction, type ComposerTurn, type FocusAction } from "./composerRules";
 import {
-  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, sameDraft, settleSent,
+  canvasGoneText, composerPlaceholder, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, sameDraft, settleSent, waitReason,
   type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
@@ -106,6 +106,8 @@ export interface DockedComposerProps {
   onPastedText(text: string, meta: { lines: number; excerpt: string }, report: (text: string) => void): Promise<boolean>;
   // This conversation's turn.
   turn: ComposerTurn;
+  // While the turn waits: the request the answer popover shows first (waitingAsk), which Send's and Send now's reason names.
+  asks?: "permission" | "question" | null;
   // A conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
   // Why Send waits for the host's project (it turned into a problem while open); the thread stays readable.
@@ -253,7 +255,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const lead = playing ? playingMessage(draft, matched, playing.frame) : undefined;
   // A command goes out alone, so neither the playing frame's place limit nor the attachments' state holds it.
   const checked = lead === null && !commandFirst && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } }
-    : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft: commandFirst ? { ...draft, preset: null, attachments: [] } : draft, skills: commandFirst ? [] : matched, turn: props.turn, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
+    : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft: commandFirst ? { ...draft, preset: null, attachments: [] } : draft, skills: commandFirst ? [] : matched, turn: props.turn, asks: props.asks ?? null, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   // The person's own message decides Stop, Queue and Send: the pinned frame goes with every request but is not
@@ -271,7 +273,10 @@ export function DockedComposer(props: DockedComposerProps) {
     const timer = setTimeout(() => setResetPassed(n => n + 1), Math.min(Math.min(...waits) + 1, 2 ** 31 - 1));
     return () => clearTimeout(timer);
   }, [limitResetsAt, scheduledFor, resetTick]);
-  const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
+  // While a request waits the rows keep Send now, unavailable with the wait's reason, and Control+Enter acts as Enter.
+  const sendNowShown = !!props.sendNow && !!props.onSendQueuedNow;
+  const sendNowBlocked = sendNowShown && props.turn === "waiting" ? waitReason(props.asks) : null;
+  const canSendNow = sendNowShown && sendNowBlocked === null;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.
   const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
@@ -548,9 +553,9 @@ export function DockedComposer(props: DockedComposerProps) {
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   // A locked field takes no message, so the frame it would send no longer describes it.
   const playingShown = playing !== null && !locked;
-  const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
+  const describedBy = [reason && !reason.tipOnly ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, queuedRequest(item), props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+    <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, queuedRequest(item), props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={sendNowShown} blocked={sendNowBlocked} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
@@ -575,7 +580,7 @@ export function DockedComposer(props: DockedComposerProps) {
           onOpen={() => { props.onSkillsWanted(); props.onPresetsOpen(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} retry={presetsRetry} onRetry={props.onPresetsRetry} onPicked={() => { if (pickedSkill.current) { pickedSkill.current = false; field.current?.focus(); } else focus({ kind: "restored" }); }} canvasPress={props.canvasPress} />
         {slashOpen && slashView && <SlashPresets skills={props.skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} retry={presetsRetry} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
-        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined}
+        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={action !== "stop" && reason?.tipOnly ? reason.text : undefined}
           tip={queueHint?.tip} description={queueHint?.description} />
       </ComposerTools>
       {drop.cover}
@@ -606,7 +611,7 @@ export function DockedComposer(props: DockedComposerProps) {
       : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable" id={`${listId}-notice`}>{notice.text}</span>
         {/* The notice stays while the send its Retry started is out; Retry shows that send (DESIGN 'Busy action'). */}
         {notice.retry && retryButton({ running: isSending, variant: "panel", describedBy: `${listId}-notice`, onRetry: () => void send() })}</div>)}
-    {reason && !reason.noAgent && (reason.alert
+    {reason && !reason.tipOnly && (reason.alert
       ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
@@ -645,6 +650,8 @@ export interface QueueRowsProps {
   // Shortens the attachment paths a row lists to ~.
   homeDirectory?: string | null;
   sendNow: boolean;
+  // Why Send now is drawn unavailable (aria-disabled, so its tooltip gives this reason); null: it works.
+  blocked?: string | null;
   onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   onRemove(id: string): Promise<boolean>;
   focusInput(): void;
@@ -698,7 +705,7 @@ export function QueueRows(props: QueueRowsProps) {
   // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
   const sendNow = async (id: string) => {
     // A second press before the row was drawn out of the queue.
-    if (flying.current.has(id)) return;
+    if (flying.current.has(id) || latest.current.blocked) return;
     flying.current.add(id);
     setRefused(current => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
     focusAfter(id, props.items);
@@ -731,6 +738,7 @@ export function QueueRows(props: QueueRowsProps) {
     const textId = `${idBase}-${index}`, summaryId = `${textId}-attachments`;
     const summary = queueAttachmentSummary(item.message?.attachments ?? [], props.homeDirectory ?? null);
     // Both buttons are told apart by the row's attachments and text, so the full list reaches them too.
+    const blockedId = `${textId}-blocked`;
     const describedBy = summary ? `${summaryId} ${textId}` : textId;
     // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
     // live region is registered before a refusal puts text in it.
@@ -743,8 +751,9 @@ export function QueueRows(props: QueueRowsProps) {
         {props.sendNow && !item.command && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
-              aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
-          </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
+              {...(props.blocked ? { "aria-disabled": true, "data-disabled": "" } : {})} aria-describedby={props.blocked ? `${blockedId} ${describedBy}` : describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
+          </TooltipTrigger><TooltipContent>{props.blocked ?? SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
+        {props.sendNow && !item.command && props.blocked && <span className="sr-only" id={blockedId}>{props.blocked}</span>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
             aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button></TooltipTrigger>
