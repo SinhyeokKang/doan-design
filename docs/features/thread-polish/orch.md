@@ -21,9 +21,9 @@
 | A 리뷰 | A diff | 읽기만 | A | Codex Sol high — 판단이 많은 diff | 🔴 0 | 3라운드: A1(성장 보정 순서)·R1(clamp) 고침, R3은 한계로 수용, R4 테스트 고침. 🔴0 |
 | B 받은 handoff 버블 | tasks 3(버블 markup, `messageCommand`, `handoffView` 메타 뷰), 5 | `handoffView.ts`, `ConversationThread.tsx`(`HandoffCard`, `ENTRY_FOCUS`, `scrollToItem`, `cardBanners`), `styles.css`, 해당 테스트 | A 통합 | Claude Opus medium — 접근성·CSS container·잘림 순서 판단, 테스트 다시 쓰기가 많다 | test·typecheck·lint | 통합(cherry-pick) `2769ec4de`·`cbef5b2fc`·`719ed0ef2`, 고침 1라운드 |
 | B 리뷰 | B diff | 읽기만 | B | Codex Sol high — 접근성·CSS 규칙 판단 | 🔴 0 | 🟡1(본문 칩이 버블 밖으로 나옴) 고침. ⚪ forced colors의 Open 가장자리는 E에서 본다. ⚪ 첫 줄 제목 불일치는 기존 문제라 BACKLOG로 보낸다 |
-| C Open·Copy 토스트 | tasks 3(`cc-open` subtle, `onCopy` 토스트), 6 | `ConversationThread.tsx`(`cc-open`, `copied`), `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`(`.cc-open`), 해당 테스트 | B 통합 | Codex Sol medium — 정해진 바꾸기, 판단이 적다 | test·typecheck·lint | 진행 (`tp-copy`) |
-| C 리뷰 | C diff | 읽기만 | C | Codex Sol medium — 작은 diff | 🔴 0 | 대기 |
-| D design-sync | tasks 7 | 위 구현 파일(측정 뒤 고침), `docs/design/conversation.md`, `.scratch/design-sync/` | C 통합 | Claude Opus medium — 실제 앱 측정과 고침 판단 | measure.mjs가 드래프트와 맞음 | 대기 |
+| C Open·Copy 토스트 | tasks 3(`cc-open` subtle, `onCopy` 토스트), 6 | `ConversationThread.tsx`(`cc-open`, `copied`), `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`(`.cc-open`), 해당 테스트 | B 통합 | Codex Sol medium — 정해진 바꾸기, 판단이 적다 | test·typecheck·lint | 통합(cherry-pick) `e9d3ca0c6`·`1b0b0f6d8`. 워커 해제, `tp-copy` 제거 |
+| C 리뷰 | C diff | 읽기만 | C | Codex Sol medium — 작은 diff | 🔴 0 | 🔴0 🟡0. ⚪ 실제 스크린 리더 발화는 E에서 본다 |
+| D design-sync | tasks 7 | 위 구현 파일(측정 뒤 고침), `docs/design/conversation.md`, `.scratch/design-sync/` | C 통합 | Claude Opus medium — 실제 앱 측정과 고침 판단 | measure.mjs가 드래프트와 맞음 | 진행 (`tp-sync`) |
 | E runtime-test | tasks 8 | `.scratch/runtime-test/thread-polish/`만 | D 통합 | Claude Opus medium — 격리 실수 비용이 크고 판단이 필요하다 | 항목별 결과·스크린샷 | 대기 |
 | 지휘자 | tasks 2(완료), 9, 10 | `docs/` | E | — | verify 통과, tasks 10 grep | 대기 |
 
