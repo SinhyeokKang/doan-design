@@ -48,6 +48,7 @@
 - **기다리는 요청**: 기존 `pendingAsks`(`threadItems.ts`, 도착 순서, 테스트 있음)를 쓴다. resolved가 request보다 먼저 오는 경우는 이벤트가 seq로 합쳐지므로 없다.
 - **접힘(`ConversationStore`)**: 대화마다 `{ collapsed, covers: Set<requestId> }`.
   - 펼침 여부는 기다리는 요청 가운데 `covers`에 없는 것이 있는지로 정한다. 접을 때 그 시점의 기다리는 id를 `covers`에 담으므로, 새 요청이 오면 펼쳐진다.
+  - 새 요청으로 펼쳐지면 펼친 채 남는다(사용자). 그 새 요청만 끝나고 접어 두었던 요청이 남아도 다시 접히지 않는다. 다시 접는 것은 사용자가 Collapse를 누를 때뿐이다.
   - 보내기가 실패하면 펼친다. 기다리는 요청이 없으면 지운다.
   - 진입점은 store를 통해 펼친다.
   - `ThreadBody`는 `conversationId`마다 새로 만들어지므로 접힘 상태를 그 안에 두면 대화를 바꿀 때 사라진다. 그래서 store에 둔다.
