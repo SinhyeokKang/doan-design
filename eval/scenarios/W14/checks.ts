@@ -13,7 +13,7 @@ const checks: Checks = ctx => {
   const check = ctx.doan(["check", ...editedPaths]);
   const invocations = doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "check");
   const invoked = invocations.some(words => {
-    const paths = doanPositionals(words)!.slice(1).map(path => resolve(ctx.repo, path));
+    const paths = doanPositionals(words)?.slice(1).map(path => resolve(ctx.repo, path)) ?? [];
     return editedPaths.every(path => paths.includes(resolve(ctx.repo, path)));
   });
   const seed = ctx.seed(unrelated);
