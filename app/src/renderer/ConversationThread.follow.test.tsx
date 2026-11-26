@@ -55,7 +55,8 @@ const scroller = {
   addEventListener: () => {},
   removeEventListener: () => {},
 };
-const popover = { get offsetHeight() { return layout.inset; } };
+// No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
+const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null };
 const root = { style: { setProperty: (name: string, value: string) => { vars.set(name, value); } }, contains: () => false, querySelector: () => null };
 
 function draw(items: ThreadItem[]): void {

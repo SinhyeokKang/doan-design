@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Question } from "../main/conversation/question";
-import { AnswerPopover, type AnswerPopoverProps } from "./AnswerPopover";
+import { AnswerPopover, popoverFloor, type AnswerPopoverProps } from "./AnswerPopover";
 import { Tooltip, TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
@@ -388,6 +388,17 @@ describe("a permission request", () => {
 
   test("a refused answer asks to choose again under the buttons", () => {
     expect(html({ item: permission, failed: true })).toMatch(/<div class="ap-error"><p class="settings-msg error ask-error" role="alert"><svg[^>]*>.*?<\/svg><span>Couldn’t send your answer\. Choose again\.<\/span><\/p><\/div><\/div>$/);
+  });
+});
+
+// The head and the buttons always show: past the cap the popover keeps their height (with the body's padding) and rises
+// over the thread area's top, but no higher than the conversation panel's top.
+describe("popoverFloor", () => {
+  test("the head and button rows plus the body's padding, within the room up to the panel's top", () => {
+    expect(popoverFloor({ chrome: [40, 96], bodyPadding: 8, room: 300 })).toBe(144);
+    expect(popoverFloor({ chrome: [48], bodyPadding: 0, room: 300 })).toBe(48);
+    expect(popoverFloor({ chrome: [40, 96, 32], bodyPadding: 8, room: 120 })).toBe(120);
+    expect(popoverFloor({ chrome: [], bodyPadding: 0, room: 0 })).toBe(0);
   });
 });
 
