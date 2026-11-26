@@ -1,0 +1,1 @@
+On `.doan/canvases/pricing.html`, change the Team plan button from "Buy now" to "Start free trial". Also increase the shared `.card` padding in `.doan/assets/cards.css` from `var(--space-4)` to `var(--space-6)` so the cards on the Pricing and Team canvases have more room. Keep using our existing tokens and make the adjustment ready for review.
