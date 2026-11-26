@@ -56,3 +56,6 @@
   - 실패한 검사 호출은 세지 않는다(🟡2). 편집 내용 자동 검사(⚪1)와 루트 별칭 경로 맞추기(⚪2)도 더한다.
   - 리뷰 환경에서 eval 실제 상태 가드가 `~/Library/Application Support/doan/ui-state.json`, `~/.gemini/antigravity-cli` 변경을 잡아 exit 1이었다. 실행 중인 설치 Doan 앱이 원인으로 추정되며 확인하지 않았다. T5 gate는 다른 앱이 조용할 때 돌린다.
 - C 수정 1회차(`87f59e8ef`)를 conductor가 직접 확인했다. 워커의 마지막 게이트는 실제 상태 가드만 걸렸다(`canvas-seen.json`, `agent-auth`, `conversations`, 실행 중인 Doan 앱). T5에서 다시 돌린다.
+- T5 회차 `check-scope-261126`: 시작 약 15분 만에 Codex 5h 한도가 100%에 닿았다(52%→100%, 08:38 UTC). 사용자가 회차를 그대로 계속하기로 했다. 리셋(09:02 UTC) 전 Codex 실행과 Codex judge의 실패는 회차가 끝난 뒤 그 실행만 다시 돌린다. 회차 중 사용자가 실제 Doan 앱을 잠깐 켰다가 껐다(실제 상태 가드가 회차 끝에 걸릴 수 있다).
+- T5 범위 예외(사용자 결정, 2026-11-26): Codex Plus 한도로 전체 회차를 마칠 수 없어서 이번 링크는 전체 회차를 하지 않는다. `check-scope-261126`은 94개 중 30개에서 멈췄다(SIGINT, 실제 상태 가드는 `keychain:provider-items` 변경). 필수 세트만 돌린다: W14(spec 11의 새 시나리오)와 R10(앱 턴 프롬프트 변경), 두 계열 모두 judge와 함께. lead에게 알렸다.
+- 필수 세트 `check-scope-261126-essential`: W14 claude partial(judge만), codex pass, R10 두 계열 pass. runner exit 1(실제 상태 가드: `.gemini/antigravity-cli:meta`, `keychain:provider-items`). W14-claude의 partial은 가이드 규칙 B대로 "not in code" 메모를 단 것을 judge가 요청 밖 편집으로 본 rubric 결함이다(R8d rubric은 이 메모를 허용한다). rubric을 제자리에서 고치고 W14 claude를 다시 돌린다.
