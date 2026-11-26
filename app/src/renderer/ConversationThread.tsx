@@ -938,14 +938,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // content: the thread's own height; inset: the popover's height, kept clear at the thread's end (--ap-inset).
   const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0), inset = useRef(0);
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
-  // wrote. echo: a write whose scroll event has not come yet; own: the last scroll activity was the follow's write, so
-  // the scrollend Chromium sends for it is not the end of the person's scroll.
+  // wrote. echo: a write whose scroll event has not come yet. ownEnd: a write that moved the view and whose scrollend
+  // (Chromium sends one for writes too, sometimes late, after a key's first move) has not come yet; the next scrollend is
+  // taken as that one and never ends a key, which then ends at its own scrollend or once its scroll is quiet.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
-  const echo = useRef(false), own = useRef(false);
+  const echo = useRef(false), ownEnd = useRef(false);
   // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move. keyDown: a scroll key
   // pressed anywhere outside a field, which becomes this thread's input only if the next scroll of this thread that is
   // not the follow's own moves it. itemAt: when the latest scroll to an item began.
-  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number } | null>(null), itemAt = useRef(-Infinity);
+  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number; bottom: number } | null>(null), itemAt = useRef(-Infinity);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
@@ -1144,9 +1145,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const bottomOf = (node: HTMLElement) => node.scrollHeight - node.clientHeight;
   const bandOf = (node: HTMLElement) => followBand(node.clientHeight - inset.current);
   const write = (node: HTMLElement, top: number) => {
+    const was = node.scrollTop;
     node.scrollTop = top;
     wrote.current = seenTop.current = node.scrollTop;
-    echo.current = own.current = true;
+    echo.current = true;
+    if (top !== was) ownEnd.current = true;
     distance.current = bottomOf(node) - node.scrollTop;
   };
   // The person's scroll never shrinks the extent, so an extent now below the last scrollTop read means the browser
@@ -1261,10 +1264,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
-      keyDown.current = { key: event.key, at: performance.now() };
+      keyDown.current = { key: event.key, at: performance.now(), bottom: bottomOf(node) };
     };
     const ended = () => {
-      if (own.current) return;
+      if (ownEnd.current) { ownEnd.current = false; return; }
       calls().apply({ type: "scrollend" });
       calls().run();
     };
@@ -1361,18 +1364,19 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const from = seenTop.current, moved = clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
     // The follow's own write comes back by the next frame, maybe a pixel off what it read back (fractional writes land
-    // rounded); it only ever writes toward the bottom, so a move up from it is someone else's.
+    // rounded); it only ever writes toward the bottom, so a move up from it is someone else's. A person's first move of
+    // 2 px or less right after a write counts as the follow's (accepted).
     const mine = echo.current && wrote.current !== null && node.scrollTop > wrote.current - 2;
     echo.current = false;
     if (!mine) {
-      own.current = false;
       // A key is this thread's only when this scroll moved it (not a clamp or a re-read) and the key came after any scroll
       // to an item (an older key never takes the item's own scroll; a newer one interrupts it). Either way this scroll
-      // settles the key: a later move is never its. Its move starts where this scroll started.
+      // settles the key: a later move is never its. Its move starts where this scroll started. A key pressed elsewhere
+      // during an item scroll can claim that item's next step (accepted).
       const pressed = keyDown.current, now = performance.now();
       keyDown.current = null;
       if (pressed && moved && now - pressed.at < WHEEL_HOLD_MS && (!follow.current.item || pressed.at >= itemAt.current)) {
-        apply({ type: "input", kind: "key", key: pressed.key, at: pressed.at, top: from });
+        apply({ type: "input", kind: "key", key: pressed.key, at: pressed.at, top: from, bottom: pressed.bottom });
       }
       apply({ type: "scroll", at: now, distance: distance.current, top: node.scrollTop, moved });
       run();

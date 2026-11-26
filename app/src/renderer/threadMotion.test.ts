@@ -340,7 +340,7 @@ describe("followBand", () => {
 describe("nextFollow", () => {
   const settle = (state: FollowState, at: number, distance = 0, top = 1000 - distance) => nextFollow(state, { type: "frame", at, distance, top });
   const wheel = (state: FollowState, at: number, top = 1000) => nextFollow(state, { type: "input", kind: "wheel", at, top });
-  const key = (state: FollowState, at: number, top = 1000, name = "ArrowUp") => nextFollow(state, { type: "input", kind: "key", key: name, at, top });
+  const key = (state: FollowState, at: number, top = 1000, name = "ArrowUp", bottom = 1000) => nextFollow(state, { type: "input", kind: "key", key: name, at, top, bottom });
   const press = (state: FollowState, top = 1000) => nextFollow(state, { type: "pointer", down: true, top });
   const release = (state: FollowState) => nextFollow(state, { type: "pointer", down: false });
 
@@ -519,6 +519,15 @@ describe("nextFollow", () => {
     expect(settle(there, 1300, 238).pinned).toBe(false);
     // Nothing to scroll (already in view at the bottom): it follows again after the hold.
     expect(settle(moving, 1100, 0).pinned).toBe(true);
+  });
+
+  // End heads for the bottom as it was when pressed; a reply growing meanwhile leaves the view short of the new one.
+  test("a key's scroll that ends within BOTTOM of the bottom at its keydown follows again, however the reply grew", () => {
+    const reading = settle(nextFollow(FOLLOW_START, { type: "input", kind: "wheel", at: 0, top: 1000 }), 200, 3000);
+    const end = nextFollow(key(reading, 1000, -2000, "End", 1000), { type: "scroll", at: 1100, distance: 77, top: 1000, moved: true });
+    expect(settle(nextFollow(end, { type: "scrollend" }), 1200, 77, 1000).pinned).toBe(true);
+    const up = nextFollow(key(FOLLOW_START, 1000, 1000, "PageUp", 1000), { type: "scroll", at: 1100, distance: 500, top: 500, moved: true });
+    expect(settle(nextFollow(up, { type: "scrollend" }), 1200, 500, 500).pinned).toBe(false);
   });
 
   // A lost or never-fired scrollend must not hold the follow: once no scroll has come for WHEEL_HOLD_MS, the scroll is

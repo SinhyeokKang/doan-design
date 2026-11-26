@@ -157,11 +157,12 @@ export interface FollowState {
 // The composer is outside the thread. scroll: one the follow loop did not write. A pointer's release comes from the
 // window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop. clamp: the browser
 // lowered scrollTop by `by` to a scroll extent that shrank (content or the end inset), which is no move of the person's.
-// item: the thread scrolls to an item, which is not following. moved: the scroll changed scrollTop since the last read,
+// A key's bottom: the scrollTop of the bottom when it was pressed, where End or PageDown head even as a reply grows; it
+// counts as touched, so ending within BOTTOM of it follows again. item: the thread scrolls to an item, not following. moved: the scroll changed scrollTop since the last read,
 // and not by a clamp (only the person's own move reaches the bottom).
 export type FollowEvent =
   | { type: "input"; kind: "wheel"; at: number; top: number }
-  | { type: "input"; kind: "key"; key: string; at: number; top: number }
+  | { type: "input"; kind: "key"; key: string; at: number; top: number; bottom: number }
   | { type: "pointer"; down: true; top: number }
   | { type: "pointer"; down: false }
   | { type: "item"; at: number }
@@ -185,7 +186,7 @@ export function nextFollow(state: FollowState, event: FollowEvent): FollowState 
   switch (event.type) {
     case "input":
       if (event.kind === "key" && !SCROLL_KEYS.has(event.key)) return state;
-      return { ...state, pinned: false, inputAt: event.at, origin: unpinBy(state, event.top), scroll: event.kind === "key" ? "awaited" : "idle", item: false };
+      return { ...state, pinned: false, inputAt: event.at, origin: unpinBy(state, event.top), scroll: event.kind === "key" ? "awaited" : "idle", item: false, floor: event.kind === "key" ? event.bottom : state.floor };
     case "pointer":
       if (!event.down) return state.pressed ? { ...state, pressed: false } : state;
       return { ...state, pinned: false, pressed: true, origin: unpinBy(state, event.top), scroll: "idle", item: false };

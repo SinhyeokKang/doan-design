@@ -655,3 +655,68 @@ test("a key pressed during an item scroll that scrolls this thread to the bottom
   frameUntil(2000);
   expect(atBottom()).toBe(0);
 });
+
+// The follow's earlier write ends late: its scrollend comes after the key's first move, while the key still animates.
+test("a late scrollend of the follow's own write after a key's first move does not end the key", () => {
+  draw([user]);
+  resize({ content: 1002 }, [user]);
+  frameUntil(16);
+  key();
+  scrollBy(-3);
+  on.get("scrollend")!({});
+  for (let at = 32; at <= 160; at += 16) { frameUntil(at); scrollBy(-4); }
+  expect(atBottom()).toBeGreaterThan(35);
+  on.get("scrollend")!({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(0);
+});
+
+// The panel trace: the follow writes once after the keydown; the next scroll event already has the key's first move in it
+// (3 px above the write) and comes with that write's scrollend.
+test("a follow write after the keydown whose scroll comes back mixed with the key's first move does not end the key", () => {
+  echo = true;
+  draw([user]);
+  resize({ content: 1002 }, [user]);
+  key();
+  frameUntil(16);
+  rawTop -= 3.2;
+  frameUntil(32);
+  for (let at = 48; at <= 160; at += 16) { scrollBy(-5); frameUntil(at); }
+  expect(atBottom()).toBeGreaterThan(30);
+  on.get("scrollend")!({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(0);
+});
+
+// End heads for the bottom as it was when pressed; the reply grows meanwhile, so the view lands short of the new bottom.
+test("End during an item scroll that lands short of a growing reply's bottom still follows again", () => {
+  draw([user]);
+  hooks.handle!.scrollToItem("u1");
+  observed();
+  frameUntil(48);
+  key("End");
+  smooth = null;
+  scrollBy(150);
+  resize({ content: 1077 }, [user]);
+  scrollBy(150);
+  expect(atBottom()).toBe(77);
+  on.get("scrollend")!({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(0);
+});
+
+test("End pressed after an item scroll arrived, landing short of a growing reply's bottom, still follows again", () => {
+  draw([user]);
+  hooks.handle!.scrollToItem("u1");
+  observed();
+  frameUntil(1000);
+  expect(scroller.scrollTop).toBe(0);
+  key("End");
+  scrollBy(316);
+  resize({ content: 1060 }, [user]);
+  scrollBy(316);
+  expect(atBottom()).toBe(60);
+  on.get("scrollend")!({});
+  frameUntil(3000);
+  expect(atBottom()).toBe(0);
+});
