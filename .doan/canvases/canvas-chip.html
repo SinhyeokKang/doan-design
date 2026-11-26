@@ -1,0 +1,485 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-chip"><meta name="doan:width" content="1440"><title>canvas-chip — Canvas chips in a message</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:1100px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro h2{margin-top:var(--space-6);font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.intro li+li{margin-top:var(--space-1)}
+.intro code,.caption code,.tile-label code,.note code,.copy-table code{color:var(--text-subtle)}
+.specimen+.specimen{margin-top:var(--space-16)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-6);max-width:1100px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tiles+.tiles{margin-top:var(--space-10)}
+.tile{display:grid;gap:var(--space-2);justify-items:start;align-content:start}
+.tile-label{max-width:360px;color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.tile-label b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.note{max-width:360px;color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+/* A slice of the canvas conversation panel's foot at its default width (347 at 1238 × 780): .cp-foot's 12 px padding. */
+.panel-tile{width:347px;padding:var(--space-3);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.panel-tile.thread-tile{padding:var(--space-2) var(--space-4) var(--space-6)}
+/* A slice of the Overview's main column: the 720 thread column inside 24 px side padding. */
+.ov-tile{width:768px;padding:var(--space-4) var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+/* Home's stage behind the 680 composer. */
+.home-tile{width:744px;padding:var(--space-8);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.home-tile .home-composer{margin-top:0}
+/* The sidebar column over the shell's translucent backdrop, at the default 220 px. */
+.side-tile{position:relative;width:236px;padding:var(--space-2);border-radius:var(--radius-container);background:var(--bg-app)}
+.chip-line{padding:var(--space-4);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:var(--shadow-panel);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.variant-col{display:grid;gap:var(--space-3);width:400px;align-content:start}
+.variant-col h3{font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium);display:flex;gap:var(--space-2);align-items:center}
+.variant-col p{color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.pointer{position:absolute;width:var(--size-icon);height:var(--size-icon);color:var(--text-standard);pointer-events:none}
+.copy-card{padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);max-width:1376px}
+.copy-table{border-collapse:collapse;width:100%}
+.copy-table :is(th,td){padding:var(--space-2) var(--space-4) var(--space-2) 0;border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.copy-table th{color:var(--text-metadata);font-weight:var(--type-weight-regular);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.copy-table td:first-child{width:260px;color:var(--text-subtle)}
+.copy-table td:last-child{width:300px;color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.menu-tile{position:static;width:204px}
+
+/* ── Restated from app/src/renderer/styles.css as shipped, which canvases cannot link ── */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.logo{width:var(--size-icon);height:var(--size-icon);object-fit:contain;flex:none}
+.shell-thumbnail{display:flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;border-radius:var(--radius-thumbnail);font-size:10px;font-weight:var(--type-weight-semibold);line-height:16px}
+.hue-indigo{background:color-mix(in srgb,var(--identity-project-indigo) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-indigo) 65%,var(--text-standard))}
+.hue-teal{background:color-mix(in srgb,var(--identity-project-teal) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-teal) 65%,var(--text-standard))}
+/* Home */
+.home-composer{position:relative;width:min(680px,100%);margin-top:var(--space-10)}
+.home-project{gap:var(--space-2);max-width:calc(100% - var(--space-2));margin:0 0 var(--space-2) var(--space-2);font-weight:var(--type-weight-medium)}
+.home-project-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.home-project .shell-thumbnail{width:var(--size-icon-lg);height:var(--size-icon-lg);font-size:11px;line-height:var(--size-icon-lg)}
+.composer{position:relative;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel)}
+.home-composer .composer{box-shadow:var(--shadow-panel),0 0 var(--space-6) 2px color-mix(in srgb,var(--affordance-accent) 27%,transparent),0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb,var(--affordance-accent) 7%,transparent)}
+/* Composer card, field and chips */
+.composer-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-xs),0 0 0 1px var(--border-standard)}
+.composer-card:focus-within,.composer-card.focus{box-shadow:var(--shadow-sm),0 0 0 1px var(--border-field-focus)}
+.composer-input{display:block;width:100%;min-height:calc(2 * var(--type-label-line-height));max-height:calc(8 * var(--type-label-line-height));padding:0 var(--space-1) 0 0;border:0;outline:none;position:relative;overflow-y:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent;font-family:var(--type-family);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);color:var(--text-standard)}
+.composer-input[data-empty]::before{content:attr(aria-placeholder);position:absolute;inset-inline:0 var(--space-1);color:var(--text-metadata);pointer-events:none}
+.anchor-chip{display:inline-flex;align-items:center;gap:var(--space-1);max-width:180px;margin:0 var(--space-half);padding:0 var(--space-1h);border:0;border-radius:var(--radius-word);background:var(--surface-accent-subtle);color:var(--text-accent-subtle);font:inherit;font-weight:var(--type-weight-medium);vertical-align:bottom;white-space:nowrap}
+.anchor-chip svg{width:var(--size-icon-sm);height:var(--size-icon-sm);flex:none}
+.anchor-chip span:not(.sr-only){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anchor-chip .sr-only{user-select:none}
+.composer-input .anchor-chip{cursor:pointer}
+.composer-tools{position:relative;display:flex;align-items:center;gap:var(--space-1);margin-left:calc(-1 * var(--space-1))}
+.composer-tools .grow{flex:1}
+.composer-tools>.doan-icon-button:not(.composer-send){color:var(--text-standard)}
+.composer-agent{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-effort{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-effort svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-permission{gap:var(--space-1h);font-weight:var(--type-weight-regular)}
+.composer-permission svg:not(.chev){width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.composer-tray{position:relative;display:flex;align-items:center;gap:var(--space-3);min-height:var(--size-control);padding:var(--space-1) var(--space-4);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-subtle)}
+.composer-tray .doan-button{margin-left:calc(-1 * var(--space-2));font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-regular);color:var(--text-subtle)}
+.composer-tray :is(.doan-button,.tray-branch) svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.tray-branch{display:inline-flex;align-items:center;gap:var(--space-1h)}
+.tray-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-metadata)}
+.composer-tray .doan-button .label{white-space:nowrap}
+.composer-reason{display:flex;align-items:center;justify-content:center;gap:var(--space-3);margin-top:var(--space-3);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-subtle)}
+.drop-target{position:absolute;inset:0;z-index:2;border-radius:inherit;background:color-mix(in srgb,var(--surface-panel) 55%,transparent);-webkit-backdrop-filter:blur(var(--blur-sm));backdrop-filter:blur(var(--blur-sm));outline:2px dashed var(--text-accent);outline-offset:-2px}
+/* Docked composer (Overview, canvas panel, prototype window) */
+.docked{position:relative}
+.docked .composer-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-1)}
+.docked .composer-tools{display:contents}
+.docked .composer-tools .grow{display:none}
+.docked .composer-presets{grid-area:presets}
+.docked .composer-send{grid-area:send}
+.docked .composer-input{grid-area:field;min-height:var(--type-label-line-height)}
+.docked[data-shape="box"] .composer-card{grid-template-areas:"field field field" "presets . send";row-gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4)}
+.docked[data-shape="box"] .composer-presets{margin-left:calc(-1 * var(--space-1))}
+.docked[data-shape="box"] .composer-input[data-empty]::before{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.docked .composer-tray{justify-content:flex-end;gap:var(--space-half);min-height:var(--size-control-sm);padding:var(--space-1) var(--space-3) 0;container-type:inline-size}
+.docked .composer-tray .doan-button{margin-left:0}
+.docked .composer-tray .logo{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.docked .composer-tray .composer-agent{flex-shrink:1;min-width:0;margin-left:auto}
+.docked .composer-agent .label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@container (max-width: 431px){.docked .composer-permission .label{display:none}}
+@container (max-width: 383px){.docked .composer-effort .label{display:none}}
+.docked .composer-tray :is(.composer-attach,.composer-pick){color:var(--text-subtle)}
+.docked .composer-tray :is(.composer-agent,.composer-effort,.composer-permission):not(:disabled){color:var(--text-standard)}
+.composer-reason.docked-reason{justify-content:flex-start;margin-top:var(--space-2);padding-inline:var(--space-4)}
+/* Thread */
+.conversation-thread{position:relative;display:flex;flex-direction:column;min-height:0}
+.conversation-thread .thread{display:flex;flex-direction:column;gap:var(--space-6)}
+.ov-tile .conversation-thread .thread{max-width:720px;margin-inline:auto;width:100%}
+.conversation-thread .msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:80%;min-width:0}
+.thread-tile .msg-user{max-width:92%}
+.conversation-thread .bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text}
+.thread-tile .bubble{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.bubble .anchor-chip{display:inline-block;overflow:hidden;text-overflow:ellipsis;background:var(--surface-panel)}
+.bubble .anchor-chip svg{display:inline-block;vertical-align:-2px;margin-right:var(--space-1)}
+button.anchor-chip{cursor:pointer}
+.chip-missing{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.chip-note{position:absolute;z-index:2;margin-top:var(--space-1);padding:var(--space-half) var(--space-1h);border-radius:var(--radius-chip);background:var(--surface-panel);box-shadow:var(--shadow-sm);white-space:nowrap;pointer-events:none}
+/* Sidebar */
+.shell-side .row{display:flex;align-items:center;gap:8px;height:32px;min-height:32px;padding:0 8px;border-radius:8px;font:400 14px/20px var(--type-family);color:var(--text-subtle);position:relative;white-space:nowrap;cursor:pointer}
+.shell-side .row.hover{background:var(--affordance-backdrop-hover)}
+.shell-side .row[aria-current="location"]{background:var(--affordance-backdrop-pressed);color:var(--text-standard)}
+.shell-side .shell-project-row{gap:4px;padding:0 0 0 10px;margin-bottom:4px}
+.shell-project-name{margin-left:4px;letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-standard);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell-lead{position:relative;display:grid;flex:none;width:var(--size-icon);height:var(--size-icon)}
+.shell-side .shell-group-head{padding-inline:10px;color:var(--text-subtle);font-weight:var(--type-weight-medium);letter-spacing:var(--type-body-sm-letter-spacing)}
+.shell-group-head>svg{width:var(--size-icon);height:var(--size-icon);flex:none;color:var(--text-metadata)}
+.shell-group-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.shell-group-count{flex:none;font-variant-numeric:tabular-nums}
+.shell-side .shell-canvas-row{padding-inline:10px;letter-spacing:var(--type-body-sm-letter-spacing)}
+.shell-side .shell-group .shell-canvas-row{padding-left:calc(10px + var(--size-icon) + var(--space-2))}
+.shell-canvas-row svg{width:16px;height:16px;flex:none}
+.shell-canvas-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell-canvas-row>.shell-more{margin-left:auto}
+.shell-more.doan-icon-button{width:32px;height:32px;flex:none;color:var(--text-subtle)}
+.shell-side .shell-canvas-row.menu-open{padding-right:0}
+/* Canvas row menu */
+.shell-side-menu.doan-floating{background:var(--surface-popover);backdrop-filter:none}
+.shell-canvas-menu{width:204px;max-width:calc(100vw - 16px);overflow-y:auto}
+.shell-canvas-menu .doan-menu-item{display:flex;gap:8px;align-items:center}
+.shell-canvas-menu svg{width:16px;height:16px;flex:none}
+.shell-canvas-menu .doan-menu-item>svg:first-child{color:var(--text-subtle)}
+.shell-canvas-menu .doan-menu-item[aria-disabled="true"]{color:var(--text-disabled);cursor:default}
+.shell-canvas-menu .doan-menu-item[aria-disabled="true"]>svg:first-child{color:var(--text-disabled)}
+.shell-canvas-menu .doan-menu-item.shell-menu-reasoned{align-items:flex-start;white-space:normal}
+.shell-canvas-menu .shell-menu-reasoned>svg{margin-block:calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2)}
+.shell-menu-text{display:flex;flex-direction:column;gap:var(--space-half);min-width:0}
+.shell-menu-reason{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.doan-menu-item.highlighted{background:var(--affordance-floating-hover)}
+/* Toast (positioned for the board) */
+.toast-tile{position:static}
+
+/* ── New, not in code ── */
+/* The canvas chip: the shipped anchor chip with the sidebar's canvas icon (candidate A, recommended). B and C are
+   compared in the chip frame only. */
+.anchor-chip[data-kind="canvas"]{}
+.cand-b .anchor-chip[data-kind="canvas"]{background:var(--surface-inset);color:var(--text-standard)}
+.cand-c .anchor-chip[data-kind="canvas"]{background:var(--surface-panel);color:var(--text-standard);box-shadow:inset 0 0 0 1px var(--border-standard)}
+/* Drag image A: the composer chip itself, lifted. B: a capsule like the sidebar row. */
+.drag-image{position:absolute;pointer-events:none}
+.drag-image.a .anchor-chip{margin:0;box-shadow:var(--shadow-floating);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.drag-image.b{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--size-control-sm);padding:0 var(--space-3);border-radius:var(--radius-pill);background:var(--surface-popover);box-shadow:var(--shadow-floating);color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.drag-image.b svg{width:var(--size-icon);height:var(--size-icon);color:var(--text-subtle)}
+/* Drop place A: a caret-sized accent bar where the chip will go. B: a dashed ghost chip there. */
+.drop-caret{display:inline-block;width:var(--space-half);height:var(--type-label-line-height);margin:0 var(--space-half);border-radius:var(--radius-pill);background:var(--text-accent);vertical-align:bottom}
+.drop-ghost{display:inline-flex;align-items:center;gap:var(--space-1);margin:0 var(--space-half);padding:0 var(--space-1h);border-radius:var(--radius-word);box-shadow:inset 0 0 0 1px var(--text-accent);color:var(--text-accent-subtle);font-weight:var(--type-weight-medium);vertical-align:bottom;white-space:nowrap}
+.drop-ghost svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+/* A composer that refuses the drag. A: a neutral dashed edge on the card and the reason in the composer's reason
+   place. B: a neutral veil over the card with the reason in it. Neither uses the accent: nothing will land. */
+.refuse-a .composer-card{box-shadow:var(--shadow-xs),0 0 0 1px var(--border-standard);outline:1px dashed var(--border-prominent);outline-offset:-1px}
+.refuse-b{position:relative}
+.refuse-veil{position:absolute;inset:0;z-index:2;display:grid;place-items:center;padding:var(--space-4);border-radius:var(--radius-container);background:color-mix(in srgb,var(--surface-panel) 85%,transparent);outline:1px dashed var(--border-prominent);outline-offset:-1px;color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);text-align:center}
+/* The two-line chip tooltip (candidate A in the sent frame). */
+.doan-tooltip .tip-path{display:block}
+</style></head><body>
+<svg class="sprite" aria-hidden="true">
+<symbol id="i-canvas" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></g></symbol>
+<symbol id="i-ds" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"/><path d="M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7"/><path d="M 7 17h.01"/><path d="m11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8"/></g></symbol>
+<symbol id="i-frame" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="6" y2="6"/><line x1="22" x2="2" y1="18" y2="18"/><line x1="6" x2="6" y1="2" y2="22"/><line x1="18" x2="18" y1="2" y2="22"/></g></symbol>
+<symbol id="i-element" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z"/><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/></g></symbol>
+<symbol id="i-point" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></g></symbol>
+<symbol id="i-add-msg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></g></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></g></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></g></symbol>
+<symbol id="i-ellipsis" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></g></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-crosshair" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></g></symbol>
+<symbol id="i-presets" viewBox="0 0 24 24"><path d="M10 3H8M15.007 5.008l3.987 3.986M20 15v4M21.174 6.813a2.82 2.82 0 0 0-3.987-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497ZM22 17h-4M4 5v4M6 7H2M9 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g></symbol>
+<symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" fill="var(--surface-panel)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">canvas-chip · draft · 6 frames</span>
+<h1>Put another canvas into a message as a chip.</h1>
+<p>Scope: <code>docs/features/canvas-chip/</code> (spec ‘확정한 결정’ and ‘완료 조건’, design ‘끌기’, ‘메뉴와 놓기의 판정’, ‘누르기’ and ‘드래프트 요청’). A canvas row dragged from the sidebar, or its menu’s Add to message, puts a chip for that whole canvas into the composer of the canvas panel, the Overview or Home, when the chip’s root is the composer’s root. The agent gets the canvas’s repository-relative path and id. Every canvas chip, the drag image, the drop place, the refusing composer, the menu item and every new sentence here are <b>new, not in code</b>.</p>
+<p>Frames <code>/design-sync</code> compares: <code>chip</code>, <code>drag</code>, <code>menu</code>, <code>sent</code>, <code>home</code>. <code>copy</code> is the wording table. Where the feature leaves a shape to the draft, the frame draws the candidates side by side, labelled, with one recommended; the person picks in the app.</p>
+<h2>Copied from shipped screens</h2>
+<ul>
+<li>The composer card, field, tools and tray (Home’s and the docked one at the canvas panel’s 347 and the Overview’s 720), the anchor chip and its sent form inside a bubble, the <code>.chip-note</code> and <code>.chip-missing</code> lines and the composer reason line: <code>app/src/renderer/styles.css</code>, <code>ComposerParts.tsx</code>, <code>DockedComposer.tsx</code>, <code>HomeComposerView.tsx</code>, <code>chipField.ts</code> and <code>ConversationThread.tsx</code> (<code>SentChip</code>), read for this draft; <code>docs/design/conversation.md</code> and <code>home.md</code>.</li>
+<li>The sidebar’s project, group and canvas rows, the canvas row menu (<code>.shell-canvas-menu</code>, compact floating, opaque popover fill) and its unavailable item with the reason under the label (<code>shell-menu-reasoned</code>): <code>ShellSidebar.tsx</code> <code>canvasRowMenu</code>, <code>docs/design/shell.md</code> ‘Sidebar groups’. The canvas icons are the sidebar’s: <code>PanelsTopLeft</code> for <code>.doan/canvases/</code>, <code>SwatchBook</code> for <code>.doan/ds/</code>.</li>
+<li>Toasts (<code>.doan-toast</code>) and the shared tooltip (<code>.doan-tooltip</code>) from <code>ds/surfaces.css</code>. The reply-chip refusal sentences (<code>App.tsx</code> <code>replyChipRefusal</code>), the 32-place limit (<code>canvasPicker.ts</code> <code>ANCHOR_LIMIT_TEXT</code>), the project reading and problem lines (<code>problemView.ts</code>) and “Can’t read this canvas.” (<code>canvasRowMenu.ts</code>) are reused word for word.</li>
+</ul>
+<h2>References</h2>
+<ul><li>None outside Doan. The drop caret follows what <code>prosemirror-dropcursor</code> draws (a bar at the drop position), recalled from memory, not checked; the design leaves decoration vs. dropcursor to the T1 PoC.</li></ul>
+</header>
+
+<!-- ───────────── 01 chip ───────────── -->
+<section class="specimen" data-doan-frame="chip" data-doan-title="Canvas chip · in the composer" data-doan-implements="app/src/renderer/chipField.ts">
+<div class="caption"><span>01</span><h2>Canvas chip in the composer <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>A canvas chip names the canvas by its file-name stem and carries the sidebar row’s icon. It edits as one unit, counts once however many times it appears, and shares the 32-place limit with frame, element and point chips. Its tooltip is the repository-relative path; a screen reader hears “Canvas” before the name.</p></div>
+
+<div class="tiles">
+<div class="variant-col" data-doan-id="chip-cand-a"><h3>A · same chip, canvas icon <span class="doan-chip" data-ui-variant="translucent">Recommended</span></h3>
+<div class="chip-line">Use <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span> as the layout, the buttons in <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-ds"/></svg><span>buttons</span></span> and keep <span class="anchor-chip" data-kind="frame"><span class="sr-only">Frame </span><svg><use href="#i-frame"/></svg><span>Hero</span></span> as it is.</div>
+<p>The icon alone tells a whole canvas from a place inside one, as the sidebar does. One chip family keeps one look for “something this message points at”, which is also what the 32-place count and the editing rules treat as one kind.</p></div>
+<div class="variant-col cand-b" data-doan-id="chip-cand-b"><h3>B · neutral fill</h3>
+<div class="chip-line">Use <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span> as the layout, the buttons in <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-ds"/></svg><span>buttons</span></span> and keep <span class="anchor-chip" data-kind="frame"><span class="sr-only">Frame </span><svg><use href="#i-frame"/></svg><span>Hero</span></span> as it is.</div>
+<p>Inset fill and standard ink: reads as a file, apart from the accent places in the open canvas. Two chip looks in one field, and the inset fill nearly disappears on the inset notice and the bubble’s panel chip.</p></div>
+<div class="variant-col cand-c" data-doan-id="chip-cand-c"><h3>C · outlined</h3>
+<div class="chip-line">Use <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span> as the layout, the buttons in <span class="anchor-chip" data-kind="canvas"><span class="sr-only">Canvas </span><svg><use href="#i-ds"/></svg><span>buttons</span></span> and keep <span class="anchor-chip" data-kind="frame"><span class="sr-only">Frame </span><svg><use href="#i-frame"/></svg><span>Hero</span></span> as it is.</div>
+<p>White with a 1 px hairline, like the canvas card in the thread. Strongest difference, but a bordered word in running text is a third shape next to the attachment chip.</p></div>
+</div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>Canvas panel · 347</b> · the open canvas’s frame and element chips beside a chip for another canvas and one for a design-system canvas. Any canvas of the same root goes in, the open one too.</p>
+<div class="panel-tile"><div class="docked" data-shape="box"><div class="composer-card focus" data-doan-id="panel-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true" data-doan-id="panel-field">Match <span class="anchor-chip" data-kind="frame"><span class="sr-only">Frame </span><svg><use href="#i-frame"/></svg><span>Cart</span></span> to the summary card in <span class="anchor-chip" data-kind="canvas" data-doan-id="panel-canvas-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span> and use <span class="anchor-chip" data-kind="canvas" data-doan-id="panel-ds-chip"><span class="sr-only">Canvas </span><svg><use href="#i-ds"/></svg><span>buttons</span></span> for <span class="anchor-chip" data-kind="element"><span class="sr-only">Element </span><svg><use href="#i-element"/></svg><span>Pay now</span></span></div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-tray"><button class="doan-icon-button composer-attach" aria-label="Attach files or folders" data-ui-size="xs"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-pick" aria-label="Pick from canvas" data-ui-size="xs"><svg><use href="#i-crosshair"/></svg></button><button class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Ask first"><svg><use href="#i-shield"/></svg><span class="label">Ask first</span><svg class="chev"><use href="#i-chev"/></svg></button></div>
+</div></div></div>
+
+<div class="tile"><p class="tile-label"><b>Overview · 720</b> · a chip at the start of a line, and a long name cut at the chip’s 180 px cap. Hovering a chip shows its path (the shared chip tooltip, as an anchor chip’s detail).</p>
+<div class="ov-tile"><div class="docked" data-shape="box"><div class="composer-card" data-doan-id="ov-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true"><span class="anchor-chip" data-kind="canvas" data-doan-id="ov-line-start-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>onboarding-v2</span></span> is the newest direction. Bring its welcome step into
+<span class="anchor-chip" data-kind="canvas" data-doan-id="ov-long-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>settings-notifications-quiet-hours-redesign</span></span> and keep the rest.</div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-tray"><button class="doan-icon-button composer-attach" aria-label="Attach files or folders" data-ui-size="xs"><svg><use href="#i-plus"/></svg></button><button class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg><use href="#i-gauge"/></svg><span class="label">High</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Permission: Ask first"><svg><use href="#i-shield"/></svg><span class="label">Ask first</span><svg class="chev"><use href="#i-chev"/></svg></button></div>
+</div>
+<span class="doan-tooltip" role="tooltip" style="margin-top:var(--space-2);margin-left:calc(var(--space-16) * 3 + var(--space-12))" data-doan-id="ov-chip-tooltip">.doan/canvases/settings/settings-notifications-quiet-hours-redesign.html</span>
+</div>
+<p class="note">The tooltip is the path, so a canvas in a subfolder and a design-system canvas read apart from a same-named one. The same canvas put in twice shows twice and counts as one place.</p></div>
+</div>
+</section>
+
+<!-- ───────────── 02 drag ───────────── -->
+<section class="specimen" data-doan-frame="drag" data-doan-title="Drag · from a sidebar row into a composer" data-doan-implements="app/src/renderer/ShellSidebar.tsx">
+<div class="caption"><span>02</span><h2>Drag a canvas row into a composer <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The drag image is chip-shaped. A composer that takes it shows where the chip will land; one that refuses it says why in one line, the same sentence as the menu’s disabled reason (macOS draws no forbidden cursor, so this line is the only signal). The board, thread, Overview thumbnails, sidebar and a folded panel are not drop targets; a transparent shield covers the board for the drag (not drawn). A file drag keeps today’s “Drop to attach” cover; a canvas drag never shows it.</p></div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>Drag image · A</b> (recommended): the chip that will land, lifted with the floating shadow. <b>B</b>: a capsule like the row.</p>
+<div class="side-tile shell-side" style="height:300px" data-doan-id="drag-source">
+<div class="row shell-project-row"><span class="shell-lead"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span></span><span class="shell-project-name">doan-web</span></div>
+<div class="shell-group"><div class="row shell-group-head"><svg><use href="#i-chev"/></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent">4</span></div>
+<div class="row shell-canvas-row" aria-current="location"><svg><use href="#i-canvas"/></svg><span>cart</span></div>
+<div class="row shell-canvas-row hover" data-doan-id="drag-source-row"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></div>
+<div class="row shell-canvas-row"><svg><use href="#i-canvas"/></svg><span>onboarding-v2</span></div>
+<div class="row shell-canvas-row"><svg><use href="#i-canvas"/></svg><span>receipt-email</span></div></div>
+<span class="drag-image a" style="left:120px;top:150px" data-doan-id="drag-image-a"><span class="anchor-chip" data-kind="canvas"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span></span>
+<svg class="pointer" style="left:112px;top:140px"><use href="#i-pointer"/></svg>
+<span class="drag-image b" style="left:96px;top:236px" data-doan-id="drag-image-b"><svg><use href="#i-canvas"/></svg>checkout-flow</span>
+</div>
+<p class="note">A row the menu could not add (another root, no or shared id, a read error, a locked page) does not start a drag. The menu trigger and the conversation chevron never drag.</p></div>
+
+<div class="tile"><p class="tile-label"><b>Drop place · A</b> (recommended): an accent bar where the chip will go, between words, never inside a list marker. Nothing moves until the drop.</p>
+<div class="panel-tile"><div class="docked" data-shape="box"><div class="composer-card" data-doan-id="drop-a-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Make the cart look like<span class="drop-caret" data-doan-id="drop-caret"></span> and keep the totals on the right.</div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div></div></div>
+<p class="tile-label"><b>Drop place · B</b>: a dashed ghost chip at the place. Text reflows under the pointer while it moves.</p>
+<div class="panel-tile"><div class="docked" data-shape="box"><div class="composer-card" data-doan-id="drop-b-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Make the cart look like <span class="drop-ghost" data-doan-id="drop-ghost"><svg><use href="#i-canvas"/></svg>checkout-flow</span> and keep the totals on the right.</div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div></div></div>
+<p class="tile-label"><b>After the drop</b>: the chip is in, focus is in the field, the caret right after the chip. One ⌘Z takes it out.</p>
+<div class="panel-tile"><div class="docked" data-shape="box"><div class="composer-card focus" data-doan-id="dropped-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Make the cart look like <span class="anchor-chip" data-kind="canvas" data-doan-id="dropped-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span><span class="drop-caret" style="background:var(--text-standard);width:1px;margin:0"></span> and keep the totals on the right.</div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div></div></div>
+<p class="note">Dropped on the card outside the text (tools, padding): the chip goes in at the caret, or at the end when the field has none. Screen readers hear “Added checkout-flow”, as for a picked chip.</p></div>
+
+<div class="tile"><p class="tile-label"><b>Refusing composer · A</b> (recommended): a neutral dashed edge and the reason in the composer’s own reason place, under the card.</p>
+<div class="panel-tile refuse-a"><div class="docked" data-shape="box"><div class="composer-card" data-doan-id="refuse-a-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Make the cart look like </div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-reason docked-reason" role="status" data-doan-id="refuse-a-reason"><span>Only canvases in doan-web can go in this message.</span></div></div></div>
+<p class="tile-label"><b>Refusing composer · B</b>: a neutral veil over the card with the reason in it.</p>
+<div class="panel-tile"><div class="docked refuse-b" data-shape="box"><div class="composer-card" data-doan-id="refuse-b-composer">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Make the cart look like </div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+<div class="refuse-veil" role="status" data-doan-id="refuse-b-reason">Only canvases in doan-web can go in this message.</div>
+</div></div></div>
+<p class="note">A keeps the text readable and puts the reason where every other composer reason sits; B hides the draft and reads like the file-drop cover, which accepts. Neither uses the accent. The line goes away when the drag leaves the composer or ends. Also refused, with the composer’s own reason: while an IME composes, a read-only composer, a pick or a capture.</p></div>
+</div>
+</section>
+
+<!-- ───────────── 03 menu ───────────── -->
+<section class="specimen" data-doan-frame="menu" data-doan-title="Canvas row menu · Add to message" data-doan-implements="app/src/renderer/canvasRowMenu.ts">
+<div class="caption"><span>03</span><h2>Canvas row menu · Add to message <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>First item of the shipped menu, so the keyboard can do what the drag does. It puts the chip at the caret of the composer on the current screen (the canvas panel, unfolding it if folded; the Overview; Home) and moves focus there. When it cannot, it stays in the arrow order, unavailable, with the reason under its label as the shipped Export… and Move to Trash do; the reason is also its description. A row that cannot be added cannot be dragged either.</p></div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>Available</b> · opened from the row’s ⋯ (the shipped menu, 204 px, compact).</p>
+<div class="side-tile shell-side" style="height:300px">
+<div class="row shell-project-row"><span class="shell-lead"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span></span><span class="shell-project-name">doan-web</span></div>
+<div class="shell-group"><div class="row shell-group-head"><svg><use href="#i-chev"/></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent">4</span></div>
+<div class="row shell-canvas-row" aria-current="location"><svg><use href="#i-canvas"/></svg><span>cart</span></div>
+<div class="row shell-canvas-row hover menu-open"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span><button class="doan-icon-button shell-more" aria-label="checkout-flow menu" aria-expanded="true"><svg><use href="#i-ellipsis"/></svg></button></div></div>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu" data-ui-size="compact" role="menu" style="position:absolute;left:24px;top:172px" data-doan-id="menu-available">
+<div class="doan-menu-item highlighted" role="menuitem" data-doan-id="menu-add"><svg><use href="#i-add-msg"/></svg>Add to message</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div>
+</div></div>
+<p class="note">Esc closes the menu back to the row (shipped). After Add to message, focus goes to the composer, not back to the row.</p></div>
+
+<div class="tile" style="grid-template-columns:repeat(4,204px);column-gap:var(--space-8);row-gap:var(--space-6);justify-items:start">
+<p class="tile-label" style="grid-column:1 / -1;max-width:none"><b>Unavailable</b> · one menu per reason, at the menu’s own width. Project names, branch and the composer sentence are examples.</p>
+<div class="tile"><p class="tile-label">Another project</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-other-project">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">Only canvases in doan-web can go in this message.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">Same project, another worktree (Home on <code>feat/cart</code>)</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-other-worktree">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">Only canvases on feat/cart can go in this message.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">No canvas id</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-no-id">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">This canvas has no ID, so it can’t go in a message. Run doan check in a terminal to see why.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">Id shared with another canvas</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-duplicate">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">Another canvas has the same ID, so this one can’t go in a message. Run doan check in a terminal to find it.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">Row can’t be read (shipped Export… reason too)</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-unreadable">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">Can’t read this canvas.</small></span></div>
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-download"/></svg><span class="shell-menu-text"><span>Export…</span><small class="shell-menu-reason">Can’t read this canvas.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">The root’s list still reading · or with a problem</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-reading">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">doan-web is still being read.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div>
+<p class="note">Problem: “doan-web isn’t available. Fix it from its menu in the sidebar.” (shipped line).</p></div>
+<div class="tile"><p class="tile-label">The composer takes no input (its own sentence, as pick and the size bubble show)</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-composer">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">This canvas isn’t listed in doan-web, so its conversation can’t continue.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">32 places reached</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-limit">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">A message can point at up to 32 places. Remove one to add another.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+<div class="tile"><p class="tile-label">A screen without a composer (Add Projects, Project Settings)</p>
+<div class="menu doan-floating doan-menu shell-canvas-menu shell-side-menu menu-tile" data-ui-size="compact" role="menu" data-doan-id="menu-no-composer">
+<div class="doan-menu-item shell-menu-reasoned" role="menuitem" aria-disabled="true"><svg><use href="#i-add-msg"/></svg><span class="shell-menu-text"><span>Add to message</span><small class="shell-menu-reason">Open Home, the Overview or a canvas to add this to a message.</small></span></div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-download"/></svg>Export…</div>
+<div class="doan-menu-item" role="menuitem"><svg><use href="#i-trash"/></svg>Move to Trash</div></div></div>
+</div>
+</div>
+</section>
+
+<!-- ───────────── 04 sent ───────────── -->
+<section class="specimen" data-doan-frame="sent" data-doan-title="Sent · the chip in a message and pressing it" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="caption"><span>04</span><h2>Sent message · pressing a canvas chip <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>In the bubble the chip takes the shipped sent form (panel fill inside the accent bubble, no line breaks when copied). A chip in a sent message and the same chip in the composer do the same thing: another canvas opens as a deep link (the panel moves to that canvas’s conversation; one Back returns); the open canvas fits the board, adding no visit. Its button is named “Open &lt;name&gt;”.</p></div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>Canvas panel · 347</b> · a chip for another canvas and one for the canvas that is open (<code>cart</code>).</p>
+<div class="panel-tile thread-tile"><div class="conversation-thread"><div class="thread">
+<div class="msg-user" data-doan-id="sent-panel-message"><div class="bubble">Make <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open cart" data-doan-id="sent-current-chip"><svg><use href="#i-canvas"/></svg><span>cart</span></button> look like <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open checkout-flow" data-doan-id="sent-other-chip"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></button> and keep the totals on the right.</div></div>
+</div></div></div>
+<p class="tile-label"><b>Tooltip · A</b> (recommended): one capsule says where the press goes, then the path. <b>B</b>: “Open &lt;name&gt;” only, the path nowhere after sending.</p>
+<div style="display:flex;gap:var(--space-3);align-items:flex-start">
+<span class="doan-tooltip" role="tooltip" data-doan-id="tip-open-a">Open checkout-flow<span class="tip-path">.doan/canvases/checkout-flow.html</span></span>
+<span class="doan-tooltip" role="tooltip" data-doan-id="tip-open-b">Open checkout-flow</span></div>
+<p class="note">A also covers the composer chip, whose tooltip the feature says is the path and which leaves the conversation the same way. On the open canvas’s own chip the first line is left out (nothing is left): the tooltip is the path alone.</p>
+<span class="doan-tooltip" role="tooltip" data-doan-id="tip-current">.doan/canvases/cart.html</span></div>
+
+<div class="tile"><p class="tile-label"><b>Canvas gone</b> · pressed after <code>checkout-flow</code> was deleted: the message’s note, as a sent frame chip’s “No longer in the canvas”.</p>
+<div class="panel-tile thread-tile"><div class="conversation-thread"><div class="thread">
+<div class="msg-user"><div class="bubble">Make <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open cart"><svg><use href="#i-canvas"/></svg><span>cart</span></button> look like <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open checkout-flow" aria-describedby="sent-missing" data-doan-id="sent-missing-chip"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></button> and keep the totals on the right.</div>
+<span class="chip-missing" id="sent-missing" role="status" data-doan-id="sent-missing-note">No longer in doan-web</span></div>
+</div></div></div>
+<p class="tile-label"><b>In the composer</b> · the floating note beside the pressed chip (shipped <code>.chip-note</code>).</p>
+<div class="panel-tile"><div class="docked" data-shape="box" style="position:relative"><div class="composer-card focus">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Bring the empty state from <span class="anchor-chip" data-kind="canvas" data-doan-id="composer-missing-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>cart-empty-states</span></span> here.</div>
+<div class="composer-tools"><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<span class="chip-missing chip-note" role="status" style="left:150px;top:40px" data-doan-id="composer-missing-note">No longer in doan-web</span></div></div>
+<p class="note">On sending, main looks the canvas up by its id: a renamed or moved canvas goes with its current path; a gone one goes as its name in plain text and leaves the anchors (queue and Send now too).</p></div>
+
+<div class="tile"><p class="tile-label"><b>Toasts</b> · the id is shared, or the root’s list is reading or has a problem. The chip does not move anything. The reply chip’s sentences, unchanged.</p>
+<div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-duplicate"><span class="msg">Couldn’t open checkout-flow. More than one canvas in doan-web uses this ID. Run doan check in a terminal to find them.</span></div>
+<div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-reading"><span class="msg">doan-web is still being read. Try again shortly.</span></div>
+<div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-problem"><span class="msg">doan-web isn’t available. Fix it from its menu in the sidebar.</span></div>
+<p class="note">From the prototype window the press brings the main window forward and opens the canvas there (not drawn).</p></div>
+</div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>Overview · 720</b> · the same chips in a project conversation, where every canvas is another canvas.</p>
+<div class="ov-tile"><div class="conversation-thread"><div class="thread">
+<div class="msg-user" data-doan-id="sent-ov-message"><div class="bubble">Start a new canvas for the order history. Use <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open checkout-flow"><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></button> for the layout and <button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open buttons"><svg><use href="#i-ds"/></svg><span>buttons</span></button> for every action.</div></div>
+</div></div></div></div>
+</div>
+</section>
+
+<!-- ───────────── 05 home ───────────── -->
+<section class="specimen" data-doan-frame="home" data-doan-title="Home · root of the chips" data-doan-implements="app/src/renderer/HomeComposerView.tsx">
+<div class="caption"><span>05</span><h2>Home · chips follow the chosen project and worktree <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Home’s composer takes chips for the project and worktree chosen above it. The last request, the start draft, a returned start, Edit on Home and a draft restored after quitting keep them. Switching the project or worktree turns chips for the old root into their names in plain text, once, and says so in the composer’s reason line; switching back does not bring them back.</p></div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>With chips</b> · doan-web on develop.</p>
+<div class="home-tile"><div class="home-composer">
+<button class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: doan-web"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="home-project-name">doan-web</span><svg class="chev"><use href="#i-chev"/></svg></button>
+<div class="composer" data-doan-id="home-composer"><div class="composer-card focus">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true" data-doan-id="home-field">Design an order history page. Follow <span class="anchor-chip" data-kind="canvas" data-doan-id="home-canvas-chip"><span class="sr-only">Canvas </span><svg><use href="#i-canvas"/></svg><span>checkout-flow</span></span> for the layout and <span class="anchor-chip" data-kind="canvas" data-doan-id="home-ds-chip"><span class="sr-only">Canvas </span><svg><use href="#i-ds"/></svg><span>buttons</span></span> for actions.</div>
+<div class="composer-tools"><button class="doan-icon-button" aria-label="Attach files or folders"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg>develop</span><span class="tray-path">~/code/doan-web</span></div></div>
+</div></div></div>
+
+<div class="tile"><p class="tile-label"><b>Refusing a row of another project</b> · dragged from <code>checkout-app</code>, candidate A of the drag frame on Home’s card; the reason takes Home’s reason place.</p>
+<div class="home-tile refuse-a"><div class="home-composer">
+<button class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: doan-web"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="home-project-name">doan-web</span><svg class="chev"><use href="#i-chev"/></svg></button>
+<div class="composer" data-doan-id="home-refuse-composer"><div class="composer-card">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true">Design an order history page.</div>
+<div class="composer-tools"><button class="doan-icon-button" aria-label="Attach files or folders"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg>develop</span><span class="tray-path">~/code/doan-web</span></div></div>
+<div class="composer-reason" role="status" data-doan-id="home-refuse-reason"><span>Only canvases in doan-web can go in this message.</span></div>
+</div></div></div>
+</div>
+
+<div class="tiles">
+<div class="tile"><p class="tile-label"><b>After switching the project</b> to checkout-app: both chips became their names; the reason line says it once and goes away at the next edit.</p>
+<div class="home-tile"><div class="home-composer">
+<button class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: checkout-app"><span class="shell-thumbnail hue-teal" aria-hidden="true">C</span><span class="home-project-name">checkout-app</span><svg class="chev"><use href="#i-chev"/></svg></button>
+<div class="composer" data-doan-id="home-switched-composer"><div class="composer-card focus">
+<div class="composer-input" role="textbox" aria-label="Message" aria-multiline="true" data-doan-id="home-switched-field">Design an order history page. Follow checkout-flow for the layout and buttons for actions.</div>
+<div class="composer-tools"><button class="doan-icon-button" aria-label="Attach files or folders"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="doan-icon-button composer-send" aria-label="Send" data-ui-variant="accent"><svg><use href="#i-send"/></svg></button></div>
+</div>
+<div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg>main</span><span class="tray-path">~/code/checkout-app</span></div></div>
+<div class="composer-reason" role="status" data-doan-id="home-switched-status"><span>2 canvas chips became plain text. Their canvases are in another project.</span></div>
+</div></div>
+<p class="note">One chip: “1 canvas chip became plain text. Its canvas is in another project.” A worktree switch: “… Their canvases are on another worktree.” Edit on Home with a message from another root shows the same line once the draft lands.</p></div>
+</div>
+</section>
+
+<!-- ───────────── 06 copy ───────────── -->
+<section class="specimen" data-doan-frame="copy" data-doan-title="Copy · every new sentence">
+<div class="caption"><span>06</span><h2>Copy</h2><p>Every new string, written with the <code>clarify</code> preset: what failed, then what to do, in one sentence where a menu is 204 px wide. Strings the feature fixes and shipped strings that are reused are marked.</p></div>
+<div class="copy-card"><table class="copy-table">
+<thead><tr><th>Where</th><th>Text</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Row menu item</td><td>Add to message</td><td>Fixed by the feature; same words as the size bubble’s button</td></tr>
+<tr><td>Reason · another project</td><td>Only canvases in &lt;composer project&gt; can go in this message.</td><td>New. Names the composer’s project, so the fix is clear: drag from that project</td></tr>
+<tr><td>Reason · same project, another worktree</td><td>Only canvases on &lt;composer branch&gt; can go in this message.</td><td>New. Folder name when the worktree has no branch</td></tr>
+<tr><td>Reason · no id</td><td>This canvas has no ID, so it can’t go in a message. Run doan check in a terminal to see why.</td><td>New, after DUPLICATE_CANVAS_TEXT’s pattern</td></tr>
+<tr><td>Reason · shared id</td><td>Another canvas has the same ID, so this one can’t go in a message. Run doan check in a terminal to find it.</td><td>New, after DUPLICATE_CANVAS_TEXT</td></tr>
+<tr><td>Reason · row unreadable</td><td>Can’t read this canvas.</td><td>Shipped (canvasExportReason)</td></tr>
+<tr><td>Reason · root reading / problem</td><td>&lt;project&gt; is still being read. · &lt;project&gt; isn’t available. Fix it from its menu in the sidebar.</td><td>Shipped (problemView.ts)</td></tr>
+<tr><td>Reason · composer takes no input</td><td>The composer’s own sentence, e.g. This canvas isn’t listed in &lt;project&gt;, so its conversation can’t continue.</td><td>Shipped; fixed by the feature to reuse pick’s and the size bubble’s</td></tr>
+<tr><td>Reason · 32 places</td><td>A message can point at up to 32 places. Remove one to add another.</td><td>Shipped (ANCHOR_LIMIT_TEXT)</td></tr>
+<tr><td>Reason · screen without a composer</td><td>Open Home, the Overview or a canvas to add this to a message.</td><td>New</td></tr>
+<tr><td>Drag refusal line</td><td>The same reason as the menu, word for word</td><td>Fixed by the feature</td></tr>
+<tr><td>Composer chip, hidden prefix</td><td>Canvas</td><td>Fixed by the feature (as Frame, Element, Point)</td></tr>
+<tr><td>Chip tooltip</td><td>Open &lt;name&gt; ⏎ &lt;repository-relative path&gt; · the path alone on the open canvas’s chip</td><td>New (candidate A). Path fixed by the feature; “Open &lt;name&gt;” fixed for the sent chip</td></tr>
+<tr><td>Sent chip button name</td><td>Open &lt;name&gt;</td><td>Fixed by the feature</td></tr>
+<tr><td>Announcement after a drop or Add to message</td><td>Added &lt;name&gt;</td><td>Shipped (ChipField)</td></tr>
+<tr><td>Canvas gone, after a press</td><td>No longer in &lt;project&gt;</td><td>Fixed by the feature</td></tr>
+<tr><td>Toasts · shared id / reading / problem</td><td>Couldn’t open &lt;name&gt;. More than one canvas in &lt;project&gt; uses this ID. Run doan check in a terminal to find them. · &lt;project&gt; is still being read. Try again shortly. · &lt;project&gt; isn’t available. Fix it from its menu in the sidebar.</td><td>Shipped (replyChipRefusal, unavailableCanvasMessage)</td></tr>
+<tr><td>Home · root switched</td><td>2 canvas chips became plain text. Their canvases are in another project. · 1 canvas chip became plain text. Its canvas is in another project. · … on another worktree.</td><td>New; the feature gives the first clause as its example</td></tr>
+</tbody></table></div>
+</section>
+</body></html>
