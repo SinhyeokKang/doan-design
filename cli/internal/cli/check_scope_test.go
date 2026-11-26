@@ -41,7 +41,8 @@ func scopeRepo(t *testing.T) string {
 	return root
 }
 
-func scopeInputs(t *testing.T, root string) (check.Input, []string) {
+// scopeInputs returns what Check hands checkScope, the repository's canonical root first.
+func scopeInputs(t *testing.T, root string) (string, check.Input, []string) {
 	t.Helper()
 	r, e := repo.Find(root, "")
 	if e != nil {
@@ -55,7 +56,7 @@ func scopeInputs(t *testing.T, root string) (check.Input, []string) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	return in, listed
+	return r.Root, in, listed
 }
 
 func scopePaths(scope map[string]bool) []string {
@@ -72,7 +73,7 @@ func scopePaths(scope map[string]bool) []string {
 
 func TestCheckScope(t *testing.T) {
 	root := scopeRepo(t)
-	in, listed := scopeInputs(t, root)
+	canonicalRoot, in, listed := scopeInputs(t, root)
 	aliases := t.TempDir()
 	if e := os.Symlink(root, filepath.Join(aliases, "repo")); e != nil {
 		t.Fatal(e)
@@ -129,7 +130,7 @@ func TestCheckScope(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scope, failure := checkScope(root, in, listed, tt.args)
+			scope, failure := checkScope(canonicalRoot, in, listed, tt.args)
 			if tt.code != "" {
 				if failure == nil || failure.Code != tt.code {
 					t.Fatalf("want %s, got %+v scope %v", tt.code, failure, scopePaths(scope))
@@ -147,8 +148,7 @@ func TestCheckScope(t *testing.T) {
 }
 
 func TestCheckScopeMessages(t *testing.T) {
-	root := scopeRepo(t)
-	in, listed := scopeInputs(t, root)
+	root, in, listed := scopeInputs(t, scopeRepo(t))
 	_, failure := checkScope(root, in, listed, []string{".doan/assets/lonely.css"})
 	if failure == nil || failure.Message != "No canvas links or imports .doan/assets/lonely.css" {
 		t.Fatalf("%+v", failure)

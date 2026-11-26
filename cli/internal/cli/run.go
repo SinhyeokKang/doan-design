@@ -47,6 +47,8 @@ type Outcome struct {
 	Exit   int
 	// Text is what a person sees on success without --json; the JSON result is unchanged.
 	Text string
+	// Checked is set by a check given paths: the canvases it read, for the text summary line.
+	Checked *int
 }
 type Flags struct {
 	Storage               string
@@ -79,7 +81,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   init [--token-css <path>] [--storage local|repo] [--git-init]
   config [--storage local|repo] [--git-init] [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
   ls
-  check
+  check [<path>...]
   active
   work start <canvas path>
   work update <canvas path> [--frame <id>] [--note <text>]
@@ -366,7 +368,11 @@ func emit(o Outcome, failure *Error, jsonMode bool, stdout, stderr io.Writer) in
 	}
 	if m, ok := o.Result.(map[string]any); ok {
 		if summary, ok := m["summary"].(check.Summary); ok {
-			if _, e := fmt.Fprintf(stdout, "%d canvases checked\n", summary.Canvases); e != nil {
+			line := fmt.Sprintf("%d canvases checked\n", summary.Canvases)
+			if o.Checked != nil {
+				line = fmt.Sprintf("%d canvases in scope (%d checked)\n", summary.Canvases, *o.Checked)
+			}
+			if _, e := io.WriteString(stdout, line); e != nil {
 				return 1
 			}
 		}
