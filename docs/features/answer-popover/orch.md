@@ -14,6 +14,7 @@
 - conductor's call — 끝 여백은 방식 A(overlay + ResizeObserver 여백)로 한다. 근거는 design.md 'PoC 결과'다. 남은 항목(여백만 바뀔 때의 거짓 Jump to latest)은 design이 계획한 따라가기 변경으로 T4에서 없애고 B2c `/runtime-test`에서 확인한다.
 - 사용자 — 접힌 팝오버가 새 요청으로 펼쳐지면 펼친 채 남는다. 새 요청만 끝나도 다시 접히지 않는다(R1 D1, design '상태'에 반영).
 - 사용자 — 위로 스크롤한 채 답해서 생긴 접힌 줄과 turn indicator는 새 내용이므로 Jump to latest가 뜬다(R2 U1, design '끝 여백과 따라가기'에 반영).
+- 사용자 — 높이 상한이 머리줄과 버튼 줄보다 작은 크기(프로토타입 창 최소)에서는 머리줄과 버튼 줄을 지킨다. 본문이 먼저 줄고, 모자라면 팝오버가 스레드 영역 위로 올라간다(B2c 질문, design '드래프트에서 정한 것'에 반영).
 - conductor's call — 문서에 '확인 필요' 항목이 없으므로 시작 전에 사용자에게 물을 것이 없다(chain.md '시작 점검').
 - conductor's call — T6(PRODUCT·ARCHITECTURE·BACKLOG 승격, 기능 디렉터리 삭제)는 문서만 바꾸므로 conductor가 통합 뒤 직접 한다(`/orchestrate` §4·§5).
 - conductor's call — T5 `/design-sync`와 `/runtime-test`는 코드를 고칠 수 있으므로 T3·T4를 맡은 워커(B2)가 같은 worktree에서 이어서 한다. 고치는 코드의 주인이 같아야 한다.
