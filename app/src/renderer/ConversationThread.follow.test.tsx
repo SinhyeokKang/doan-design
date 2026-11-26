@@ -368,8 +368,8 @@ test("a small wheel whose view the browser clamps when content shrinks still fol
   expect(atBottom()).toBe(0);
 });
 
-// Here the follow's frame reads the clamped scrollTop before the observer or a scroll event does.
-test("a small wheel whose view is clamped when the popover goes away still follows again, whichever sees the clamp first", () => {
+// The end inset is applied in the observer's callback, so the observer reads this clamp first.
+test("a small wheel whose view is clamped when the popover goes away still follows again after later growth", () => {
   layout.inset = 180;
   draw([user, ask]);
   observed();
@@ -400,13 +400,40 @@ test("a clamp seen first by the follow's frame is not counted as the person's mo
   expect(atBottom()).toBe(0);
 });
 
+test("a clamp seen first by a scroll event is not counted as the person's move", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  layout.content = 700;
+  scrollBy(0);
+  expect(scroller.scrollTop).toBe(332);
+  layout.content = 760;
+  observed();
+  draw([user]);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
 test("a wheel of more than NUDGE stays away even when a clamp moves the view down meanwhile", () => {
   draw([user]);
   on.get("wheel")!({ deltaY: -100 });
   scrollBy(-100);
-  resize({ content: 900 }, [user]);
-  expect(atBottom()).toBe(0);
+  expect(scroller.scrollTop).toBe(532);
+  resize({ content: 800 }, [user]);
+  expect(scroller.scrollTop).toBe(432);
   resize({ content: 1000 }, [user]);
   frameUntil(1000);
-  expect(atBottom()).toBe(100);
+  expect(atBottom()).toBe(200);
+});
+
+// Known limit (accepted): a move of the person's that no read saw before a clamp counts as clamp, so it re-pins.
+test("known limit: a move past NUDGE that no read saw before a clamp counts as the clamp and follows again", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -100 });
+  scroller.scrollTop -= 100;
+  resize({ content: 800 }, [user]);
+  expect(scroller.scrollTop).toBe(432);
+  resize({ content: 1000 }, [user]);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
 });

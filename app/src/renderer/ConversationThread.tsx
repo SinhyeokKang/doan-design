@@ -1119,7 +1119,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     distance.current = bottomOf(node) - node.scrollTop;
   };
   // Scrolling up never ends at the bottom, so a lower scrollTop at the bottom is the browser's clamp to a shrunk extent.
-  // The frame, a scroll event or the observer may read it first; seenTop makes it count once.
+  // The frame, a scroll event or the observer may read it first; seenTop makes it count once. A move of the person's
+  // that no read saw before the clamp counts as clamp too (accepted).
   const clampSeen = (node: HTMLElement) => {
     const top = node.scrollTop;
     if (top < seenTop.current - 0.5 && bottomOf(node) - top < 1) apply({ type: "clamp", by: seenTop.current - top });
