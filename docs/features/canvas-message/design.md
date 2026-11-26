@@ -101,7 +101,7 @@
 - `threadItems.ts`는 이미 위치와 상관없이 `origin`이 있는 모든 `user.message`를 받은 버블로 그린다. 바뀌는 것은 메타 문구와 아이콘, 그룹 이름을 `via`별로 나누는 일이다(`handoffView.ts`).
 - `summary.ts`의 `startedBy`는 첫 메시지만 본다. 대화 중간 `send`는 제목과 `startedBy`를 바꾸지 않는다.
 - canvas 카드(`canvasCardText.ts`): `send` 상태 문구와 아이콘, 연쇄 거절 문구, 대상 대화 제목과 그 대화가 지워진 경우. 기존 기록의 `not_new`와 `handoff_turn` 문구는 남긴다.
-- 큐 줄: 에이전트 행에 `send` 아이콘과 출처 이름을 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
+- 큐 줄: 에이전트 행에 `send` 아이콘을 둔다. 출처 캔버스 이름은 화면에 쓰지 않고 접근성 이름에만 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
 - Edit and resend: `origin`이 있는 메시지로 시작한 턴에는 없다. handoff 첫 턴의 규칙을 `origin` 전체로 넓힌다.
 - 알림 토스트: send 변형의 문구(드래프트).
 
