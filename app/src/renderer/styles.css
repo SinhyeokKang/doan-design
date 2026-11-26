@@ -873,7 +873,7 @@ body:has(.shell-top) { background: transparent; }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The row's text gives way; Send now never shrinks. */
-.queue-item .queue-send { color: var(--text-standard); }
+.queue-item .queue-send:not([data-disabled]) { color: var(--text-standard); }
 .queue-entry { display: flex; flex-direction: column; min-width: 0; }
 /* The status line takes no room while empty. */
 .queue-status:not(:empty) { margin-top: var(--space-1); }

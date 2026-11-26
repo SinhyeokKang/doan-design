@@ -39,7 +39,7 @@ import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
-import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, waitingAsk, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
   attachRefusal, MAX_ATTACHMENTS, attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
@@ -587,7 +587,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} asks={conversationId ? waitingAsk(thread?.events ?? null) : null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         unavailable={unavailable} locked={unavailable !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}

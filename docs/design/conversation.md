@@ -37,9 +37,9 @@ Reference: `.doan/canvases/answer-popover.html` (frames `question-one`, `questio
 
 ### Not verified
 
-- Every signed-in state: the composer foot carried the "isn’t connected" row (48 px), so the prototype window's thread areas were 52 px at 280 × 360 and 188 px at 347 × 480 against about 70 and 210 signed in; the waiting reason line under the composer was not shown.
+- Every signed-in state: the composer foot carried the "isn’t connected" row (48 px), so the prototype window's thread areas were 52 px at 280 × 360 and 188 px at 347 × 480 against about 70 and 210 signed in.
 - A native notification click (main sent `notifications:click` itself; no window was brought forward), real trackpad scrolling over the popover, OS screen-reader speech of the alert, a native IME (Esc was a synthetic composing keydown).
-- The `/` list and the queue and schedule rows stacked with the popover (`stack` frame), and the queue's 280 tile's wrapped command beyond the 1 px column.
+- The `/` list and the schedule line stacked with the popover (`stack` frame), and the queue's 280 tile's wrapped command beyond the 1 px column. The queue rows' stack was checked in the built app (Overview at 1238 × 780 and the 347 px canvas panel), but positions only, not against the draft's values: the popover's bottom on the thread area's bottom, the queue 12 below it and the composer card 8 below the queue.
 
 ### Regression pointers
 

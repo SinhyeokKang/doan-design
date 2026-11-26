@@ -35,8 +35,9 @@ export function draftKey(mode: DockedMode): string {
   return `canvas:${JSON.stringify([mode.root, canvas.id === undefined ? "path" : "id", canvas.id ?? canvas.path])}`;
 }
 
-// alert: a moved or deleted file, shown as an error notice as on Home; the other reasons are a quiet line.
-export interface DockedReason { text: string; action?: SettingsAction; alert?: true; noAgent?: true }
+// alert: a moved or deleted file, shown as an error notice as on Home; tipOnly: Send's tooltip and description, no line;
+// the other reasons are a quiet line.
+export interface DockedReason { text: string; action?: SettingsAction; alert?: true; tipOnly?: true }
 
 export interface DockedInput {
   mode: DockedMode; project: string; auth: AuthSnapshot | null | undefined;
@@ -45,6 +46,8 @@ export interface DockedInput {
   draft: DockedDraft;
   skills: readonly string[];
   turn: ComposerTurn;
+  // What the waiting turn asks first (waitingAsk); null or absent while the events do not show it yet.
+  asks?: "permission" | "question" | null;
   sending: boolean;
   // Send waits with Home's reason, whatever the draft holds.
   unavailable?: string | null;
@@ -63,7 +66,18 @@ export function composerTurn(events: readonly ConversationEvent[] | null, summar
   return summary?.working ? "running" : "idle";
 }
 
-// The permission wait explains the line without disabling Queue.
+// The answer popover's first request, oldest first as stripState finds it.
+export function waitingAsk(events: readonly ConversationEvent[] | null): "permission" | "question" | null {
+  if (!events || events.length === 0) return null;
+  const kind = stripState(events).kind;
+  return asksPerson(kind) ? kind : null;
+}
+
+// While a request waits nothing is sent or queued: the agent would read it only after the answer.
+export function waitReason(asks: DockedInput["asks"]): string {
+  return asks === "question" ? "Answer the question first" : "Answer the permission request first";
+}
+
 export function dockedAvailability(input: DockedInput): { enabled: boolean; reason: DockedReason | null } {
   const { draft, mode } = input;
   const off = (reason: DockedReason | null) => ({ enabled: false, reason });
@@ -71,11 +85,11 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (input.unavailable) return off({ text: input.unavailable });
   // A terminal session runs on the terminal's own sign-in, so Doan's accounts do not decide whether it can be sent to.
   const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : mode.kind === "resume" || input.external ? null : providerProblem(input.auth, mode.provider);
-  if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent ? { action: agent.action } : {}) });
-  const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
-  if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
+  if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { tipOnly: true as const } : {}), ...("action" in agent ? { action: agent.action } : {}) });
+  if (input.turn === "waiting") return off({ text: waitReason(input.asks), tipOnly: true });
+  if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(null);
   const problem = draftProblem(draft.segments, draft.preset, draft.attachments, input.skills);
-  return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
+  return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: null };
 }
 
 // The provider is fixed, so it offers its own fix in Settings rather than another agent.
