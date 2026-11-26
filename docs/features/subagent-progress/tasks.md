@@ -86,3 +86,10 @@
   - PRODUCT §3 Out of scope 4에 보고 턴 예외가 있다(`grep -n "report turn" docs/PRODUCT.md`).
   - `docs/features/subagent-progress/`가 없다.
 - `[commit]` 문서별로 나눈다.
+
+## T9. (lead) 후행 기능 시작: Claude Code 프로세스를 대화 수명 동안 유지
+
+- conductor가 아니라 lead가 한다. 이 기능의 PR이 develop에 머지되고 `docs/features/subagent-progress/`가 지워진 뒤, lead가 사용자에게 알리고 사용자가 시작하라고 하면 `/feature`를 시작한다. 사용자 지시 없이 시작하지 않는다.
+- 근거는 `docs/BACKLOG.md` 'Undecided'의 "Keeping a Claude Code conversation's process alive between turns" 항목이다. 방향은 정해졌고, 먼저 할 PoC가 그 항목에 적혀 있다: 살아 있는 프로세스의 설정 바꾸기, 프로세스 하나와 열 개의 유휴 메모리, 붙잡힌 세션의 터미널 `--resume`, 오래 쉰 뒤 토큰이 만료된 send.
+- 이 기능이 승격한 프로세스 수명 규칙(백그라운드 작업과 보고 턴이 남은 동안만 입력을 열어 둠)을 출발점으로 삼는다.
+- 검증: `docs/features/<새 slug>/{spec,design,tasks}.md`가 생기고 BACKLOG 항목이 그 기능을 가리킨다.
