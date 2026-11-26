@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SkillSummary } from "../main/conversation/types";
-import { boundaryLabel, classifyFirstWord, commandCard, commandLists, commandRunningLabel, planSend, STALE_MODE_CARD } from "./commandView";
+import type { ConversationEvent, SkillSummary } from "../main/conversation/types";
+import { boundaryLabel, classifyFirstWord, commandCard, commandLists, commandRunningLabel, firstTitleMessage, planSend, STALE_MODE_CARD, threadCommands } from "./commandView";
 
 const skill = (name: string): SkillSummary => ({ kind: "skill", name, description: "" });
 const command = (name: string): SkillSummary => ({ kind: "command", name, description: "" });
@@ -182,5 +182,15 @@ describe("unconfirmed ACP commands", () => {
 describe("STALE_MODE_CARD", () => {
   it("asks for a message first, with no action", () => {
     expect(STALE_MODE_CARD).toEqual({ title: "/review can’t use the new permission mode yet", body: "Send a message first so Codex picks up the permission mode, then run /review again.", action: null });
+  });
+});
+
+// A received handoff's message is the earlier agent's text (origin), drawn as the handoff bubble, never as a command turn.
+describe("a received handoff's first message", () => {
+  const origin = { kind: "handoff" as const, conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } };
+  const message = { v: 1, conversationId: "c2", seq: 1, turnId: "t1", at: "2026-11-25T05:00:00.000Z", type: "user.message", text: "/compact the layout into one column", anchors: [], origin } as unknown as ConversationEvent;
+  it("is no command turn, whatever word it starts with, and titles the conversation", () => {
+    expect(threadCommands("claude", [message], new Map()).turns.size).toBe(0);
+    expect(firstTitleMessage("claude", [message])).toBe(message);
   });
 });

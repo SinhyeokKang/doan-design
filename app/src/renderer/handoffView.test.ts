@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
-import { HANDOFF_WAIT_MS, handoffArrival, handoffCardView, handoffGoneText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMetaView, handoffNameTip, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, target: { conversationId: "c2", canvas: CHECKOUT } };
@@ -65,19 +65,58 @@ describe("handoffArrival: the wait for the target's list read", () => {
 });
 
 describe("handoff copy", () => {
-  test("the card names the source canvas and says the direction; a gone source has its tail and no Open", () => {
-    expect(handoffCardView({ canvas: DRAFTS }, "acme-web", true)).toEqual({ kind: "canvas", name: "drafts.html", status: "Handed off to this conversation",
-      label: "drafts.html, Handed off to this conversation", open: true, openLabel: "Open drafts.html" });
-    expect(handoffCardView({ canvas: DRAFTS }, "acme-web", false)).toEqual({ kind: "canvas", name: "drafts.html", status: "Handed off to this conversation · No longer in acme-web",
-      label: "drafts.html, Handed off to this conversation · No longer in acme-web", open: false, openLabel: "Open drafts.html" });
-  });
-  test("a long source name stays whole: the card cuts it, the accessible names hold it", () => {
-    const name = "onboarding-permissions-for-returning-workspace-admins.html";
-    expect(handoffCardView({ canvas: { path: `.doan/canvases/${name}` } }, "acme-web", true)).toMatchObject({ name, openLabel: `Open ${name}` });
-  });
   test("the toast and the vanished target's answer", () => {
     expect(handoffToastText(notice, "acme-web")).toBe("drafts.html handed off to checkout-flow.html");
     expect(handoffGoneText(CHECKOUT.path, "acme-web")).toBe("Couldn’t open checkout-flow.html. The canvas isn’t in acme-web.");
+  });
+});
+
+// The received handoff bubble's meta line: the source's kind and name, the handoff's time in the Overview's short words,
+// and Open; a gone source shows its reason instead of the time and Open. The group's name never carries the time, which
+// is its description.
+describe("handoffMetaView", () => {
+  const NOW = new Date(2026, 10, 25, 14, 4).getTime(), AT = new Date(2026, 10, 25, 13, 59);
+  const TIME = { text: "5m ago", words: "5 minutes ago", dateTime: AT.toISOString(), title: "2026-11-25 13:59" };
+  const view = (source: { canvas?: typeof DRAFTS }, listed: boolean | null, at = AT.toISOString()) => handoffMetaView(source, "acme-web", listed, at, NOW);
+  test.each<[string, { canvas?: typeof DRAFTS }, boolean | null, ReturnType<typeof handoffMetaView>]>([
+    ["a canvas source", { canvas: DRAFTS }, true,
+      { kind: "canvas", name: "drafts.html", time: TIME, reason: null, open: "Open drafts.html", label: "Handoff from drafts.html" }],
+    ["an Overview source", {}, true,
+      { kind: "overview", name: "Overview", time: TIME, reason: null, open: "Open the source conversation in the Overview", label: "Handoff from Overview" }],
+    ["a canvas no longer listed", { canvas: DRAFTS }, false,
+      { kind: "canvas", name: "drafts.html", time: null, reason: "No longer in acme-web", open: null, label: "Handoff from drafts.html · No longer in acme-web" }],
+    ["a deleted source conversation", {}, false,
+      { kind: "overview", name: "Overview", time: null, reason: "Conversation deleted", open: null, label: "Handoff from Overview · Conversation deleted" }],
+    // The prototype window's unknown answer reads as there.
+    ["an Overview source main has not answered for (null)", {}, null,
+      { kind: "overview", name: "Overview", time: TIME, reason: null, open: "Open the source conversation in the Overview", label: "Handoff from Overview" }],
+  ])("%s", (_name, source, listed, expected) => {
+    expect(view(source, listed)).toEqual(expected);
+  });
+  test("a long source name stays whole: the line cuts it, the names hold it", () => {
+    const name = "onboarding-permissions-for-returning-workspace-admins.html";
+    expect(view({ canvas: { path: `.doan/canvases/${name}` } }, true)).toMatchObject({ name, open: `Open ${name}`, label: `Handoff from ${name}` });
+  });
+  test("the time moves with the minute in the short words, and an unreadable time shows none", () => {
+    expect(view({ canvas: DRAFTS }, true, new Date(NOW - 20_000).toISOString()).time).toMatchObject({ text: "just now", words: "Just now" });
+    expect(view({ canvas: DRAFTS }, true, new Date(NOW - 60_000).toISOString()).time).toMatchObject({ text: "1m ago", words: "1 minute ago" });
+    expect(view({ canvas: DRAFTS }, true, new Date(NOW - 3 * 3_600_000).toISOString()).time).toMatchObject({ text: "3h ago", words: "3 hours ago" });
+    expect(view({ canvas: DRAFTS }, true, "").time).toBeNull();
+  });
+});
+
+// The name's tooltip, read as it would open: while the narrow thread hides the time it always opens with the name and the
+// absolute time, cut or not; otherwise only a cut name opens it, with the name alone.
+describe("handoffNameTip", () => {
+  test.each<[string, string | null, { cut: boolean; timeHidden: boolean }, string | null]>([
+    ["a whole name with its time shown", "2026-11-25 13:59", { cut: false, timeHidden: false }, null],
+    ["a cut name with its time shown", "2026-11-25 13:59", { cut: true, timeHidden: false }, "drafts.html"],
+    ["a whole name with its time hidden", "2026-11-25 13:59", { cut: false, timeHidden: true }, "drafts.html · 2026-11-25 13:59"],
+    ["a cut name with its time hidden", "2026-11-25 13:59", { cut: true, timeHidden: true }, "drafts.html · 2026-11-25 13:59"],
+    ["a gone source (no time), whole", null, { cut: false, timeHidden: true }, null],
+    ["a gone source (no time), cut", null, { cut: true, timeHidden: true }, "drafts.html"],
+  ])("%s", (_name, when, state, expected) => {
+    expect(handoffNameTip("drafts.html", when, state)).toBe(expected);
   });
 });
 
@@ -115,11 +154,7 @@ describe("a handoff from the Overview", () => {
       expect(handoffMultiStep({ ...onOverview, ...patch }, multi)).toBe("toast");
     expect(handoffToastText(multi, "acme-web")).toBe("acme-web Overview handed off to 2 canvases");
   });
-  test("the toast names the project, since it shows on any screen; the card names the Overview alone", () => {
+  test("the toast names the project, since it shows on any screen", () => {
     expect(handoffToastText(fromOverview, "acme-web")).toBe("acme-web Overview handed off to checkout-flow.html");
-    expect(handoffCardView({}, "acme-web", true)).toEqual({ kind: "overview", name: "Overview", status: "Handed off to this conversation",
-      label: "Overview, Handed off to this conversation", open: true, openLabel: "Open the source conversation in the Overview" });
-    expect(handoffCardView({}, "acme-web", false)).toMatchObject({ kind: "overview", status: "Handed off to this conversation · Conversation deleted",
-      label: "Overview, Handed off to this conversation · Conversation deleted", open: false });
   });
 });

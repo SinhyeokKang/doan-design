@@ -21,9 +21,10 @@ describe("cardBanners", () => {
     const drawing = (item: ThreadItem) => item.key === "ct3:y";
     expect(cardBanners([card("ct1:x"), card("ct3:y", Y)], ROWS, listed, drawing).map(banner => banner.key)).toEqual(["ct1:x"]);
   });
-  test("a handoff card's canvas source has a banner; an Overview source and a gone canvas have none", () => {
+  // The received handoff is a bubble with no image, so its source canvas is never asked for.
+  test("a received handoff has no banner, whatever its source; a gone canvas has none", () => {
     const handoff = (key: string, canvas?: typeof X): ThreadItem => ({ kind: "handoffCard", key, seq: 1, origin: { kind: "handoff", conversationId: "c0", ...(canvas ? { canvas } : {}) }, text: "x", at: "2026-11-25T05:00:00.000Z" });
-    expect(cardBanners([handoff("u1", Y), handoff("u2")], ROWS, listed, still).map(banner => banner.key)).toEqual(["u1"]);
+    expect(cardBanners([handoff("u1", Y), handoff("u2"), card("ct3:x")], ROWS, listed, still).map(banner => banner.key)).toEqual(["ct3:x"]);
     expect(cardBanners([card("ct1:x")], ROWS, () => false, still)).toEqual([]);
   });
 });

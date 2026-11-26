@@ -36,7 +36,7 @@ vi.mock("react", async original => {
     useId: () => "k",
   };
 });
-const { ConversationThread, HandoffCard, ThreadEntry } = await import("./ConversationThread");
+const { ConversationThread, HandoffBubble, ThreadEntry } = await import("./ConversationThread");
 const { AnswerPopover } = await import("./AnswerPopover");
 
 const question: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
@@ -246,21 +246,36 @@ test("focus is not brought back to a card when the person moved it elsewhere or 
   expect(focusedOption()).toEqual([]);
 });
 
-// After a handoff's move the panel focuses the receiving card itself (a labelled group, tabindex -1), whose next Tab is
-// its Open; the card keeps the .handoff-card class that focus and scrolling find it by.
-test("focusItem on a handoff card focuses the card itself, which is a focusable group", () => {
-  const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
+// After a handoff's move the panel focuses the received handoff's group itself (labelled, tabindex -1), whose next Tab is
+// its Open, and scrolls its top (the meta line) into view.
+const received: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, text: "Continue.", at: "2026-11-25T05:00:00.000Z" };
+const handoffGroup = () => {
+  const bubble = tree.find(element => element.type === HandoffBubble)!;
+  return all((bubble.type as (props: unknown) => ReactNode)(bubble.props)).find(element => element.props.role === "group")!;
+};
+test("focusItem on a received handoff focuses its group, which is the item's entry", () => {
   const selectors: string[] = [];
-  draw([handoff]);
+  draw([received]);
   const root = tree.find(element => element.props.className === "conversation-thread")!.props.ref as { current: { querySelector(selector: string): unknown } };
   const query = root.current.querySelector.bind(root.current);
   root.current.querySelector = (selector: string) => { selectors.push(selector); return query(selector); };
-  const card = tree.find(element => element.type === HandoffCard)!;
-  const group = all((card.type as (props: unknown) => ReactNode)(card.props)).find(element => typeof element.props.className === "string" && (element.props.className as string).split(" ").includes("handoff-card"))!;
-  expect(group.props).toMatchObject({ role: "group", tabIndex: -1, "aria-label": "drafts.html, Handed off to this conversation" });
+  expect(handoffGroup().props).toMatchObject({ className: "msg-user", role: "group", tabIndex: -1, "data-entry": "", "aria-label": "Handoff from drafts.html" });
   expect(hooks.handle!.focusItem("u1")).toBe(true);
-  expect(selectors).toEqual(['[data-item="u1"] :is([data-entry], .ap-bar, .handoff-card)']);
+  expect(selectors).toEqual(['[data-item="u1"] :is([data-entry], .ap-bar)']);
   expect(focusedOption()).toEqual(["u1"]);
+});
+test("scrollToItem brings a received handoff's top into view, any other item's centre", () => {
+  draw([received, { kind: "agent", key: "m2", messageId: "m2", text: "On it.", streaming: false }]);
+  const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: unknown };
+  const scrolled: [string, unknown][] = [];
+  scroller.current = { querySelector: (selector: string) => {
+    const key = /data-item="([^"]+)"/.exec(selector)?.[1] ?? "";
+    return { querySelector: (inner: string) => key === "u1" && inner === ".from-agent" ? {} : null, scrollIntoView: (options: unknown) => scrolled.push([key, options]) };
+  } };
+  const handle = hooks.handle as unknown as { scrollToItem(key: string): void };
+  handle.scrollToItem("u1");
+  handle.scrollToItem("m2");
+  expect(scrolled).toEqual([["u1", { block: "start", behavior: "smooth" }], ["m2", { block: "center", behavior: "smooth" }]]);
 });
 
 describe("the popover's focus", () => {

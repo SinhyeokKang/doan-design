@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
 import type { ThumbnailState } from "./thumbnails";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
@@ -585,8 +585,8 @@ describe("a message Send now has in flight", () => {
   });
 });
 
-// Canvas cards and the receiving conversation's handoff card: one surface and one head row for both.
-describe("canvas cards and the handoff card", () => {
+// Canvas cards, and the receiving conversation's handoff, which is a bubble in the person's turn instead.
+describe("canvas cards and the received handoff", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
   type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
   type Handoff = Extract<ThreadItem, { kind: "handoffCard" }>;
@@ -601,7 +601,6 @@ describe("canvas cards and the handoff card", () => {
   const context = (states: [string, ThumbnailState][] = [], rows = ROWS): CardContext => ({ rows, thumbnails: new Map(states), now: NOW, root: "/w/doan-design" });
   const drawn = (element: ReactElement) => renderToStaticMarkup(<TooltipProvider>{element}</TooltipProvider>);
   const canvasCard = (entry: Card, ctx: CardContext, listed = true) => drawn(<CanvasCard entry={entry} context={ctx} project="doan-design" provider="claude" canvasListed={() => listed} onOpen={() => {}} />);
-  const handoffCard = (entry: Handoff, ctx: CardContext, listed = true) => drawn(<HandoffCard entry={entry} context={ctx} project="doan-design" canvasListed={() => listed} onOpen={() => {}} />);
   const running = { turn: { turnId: "t1", status: { kind: "general" as const }, at: "2026-11-16T00:00:00.000Z" } };
   // A card's Open names the canvas it opens; several cards would otherwise read as the same "Open".
   const OPEN = (label: string) => `<button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="${label}">Open</button>`;
@@ -772,52 +771,103 @@ describe("canvas cards and the handoff card", () => {
     expect(html([agent("Working."), stopped, ...drawing.map(item => ({ ...item, drawing: false }))], stopping)).toContain('<div class="sr-only" role="status">Stopped. 2 new canvases</div>');
   });
 
-  // The receiving card: the canvas card's surface and head row, naming the source in bold, then the earlier agent's text.
-  const handoffMarkup = (name: string, status: string, open: string, meta: string, banner: string, kind = "panels-top-left") =>
-    new RegExp(`<div class="card-surface handoff-card" role="group" aria-label="${name}, ${status}" tabindex="-1"><div class="card-layout">${banner}${head(name, status, svg("forward"), open, meta, kind)}<div class="handoff-body md selectable">`);
+  // The received handoff: the person's bubble fill and width, a meta line naming the source, then the earlier agent's
+  // text as Markdown. A labelled group that takes focus after a move; its time is the group's description, hidden on screen.
+  const bubble = (entry: Handoff, listed = true, patch: Partial<Parameters<typeof HandoffBubble>[0]> = {}) =>
+    drawn(<HandoffBubble entry={entry} project="doan-design" now={NOW} timeId="t" canvasListed={() => listed} onOpen={() => {}} {...patch} />);
+  const PANEL_OPEN = (label: string) => `<button type="button" class="doan-button" data-ui-size="xs" data-ui-variant="panel" aria-label="${label}">Open</button>`;
+  const NAME = (name: string) => `<span class="ho-name"[^>]*><span class="ho-cut">${name}</span><span class="ho-full" aria-hidden="true">${name}</span></span>`;
+  const TIME = (at: Date, text: string) => `<time dateTime="${at.toISOString()}" aria-hidden="true"[^>]*>${text}</time>`;
+  const GONE = (reason: string) => `<span class="ho-gone">${reason}</span>`;
+  const group = (label: string, described: boolean) => `<div class="msg-user" role="group" aria-label="${label}"${described ? ' aria-describedby="t"' : ""} tabindex="-1" data-entry="">`;
+  const meta = (name: string, after: string, open = "", kind = "panels-top-left") =>
+    `<div class="bubble md from-agent"><div class="ho-meta">${svg("forward")}<svg[^>]*lucide-${kind}[^>]*aria-hidden="true"[^>]*>.*?</svg>${NAME(name)}${SEP}${after}${open}</div>`;
 
-  test("the handoff card: a labelled focusable group, the source's banner and head row, its meta and the text as agent Markdown, a {{1}} kept as typed", () => {
-    const out = html([handoff({ text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." })], { canvasRows: ROWS });
-    const meta = `<span class="cc-meta"><span>3 frames</span>${SEP}${time("Handed off", at(-1), "5m ago")}</span>`;
-    // The handoff's time stands in for the modified time.
-    expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation", OPEN("Open drafts.html"), meta, EMPTY_BANNER));
-    const banner = `<div class="cc-banner" data-path="${DRAFTS.path}" aria-hidden="true"><img src="blob:2" alt=""/></div>`;
-    expect(handoffCard(handoff(), context([[DRAFTS.path, { kind: "ready", url: "blob:2" }]]))).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation", OPEN("Open drafts.html"), meta, banner));
-    expect(out).toMatch(/<div class="handoff-body md selectable"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div><\/div><\/div>/);
-    expect(out).not.toContain("bubble");
-    expect(out).not.toContain("Edited");
+  test("the received handoff: a labelled focusable group, the meta line, then the text as agent Markdown, a {{1}} kept as typed", () => {
+    const out = html([handoff({ text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." })], { canvasRows: ROWS, now: NOW });
+    expect(out).toMatch(new RegExp(`${group("Handoff from drafts.html", true).replace('"t"', '"[^"]+"')}${meta("drafts.html", TIME(at(-1), "5m ago"), PANEL_OPEN("Open drafts.html"))}<p>Pick up <strong>Payment</strong>.</p>\\s*<p>The person wrote “\\{\\{1\\}\\}”.</p></div><span id="[^"]+" hidden="">5 minutes ago</span></div>`));
+    // No card, no image, no frame count, no "From" or direction words.
+    for (const gone of ["card-surface", "cc-banner", "frames", "From", "Handed off"]) expect(out).not.toContain(gone);
   });
 
-  test("the handoff card's source gone: the tail, no Open, the faint icon and no frame count; the handoff's time stays", () => {
-    const out = handoffCard(handoff(), context([[DRAFTS.path, { kind: "ready", url: "blob:2" }]]), false);
-    expect(out).toMatch(handoffMarkup("drafts.html", "Handed off to this conversation · No longer in doan-design", "",
-      `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`, EMPTY_BANNER));
-    expect(out).not.toContain("blob:2");
+  test("the same time element from just now to 1m ago, so only its words change", () => {
+    const just = bubble(handoff({ at: new Date(NOW - 20_000).toISOString() }));
+    const later = bubble(handoff({ at: new Date(NOW - 20_000).toISOString() }), true, { now: NOW + 60_000 });
+    expect(just).toContain(">just now</time>");
+    expect(later).toContain(">1m ago</time>");
+    expect(later.replace(/>1m ago</, ">just now<").replace(/>1 minute ago</, ">Just now<")).toBe(just);
   });
 
-  test("Open on a handed-off card opens the target conversation, on any other the canvas alone, on the handoff card the source conversation", () => {
+  test("the source canvas gone: its reason in place of the time and Open, and no description", () => {
+    const out = bubble(handoff(), false);
+    expect(out).toMatch(new RegExp(`^${group("Handoff from drafts.html · No longer in doan-design", false)}${meta("drafts.html", GONE("No longer in doan-design"))}`));
+    expect(out).not.toMatch(/<time|<button|hidden=""/);
+  });
+
+  // A project conversation's handoff: the source is the root's Overview, and Open shows the source conversation there.
+  test("from the Overview: its icon and name, Open shows the source conversation; a deleted one shows its reason; unknown reads as there", () => {
+    const fromOverview = handoff({ origin: { kind: "handoff", conversationId: "c0" } });
+    expect(bubble(fromOverview, false, { conversationListed: () => true, onOpenOverview: () => {} }))
+      .toMatch(new RegExp(`^${group("Handoff from Overview", true)}${meta("Overview", TIME(at(-1), "5m ago"), PANEL_OPEN("Open the source conversation in the Overview"), "layout-grid")}`));
+    expect(bubble(fromOverview, true, { conversationListed: () => false, onOpenOverview: () => {} }))
+      .toMatch(new RegExp(`^${group("Handoff from Overview · Conversation deleted", false)}${meta("Overview", GONE("Conversation deleted"), "", "layout-grid")}`));
+    // Without the host's answer (the prototype window before main replies) the source counts as there.
+    expect(bubble(fromOverview, false, { onOpenOverview: () => {} })).toContain(PANEL_OPEN("Open the source conversation in the Overview"));
+    // Without the host's Open the line has none.
+    expect(bubble(fromOverview, false, { conversationListed: () => true })).not.toContain("<button");
+  });
+
+  test("Open on a handed-off card opens the target conversation, on any other the canvas alone, on the received handoff the source conversation", () => {
     const opened: unknown[] = [];
     const onOpen = (canvas: unknown, id?: string) => opened.push([canvas, id]);
     const cardOf = (entry: Card) => CanvasCard({ entry, context: NO_CONTEXT, project: "p", provider: "claude", canvasListed: () => true, onOpen });
-    const handoffEl = HandoffCard({ entry: handoff({ text: "x" }), context: NO_CONTEXT, project: "p", canvasListed: () => true, onOpen });
+    const handoffEl = HandoffBubble({ entry: handoff({ text: "x" }), project: "p", now: NOW, timeId: "t", canvasListed: () => true, onOpen });
     for (const element of [cardOf(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })), cardOf(card({ handoff: { outcome: "missed" } })), cardOf(card()), handoffEl]) {
       (findButton(element)!.props as { onClick(): void }).onClick();
     }
     expect(opened).toEqual([[CHECKOUT, "c2"], [CHECKOUT, undefined], [CHECKOUT, undefined], [DRAFTS, "c0"]]);
+    const shown: string[] = [];
+    const overviewEl = HandoffBubble({ entry: handoff({ origin: { kind: "handoff", conversationId: "c0" } }), project: "p", now: NOW, timeId: "t", canvasListed: () => false, conversationListed: () => true, onOpenOverview: id => shown.push(id) });
+    (findButton(overviewEl)!.props as { onClick(): void }).onClick();
+    expect(shown).toEqual(["c0"]);
   });
-  // A project conversation's handoff: the source is the root's Overview, and Open shows the source conversation there.
-  test("a handoff card from the Overview names the Overview with its icon and no banner; Open shows the source conversation there; a deleted source has no Open", () => {
-    const fromOverview = handoff({ origin: { kind: "handoff", conversationId: "c0" } });
-    const opened: string[] = [];
-    const listed = (id: string) => id === "c0";
-    const meta = `<span class="cc-meta">${time("Handed off", at(-1), "5m ago")}</span>`;
-    expect(html([fromOverview], { conversationListed: listed, onOpenOverview: id => opened.push(id) }))
-      .toMatch(handoffMarkup("Overview", "Handed off to this conversation", OPEN("Open the source conversation in the Overview"), meta, "", "layout-grid"));
-    expect(html([fromOverview], { conversationListed: () => false, onOpenOverview: id => opened.push(id) }))
-      .toMatch(handoffMarkup("Overview", "Handed off to this conversation · Conversation deleted", "", meta, "", "layout-grid"));
-    const element = HandoffCard({ entry: fromOverview, context: NO_CONTEXT, project: "p", canvasListed: () => false, conversationListed: listed, onOpenOverview: id => opened.push(id) });
-    (findButton(element)!.props as { onClick(): void }).onClick();
-    expect(opened).toEqual(["c0"]);
+
+  test("a person's message after it is a plain bubble: only the meta line tells them apart", () => {
+    const user: ThreadItem = { kind: "user", key: "u5", seq: 5, anchors: [], preset: null, parts: [{ text: "Add the declined-card state" }], attachments: [] };
+    const out = html([handoff(), user], { now: NOW });
+    expect(out).toContain('<div class="msg-user"><div class="bubble">Add the declined-card state</div></div>');
+    expect(out.match(/class="ho-meta"/g)).toHaveLength(1);
+  });
+});
+
+// The received handoff bubble's CSS: jsdom lays nothing out, so the rules are pinned.
+describe("the received handoff bubble's rules", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ");
+  const body = (selector: string) => {
+    const at = css.indexOf(` ${selector} {`);
+    expect(at, selector).toBeGreaterThanOrEqual(0);
+    return css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at));
+  };
+  test("the bubble's Markdown wraps as Markdown, not as the person's pre-wrap text", () => {
+    expect(body(".conversation-thread .bubble.from-agent")).toContain("white-space: normal;");
+  });
+  test("the meta line never wraps, so the bubble keeps its height as the time's words change", () => {
+    expect(body(".conversation-thread .ho-meta")).toContain("white-space: nowrap;");
+    expect(body(".conversation-thread .ho-meta")).toContain("border-bottom: 1px solid var(--border-standard);");
+  });
+  // A far larger shrink factor cuts the name first, down to 3em; only then the reason; Open never cuts.
+  test("the name cuts first down to 3em, then the gone source's reason; Open and the time never cut", () => {
+    expect(body(".conversation-thread .ho-meta .ho-name")).toMatch(/flex: 0 1000 auto; min-width: 3em;/);
+    expect(body(".conversation-thread .ho-meta .ho-gone")).toMatch(/flex: 0 1 auto; min-width: 0;/);
+    expect(body(".conversation-thread .ho-meta :is(svg, .sep, time, .doan-button)")).toContain("flex: none;");
+  });
+  test("a thread 275px wide or less hides the time and its dot", () => {
+    expect(body(".conversation-thread .thread")).toContain("container-type: inline-size;");
+    expect(css).toContain("@container (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }");
+  });
+  test("focus on the group rings its bubble", () => {
+    expect(body(".conversation-thread .msg-user[role=\"group\"]:focus-visible")).toContain("outline: none;");
+    expect(body(".conversation-thread .msg-user[role=\"group\"]:focus-visible > .bubble")).toContain("outline: 2px solid var(--border-focus);");
   });
 });
 function findButton(node: unknown): ReactElement | null {

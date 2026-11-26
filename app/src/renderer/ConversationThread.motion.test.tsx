@@ -17,7 +17,7 @@ const user = (key: string, seq: number | null, text: string, sending = false): T
 const css = readFileSync(new URL("styles.css", import.meta.url), "utf8");
 
 describe("entry", () => {
-  test("only a message this window sent enters: not the history, a terminal's message or a handoff card", () => {
+  test("only a message this window sent enters: not the history, a terminal's message or a received handoff", () => {
     const items: ThreadItem[] = [
       { kind: "handoffCard", key: "h1", seq: 1, origin: { kind: "handoff", conversationId: "c0" }, text: "Earlier work", at: "2026-11-25T00:00:00Z" },
       user("u2", 2, "Older"),
@@ -29,6 +29,10 @@ describe("entry", () => {
     expect(out.match(/class="msg-user thread-enter"/g)).toHaveLength(1);
     expect(out).toMatch(/<div class="msg-user thread-enter"><div class="bubble">Make the action say Add a card/);
     expect(html(items)).not.toContain("thread-enter");
+    // The received handoff is drawn in the person's bubble, and still never enters, even marked as this window's.
+    const handoff = html(items, { localSends: [{ text: "Earlier work", after: 0 }] });
+    expect(handoff).toMatch(/<div class="msg-user" role="group" aria-label="Handoff from Overview"/);
+    expect(handoff).not.toContain("thread-enter");
   });
 
   test("the history's message that replaces an entering Send now or sending message carries on its entry, not a new one", () => {
