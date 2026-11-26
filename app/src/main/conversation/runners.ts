@@ -300,6 +300,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
     answer: (id, option) => !ending() && dispatcher.answer(id, option),
+    answerQuestion: (id, given) => ending() ? "stale" : dispatcher.answerQuestion(id, given),
     // Only a native turn can be interrupted: interrupting the local id fails, and that failure stops the server group.
     // Before turn/start nothing was sent; while it is unanswered the send interrupts the native turn once it exists.
     async stop() {
