@@ -15,6 +15,7 @@
 - 사용자 — 접힌 팝오버가 새 요청으로 펼쳐지면 펼친 채 남는다. 새 요청만 끝나도 다시 접히지 않는다(R1 D1, design '상태'에 반영).
 - 사용자 — 위로 스크롤한 채 답해서 생긴 접힌 줄과 turn indicator는 새 내용이므로 Jump to latest가 뜬다(R2 U1, design '끝 여백과 따라가기'에 반영).
 - 사용자 — 높이 상한이 머리줄과 버튼 줄보다 작은 크기(프로토타입 창 최소)에서는 머리줄과 버튼 줄을 지킨다. 본문이 먼저 줄고, 모자라면 팝오버가 스레드 영역 위로 올라간다(B2c 질문, design '드래프트에서 정한 것'에 반영).
+- 사용자 — 패널 맨 위까지 올라가도 머리줄과 버튼 줄이 들어가지 않으면(프로토타입 창 280×360), 머리줄 아래 본문과 버튼 줄을 함께 스크롤한다(B2c 보고, design '드래프트에서 정한 것'에 반영).
 - conductor's call — 문서에 '확인 필요' 항목이 없으므로 시작 전에 사용자에게 물을 것이 없다(chain.md '시작 점검').
 - conductor's call — T6(PRODUCT·ARCHITECTURE·BACKLOG 승격, 기능 디렉터리 삭제)는 문서만 바꾸므로 conductor가 통합 뒤 직접 한다(`/orchestrate` §4·§5).
 - conductor's call — T5 `/design-sync`와 `/runtime-test`는 코드를 고칠 수 있으므로 T3·T4를 맡은 워커(B2)가 같은 worktree에서 이어서 한다. 고치는 코드의 주인이 같아야 한다.
@@ -34,7 +35,7 @@
 | B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 통합 `2fd83aea6` |
 | B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 통합 `54c574aef` |
 | B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 통합 `ebc627ecf`(ff) |
-| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 진행 |
+| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 통합 `68e55682e`, 고칠 거리 3차 진행 |
 | R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | R1 Codex Sol high, R2 Claude Opus high(아래 '모델 계열 교차') — Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
 | C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 대기 |
 
@@ -63,3 +64,5 @@
 - B2b: T4와 R1 고칠 거리(F1, N1, N2, D1)를 `e29991a73`..`ebc627ecf`로 fast-forward 통합했다. 워커의 `/verify`는 `app/src/main/exportViewer.test.ts`의 waitFor 3000 ms 시간 초과에서 실패했다(부하 평균 약 25, 이 브랜치는 `app/src/main`을 건드리지 않는다, 혼자 돌리면 3/3 통과). 격리 앱 probe는 13/13 통과했다. 실제 앱에서 확인하지 못한 것(docked buddy 비켜서기, 권한 요청, 프로토타입 창, Overview, 테마, 모션)과 드래프트와 다른 점(본문 아래 fade, 접기 fade 순서)은 B2c로 넘겼다.
 - B2c: 같은 워커에 T5를 보냈다(dispatch `ctx_a4d7ab98a0e0`). R2: T4 리뷰를 새 child worktree `ap-r2`에서 시작했다(dispatch `ctx_bbcbcacec4e3`).
 - R2: 🔴 0, 🟡 2(Y1: 팝오버가 요청이 바뀌어도 같은 컨트롤을 다시 써서, 포커스가 다음 요청의 같은 버튼에 남는다. 실제 DOM에서 재현했다. Y2: 캔버스 패널 arrival 경로와 PrototypeWindow 포커스의 효과 실행 테스트가 없다), ⚪ 4, 결정 1(U1, 사용자 답 반영). R1 고칠 거리는 모두 고쳐졌다. Y1·Y2와 ⚪1–3을 B2에 보냈다.
+- B2c: T5와 R2 고칠 거리(Y1, Y2, ⚪1–3)를 커밋 17개로 cherry-pick 통합했다(HEAD `68e55682e`). 워커의 `/verify`는 `98906e141`에서 PASS였다. 워커가 자기 리뷰 두 번(Claude)을 돌렸다. 실제 상태 확인은 실패로 보고됐다. 원인은 probe 밖이다(사용자의 `/Applications/Doan.app`과 주기적으로 도는 Antigravity CLI가 실제 상태를 썼다). 프로토타입 창 280×360은 결정한 하한으로도 버튼이 composer에 겹쳐 사용자에게 다시 물었다.
+- 고칠 거리 3차: 280×360 스크롤, 347×480에서 올라간 팝오버 위의 Jump to latest가 패널 제목줄과 겹치는 것, 프로토타입 창에서 팝오버 아래와 composer 사이에 스레드 글이 보이는 것을 B2에 보냈다.
