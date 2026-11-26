@@ -138,6 +138,39 @@ T1 뒤 사용자가 보고 턴 허용과, 작업을 살려 둔 send를 정했다
 - **정할 것**: 행 높이(한 줄 고정), 작업이 많을 때(예: 10개 병렬)의 상한이나 접기, 행이 생기거나 끝날 때 따라가기와 Jump to latest가 지금 규칙을 따르는지, 위 '열린 질문'.
 - 문구는 `clarify` 프리셋으로 정한다.
 
+## 드래프트에서 정한 것 (사용자)
+
+- 초안: `.doan/canvases/subagent-progress.html`(프레임 `in-turn`, `expanded`, `background`, `history`, `widths`, `copy`).
+- **행 모양**: 한 줄이다. 설명 · 종류 · 도구 사용 수 · 시간 · 지금 도구 순이고, 좁으면 지금 도구(420 px 이하), 종류(330 px 이하) 순으로 뺀다. 설명 전문은 펼친 행에 있다.
+- **보고 턴**: 턴 앞에 "<작업> finished" 표식 줄을 둔다.
+- **작업이 많을 때**: 묶지 않고 모든 행을 보인다.
+- **명령 행**: 설명 자리에 고정 문구 "Background command"를 쓴다. 명령의 텍스트와 설명은 지금처럼 저장하지도 보이지도 않는다.
+- **문구**: `copy` 프레임 그대로다. 백그라운드 줄은 "N background task(s) … still running. Claude Code reports on each one when it finishes."이고, 끝남은 단어 없이 체크만 보인다.
+- **참고 근거**: Claude Code와 Codex의 서브에이전트 표시는 공개 문서, changelog, GitHub issue의 텍스트로만 확인했다. 스크린샷이나 영상은 찾지 못했다(초안 머리말의 출처 목록).
+
+## 작업 인디케이터 (드래프트 리뷰 뒤 사용자 결정)
+
+- 도는 작업은 턴 인디케이터(턴이 끝난 뒤에는 백그라운드 줄) 아래의 들여 쓴 작업 인디케이터로 보인다. 끝난 작업만 띄운 턴의 활동 자리에 끝난 행으로 남는다.
+- 그래서 '드래프트에서 정한 것'의 행 모양(한 줄, 칸을 빼는 순서)은 작업 인디케이터와 끝난 행에 함께 적용하고, "턴 인디케이터는 그대로"와 "행은 띄운 턴 자리에 고정"은 위 spec 결정으로 바뀐다.
+- `threadItems.ts`: 끝난 행만 활동 자리에 놓는다. 작업 인디케이터는 `ConversationThread.tsx`의 인디케이터 영역(턴 인디케이터, 백그라운드 줄)이 진행 push로 그린다.
+- 메인이 서브에이전트만 기다리는 동안 턴 인디케이터의 단계는 "<Provider> is waiting on N subagent(s)"다. `turnStatus.ts`의 단계 판정에 이 경우를 더한다(도는 도구가 Agent 호출뿐이고 그 턴의 도는 서브에이전트 작업이 있을 때). 순수 함수 대상이다.
+- 작업 인디케이터는 턴 인디케이터와 같은 글자 스타일과 sweep을 쓰고, 앞에 CSS로 그린 트리 연결선과 종류 아이콘(서브에이전트 Bot, 명령 Terminal)을 둔다. 프로바이더 로고는 턴 인디케이터에만 있다.
+- 작업이 끝나 끝난 행이 활동 그룹을 끊을 때 위쪽 그룹이 다시 배치되는 것("3 steps"가 "2 steps"와 끝난 행으로)은 받아들인다.
+- 바닥 영역의 높이가 작업 수만큼 바뀌므로, PRODUCT §5 item 3 'Turn indicator'의 "One line of fixed height … never moves the thread"를 승격 때 고친다.
+
+## 드래프트 검수 뒤 정한 것 (사용자)
+
+- **좁은 폭**: 칸을 빼는 기준은 스레드 열 폭이다(420 px 이하에서 지금 도구, 330 px 이하에서 종류). 캔버스 패널 기본 347(열 315)과 프로토타입 창에서는 설명 · 도구 수 · 시간만 보인다. 종류와 지금 도구는 넓은 패널, Overview, 펼친 행에서 본다.
+- **끝난 행의 상태**: 끝남은 체크 아이콘만, 실패와 멈춤은 아이콘과 "Failed"·"Stopped" 단어를 보인다. 좁은 폭에서 설명이 짧아지는 것은 받아들인다. 끝남의 스크린 리더 텍스트는 "Done"이다.
+- **Codex 종류**: 접힌 줄에는 종류가 없다(이름 · 시간). 펼친 행의 Type은 "Subagent"다. 보일 사실이 없으면 구분점(·)도 숨긴다.
+- **백그라운드 줄 문장**: "N background task(s) … still running. Claude Code reports when they finish."(하나면 "…when it finishes."). N은 보이는 작업 인디케이터 수다. 보이는 작업이 없는데 줄이 남으면(서브에이전트 안의 작업만 남음) 숫자 없이 "Background work is still running. Claude Code reports when it finishes."다.
+- **Codex 대기**: 메인이 `wait`로 서브에이전트만 기다리는 동안 "Codex is waiting on N subagent(s)"다.
+- **보고 턴 표식**: 작업 상태를 따른다: "<작업> finished" / "failed" / "stopped".
+
+## 확정
+
+- 사용자가 `.doan/canvases/subagent-progress.html`을 확정했다. 남은 것: 좁은 폭에서 말줄임표 앞에 공백이 남는다(브라우저가 단어 경계에서 자름, 앱도 같다).
+
 ## 읽은 design preset
 
 - `shape`: 기존 화면을 넓히는 경우. 스레드의 시각 체계(활동 줄, 백그라운드 줄)를 이어받고, 새로 정할 것은 작업 행과 그 상태다.
