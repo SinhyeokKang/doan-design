@@ -405,7 +405,7 @@ describe("the popover's motion", () => {
     name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null,
     animate: () => { let finish!: () => void; const run: Run = { cancel: vi.fn(), finished: new Promise<void>(resolve => { finish = resolve; }), finish: () => finish(), onfinish: null, oncancel: null }; runs.push(run); return run; },
   });
-  let surface: ReturnType<typeof stand> & { querySelector(): null; querySelectorAll(): unknown[]; closest(): null };
+  let surface: ReturnType<typeof stand> & { querySelector(): null; querySelectorAll(selector: string): unknown[]; closest(): null };
   beforeEach(() => {
     runs = [];
     const parts = [stand("body"), stand("actions")];

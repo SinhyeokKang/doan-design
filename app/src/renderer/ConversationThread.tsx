@@ -958,17 +958,23 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const asks: AskItem[] = Array.isArray(items) ? items.filter(waitsForPerson) : [];
   const ask = asks[0] ?? null, waitingIds = asks.map(item => item.requestId);
   const collapsed = ask !== null && (props.popoverCollapsed?.(waitingIds) ?? false);
-  const popoverNow = useRef<{ key: string | null; collapsed: boolean }>({ key: null, collapsed: false });
+  const popoverNow = useRef<{ key: string | null; collapsed: boolean }>({ key: null, collapsed: false }), waitingNow = useRef(waitingIds);
+  waitingNow.current = waitingIds;
   popoverNow.current = { key: ask?.key ?? null, collapsed };
   // Focus the popover takes once it draws as asked: open after an entry or the bar, at the new step after Next or Back,
   // or the bar after Collapse. A render before the host's fold or draft moved does not take it.
   const popoverFocus = useRef<{ key: string; open: boolean; step?: number } | null>(null);
   // The popover's running collapse or expand; a new one cancels it so two never fight over the height.
   const motions = useRef<Animation[]>([]);
-  const stopMotion = () => { for (const run of motions.current) run.cancel(); motions.current = []; };
-  // The head and the buttons always show (the body shrinks first): where the cap is smaller than they are, as in the
-  // prototype window's smallest size, the popover keeps their height and rises over the thread area's top, at most to
-  // the panel's top (popoverFloor). Left off while the height runs, which the overflow clip marks.
+  // Cancel events arrive a frame later, so the surface's clip is restored here and a run's handlers act only while it is
+  // still the current one.
+  const stopMotion = () => {
+    for (const run of motions.current) run.cancel();
+    motions.current = [];
+    if (popover.current?.style.overflow === "hidden") popover.current.style.overflow = "";
+  };
+  // The head and buttons always show (popoverFloor): past the cap the popover rises, at most to the panel's top. Left off
+  // while the height runs, which the overflow clip marks.
   const holdChrome = (node: HTMLElement) => {
     if (node.style.overflow === "hidden") return;
     const body = node.querySelector<HTMLElement>(":scope > .ap-body"), style = body ? getComputedStyle(body) : null;
@@ -983,9 +989,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!ask) return;
     const ids = waitingIds, key = ask.key, node = popover.current;
     const fold = () => {
+      // A request that came during the fade keeps it open: the fade is undone instead.
+      if (waitingNow.current.join("\n") !== ids.join("\n")) { stopMotion(); return; }
       latest.current.onCollapse?.(ids);
       if (andThen === "bar") popoverFocus.current = { key, open: false };
-      else latest.current.onFocusComposer?.();
+      else handFocus(() => latest.current.onFocusComposer?.());
     };
     if (!node || motion.reduced() || typeof node.animate !== "function") { fold(); return; }
     stopMotion();
@@ -1231,7 +1239,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (collapsed === want.open || (want.step !== undefined && (ask.kind !== "question" || draftOf(ask.requestId).step !== want.step))) return;
     popoverFocus.current = null;
     if (want.step !== undefined) popover.current?.querySelector(".ap-body")?.scrollTo({ top: 0 });
-    focusIn(want.key);
+    handFocus(() => focusIn(want.key));
   });
   // Collapse and expand run the surface's height between the popover and the bar; the end inset follows it each frame.
   const shape = ask === null ? null : collapsed ? "bar" : "open";
@@ -1248,7 +1256,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     node.style.overflow = "hidden";
     node.style.minHeight = "";
     const run = node.animate([{ height: `${inset.current}px` }, { height: `${target}px` }], { duration, easing: token("--ease-settle") || "ease" });
-    run.onfinish = run.oncancel = () => { node.style.overflow = ""; holdChrome(node); };
+    run.onfinish = run.oncancel = () => { if (!motions.current.includes(run)) return; node.style.overflow = ""; holdChrome(node); };
     // Opening: the body and buttons appear last, once the height has run.
     const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timeMs(token("--time-fast")), delay: duration, fill: "backwards" })) : [];
     motions.current = [run, ...fades];
