@@ -85,11 +85,38 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   expect(render({ turn: "running", queued: [{ id: "q1", text: "x" }] })).toContain('aria-label="Stop"');
 });
 
-test("waiting for a permission answer shows the reason line, and the line describes the field", () => {
-  const html = render({ turn: "waiting" });
-  const id = /class="composer-reason docked-reason" role="status" id="([^"]+)"><span>Answer or stop the request above\.<\/span>/.exec(html)?.[1];
-  expect(id).toBeTruthy();
-  expect(html).toContain(`aria-describedby="${id}"`);
+// The agent reads a queued or sent-now message only after the answer (PRODUCT §5 item 1 'Send now').
+const WAITING = { turn: "waiting", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also the caption" }] } as const;
+test.each([["question", "Answer the question first"], ["permission", "Answer the permission request first"]] as const)("while a %s waits, Queue and every row's Send now are unavailable with the reason as tooltip and description", (asks, reason) => {
+  const html = render({ ...WAITING, asks }, { text: "Use the shorter label" });
+  // Queue stays focusable so its tooltip gives the reason, which is also its description.
+  const queue = /<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Queue" aria-disabled="true" data-disabled="" aria-describedby="([^"]+)"[^>]*>.*?<span id="\1" class="sr-only">([^<]+)<\/span><\/button>/.exec(html);
+  expect(queue?.[2]).toBe(reason);
+  const send = /<button type="button"[^>]*class="doan-button queue-send"[^>]*>Send now<\/button>/.exec(html)?.[0] ?? "";
+  expect(send).toContain('aria-disabled="true"');
+  expect(send).toContain('data-disabled=""');
+  const ids = /aria-describedby="([^"]+)"/.exec(send)?.[1].split(" ") ?? [];
+  const described = ids.map(id => new RegExp(`id="${id}"[^>]*>([^<]*)<`).exec(html)?.[1]);
+  expect(described).toContain(reason);
+  expect(described).toContain("Also the caption");
+  // No line under the card, and no Control+Enter while nothing can be sent now.
+  expect(html).not.toContain("composer-reason");
+  expect(html).not.toContain("Answer or stop the request above.");
+  expect(html).not.toContain("aria-keyshortcuts");
+});
+
+test("while a request waits, an empty field still offers Stop", () => {
+  const html = render({ ...WAITING, asks: "question" });
+  expect(html).toMatch(/class="composer-send doan-icon-button composer-stop" data-ui-variant="accent" aria-label="Stop"/);
+  expect(html).not.toMatch(/aria-label="Stop"[^>]*(disabled|aria-disabled)/);
+});
+
+test("once nothing waits, Send now and Queue come back with their usual tooltips", () => {
+  const html = render({ ...WAITING, turn: "running", asks: null }, { text: "Use the shorter label" });
+  expect(html).toMatch(/aria-label="Queue"(?![^>]*aria-disabled)/);
+  const send = /<button type="button"[^>]*class="doan-button queue-send"[^>]*>Send now<\/button>/.exec(html)?.[0] ?? "";
+  expect(send).not.toContain("aria-disabled");
+  expect(html).toContain('aria-keyshortcuts="Control+Enter"');
 });
 
 test("a conversation whose canvas is gone shows the line instead of the composer", () => {

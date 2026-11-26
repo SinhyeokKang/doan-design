@@ -7,7 +7,7 @@ import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { textSegments } from "./anchorField";
 import { composerAction } from "./composerRules";
 import {
-  canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, waitingAsk, type DockedDraft, type DockedInput,
   type PlaceholderInput,
 } from "./dockedRules";
 import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
@@ -81,10 +81,18 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ draft: draft({ segments: [chip] }) }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ draft: draft({ text: "   " }) }))).toEqual({ enabled: false, reason: null });
   });
-  test("while this conversation runs, text queues and the permission wait explains the line without blocking", () => {
+  test("while this conversation runs, text queues with no line", () => {
     expect(dockedAvailability(input({ turn: "running" }))).toEqual({ enabled: true, reason: null });
-    expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: true, reason: { text: "Answer or stop the request above." } });
-    expect(dockedAvailability(input({ turn: "waiting", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer or stop the request above." } });
+  });
+  // The agent reads a queued or sent-now message only after the answer, so nothing goes out while a request waits.
+  test("while a question or permission request waits, Send is unavailable and its tooltip names the request", () => {
+    expect(dockedAvailability(input({ turn: "waiting", asks: "question" }))).toEqual({ enabled: false, reason: { text: "Answer the question first", tipOnly: true } });
+    expect(dockedAvailability(input({ turn: "waiting", asks: "permission" }))).toEqual({ enabled: false, reason: { text: "Answer the permission request first", tipOnly: true } });
+    expect(dockedAvailability(input({ turn: "waiting", asks: "question", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer the question first", tipOnly: true } });
+    // The list can tell of the wait before its event arrives; the permission wording stands in until then.
+    expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: false, reason: { text: "Answer the permission request first", tipOnly: true } });
+    // A draft problem is still the draft's own line once the wait ends; during it the wait comes first.
+    expect(dockedAvailability(input({ turn: "waiting", asks: "question", draft: draft({ text: "x".repeat(32769) }) })).reason).toEqual({ text: "Answer the question first", tipOnly: true });
   });
   // While main still works on an ended turn (holding), text queues.
   test("while this conversation holds after its turn, text queues", () => {
@@ -106,7 +114,7 @@ describe("dockedAvailability", () => {
   });
   test("new-conversation mode uses Home's agent reasons", () => {
     const fresh = { kind: "new", root: "/r" } as const;
-    expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run.", noAgent: true });
+    expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run.", tipOnly: true });
     expect(dockedAvailability(input({ mode: fresh, auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
       .toEqual({ text: "Claude Code can’t run right now. Choose another agent." });
   });
@@ -262,6 +270,20 @@ describe("composerTurn", () => {
     expect(composerTurn([...opened(), ev({ type: "question.request", requestId: "q1", questions: [{ id: "0", header: "", question: "Which?", options: [{ label: "A" }], multiSelect: false, other: false }] })], summary({ working: true }), true)).toBe("waiting");
     expect(composerTurn(opened(), summary({ working: true }), true)).toBe("running");
     expect(composerTurn([...opened(), ev({ type: "activity", kind: "read", path: "a.ts", summary: "a.ts" })], summary({}), true)).toBe("running");
+  });
+  test("waitingAsk names the request the answer popover shows first, and none once nothing waits", () => {
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const permission = ev({ type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run", options });
+    const question = (id: string) => ev({ type: "question.request", requestId: id, questions: [{ id: "0", header: "", question: "Which?", options: [{ label: "A" }], multiSelect: false, other: false }] });
+    expect(waitingAsk([...opened(), permission])).toBe("permission");
+    expect(waitingAsk([...opened(), question("q1")])).toBe("question");
+    // Oldest open first, as the popover shows them.
+    const events = [...opened(), question("q1")];
+    expect(waitingAsk([...events, ev({ type: "permission.request", requestId: "r2", tool: "Bash", summary: "Run", options })])).toBe("question");
+    expect(waitingAsk(opened())).toBeNull();
+    expect(waitingAsk([...opened(), permission, ev({ type: "turn.done" })])).toBeNull();
+    expect(waitingAsk(null)).toBeNull();
+    expect(waitingAsk([])).toBeNull();
   });
   test("with composerAction: a held turn is a disabled Send, Queue with text, Stop while queue rows wait or go out", () => {
     const events = [...opened(), ev({ type: "turn.done" })];
