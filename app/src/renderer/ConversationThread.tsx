@@ -32,7 +32,7 @@ import { AnswerPopover, popoverCramped, popoverFloor, type AskItem } from "./Ans
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
-import { entering, FOLLOW_START, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
+import { entering, FOLLOW_START, followBand, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -1106,9 +1106,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (spent.length) latest.current.onSpendSends?.(spent);
   }, [items]);
 
-  // The follow: one rAF loop that eases toward the bottom and, after the person's wheel, waits out its inertia before
-  // following again. Growth is seen by a ResizeObserver, since a revealing reply grows without new items.
+  // The follow: one rAF loop that eases toward the bottom and, after the person's wheel or scroll key, waits out its
+  // inertia or animation before following again. Growth is seen by a ResizeObserver, since a revealing reply grows
+  // without new items.
   const bottomOf = (node: HTMLElement) => node.scrollHeight - node.clientHeight;
+  const bandOf = (node: HTMLElement) => followBand(node.clientHeight - inset.current);
   const write = (node: HTMLElement, top: number) => {
     node.scrollTop = top;
     wrote.current = node.scrollTop;
@@ -1117,8 +1119,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const apply = (event: FollowEvent) => {
     const before = follow.current;
     follow.current = nextFollow(before, event);
-    if (!follow.current.pinned) easeTo.current = null;
-    else if (!before.pinned) setBehind(false);
+    if (!follow.current.pinned) { easeTo.current = null; return; }
+    if (before.pinned) return;
+    setBehind(false);
+    // Following again once the person's input ends goes back to the bottom.
+    const node = scroller.current;
+    if (!node || event.type !== "frame" || event.distance <= 0) return;
+    if (motion.reduced()) write(node, bottomOf(node));
+    else { easeTo.current = bottomOf(node); run(); }
   };
   const tick = (now: number) => {
     loop.current = 0;
@@ -1133,7 +1141,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
     distance.current = bottomOf(node) - node.scrollTop;
     apply({ type: "frame", at: now, distance: distance.current });
-    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.wheelAt < WHEEL_HOLD_MS * 2)) loop.current = requestAnimationFrame(tick);
+    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.inputAt < WHEEL_HOLD_MS * 2)) loop.current = requestAnimationFrame(tick);
     else lastFrame.current = null;
   };
   const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
@@ -1152,7 +1160,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
     contentHeight.current = after.content;
     inset.current = insetNow;
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), now, before, after });
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), easing: easeTo.current !== null, now, band: bandOf(node), before, after });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
@@ -1188,16 +1196,22 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     watch?.observe(node);
     if (popover.current) watch?.observe(popover.current);
     // The person's input, on the thread only: a wheel that can leave the bottom, a press on the scroller itself (its
-    // scrollbar), a scroll key outside a field or control. The composer is outside the thread.
+    // scrollbar), a scroll key outside a field or control. The composer is outside the thread. A press ends anywhere:
+    // a scrollbar drag is often released outside the scroller, or outside the window (blur).
     const wheel = (event: WheelEvent) => {
       if (event.deltaY >= 0 && follow.current.pinned) return;
-      calls().apply({ type: "input", kind: "wheel", at: performance.now() });
+      calls().apply({ type: "input", kind: "wheel", at: performance.now(), distance: distance.current });
       calls().run();
     };
-    const pointer = (event: PointerEvent) => { if (event.target === node) calls().apply({ type: "input", kind: "pointer", at: performance.now() }); };
+    const pointer = (event: PointerEvent) => { if (event.target === node) calls().apply({ type: "pointer", down: true, distance: distance.current }); };
+    const release = () => {
+      if (!follow.current.pressed) return;
+      calls().apply({ type: "pointer", down: false, distance: distance.current });
+      calls().run();
+    };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
-      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now() });
+      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now(), distance: distance.current });
       calls().run();
     };
     const selection = () => {
@@ -1209,6 +1223,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     };
     node.addEventListener("wheel", wheel, { passive: true });
     node.addEventListener("pointerdown", pointer);
+    for (const type of ["pointerup", "pointercancel", "blur"]) window.addEventListener(type, release);
     node.addEventListener("keydown", key);
     document.addEventListener("selectionchange", selection);
     return () => {
@@ -1216,6 +1231,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       observer.current = null;
       node.removeEventListener("wheel", wheel);
       node.removeEventListener("pointerdown", pointer);
+      for (const type of ["pointerup", "pointercancel", "blur"]) window.removeEventListener(type, release);
       node.removeEventListener("keydown", key);
       document.removeEventListener("selectionchange", selection);
     };
@@ -1281,16 +1297,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timeMs(token("--time-fast")), delay: duration, fill: "backwards" })) : [];
     motions.current = [run, ...fades];
   }, [shape, motion]);
-  // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll
+  // A scroll the follow did not write is the person's (or a clamp); a frame then judges whether it follows again. Scroll
   // anchoring is off on the scroller (styles.css), or it would move the view as a reply grows above.
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
     distance.current = bottomOf(node) - node.scrollTop;
     if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) { apply({ type: "scroll" }); run(); }
-    if (scrollFollow(false, distance.current)) setBehind(false);
+    if (scrollFollow(distance.current, bandOf(node))) setBehind(false);
   };
-  // Through the same follow: a native smooth scroll heads for the old bottom and can stop outside the 24px band.
+  // Through the same follow: a native smooth scroll heads for the old bottom and can stop short of it.
   const jump = () => {
     const node = scroller.current;
     if (!node) return;

@@ -386,8 +386,7 @@ export function questionLines(item: Extract<ThreadItem, { kind: "question" }>): 
   });
 }
 
-export const FOLLOW_DISTANCE = 24;
-// Follows new output only within 24px of the bottom; scrolled further up, it stays and offers Jump to latest.
-export function scrollFollow(opening: boolean, distanceFromBottom: number): boolean {
-  return opening || distanceFromBottom <= FOLLOW_DISTANCE;
+// Whether a scroll back within the follow band (threadMotion followBand) takes Jump to latest away.
+export function scrollFollow(distanceFromBottom: number, band: number): boolean {
+  return distanceFromBottom <= band;
 }
