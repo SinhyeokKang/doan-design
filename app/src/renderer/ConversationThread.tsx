@@ -32,7 +32,7 @@ import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type Que
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, FOLLOW_DISTANCE, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
-import { entering, FOLLOW_START, followStep, nextFollow, revealBoundary, revealStep, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
+import { entering, FOLLOW_START, followResize, followStep, nextFollow, revealBoundary, revealStep, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -941,11 +941,6 @@ export function replyStart(prev: readonly ThreadItem[], entry: Extract<ThreadIte
 export function flushesReply(entry: ThreadItem, drawn: readonly ThreadItem[], after: { stopping: boolean; notice: boolean }): boolean {
   return after.stopping || after.notice || entry.key !== drawn.at(-1)?.key;
 }
-// A scroll to a permission or question still waiting holds the follow until it is answered; to anything else it is a
-// plain scroll.
-export function scrollToItemHolds(items: ConversationThreadProps["items"], key: string): boolean {
-  return Array.isArray(items) && items.some(item => item.key === key && waitsForPerson(item));
-}
 
 // When each user message this thread drew began its entry (entering), by key. A history message that replaces a
 // Sending one drawn in the previous render (same words and chips) takes that one's start, so the entry runs once.
@@ -968,14 +963,6 @@ function focusedItem(scroller: HTMLElement | null): string | null {
   return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
 }
 
-// distance: from the bottom before the change. While a reply reveals, the view sticks to the bottom each frame (an ease
-// would keep the line being written below the fold); a one-time growth eases. behind: only new content shows it.
-export type FollowMove = "snap" | "ease" | "none";
-export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; grew: boolean }): { state: FollowState; move: FollowMove; behind: boolean | null } {
-  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
-  if (!next.pinned) return { state: next, move: "none", behind: change.grew && change.distance > FOLLOW_DISTANCE ? true : null };
-  return { state: next, move: change.reduced || change.revealing ? "snap" : "ease", behind: false };
-}
 // The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
 const frameTime = () => typeof document !== "undefined" ? document.timeline.currentTime : null;
 const NO_SENDS: readonly LocalSend[] = [];
@@ -1000,9 +987,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const scroller = useRef<HTMLDivElement | null>(null);
   const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0);
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
-  // wrote, so a scroll event of its own is told from the person's. heldKey: the waiting card scrollToItem went to.
+  // wrote, so a scroll event of its own is told from the person's.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
-  const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity), heldKey = useRef<string | null>(null);
+  const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
   const [behind, setBehindState] = useState(false), behindNow = useRef(false);
@@ -1142,8 +1129,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!node || !opened.current) return;
     const now = performance.now();
     const grew = node.scrollHeight > contentHeight.current;
+    const before = { height: contentHeight.current, inset: 0 }, after = { height: node.scrollHeight, inset: 0 };
     contentHeight.current = node.scrollHeight;
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now, grew });
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now, before, after });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
@@ -1160,13 +1148,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     opened.current = true;
     contentHeight.current = node.scrollHeight;
     write(node, bottomOf(node));
-  }, [items]);
-  // A card scrollToItem went to that stopped waiting (answered, expired or gone) lets the follow resume at the bottom.
-  useLayoutEffect(() => {
-    const key = heldKey.current;
-    if (key === null || !Array.isArray(items) || items.some(item => item.key === key && waitsForPerson(item))) return;
-    heldKey.current = null;
-    apply({ type: "release" });
   }, [items]);
   const ready = Array.isArray(items);
   useEffect(() => {
@@ -1256,9 +1237,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
-      const holds = scrollToItemHolds(latest.current.items, key);
-      if (holds) latestFollow.current.apply({ type: "scrollToItem" });
-      heldKey.current = holds ? key : null;
       // A question or handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
       node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },

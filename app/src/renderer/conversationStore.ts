@@ -79,6 +79,9 @@ export class ConversationStore {
   private deletedIds = new Set<string>();
   // Kept across the thread's redraw for another conversation or canvas; not across a reload.
   private questions = new Map<string, Map<string, QuestionDraft>>();
+  // The popover's fold: the requests waiting when it was collapsed. A request not covered opens it again. Kept here,
+  // since the thread is made anew for each conversation it shows.
+  private folds = new Map<string, ReadonlySet<string>>();
   // Kept for a conversation not read yet; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
   // Every list read drops the ones the list moved past, so a same-reset retry is read again; only the read holding the
@@ -265,6 +268,26 @@ export class ConversationStore {
     this.questions.set(conversationId, new Map(this.questions.get(conversationId)).set(requestId, next));
     this.host.changed();
   }
+  // waiting: the ids of the requests waiting now.
+  popoverCollapsed(conversationId: string, waiting: readonly string[]): boolean {
+    const covers = this.folds.get(conversationId);
+    return covers !== undefined && waiting.length > 0 && waiting.every(id => covers.has(id));
+  }
+  collapsePopover(conversationId: string, waiting: readonly string[]): void {
+    if (this.deletedIds.has(conversationId) || waiting.length === 0) return;
+    this.folds.set(conversationId, new Set(waiting));
+    this.host.changed();
+  }
+  expandPopover(conversationId: string): void {
+    if (this.folds.delete(conversationId)) this.host.changed();
+  }
+  private unfold(conversationId: string, requestId: string): void {
+    const covers = this.folds.get(conversationId);
+    if (!covers?.has(requestId)) return;
+    const left = new Set(covers);
+    left.delete(requestId);
+    if (left.size) this.folds.set(conversationId, left); else this.folds.delete(conversationId);
+  }
   private resolvedQuestion(conversationId: string, requestId: string): boolean {
     const events = this.threads.get(conversationId)?.events ?? this.unclaimed;
     return events.some(event => event.conversationId === conversationId && event.type === "question.resolved" && event.requestId === requestId);
@@ -287,6 +310,7 @@ export class ConversationStore {
     this.dropDrafts(key => key === `conversation:${conversationId}`);
     this.threads.delete(conversationId);
     this.questions.delete(conversationId);
+    this.folds.delete(conversationId);
     this.stages.delete(conversationId);
     this.queues.delete(conversationId);
     this.sends.delete(conversationId);
@@ -384,6 +408,7 @@ export class ConversationStore {
   event(event: ConversationEvent): void {
     if (this.deletedIds.has(event.conversationId)) return;
     if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
+    if (event.type === "question.resolved" || event.type === "permission.resolved") this.unfold(event.conversationId, event.requestId);
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     this.threads.set(event.conversationId, { ...thread, events: mergeEvents(thread.events, [event], event.conversationId) });

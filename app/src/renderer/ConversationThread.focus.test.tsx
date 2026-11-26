@@ -162,7 +162,7 @@ test("a cancelled card that held focus hands it to the next waiting request, or 
 });
 
 test("a cancelled question whose Other field held unsent text moves focus from the page to the composer", () => {
-  props = { ...props, questionDraft: () => ({ choices: { "0": { selected: [], other: true, text: "Grid" } }, sending: null, failed: null }) };
+  props = { ...props, questionDraft: () => ({ choices: { "0": { selected: [], other: true, text: "Grid" } }, step: 0, sending: null, failed: null }) };
   draw([asked("q")]);
   draw([asked("q", "expired")]);
   expect(composer).toHaveBeenCalledOnce();

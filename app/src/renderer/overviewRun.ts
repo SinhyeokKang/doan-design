@@ -65,10 +65,10 @@ export function endSeq(events: readonly ConversationEvent[], live: boolean): num
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
 
-// Wait while the list says the conversation waits but its event has not arrived; otherwise the request has nothing
-// left to show.
+// The earliest waiting request, the one the popover shows. Wait while the list says the conversation waits but its
+// event has not arrived; otherwise the request has nothing left to show.
 export function scrollTarget(items: readonly ThreadItem[], waiting: boolean): { kind: "item"; key: string } | { kind: "wait" } | { kind: "drop" } {
-  const ask = [...items].reverse().find(waitsForPerson);
+  const ask = items.find(waitsForPerson);
   if (ask) return { kind: "item", key: ask.key };
   return waiting ? { kind: "wait" } : { kind: "drop" };
 }

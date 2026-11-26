@@ -132,36 +132,45 @@ export function followStep(pos: number, target: number, dtMs: number, bottom: nu
   return Math.abs(goal - next) < 0.5 ? { pos: goal, done: true } : { pos: next, done: false };
 }
 
-// held: scrollToItem moved it, so it waits for the person's own input or a release. wheelAt: trackpad inertia may
-// still scroll.
-export interface FollowState { pinned: boolean; held: boolean; selecting: boolean; wheelAt: number }
+// wheelAt: trackpad inertia may still scroll.
+export interface FollowState { pinned: boolean; selecting: boolean; wheelAt: number }
 // The composer is outside the thread. scroll: one the follow loop did not write.
 export type FollowEvent =
   | { type: "input"; kind: "wheel" | "pointer"; at: number }
   | { type: "input"; kind: "key"; key: string; at: number }
   | { type: "scroll" }
-  | { type: "scrollToItem" }
-  // The card scrollToItem went to stopped waiting.
-  | { type: "release" }
   | { type: "selection"; active: boolean }
   | { type: "jump" }
   | { type: "frame"; at: number; distance: number };
 
-export const FOLLOW_START: FollowState = { pinned: true, held: false, selecting: false, wheelAt: -Infinity };
+export const FOLLOW_START: FollowState = { pinned: true, selecting: false, wheelAt: -Infinity };
 const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
 
 export function nextFollow(state: FollowState, event: FollowEvent): FollowState {
   switch (event.type) {
     case "input":
       if (event.kind === "key" && !SCROLL_KEYS.has(event.key)) return state;
-      return { ...state, pinned: false, held: false, wheelAt: event.kind === "wheel" ? event.at : state.wheelAt };
+      return { ...state, pinned: false, wheelAt: event.kind === "wheel" ? event.at : state.wheelAt };
     case "scroll": return state.pinned ? { ...state, pinned: false } : state;
-    case "scrollToItem": return { ...state, pinned: false, held: true };
-    case "release": return state.held ? { ...state, held: false } : state;
     case "selection": return { ...state, selecting: event.active, pinned: event.active ? false : state.pinned };
-    case "jump": return { ...state, pinned: true, held: false };
+    case "jump": return { ...state, pinned: true };
     case "frame":
-      if (state.pinned || state.held || state.selecting || event.at - state.wheelAt < WHEEL_HOLD_MS || event.distance > FOLLOW_DISTANCE) return state;
+      if (state.pinned || state.selecting || event.at - state.wheelAt < WHEEL_HOLD_MS || event.distance > FOLLOW_DISTANCE) return state;
       return { ...state, pinned: true };
   }
+}
+
+// height: the scroller's scrollHeight; inset: the end inset inside it that keeps the popover off the last item.
+export interface ThreadSize { height: number; inset: number }
+export type FollowMove = "snap" | "ease" | "none";
+// distance: from the bottom before the change. While a reply reveals, the view sticks to the bottom each frame (an ease
+// would keep the line being written below the fold); a one-time growth eases. An inset change is no new content, so it
+// never shows Jump to latest, and it lands at once: the popover appears whole, and an ease would leave the last item
+// under it for a moment.
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
+  const grew = change.after.height - change.after.inset > change.before.height - change.before.inset;
+  if (!next.pinned) return { state: next, move: "none", behind: grew && change.distance > FOLLOW_DISTANCE ? true : null };
+  const snap = change.reduced || change.revealing || change.after.inset !== change.before.inset;
+  return { state: next, move: snap ? "snap" : "ease", behind: false };
 }

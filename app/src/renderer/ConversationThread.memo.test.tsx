@@ -148,7 +148,7 @@ test("handoffs, asks and attachments draw again when what they read from outside
   expect(changed({ canvasListed: () => false }, "canvasCard")).toBe(true);
   expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
   expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
-  expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: null }) }, "question")).toBe(true);
+  expect(changed({ questionDraft: () => ({ choices: {}, step: 0, sending: "answer", failed: null }) }, "question")).toBe(true);
 });
 
 // A card's meta reads its canvas's row and the time: the host's clock ticks each second, the meta's words once a minute.
