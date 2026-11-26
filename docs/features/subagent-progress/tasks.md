@@ -13,11 +13,18 @@
   - Codex 항목이 오지 않으면 spec '확정한 결정'의 Codex와 '완료 조건' 3을 "Codex 제외"로 고치고, BACKLOG에 적을 문장을 T8에 더한다.
 - `[commit]` design.md와 쓸 프레임으로 줄인 fixture(`app/src/main/conversation/fixtures/`, README 항목 포함)
 
-## T1b. PoC: 보고 턴과 살려 둔 send
+## T1b. PoC: 보고 턴과 살려 둔 send — 완료(design.md 'PoC 결과 (T1b)')
 
 - design.md 'PoC (T1b)'대로 T1과 같은 방식으로 확인한다. 실제 로그인은 복사본으로 쓴다(AGENTS.md 'Real agent sign-ins').
 - 검증: 경우마다 기록된 프레임이 `.scratch/subagent-progress/`에 있고, 결과와 그에 따른 설계(입력을 열어 두는 방식, 보고 턴의 표식, 보고 턴 중 send의 처리, 보고 턴의 연쇄)가 design.md 'PoC 결과 (T1b)'에 적혀 있다. 임시 홈과 복사한 인증이 지워져 있다.
 - `[commit]` design.md
+
+## T1c. PoC: 쉬는 프로세스
+
+- design.md 'PoC (T1c)'대로 같은 방식으로 확인한다.
+- 검증: 기록이 `.scratch/subagent-progress/t1c/`에 있고, 결과와 설계(설정 바꾸기 길, 자원, 터미널 continue, 오래 쉰 뒤의 send)가 design.md 'PoC 결과 (T1c)'에 적혀 있다. 임시 홈과 복사한 인증이 지워져 있다.
+- 사용자 결정이 필요한 것(터미널 continue 처리, 자원이 크면 제한)이 나오면 이어서 묻고 spec에 적는다.
+- `[commit]` design.md, spec.md
 
 ## T2. 드래프트와 모습 결정
 

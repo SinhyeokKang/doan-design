@@ -11,7 +11,8 @@
   - `conversation/runners.ts`:
     - 턴 안과 터미널 뒤의 작업 프레임을 리듀서로 넘긴다. 지금 `normalizeClaude`는 터미널 뒤 프레임을 버린다(`state.terminal`). 작업 프레임은 그 앞에서 따로 읽는다.
     - **보고 턴**: 빈 집합이 된 tick에 프로세스를 끊는 규칙을 없앤다. 대신 CLI가 스스로 여는 턴(프롬프트를 읽지 않은 채 오는 프레임, 지금 `promptTransport`가 "a background task's notice"로 다루는 것)을 사람 메시지 없는 새 턴으로 받는다. 이를 위해 턴이 끝나도 입력을 닫지 않고 프로세스를 유지해야 한다. 지금은 "closes the moment the turn ends"(`runners.ts` 입력 주석)이고, 2.1.284는 입력을 닫은 뒤 약 5초에 백그라운드 명령을 끊었다(PoC 결과 3). 그래서 입력을 열어 둔 채 기다리는 방식과, 그때의 프로세스 수명은 T1b PoC로 정한다.
-    - **다음 send**: 백그라운드 작업이 도는 동안의 send는 `endAfterTurn`으로 프로세스를 끊지 않고, 살아 있는 프로세스의 입력에 넣는다(`enqueue`, steer와 같은 길). 보고 턴이 이미 도는 중이면 그 턴에 steer할지 큐에 둘지는 T1b에서 정한다.
+    - **다음 send**: 턴이 끝나도 입력을 닫지 않고 프로세스를 대화의 삭제, 앱 종료, 로그아웃(또는 연결 변경)까지 유지한다. 다음 send는 `endAfterTurn`으로 프로세스를 끊지 않고 살아 있는 프로세스의 입력에 넣는다. 백그라운드 작업이 도는 중이어도 같다(PoC 결과 T1b c).
+    - **보고 턴 중의 send**: 보통 도는 턴과 같다. 큐에 들어가 보고 턴이 끝나면 나가고, Send now는 steer한다. CLI에 그냥 넣으면 그 턴에 접혀 답 하나가 한쪽만 말한다(PoC 결과 T1b d).
     - 최소 버전에서 마지막 `task_notification`이 빈 집합보다 늦게 오는 경우(PoC 결과 5)는 기다리지 않는다. 그 작업은 기록하지 않는다. 보고 턴을 허용하므로 프로세스는 그 순간 끊기지 않고, 늦은 알림도 대개 받게 된다.
   - `conversation/service.ts`:
     - 진행 중 작업 목록은 `StageSignal`(`types.ts`)과 같은 메모리 전용 push로 보낸다. `conversation:list`(`changedOf`)로 보내면 `task_progress`가 올 때마다 root의 기록 전체를 다시 접는다(ARCHITECTURE §7 "no cache; a known cost").
@@ -73,7 +74,7 @@
 - **규약(ARCHITECTURE §1)**: 없다.
 - **결정**:
   - PRODUCT §5 item 3의 진행 표시 금지 문장들이 바뀐다(spec '바뀌는 PRODUCT와 ARCHITECTURE 문장'). 사용자가 이 feature에서 정했다.
-  - Out of scope 4: Doan은 요청을 보내지 않는다. 모델 요약을 켜지 않는다. 다만 작업이 끝날 때 프로세스를 끊는 규칙을 없애고, Claude Code가 여는 보고 턴을 새 좁은 예외로 둔다(사용자가 이 feature에서 정했다). 보고 턴은 사람 메시지로 시작한 턴의 백그라운드 작업에서만 열리고, 보고 턴이 다시 띄운 백그라운드 작업은 또 보고 턴을 열 수 있는지 T1b에서 확인하고 정한다.
+  - Out of scope 4: Doan은 요청을 보내지 않는다. 모델 요약을 켜지 않는다. 다만 작업이 끝날 때 프로세스를 끊는 규칙을 없애고, Claude Code가 여는 보고 턴을 새 좁은 예외로 둔다(사용자가 이 feature에서 정했다). 보고 턴은 사람 메시지로 시작한 턴과, 그 턴에서 이어진 보고 턴이 띄운 백그라운드 작업에서 열린다. 보고 턴은 이어질 수 있다(PoC 결과 T1b e). 사람의 턴 중에 끝난 작업의 결과는 CLI가 그 턴에 접어 넣고 보고 턴을 열지 않는다. Doan은 따로 요청하지 않는다(사용자 결정).
   - ARCHITECTURE §7 'Background work after a done turn'의 끊기 규칙, 'Ending a finished turn's process'의 다음 send 처리, 대화가 실행 중이 아닌 것으로 보는 규칙(slots, 사이드바, Delete, Restart to Update)이 바뀐다. 보고 턴이 열리면 대화는 실행 중이다.
   - 서빙 범위, sandbox iframe, GitHub 토큰, git 명령과는 관계가 없다.
 - **보안**: `description`과 `subagent_type`은 에이전트가 쓴 신뢰하지 않는 텍스트다. 텍스트로만 그리고, `storableText`로 정리한 뒤 512자로 자른다(`claudeToolSummary`와 같다).
@@ -104,6 +105,27 @@ T1 뒤 사용자가 보고 턴 허용과, 작업을 살려 둔 send를 정했다
 - 보고 턴이 권한이나 질문을 요청할 수 있는지, 보고 턴이 다시 백그라운드 작업을 띄우면 또 보고 턴이 열리는지
 - 결과를 이 문서의 'PoC 결과 (T1b)'에 적는다.
 
+## 프로세스를 대화 수명 동안 유지 (T1b 뒤 사용자 결정)
+
+턴마다 프로세스를 끝내던 규칙(ARCHITECTURE §7 "A Claude run opens for one turn", 'Ending a finished turn's process')을 바꾼다. Claude Code 대화의 프로세스는 입력을 연 채 대화의 삭제, 앱 종료, 로그아웃이나 연결 변경, 프로젝트 Remove까지 산다. 다음 send는 그 입력에 들어간다. 프로세스가 없으면(재시작 뒤, 크래시 뒤) 지금처럼 resume으로 연다.
+
+이 결정이 건드리는 곳이 넓어서 구현 전에 T1c PoC와 설계가 필요하다.
+
+- **send마다 바뀌는 설정**: 지금은 send마다 새 프로세스라 모델, effort, 권한 모드, 프리셋, 프로젝트 스킬, MCP 연결을 그 send의 값으로 연다. 살아 있는 프로세스에서는 SDK 제어(`setModel`, `setPermissionMode`, `setMaxThinkingTokens`, MCP 제어 등)로 바꿔야 한다. 제어가 없는 값(effort, MCP 서버 목록, 환경 변수)은 바뀌면 프로세스를 닫고 resume한다.
+- **세션 점유**: 프로세스가 사는 동안 그 세션은 점유 중이다. 터미널 세션 continue는 지금 `session_in_use`로 거절되는데(ARCHITECTURE §7), 이제 대화가 열려 있는 한 늘 거절된다. 사람이 터미널에서 같은 세션을 이어 가려면 어떻게 할지 정해야 한다.
+- **실행 중 판정과 lease**: 쉬는 프로세스는 실행 중이 아니다(slots, 사이드바, Delete, Restart to Update). Doan 연결 lease는 quiet이고, 로그아웃과 연결 교체는 지금 백그라운드 작업처럼 멈추고 기다린다.
+- **자원**: 대화 수만큼 프로세스가 쉰다. Doan은 동시 실행 수를 제한하지 않는다(PRODUCT In scope 6). 쉬는 프로세스의 메모리와, 그 수가 많을 때의 영향을 T1c에서 잰다.
+- **다음 메시지 제안**: 지금은 턴 끝에 오는 제안을 기다리다 끊는다. 프로세스가 살면 제안은 그대로 오고, 다음 send나 보고 턴이 시작되면 지운다.
+- **사용 한도, 재시작**: 사용 한도로 기다리는 메시지, Restart to Update, 앱 종료의 정리(`process.ts` 'Quit and process cleanup')가 쉬는 프로세스를 포함한다.
+
+## PoC (T1c): 쉬는 프로세스
+
+- 2.1.332와 2.1.284에서: 살아 있는 프로세스에서 모델, 권한 모드, thinking을 SDK 제어로 바꾼 뒤 send가 그 값으로 도는지. effort와 MCP 서버 목록을 바꿀 길이 있는지.
+- 쉬는 프로세스 하나의 메모리(RSS)와 10개일 때의 합.
+- 쉬는 동안 같은 세션을 터미널에서 `claude --resume`할 때 무슨 일이 생기는지.
+- 오래 쉰 뒤(예: 30분, 토큰 만료 시각 너머) send가 되는지.
+- 결과를 이 문서의 'PoC 결과 (T1c)'에 적는다.
+
 ## postmortem에서 가져온 주의점
 
 - 2026-11 "Copilot started search, glob and `sleep 6` together … the turn indicator said working": 호출마다 상태를 따로 두면 병렬과 순서가 다른 끝남에서 틀린다. 아직 도는 작업의 집합을 두고, 모든 끝남 경로가 그 집합에서 뺀다. 병렬 시작과 순서가 다른 끝남을 테스트한다.
@@ -123,7 +145,7 @@ T1 뒤 사용자가 보고 턴 허용과, 작업을 살려 둔 send를 정했다
 - **프레임**:
   - `in-turn`: 턴 안의 서브에이전트 하나, 여럿이 함께 도는 경우, 끝남, 실패, 멈춤, 인디케이터와 함께 보이는 모습, 활동 그룹이 끊긴 모습
   - `expanded`: 펼친 행(서브에이전트, 명령, Codex의 상태만 있는 행)
-  - `background`: 턴이 끝난 뒤 행들이 계속 도는 모습과 백그라운드 줄, 작업 하나가 먼저 끝난 경우, Stopping, 작업이 도는 중에 보낸 사람 메시지, 모든 작업이 끝난 뒤 열린 보고 턴
+  - `background`: 턴이 끝난 뒤 행들이 계속 도는 모습과 백그라운드 줄, 작업 하나가 먼저 끝난 경우, Stopping, 작업이 도는 중에 보낸 사람 메시지, 작업이 끝날 때마다 열리는 보고 턴(작업마다 하나, 이어지는 보고 턴), 보고 턴 중의 큐
   - `history`: 재시작 뒤 기록이 있는 행과 기록이 없어 활동 단계로 남은 경우
   - `widths`: 캔버스 패널 280·기본, 프로토타입 창, Overview 720. 280에서 무엇이 먼저 잘리는지
   - `copy`: 문구와 스크린 리더 상태
@@ -194,3 +216,83 @@ T1 뒤 사용자 결정(2026-11-26): 최소 버전의 늦은 마지막 알림은
 - **새 사실: 2.1.332는 `run_in_background`가 없는 Agent 호출을 백그라운드로 띄운다.** 턴 안 서브에이전트로 그린 화면이 실제로는 턴 뒤 행과 백그라운드 줄로 나타나는 일이 잦을 것이다. 이때 에이전트는 결과를 전하지 못한 채 끊긴다(지금 규칙 그대로). 드래프트의 `background` 프레임을 주 경우로 다뤄야 한다.
 - **틀림: Codex 항목 가정.** `collabAgentToolCall`의 스폰과 `subagentStart`/`subagentStop`은 오지 않는다. Codex 행은 메인 스레드의 `subAgentActivity`(`started`→`completed`)로 만들 수 있지만, 설명 대신 `agentPath` 이름만 있다. spec '확정한 결정'의 Codex 항목("설명과 상태")은 "이름과 상태"로 고치거나 Codex를 빼야 한다. 사용자 결정이 필요하다.
 - **2.1.284에는 `run_id`가 없다.** 늦은 프레임을 `run_id`로 거르는 규칙은 332에서만 동작한다. 없으면 거르지 않는다.
+
+## PoC 결과 (T1b)
+
+2026-11-26에 `.scratch/subagent-progress/t1b/`의 probe로 확인했다.
+
+- **버전**: Claude Code 2.1.332(설치본)와 2.1.284(최소, `.scratch/provider-usage/clis/`), Agent SDK 0.3.312(`app/node_modules`). 모델은 `haiku`다.
+- **실행 방식**: `t1b/probe.mjs`는 `runners.ts` `openClaude`처럼 SDK `query`를 열린 입력으로 돌리고, 메시지마다 `uuid`를 붙여 넣는다(`promptTransport`, `steer`와 같다). Doan과 달리 **`result` 뒤에 입력을 닫지 않고, 빈 레벨 신호에서 그룹을 끊지도 않는다.** 마지막 `result` 뒤 정해 둔 시간(20-120초) 동안 아무 일이 없을 때만 입력을 닫는다. `promptSuggestions: true`와 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true`를 Doan처럼 켰다. 권한 모드는 Doan의 Ask first처럼 아무것도 넘기지 않았고, `canUseTool`은 호출을 기록한 뒤 허용한다. `AskUserQuestion`에는 첫 선택지로 답한다. `t1b/run.sh`는 T1의 `run-claude.sh`와 같은 방식으로 로그인 사본을 쓴다(아래 '정리').
+- **기록 파일**: `t1b/raw/<버전>-<경우>.json`. `frames`는 SDK가 넘긴 프레임, `wire`는 stdout 원문(`stream_event` 제외), `events`는 probe가 한 일(send, 입력 닫기, `canUseTool`, 종료)이다. 경우는 `report-bash`, `report-agent`, `idle`, `send-bg`, `send-bg-fold`, `send-report`, `report-perm`, `report-question`, `report-chain`, `report-two`다. 두 번째 실행(`send-report`, `send-bg-fold`, `report-two`, 332의 `send-bg`)은 세션 기록(`<버전>-<경우>.<session>.jsonl`, 이메일은 가렸다)도 남겼다. 실행 로그는 `332-run.log`, `332-run2.log`, `284-run.log`, `284-run2.log`, `332-smoke.log`다. `summarize.mjs`로 줄인 타임라인을 볼 수 있다. 첫 실행에서 조건이 어긋난 두 기록은 `332-send-bg.first-closed-early.json`(작업이 끝나기 0.2초 전에 입력을 닫았다)과 `332-send-report.first-no-sleep.json`(모델이 보고 턴에서 도구를 부르지 않았다)으로 남기고 다시 돌렸다.
+- SDK가 넘긴 프레임과 stdout 원문은 `session_state_changed`(`sdk_host_only`)와 `control_*`만 빼고 같았다. `command_lifecycle` 프레임(`command_uuid`, `queued`·`started`·`completed`)은 SDK가 그대로 넘기지만 SDK 0.3.312 타입에는 없다.
+
+### a. 보고 턴
+
+- **두 버전 모두 CLI가 스스로 턴을 연다**(`332-report-bash`, `332-report-agent`, `284-report-bash`, `284-report-agent` 외 모든 경우). 맨 위 `task_notification` 뒤 14-123 ms에 `system/init`이 오고(332는 14-59 ms, 284는 19-123 ms), `status: requesting` → assistant → `result`(`success`)가 이어진다. 보고 턴의 글은 모델이 쓴다(예: `The background command finished: … exited with code 0.`).
+- **보고 턴은 마지막 작업이 끝날 때만이 아니라, 맨 위 작업 하나가 끝날 때마다 열린다**(`332-report-two`, `284-report-two`: 4초와 14초 명령 둘 중 짧은 쪽이 끝나자 레벨 신호에 작업이 남은 채 보고 턴이 열렸고, 긴 쪽이 끝나자 또 열렸다). 서브에이전트 안의 명령(`owned_by_subagent`)이 끝날 때는 열리지 않았다(`*-report-agent`).
+- **사람 턴과 가르는 표식**(SDK 프레임 기준):
+  - 사람 메시지는 넣자마자 `command_lifecycle`(`command_uuid` = 넣은 uuid) `queued` → `started`가 오고, 턴이 끝나면 `completed`가 온다. 보고 턴에는 `command_lifecycle`이 하나도 없다.
+  - 사람 턴의 첫 assistant 프레임(332는 `system/init`과 `status`도)과 `result`에는 `user_message_uuid(s)`가 넣은 uuid로 붙는다. 보고 턴의 `init`, assistant, `result`에는 `user_message_uuid(s)`가 없다(`result`의 `user_message_uuid` 없음). 284의 `init`은 사람 턴에서도 uuid를 싣지 않는다.
+  - 보고 턴을 연 알림은 stdout에 user 프레임으로 오지 않는다. 세션 기록에만 `origin: {kind: "task-notification"}`인 user 메시지로 남는다(`332-send-report.*.jsonl`, `332-report-two.*.jsonl`).
+  - 284의 보고 턴은 `isSynthetic: true`인 user 프레임(`[Your previous response had no visible output. …]`)을 낼 수 있다(`284-report-two`). 사람 메시지로 읽으면 안 된다.
+- 보고 턴의 `result` 뒤에도 입력은 열려 있고, 프로세스는 다음 일을 기다린다.
+
+### b. 열어 둔 입력과 프로세스 수명, 제안
+
+- **입력이 열려 있는 동안 프로세스는 스스로 끝나지 않았다.** 백그라운드 작업 없이 두 턴 뒤 120초(`332-idle`, `284-idle`), 마지막 보고 턴 뒤 20-45초(나머지 모든 경우) 동안 살아 있었다. 입력을 닫으면 0.4-0.6초 뒤 코드 0으로 끝났다. 열린 입력에 다음 메시지를 넣으면 같은 프로세스에서 다음 턴이 된다(`*-idle`의 두 번째 턴).
+- **다음 메시지 제안**: 332는 백그라운드 작업을 남기고 끝난 턴 뒤에만 `prompt_suggestion`을 보냈다(`check the background command output` 류; `332-report-bash`, `332-report-agent`, `332-send-bg`, `332-send-bg-fold`, 작업이 남은 채 끝난 `332-report-two`의 첫 보고 턴). 제안은 `result` 뒤 1.2-1.5초에 왔고 그 뒤 보고 턴이 열렸다. 마지막 보고 턴과 `idle`의 턴 뒤에는 오지 않았다. 284는 한 번도 보내지 않았다. 제안 대기가 보고 턴을 막거나 늦추지는 않았다.
+- 덤으로 본 것(실행 1회, `332-send-bg.first-closed-early`): 332에서 작업이 끝나기 0.2초 전에 입력을 닫았는데, CLI는 작업의 끝을 기다려 보고 턴을 돌리고 입력을 닫은 지 2.8초 뒤에 끝났다. T1의 284는 입력을 닫고 약 5.2초 뒤 백그라운드 명령을 끊었다(PoC 결과 3). 입력을 닫은 뒤 CLI가 무엇을 기다리는지는 버전마다 다르고 확인하지 않았다.
+
+### c. 백그라운드 작업이 도는 중의 send
+
+- **새 턴으로 바로 읽히고, 작업은 계속 돈다**(`332-send-bg`, `284-send-bg`): `queued`·`started`가 10-40 ms 안에 오고, 그 턴의 `result`가 넣은 uuid를 싣는다. 작업이 그 턴 뒤에 끝나면 **따로 보고 턴이 열린다**(332는 알림 뒤 14 ms, 284는 37 ms).
+- **작업이 그 사람 턴 중에 끝나면 알림은 그 턴 안으로 접혀 들어가고, 보고 턴은 따로 열리지 않는다**(`332-send-bg-fold`, `284-send-bg-fold`, 두 번씩): 맨 위 `task_notification`과 빈 레벨 신호는 제때 오지만, 그 뒤에는 사람 턴의 `result`(사람 uuid) 하나뿐이다. 세션 기록에서는 알림이 `queued_command` 첨부로 그 턴의 다음 도구 결과와 함께 모델에 갔다(`*-send-bg-fold.*.jsonl`). 모델은 이를 사람 요청에 대한 답(`slept`)에 섞지 않았다. 즉 그 작업의 결과는 사람에게 따로 전해지지 않을 수 있다.
+
+### d. 보고 턴이 도는 중의 send
+
+- **steer로 그 보고 턴에 접혀 들어간다**(`332-send-report`, `284-send-report`, 284는 두 번): 넣은 직후 `queued`가 오고, 보고 턴이 돌리던 도구(`sleep 12`)의 결과 직후 `started`가 온다. 그 뒤 assistant와 `result`가 넣은 uuid를 싣고(`user_message_uuids: [uuid]`), 턴은 `result` 하나로 끝난다. 다음 턴은 따로 열리지 않았다. 답은 섞인다: 332는 `pong`(사람 요청)만, 284는 `reported`(보고)만 답했다.
+- 이는 지금 Doan의 steer 규칙과 같은 모양이다: uuid가 `user_message_uuids`에 처음 보일 때 읽힌 것으로 본다(`transport.ts`). 다만 보고 턴의 `result`가 Doan이 넣은 uuid를 `user_message_uuid`로 싣는다.
+- 확인하지 않은 경우: 도구를 부르지 않고 글만 쓰는 보고 턴 중의 send. 지금 steer처럼 다음 턴으로 돌고 `init`에 uuid가 실릴 것으로 보지만 재현하지 않았다.
+
+### e. 보고 턴의 권한, 질문, 이어지는 보고 턴
+
+- **보고 턴도 권한을 요청한다**(`332-report-perm`, `284-report-perm`): 보고 턴의 Write에 `control_request`(`can_use_tool`)가 오고 `canUseTool`이 불렸다. 허용하자 파일을 쓰고 `written`으로 끝났다.
+- **보고 턴도 `AskUserQuestion`을 부른다**(`332-report-question`, `284-report-question`): `canUseTool`(`AskUserQuestion`)이 불렸고, 답을 넣자 그 답(`Yes`)으로 끝났다.
+- **보고 턴이 띄운 백그라운드 작업이 끝나면 또 보고 턴이 열린다**(`284-report-chain`: 첫 보고 턴이 두 번째 명령을 띄우고 `second started`로 끝났고, 그 명령이 끝나자 다음 보고 턴이 `all done`으로 끝났다). 332에서는 모델이 첫 턴에 두 명령을 함께 띄웠지만, 첫 보고 턴이 다시 띄운 명령이 끝나자 세 번째 보고 턴이 열렸다(`332-report-chain`). 보고 턴이 도는 중에 끝난 작업의 알림은 그 보고 턴 안으로 접혔다(같은 기록, 두 번째 명령).
+
+### 설계에 미치는 영향
+
+- **입력을 열어 두는 조건**: CLI는 입력이 열려 있으면 스스로 끝나지 않으므로, 언제 닫을지는 Doan이 정한다. 제안: 끝난 턴(사람 턴이든 보고 턴이든)의 `result` 뒤 레벨 신호에 맨 위 작업이 남아 있으면 입력을 열어 둔다. 남은 작업이 없고 도는 턴도 없을 때 입력을 닫는다(0.4-0.6초 뒤 끝남). 284는 빈 레벨 신호가 알림보다 먼저 오므로(PoC 결과 5), 빈 집합을 본 순간이 아니라 그 뒤의 보고 턴 `result`에서 닫는다. 보고 턴이 열리지 않는 경우(모델 호출 실패 등)를 위해 빈 집합 뒤 짧은 상한이 필요하다. 상한 값은 구현에서 정한다(관찰한 알림→`init`은 최대 123 ms).
+  - 작업을 남기지 않은 턴은 지금처럼 끝에서 입력을 닫는다(`runners.ts` "closes the moment the turn ends"). 작업이 없을 때도 프로세스를 다음 send에 다시 쓸 수 있지만(`*-idle`), 그것은 ARCHITECTURE §7 'Ending a finished turn's process'와 "A Claude run opens for one turn"을 바꾸는 일이라 이 feature의 범위로 보지 않는다. **사용자 결정 필요**(아래).
+  - 빈 집합의 tick에 그룹을 끊는 규칙(ARCHITECTURE §7 'Background work after a done turn')은 없앤다. 그 자리를 위 닫기 규칙이 맡는다.
+  - 턴 끝 사용량 읽기(`usageAtTurnEnd`)는 입력이 열려 있어야 하므로 그대로 둘 수 있다.
+- **보고 턴을 가려내는 법**: Doan이 넣고 아직 읽히지 않은 메시지가 없는데(`state.prompt`, `state.steered`가 비어 있음) 끝난 턴 뒤에 맨 위 `system/init`이 오면, 사람 메시지 없는 보고 턴이 시작된 것이다. `command_lifecycle`과 `user_message_uuid`가 없다는 것은 이를 뒷받침하는 표식이지만, `command_lifecycle`은 SDK 타입에 없으므로 판단의 근거는 Doan 자신의 상태로 한다. 보고 턴은 권한과 질문을 낼 수 있으므로 일반 턴처럼 활동, 권한 카드, 질문 카드, 터미널 이벤트를 모두 가진다. `isSynthetic` user 프레임은 사람 메시지가 아니다.
+- **보고 턴은 여러 번 열린다.** 작업마다(맨 위 작업이 끝날 때마다), 그리고 보고 턴이 띄운 작업이 끝날 때 다시 열린다. "모든 작업이 끝난 뒤 보고 턴 하나"라는 가정(드래프트 `background` 프레임)은 틀렸다. 보고 턴이 도는 동안에도 남은 작업의 행과 백그라운드 줄은 남아 있어야 한다.
+- **작업이 도는 중의 send**: 살아 있는 프로세스의 입력에 uuid를 붙여 넣는다(`promptTransport`와 같은 길). `endAfterTurn`으로 끊지 않는다. 작업은 계속 돌고, 그 턴 뒤에 끝나면 보고 턴이 따로 온다. 그 턴 안에서 끝나면 보고 턴은 오지 않고 알림이 그 턴 안으로 접힌다. 행은 `task_notification`으로 끝남을 기록하므로 두 경우 모두 행의 상태는 맞다.
+- **보고 턴이 도는 중의 send**: CLI는 이를 steer로 그 보고 턴에 접는다. Doan도 도는 턴에 대한 send와 같이 steer로 다루는 것을 제안한다(지금 steer 길, `user_message_uuids`로 읽힘 확인, 읽히지 않은 채 `result`가 오면 `awaitingRead`). 대안은 Doan이 보고 턴의 `result`까지 메시지를 들고 있다가 다음 턴으로 넣는 것이다. 알림→`init` 사이(14-123 ms)에 넣은 메시지는 어느 쪽이든 CLI가 정한다. **사용자 결정 필요**.
+- **다음 메시지 제안**: 332는 작업을 남긴 턴 뒤에 제안을 보내고, 곧 보고 턴이 열린다. 보고 턴이 시작되면 이미 보인 제안은 지워야 한다(작업 결과를 보기 전의 제안이다). 보고 턴 뒤의 제안은 일반 턴 뒤의 제안과 같이 다룬다.
+
+### 사용자 결정 (2026-11-26)
+
+1. 보고 턴 중의 send: 보통 도는 턴처럼 큐에 들어간다. Send now는 steer한다.
+2. 작업을 남기지 않은 턴 뒤에도 입력을 열어 두고, 프로세스를 대화의 삭제·앱 종료·로그아웃까지 유지한다(위 '프로세스를 대화 수명 동안 유지').
+3. 사람의 턴 중에 끝난 작업의 결과가 그 턴에 접혀 언급되지 않을 수 있는 것을 받아들인다.
+
+### 사용자 결정이 필요했던 것
+
+1. 보고 턴이 도는 중의 send를 그 보고 턴에 steer할지(CLI의 동작 그대로, 추천), Doan이 들고 있다가 다음 턴으로 보낼지.
+2. 작업을 남기지 않은 턴에서도 입력을 열어 두고 프로세스를 다음 send에 다시 쓸지. 추천: 이번 feature에서는 바꾸지 않는다(작업이 남은 경우에만 열어 둔다).
+3. 사람 턴 중에 끝난 작업의 결과가 사람에게 따로 전해지지 않는 경우(c의 접힘)를 그대로 둘지. 행은 끝남을 보여 주므로 추천은 그대로 두는 것이다.
+
+### 확인하지 않은 것
+
+- 도구 없이 글만 쓰는 보고 턴 중의 send(d).
+- 보고 턴의 모델 호출이 실패하거나 사용 한도에 걸린 경우.
+- 보고 턴 중 턴 Stop, 줄의 Stop.
+- 입력을 닫은 뒤 CLI가 남은 작업을 어떻게 다루는지(버전 차이, b의 덤).
+- 2.1.284에서 `run_in_background`가 빠진 Agent 호출(T1과 같이 재현하지 못했다).
+
+### 정리
+
+- 로그인은 T1과 같이 이 세션의 Orca 프로필 Keychain 항목(`Claude Code-credentials-36ffc8d1`)을 refresh token을 비운 사본으로 임시 홈(`/private/tmp/claude-501/sp-t1b.*`)의 `.credentials.json`에 넣어 썼다. 실제 에이전트 홈과 그 로그인은 쓰지 않았고, 원본 항목은 그대로다(refresh token 유지, 만료 시각 그대로).
+- 실행마다 임시 홈을 지우고 해시 이름의 임시 Keychain 항목이 없음을 확인했다(`c58a3a87`, `6dd89de3`, `708b3b9f`, `c85b12a5`, `f83e7e32`: 모두 없음). CLI가 `/private/tmp/claude-501/`에 만든 작업 출력 디렉터리(`-private-tmp-claude-501-sp-t1b-*-work`)도 지웠다. 남은 probe 프로세스와 `sleep` 프로세스는 없었다. Keychain의 `Claude Code-credentials*` 목록은 시작 전과 같다.

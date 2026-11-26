@@ -35,6 +35,9 @@
 - **Stop**: 지금처럼 하나다. 턴의 Stop과 백그라운드 줄의 Stop은 지금 규칙 그대로이고, 작업별 Stop은 없다.
 - **보고 턴**: 사람 메시지로 시작한 턴의 백그라운드 작업이 모두 끝나면, Claude Code가 스스로 여는 보고 턴을 끊지 않고 스레드에 보인다. 에이전트가 작업 결과를 사람에게 전하게 하기 위해서다. Claude Code 2.1.332는 `run_in_background` 없는 Agent 호출도 백그라운드로 띄우고 턴을 "알림이 오면 답하겠다"로 끝내므로(PoC 결과 1), 지금처럼 끊으면 결과가 전해지지 않는다. 이것은 Out of scope 4의 새 좁은 예외다(Handoff, 사용 한도와 같은 자리). 보고 턴은 사람의 메시지가 없는 에이전트 턴이고, 그 밖에는 보통 턴과 같다: 실행 중 표시, 권한·질문 요청, Stop, 알림, 안 본 표시, 사용 한도.
 - **다음 send**: 백그라운드 작업이 도는 중에 사람이 메시지를 보내면, 작업을 끝내지 않고 살려 둔 채 보낸다. 지금은 다음 send가 작업을 먼저 끝낸다.
+- **보고 턴의 반복**: 보고 턴은 맨 위 작업 하나가 끝날 때마다 하나씩 열리고, 보고 턴이 띄운 작업이 끝나면 다시 열린다(PoC 결과 T1b). 사람의 턴이 도는 중에 끝난 작업은 그 턴에 접히고 보고 턴을 열지 않는다. 모델이 그 결과를 말하지 않을 수 있지만, 행이 끝남을 보이므로 받아들인다.
+- **보고 턴 중의 send**: 보통 도는 턴과 같다. 큐에 들어가 보고 턴이 끝나면 나가고, Send now는 끼어든다.
+- **프로세스 유지**: Claude Code 대화의 프로세스는 턴이 끝나도 닫지 않고, 대화의 삭제, 앱 종료, 로그아웃이나 연결 변경, 프로젝트 Remove까지 유지한다. 다음 send는 그 프로세스로 간다. 프로세스가 없으면 지금처럼 resume한다.
 - **최소 버전의 마지막 알림**: Claude Code 2.1.284는 마지막 작업의 끝남 알림이 빈 작업 집합보다 늦게 올 수 있다(PoC 결과 5). Doan은 알림을 기다리지 않는다. 받지 못한 작업은 기록 없이 사라진다.
 - **명령 행**: 백그라운드 명령(`is_backgrounded: true`)만 행이 된다. 3초를 넘긴 foreground 명령은 지금처럼 활동 단계와 인디케이터가 보인다. 서브에이전트 안에서 도는 작업(`owned_by_subagent`, `parent_task_id`)은 행을 만들지 않는다. 그 서브에이전트 행의 일부이기 때문이다.
 - **기록**: 진행 중인 숫자는 메모리에만 둔다. 작업이 끝나면 그 결과를 대화 이벤트로 한 번 기록한다. 그래서 재시작 뒤에도 무엇이 돌았고 어떻게 끝났는지 남는다. Agent 도구 호출의 활동 이벤트는 지금처럼 저장하고, 표시만 작업 행으로 바뀐다.
@@ -66,6 +69,8 @@
 ## 바뀌는 PRODUCT와 ARCHITECTURE 문장 (승격 때)
 
 - PRODUCT §3 Out of scope 4: 보고 턴을 Handoff, 사용 한도 옆의 새 예외로 더한다.
+- PRODUCT §5 item 3: 보고 턴의 모습과 큐 규칙, 쉬는 프로세스와 터미널 세션 continue(`session_in_use`)
+- ARCHITECTURE §7: "A Claude run opens for one turn", 'Ending a finished turn's process', send마다의 설정 적용, lease와 실행 중 판정, 'Quit and process cleanup'
 - PRODUCT §5 item 3 'Background work line': "No model request goes out without a person's message … Doan ends the process at that moment", "the next send ended it first", 안내 문장 "It stops when you send your next message or press Stop."
 
 - PRODUCT §5 item 3 'Background work line': "No sweep, spinner or output of the work shows", 줄의 모양, 프로토타입 창을 따르는 화면에 더함, 줄의 Stop 뒤 행의 상태
@@ -77,6 +82,8 @@
 - ARCHITECTURE §7 'Background work after a done turn'(작업 정보를 메모리에 둠), 대화 이벤트의 되돌림 비용 문단(`activity.result`, `canvas.drawn`과 같은 곳), Claude와 Codex transport가 읽는 프레임, 턴 뒤 기록의 쓰기 경로
 
 ## 비목표
+
+- 쉬는 프로세스의 수나 시간 제한(T1c 결과를 보고 다시 정할 수 있다)
 
 - 작업별 Stop. `stop_task`를 쓴다고 알리면 턴 Stop의 의미가 바뀐다(`sdk.d.ts` `perTaskStopAffordance` 선언). BACKLOG에 적는다.
 - 서브에이전트 안의 도구 단계, 답글, 결과 글(`summary`)을 스레드에 보이기
