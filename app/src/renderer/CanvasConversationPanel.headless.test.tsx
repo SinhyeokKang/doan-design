@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
@@ -36,6 +36,8 @@ vi.mock("react", async original => {
   };
 });
 
+const clipboard = vi.hoisted(() => ({ copy: vi.fn() }));
+vi.mock("./copyText", () => ({ copyText: clipboard.copy }));
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasRun } = await import("./canvasRun");
 const { ConversationStore } = await import("./conversationStore");
@@ -156,7 +158,7 @@ test("the store reads a thread and takes a returned draft through the call objec
 });
 
 // An existing conversation's composer: its send, queue and attachment paths, still without window.doan.
-async function existing(calls: ReturnType<typeof fakeCalls>) {
+async function existing(calls: ReturnType<typeof fakeCalls>, onNotice = vi.fn()) {
   const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
     phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
@@ -168,14 +170,14 @@ async function existing(calls: ReturnType<typeof fakeCalls>) {
   const tree = render(() => CanvasConversation({
     calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
     prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice, work: [],
   }));
   expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
   const composer = dockedProps(tree)! as {
     onSend(request: unknown): Promise<unknown>; onQueue(request: unknown): Promise<unknown>;
     onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   };
-  return { store, composer };
+  return { store, composer, tree };
 }
 
 test("an existing conversation's send and queue go through the call object", async () => {
@@ -404,3 +406,19 @@ test("a recorded pasted text reaches the mounted sent bubble with its lines, too
   expect(drawn.some(element => element.props.children === "Checkout spec")).toBe(true);
   expect(drawn.some(element => element.props["aria-description"] === "Checkout spec")).toBe(true);
 });
+
+function copyHandler(node: ReactNode): ((text: string) => Promise<boolean>) | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = copyHandler(child); if (found) return found; } return null; }
+  if (!isValidElement<{ onCopy?: (text: string) => Promise<boolean>; children?: ReactNode }>(node)) return null;
+  return node.props.onCopy ?? copyHandler(node.props.children);
+}
+for (const ok of [true, false]) {
+  test(`code copy returns ${ok} and only success notifies the canvas host`, async () => {
+    const onNotice = vi.fn();
+    clipboard.copy.mockReturnValue(ok);
+    const { tree } = await existing(fakeCalls(), onNotice);
+    expect(await copyHandler(tree)!("const value = 1;")).toBe(ok);
+    expect(clipboard.copy).toHaveBeenLastCalledWith("const value = 1;");
+    expect(onNotice.mock.calls).toEqual(ok ? [["Copied code"]] : []);
+  });
+}

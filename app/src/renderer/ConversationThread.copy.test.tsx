@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
-import { ConversationThread, Steps, type ConversationThreadProps } from "./ConversationThread";
+import { CanvasCard, ConversationThread, Steps, type ConversationThreadProps } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 let dom: ElectronDom;
@@ -45,3 +45,14 @@ test("a copied edit step gives its verb, path and counts on their own lines, wit
   }));
   expect(selected).toEqual(["Edited\na.ts\n+12 −3", "Edited\nb.ts"]);
 });
+
+for (const state of [{ drawing: true, drawn: false }, { drawing: false, drawn: true }, { drawing: false, drawn: false }]) {
+  test(`the canvas card Open stays subtle and small (${JSON.stringify(state)})`, () => {
+    const canvas = { id: "checkout", path: ".doan/canvases/checkout.html" };
+    const markup = renderToStaticMarkup(<TooltipProvider><CanvasCard
+      entry={{ kind: "canvasCard", key: "card", canvas, ...state }}
+      context={{ root: "/r", rows: [{ ...canvas, url: "u" }], thumbnails: new Map(), now: 0 }}
+      project="copy" provider="claude" canvasListed={() => true} onOpen={noop} /></TooltipProvider>);
+    expect(markup).toContain('class="doan-button cc-open" data-ui-size="sm" data-ui-variant="subtle"');
+  });
+}

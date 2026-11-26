@@ -603,7 +603,7 @@ describe("canvas cards and the received handoff", () => {
   const canvasCard = (entry: Card, ctx: CardContext, listed = true) => drawn(<CanvasCard entry={entry} context={ctx} project="doan-design" provider="claude" canvasListed={() => listed} onOpen={() => {}} />);
   const running = { turn: { turnId: "t1", status: { kind: "general" as const }, at: "2026-11-16T00:00:00.000Z" } };
   // A card's Open names the canvas it opens; several cards would otherwise read as the same "Open".
-  const OPEN = (label: string) => `<button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="${label}">Open</button>`;
+  const OPEN = (label: string) => `<button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="subtle" aria-label="${label}">Open</button>`;
   const svg = (icon: string) => `<svg[^>]*lucide-${icon}[^>]*aria-hidden="true"[^>]*>.*?</svg>`;
   // The banner is decorative: hidden from screen readers, with the sidebar's canvas icon until an image shows.
   const EMPTY_BANNER = `<div class="cc-banner empty"[^>]*aria-hidden="true"[^>]*><svg[^>]*lucide-panels-top-left[^>]*>.*?</svg></div>`;

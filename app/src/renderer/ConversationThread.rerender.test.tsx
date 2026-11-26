@@ -50,10 +50,12 @@ const base: ConversationThreadProps = {
 };
 
 // Runs the thread body once and returns the values of the providers it renders, in order (Actions, then the chip data).
+let lastBody: ReactNode;
 function run(props: ConversationThreadProps): unknown[] {
   hooks.cursor = 0;
   const outer = (ConversationThread as unknown as { render(props: ConversationThreadProps, ref: null): ReactElement<ConversationThreadProps> }).render(props, null);
   const body = (outer.type as (props: ConversationThreadProps) => ReactNode)(outer.props);
+  lastBody = body;
   const values: unknown[] = [];
   hooks.contexts.clear();
   const walk = (node: ReactNode) => {
@@ -91,4 +93,24 @@ test("a change of locateDisabled, the open canvas's frame titles or a row's file
   const other = chip("checkout", "payment");
   expect(other.props["aria-label"]).toBe("Open checkout-v2 and show Payment");
   expect(other.props["aria-disabled"]).toBeUndefined();
+});
+
+function statusText(node: ReactNode): ReactNode {
+  if (Array.isArray(node)) return node.map(statusText).flat().filter(value => value !== null);
+  if (!isValidElement<{ role?: string; children?: ReactNode }>(node)) return null;
+  if (node.props.role === "status") return node.props.children;
+  return statusText(node.props.children);
+}
+test("successful code copy clears its reply failure without announcing success in the thread", async () => {
+  let ok = false;
+  const props = { ...base, onCopy: async () => ok };
+  const [actions] = run(props) as [{ copy(text: string, reply: string): void }];
+  actions.copy("code", "m1");
+  await Promise.resolve(); await Promise.resolve();
+  expect(run(props)[2]).toBe("m1");
+  ok = true;
+  actions.copy("code", "m1");
+  await Promise.resolve(); await Promise.resolve();
+  expect(run(props)[2]).toBeNull();
+  expect(statusText(lastBody)).not.toContain("Copied");
 });

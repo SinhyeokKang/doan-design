@@ -6,6 +6,10 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
 // The docked composer is replaced by a recorder: these tests read what the Overview hands it and press its Send.
 const docked = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
 vi.mock("./DockedComposer", async original => ({ ...await original<typeof import("./DockedComposer")>(), DockedComposer: (props: Record<string, unknown>) => { docked.props = props; return null; } }));
+const thread = vi.hoisted(() => ({ props: null as import("./ConversationThread").ConversationThreadProps | null }));
+vi.mock("./ConversationThread", async original => ({ ...await original<typeof import("./ConversationThread")>(), ConversationThread: (props: import("./ConversationThread").ConversationThreadProps) => { thread.props = props; return null; } }));
+const clipboard = vi.hoisted(() => ({ copy: vi.fn() }));
+vi.mock("./copyText", () => ({ copyText: clipboard.copy }));
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
@@ -220,4 +224,20 @@ test("the ring's usage is hidden until the summary arrives and for a legacy exte
   expect(hidden([])).toBe(true);
   expect(hidden([summary()])).toBe(false);
   expect(hidden([summary({ owner: "legacy-external" })])).toBe(true);
+});
+
+for (const ok of [true, false]) {
+  test(`code copy returns ${ok} and only success notifies the Overview host`, async () => {
+    const onNotice = vi.fn();
+    clipboard.copy.mockReturnValue(ok);
+    render([summary()], A, { onNotice });
+    expect(await thread.props!.onCopy("const value = 1;")).toBe(ok);
+    expect(clipboard.copy).toHaveBeenLastCalledWith("const value = 1;");
+    expect(onNotice.mock.calls).toEqual(ok ? [["Copied code"]] : []);
+  });
+}
+test("code copy succeeds in an Overview without an optional notice callback", async () => {
+  clipboard.copy.mockReturnValue(true);
+  render([summary()], A);
+  expect(await thread.props!.onCopy("code")).toBe(true);
 });
