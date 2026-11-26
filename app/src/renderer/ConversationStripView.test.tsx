@@ -310,6 +310,42 @@ test("the actions stack under the text once they would push the title off its li
   expect(strip(draw(ASK)).className).toBe("convo-strip doan-notice stacked");
 });
 
+// At 960 wide the Stopped strip kept Edit on Home and Dismiss beside its short title and cut its body.
+test("the actions stack under the text once they would cut the body, though the title fits", () => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  const box = (width: number) => ({ getBoundingClientRect: () => ({ width }) });
+  const title = {}, body = {};
+  const node = { clientWidth: 412, querySelector: (selector: string) => (({ ".strip-agent": box(16), ".strip-text > b": title, ".strip-text > span": body, ".strip-actions": { children: [120, 80].map(box) } }) as Record<string, unknown>)[selector] ?? null };
+  vi.stubGlobal("document", { createRange: () => { let of: unknown; return { selectNodeContents: (target: unknown) => { of = target; }, getBoundingClientRect: () => ({ width: of === title ? 60 : of === body ? 160 : 0 }) }; } });
+  vi.stubGlobal("getComputedStyle", (el: unknown) => el === node ? { paddingLeft: "16px", paddingRight: "16px", columnGap: "6px" } : { columnGap: "8px" });
+  const stopped: StripState = { kind: "interrupted", reason: "user" };
+  const draw = () => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; hooks.effects = []; const tree = ConversationStrip({ conversationId: "c1", provider: "codex", state: stopped, view: stripView(stopped, { ...CTX, provider: "codex" }), onEditOnHome: noop, onDismiss: noop }); hooks.reuse = true; return tree; };
+  const strip = (tree: ReactNode) => elements(tree).find(props => typeof props.className === "string" && props.className.startsWith("convo-strip"))!;
+
+  (strip(draw()).ref as { current: unknown }).current = node;
+  for (const effect of hooks.effects) effect();
+  // 16 + 6 + 60 + 6 + 208 fits the 380 content box, but 16 + 6 + 160 + 6 + 208 does not.
+  expect(strip(draw()).className).toBe("convo-strip doan-notice stacked");
+});
+
+// The working line changes with every activity; counting it would move the strip's height up and down during a turn.
+test("a working strip's activity line does not stack the actions", () => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  const box = (width: number) => ({ getBoundingClientRect: () => ({ width }) });
+  const title = {}, body = {};
+  const node = { clientWidth: 412, querySelector: (selector: string) => (({ ".strip-agent": box(16), ".strip-text > b": title, ".strip-text > span": body, ".strip-actions": { children: [box(75)] } }) as Record<string, unknown>)[selector] ?? null };
+  vi.stubGlobal("document", { createRange: () => { let of: unknown; return { selectNodeContents: (target: unknown) => { of = target; }, getBoundingClientRect: () => ({ width: of === title ? 120 : of === body ? 340 : 0 }) }; } });
+  vi.stubGlobal("getComputedStyle", (el: unknown) => el === node ? { paddingLeft: "16px", paddingRight: "16px", columnGap: "6px" } : { columnGap: "8px" });
+  const working: StripState = { kind: "working", activity: "Running npm --prefix app run test -- --run src/renderer" };
+  const draw = () => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; hooks.effects = []; const tree = ConversationStrip({ conversationId: "c1", provider: "codex", state: working, view: stripView(working, { ...CTX, provider: "codex" }), onEditOnHome: noop, onDismiss: noop }); hooks.reuse = true; return tree; };
+  const strip = (tree: ReactNode) => elements(tree).find(props => typeof props.className === "string" && props.className.startsWith("convo-strip"))!;
+
+  (strip(draw()).ref as { current: unknown }).current = node;
+  for (const effect of hooks.effects) effect();
+  // 16 + 6 + 340 + 6 + 75 is wider than the 380 content box; the title alone (120) fits.
+  expect(strip(draw()).className).toBe("convo-strip doan-notice");
+});
+
 // Stacked, the row wraps its buttons rather than running past the strip; the title is measured on one line.
 test("the strip's action row wraps and its title stays on one line", async () => {
   const { readFileSync } = await import("node:fs");
