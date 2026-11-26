@@ -77,7 +77,7 @@ describe("handoff copy", () => {
 describe("handoffMetaView", () => {
   const NOW = new Date(2026, 10, 25, 14, 4).getTime(), AT = new Date(2026, 10, 25, 13, 59);
   const TIME = { text: "5m ago", words: "5 minutes ago", dateTime: AT.toISOString(), title: "2026-11-25 13:59" };
-  const view = (source: { canvas?: typeof DRAFTS }, listed: boolean | null, at = AT.toISOString()) => handoffMetaView(source, "acme-web", listed, at, NOW);
+  const view = (source: { canvas?: { path: string; id?: string } }, listed: boolean | null, at = AT.toISOString()) => handoffMetaView(source, "acme-web", listed, at, NOW);
   test.each<[string, { canvas?: typeof DRAFTS }, boolean | null, ReturnType<typeof handoffMetaView>]>([
     ["a canvas source", { canvas: DRAFTS }, true,
       { kind: "canvas", name: "drafts.html", time: TIME, reason: null, open: "Open drafts.html", label: "Handoff from drafts.html" }],

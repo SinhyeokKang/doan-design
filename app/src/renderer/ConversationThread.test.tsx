@@ -862,7 +862,7 @@ describe("the received handoff bubble's rules", () => {
     expect(body(".conversation-thread .ho-meta :is(svg, .sep, time, .doan-button)")).toContain("flex: none;");
   });
   test("a thread 275px wide or less hides the time and its dot", () => {
-    expect(body(".conversation-thread .thread")).toContain("container-type: inline-size;");
+    expect(css).toContain(" .conversation-thread .thread { container-type: inline-size; }");
     expect(css).toContain("@container (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }");
   });
   test("focus on the group rings its bubble", () => {

@@ -152,8 +152,9 @@ test("handoffs and attachments draw again when what they read from outside their
   expect(base.has(key("question"))).toBe(false);
 });
 
-// A card's meta reads its canvas's row and the time: the host's clock ticks each second, the meta's words once a minute.
-test("canvas and handoff cards draw again when their canvas's row or the minute changes, not with each second", () => {
+// A card's meta reads its canvas's row and the time; the received handoff's meta reads the time alone. The host's clock
+// ticks each second, the meta's words once a minute.
+test("canvas cards draw again when their canvas's row or the minute changes, the received handoff with the minute, not with each second", () => {
   const items = threadItems(asks(), ROOT, true);
   const key = (kind: ThreadItem["kind"]) => items.find(item => item.kind === kind)!.key;
   const row: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "", width: 390, mtimeMs: Date.parse("2026-11-01T00:00:00Z"), frames: [{ id: "f" }] };
@@ -165,8 +166,8 @@ test("canvas and handoff cards draw again when their canvas's row or the minute 
     return !same(base.get(key(kind))!, next.get(key(kind))!);
   };
   for (const kind of ["canvasCard", "handoffCard"] as const) {
-    expect(changed({ canvasRows: [{ ...row, mtimeMs: row.mtimeMs! + 1 }] }, kind), kind).toBe(true);
-    expect(changed({ canvasRows: [{ ...row, frames: [] }] }, kind), kind).toBe(true);
+    expect(changed({ canvasRows: [{ ...row, mtimeMs: row.mtimeMs! + 1 }] }, kind), kind).toBe(kind === "canvasCard");
+    expect(changed({ canvasRows: [{ ...row, frames: [] }] }, kind), kind).toBe(kind === "canvasCard");
     expect(changed({ now: NOW + 60_000 }, kind), kind).toBe(true);
     expect(changed({ now: NOW + 1_000 }, kind), kind).toBe(false);
     // A new row object with the same values, as every list read makes.

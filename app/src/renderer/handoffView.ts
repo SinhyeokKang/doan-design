@@ -1,6 +1,8 @@
 import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { Canvas } from "../main/conversation/types";
+import { canvasCardMeta } from "./canvasCardText";
 import { sameCanvas } from "./canvasConversationRows";
+import { shortAgo } from "./overviewConversation";
 
 // The source thread's canvas cards have their copy in canvasCardText.ts.
 
@@ -40,23 +42,31 @@ export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, lis
   return expired ? "toast" : "wait";
 }
 
-const CARD_STATUS = "Handed off to this conversation";
-export interface HandoffCardView {
+// The received handoff bubble's meta line. time: the handoff's, in the Overview's short words with the long ones (words)
+// for the group's description and the local time (title) for its tooltip. A gone source has its reason instead of the
+// time and Open (open: Open's name).
+export interface HandoffMetaView {
   kind: "canvas" | "overview";
   name: string;
-  // Both cards look alike, so the status says the direction: the bold name is the source.
-  status: string;
-  // "<name>, <status>".
+  time: { text: string; words: string; dateTime: string; title: string } | null;
+  reason: string | null;
+  open: string | null;
   label: string;
-  open: boolean;
-  openLabel: string;
 }
-// The card sits on the target canvas, whose header already names the project, so the Overview goes unnamed.
-export function handoffCardView(source: { canvas?: Canvas }, project: string, listed: boolean): HandoffCardView {
-  const name = source.canvas ? fileName(source.canvas.path) : "Overview";
-  const status = listed ? CARD_STATUS : `${CARD_STATUS} · ${source.canvas ? `No longer in ${project}` : "Conversation deleted"}`;
-  return { kind: source.canvas ? "canvas" : "overview", name, status, label: `${name}, ${status}`, open: listed,
-    openLabel: source.canvas ? `Open ${name}` : "Open the source conversation in the Overview" };
+// The bubble sits on the target canvas, whose header already names the project, so the Overview goes unnamed. listed:
+// null (the prototype window before main answers) reads as there.
+export function handoffMetaView(source: { canvas?: Canvas }, project: string, listed: boolean | null, at: string, now: number): HandoffMetaView {
+  const kind = source.canvas ? "canvas" : "overview", name = source.canvas ? fileName(source.canvas.path) : "Overview";
+  const reason = listed === false ? source.canvas ? `No longer in ${project}` : "Conversation deleted" : null;
+  const short = reason === null ? canvasCardMeta(undefined, undefined, now, "", { handedOffAt: at }).handedOff : null, words = shortAgo(at, now);
+  return { kind, name, time: short && words ? { text: short.text, words: words.label, dateTime: short.dateTime, title: short.title } : null, reason,
+    open: reason === null ? source.canvas ? `Open ${name}` : "Open the source conversation in the Overview" : null,
+    label: reason === null ? `Handoff from ${name}` : `Handoff from ${name} · ${reason}` };
+}
+// The name's tooltip as it opens: while the time is hidden, the name and that time whether cut or not; else a cut name.
+export function handoffNameTip(name: string, title: string | null, { cut, timeHidden }: { cut: boolean; timeHidden: boolean }): string | null {
+  if (timeHidden && title !== null) return `${name} · ${title}`;
+  return cut ? name : null;
 }
 // The toast shows on any screen, so an Overview source names its project.
 export function handoffToastText(notice: ConversationHandoffNotice, project: string): string {
