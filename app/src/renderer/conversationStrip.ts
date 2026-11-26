@@ -80,7 +80,7 @@ export function stripSendFailed(how: StripSendError["how"], refusal: string | nu
 
 // The actions stay beside the text while its title and its body each keep their whole line next to them; otherwise they take
 // their own row (DESIGN 'Alignment'). Widths in CSS px: the strip's content box, the icon slot, the strip's gap, the title's
-// and the body's text, the action row.
+// and the body's text (0 for a body that does not count), the action row.
 export function stripStacks(m: { content: number; icon: number; gap: number; title: number; body: number; actions: number }): boolean {
   return m.icon + m.gap + Math.max(m.title, m.body) + m.gap + m.actions > m.content;
 }
