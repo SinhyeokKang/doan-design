@@ -1185,7 +1185,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     apply({ type: "frame", at: now, distance: distance.current, top: node.scrollTop });
     if (judgedBehind(was, follow.current, distance.current, bandOf(node))) setBehind(true);
     // apply() may have scheduled the next frame already: one loop id, so unmount cancels it.
-    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.inputAt < WHEEL_HOLD_MS * 2)) run();
+    if (easeTo.current !== null || (!follow.current.pinned && now - Math.max(follow.current.inputAt, follow.current.scrolledAt) < WHEEL_HOLD_MS * 2)) run();
     else lastFrame.current = null;
   };
   const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
@@ -1356,10 +1356,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const moved = clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
     if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) {
-      const pressed = keyDown.current;
-      keyDown.current = null;
-      if (pressed && performance.now() - pressed.at < WHEEL_HOLD_MS) apply({ type: "input", kind: "key", ...pressed });
-      apply({ type: "scroll", distance: distance.current, top: node.scrollTop, moved });
+      // A key is this thread's only when it moved this thread: not a clamp or a re-read, and not during the thread's
+      // own scroll to an item.
+      const pressed = keyDown.current, now = performance.now();
+      if (pressed && moved && !follow.current.item && now - pressed.at < WHEEL_HOLD_MS) {
+        keyDown.current = null;
+        apply({ type: "input", kind: "key", ...pressed });
+      }
+      apply({ type: "scroll", at: now, distance: distance.current, top: node.scrollTop, moved });
       run();
     }
     if (scrollFollow(distance.current, bandOf(node))) setBehind(false);

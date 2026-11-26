@@ -59,17 +59,23 @@ const vars = new Map<string, string>();
 // that was added.
 type Listener = (event: unknown) => void;
 const on = new Map<string, Listener>(), onWindow = new Map<string, Listener>();
+// A capture listener is kept apart, as the DOM does: "keydown:capture".
+type Options = boolean | { capture?: boolean; passive?: boolean } | undefined;
+const slot = (type: string, options: Options) => (options === true || (typeof options === "object" && options.capture)) ? `${type}:capture` : type;
 const listen = (map: Map<string, Listener>) => ({
-  addEventListener: (type: string, listener: Listener) => { map.set(type, listener); },
-  removeEventListener: (type: string, listener: Listener) => { if (map.get(type) === listener) map.delete(type); },
+  addEventListener: (type: string, listener: Listener, options?: Options) => { map.set(slot(type, options), listener); },
+  removeEventListener: (type: string, listener: Listener, options?: Options) => { if (map.get(slot(type, options)) === listener) map.delete(slot(type, options)); },
 });
 const frames = new Map<number, (now: number) => void>();
 let rawTop = 0;
 // A smooth scroll the browser runs toward `to`, from the frame after it was asked for, one step a frame; a scrollTop the
 // code writes cancels it.
-let smooth: { to: number; moving: boolean } | null = null;
+let smooth: { to: number; moving: boolean } | null = null, smoothStep = 150;
 // A focus target for a key: in a field, or anywhere else.
-class El { constructor(readonly field = false) {} closest() { return this.field ? this : null; } }
+class El {
+  constructor(readonly kind = "div") {}
+  closest(selector: string) { return selector.split(",").map(part => part.trim()).includes(this.kind) ? this : null; }
+}
 let frameId = 0, clock = 0;
 const scroller = {
   // The browser keeps scrollTop within the scroll extent: a shrinking extent lowers it.
@@ -112,7 +118,7 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
-  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null;
+  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null; smoothStep = 150;
   vi.spyOn(performance, "now").mockImplementation(() => clock);
   vi.stubGlobal("window", listen(onWindow));
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
@@ -206,7 +212,7 @@ function frameUntil(until: number): void {
     clock += 16;
     if (smooth?.moving) {
       const to = smooth.to;
-      rawTop = rawTop > to ? Math.max(to, rawTop - 150) : Math.min(to, rawTop + 150);
+      rawTop = rawTop > to ? Math.max(to, rawTop - smoothStep) : Math.min(to, rawTop + smoothStep);
       scrolled();
       if (scroller.scrollTop === to) { smooth = null; on.get("scrollend")?.({}); }
     } else if (smooth) smooth.moving = true;
@@ -253,7 +259,7 @@ test("a wheel of more than NUDGE stays where the person left it; new content pas
 // on reply text, so the key is read from the window.
 test("a scroll key pressed with focus outside the thread counts until its scroll ends, past the wheel's hold", () => {
   draw([user]);
-  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El() });
+  onWindow.get("keydown:capture")?.({ key: "ArrowUp", target: new El() });
   scrollBy(-20);
   frameUntil(64);
   scrollBy(-20);
@@ -266,14 +272,14 @@ test("a scroll key pressed with focus outside the thread counts until its scroll
 
 test("a key in a field is not the thread's input; a key that scrolls nothing leaves the follow alone", () => {
   draw([user]);
-  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El(true) });
+  onWindow.get("keydown:capture")?.({ key: "ArrowUp", target: new El("textarea") });
   scrollBy(-40);
   on.get("scrollend")?.({});
   frameUntil(1000);
   expect(atBottom()).toBe(40);
   scrollBy(40);
   frameUntil(2000);
-  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El() });
+  onWindow.get("keydown:capture")?.({ key: "ArrowUp", target: new El() });
   frameUntil(3000);
   resize({ content: 1100 }, [user]);
   frameUntil(4000);
@@ -384,7 +390,7 @@ test("unmounting removes every listener it added and cancels the follow's waitin
   scrollBy(-30);
   frameUntil(120);
   expect(frames.size).toBe(1);
-  expect([...onWindow.keys()].sort()).toEqual(["blur", "keydown", "pointercancel", "pointerup"]);
+  expect([...onWindow.keys()].sort()).toEqual(["blur", "keydown:capture", "pointercancel", "pointerup"]);
   unmount();
   expect(on.size).toBe(0);
   expect(onWindow.size).toBe(0);
@@ -514,4 +520,76 @@ test("a person reading far up who wheels back to the bottom follows again even w
   expect(atBottom()).toBe(37);
   frameUntil(2000);
   expect(atBottom()).toBe(0);
+});
+
+const key = (name = "ArrowUp", target = new El()) => onWindow.get("keydown:capture")?.({ key: name, target });
+
+test("a scroll key whose scrollend never comes still ends once the thread stops scrolling", () => {
+  draw([user]);
+  key();
+  scrollBy(-20);
+  frameUntil(64);
+  scrollBy(-20);
+  frameUntil(150);
+  expect(atBottom()).toBe(40);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a scroll key cut off by the window losing focus, with no scrollend, still ends", () => {
+  draw([user]);
+  key();
+  scrollBy(-30);
+  onWindow.get("blur")!({});
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test.each(["input", "textarea", "button", "[contenteditable]"])("a key in %s is not the thread's input", kind => {
+  draw([user]);
+  key("ArrowUp", new El(kind));
+  scrollBy(-40);
+  frameUntil(1000);
+  expect(atBottom()).toBe(40);
+});
+
+test("a held scroll key's repeats are one input: within NUDGE it follows again, past it it stays", () => {
+  draw([user]);
+  for (const _ of [1, 2]) { key(); scrollBy(-20); frameUntil(clock + 32); }
+  on.get("scrollend")?.({});
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+  for (const _ of [1, 2, 3]) { key(); scrollBy(-20); frameUntil(clock + 32); }
+  on.get("scrollend")?.({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(60);
+});
+
+// The key scrolled the popover or another thread; here only a clamp moved scrollTop.
+test("a key that scrolled something else is not this thread's input when this thread only clamps meanwhile", () => {
+  draw([user]);
+  key();
+  layout.content = 900;
+  scrollBy(0);
+  expect(atBottom()).toBe(0);
+  frameUntil(64);
+  resize({ content: 1000 }, [user]);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+  expect(jump()).toBe(false);
+});
+
+// A thread just taller than its area: the item's bottom is within BOTTOM of where it starts.
+test("scrolling to a received handoff in a thread that barely overflows keeps its top in view while the reply grows", () => {
+  layout.content = 388;
+  draw([user]);
+  expect(scroller.scrollTop).toBe(20);
+  smoothStep = 10;
+  hooks.handle!.scrollToItem("u1");
+  observed();
+  frameUntil(32);
+  expect(scroller.scrollTop).toBe(10);
+  resize({ content: 488 }, [user]);
+  frameUntil(1000);
+  expect(scroller.scrollTop).toBe(0);
 });
