@@ -42,6 +42,7 @@
   - **A. overlay + 여백**: 팝오버를 같은 observer로 보고(`observer.observe(popover)`), 그 콜백에서 끝 여백을 CSS 변수로 쓴다. 여백은 `.thread` 안의 spacer나 `.thread-scroll`의 padding에 둔다. 기존 `var(--space-8)` 끝 padding에 더하고, 대신하지 않는다.
   - **B. sticky 마지막 자식**: 팝오버를 `.thread`의 마지막 자식으로 `position: sticky; bottom: 0`, `margin-top: auto`, `.thread { min-height: 100% }`로 둔다. 흐름 안의 높이가 그대로 여백이 되고, 기존 observer가 본다. 대신 팝오버 위의 휠이 따라가기 리스너로 가고, 높이 상한에 container 단위가 필요하다.
 - 따라가기 규칙(`followStep`/`nextFollow`): 끝 여백의 변화는 바닥을 유지하는 성장으로 본다. 다만 `behind`(새 내용이 생겼다)에는 넣지 않는다. 그래서 팝오버가 펼쳐지거나 단계가 바뀌어도 Jump to latest가 뜨지 않는다. 여백 변화는 ease가 아니라 바로 맞춘다. 팝오버는 한 번에 나타나므로, ease하면 마지막 항목이 잠시 가린다.
+- 위로 스크롤한 채 팝오버에서 답하면, 그 요청의 접힌 줄과 turn indicator가 스레드 끝에 생긴다. 이것은 새 내용이므로 Jump to latest가 뜬다(사용자).
 
 ## 상태
 
