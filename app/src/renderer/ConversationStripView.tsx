@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CircleAlert, CircleCheck, CircleStop } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
 import { answerRefusal } from "./ConversationThread";
-import { focusAfterStop, stripErrorText, stripSendFailed, type StripAction, type StripSendError, type StripState, type StripView } from "./conversationStrip";
+import { focusAfterStop, stripErrorText, stripSendFailed, stripStacks, type StripAction, type StripSendError, type StripState, type StripView } from "./conversationStrip";
 import { providerLogo } from "./homeComposer";
 import { NameTip } from "./NameTip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -45,6 +45,30 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     void answerRefusal(call).then(refusal => { if (n === lastSend.current && stripSendFailed(how, refusal)) setSendError({ requestId, how }); });
   };
   const errorText = stripErrorText(sendError, state);
+  // Measured, not wrapped by CSS: a wrapped row would keep the one-line negative margins that .stacked takes away.
+  const strip = useRef<HTMLDivElement | null>(null);
+  const [stacked, setStacked] = useState(false);
+  const actionsKey = view.actions.map(action => action.label).join("\n");
+  useLayoutEffect(() => {
+    const node = strip.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const style = getComputedStyle(node), row = node.querySelector(".strip-actions");
+      const buttons = row ? Array.from(row.children) : [];
+      const gap = parseFloat(style.columnGap) || 0, rowGap = row ? parseFloat(getComputedStyle(row).columnGap) || 0 : 0;
+      setStacked(stripStacks({
+        content: node.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0),
+        icon: node.querySelector(".strip-agent")?.getBoundingClientRect().width ?? 0,
+        gap,
+        title: textWidth(node.querySelector(".strip-text > b")),
+        actions: buttons.reduce((sum, button) => sum + button.getBoundingClientRect().width, 0) + rowGap * Math.max(0, buttons.length - 1),
+      }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [actionsKey, view.title]);
   const run = (action: StripAction) => {
     if (action.command === "answer") {
       if (state.kind === "permission") send(state.requestId, "answer", () => window.doan.answerConversationPermission({ conversationId, requestId: state.requestId, optionId: action.optionId }));
@@ -70,7 +94,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   // A permission request or a question is announced once: its alert is a new element per request.
   // The state's tone colours the strip's text and its mark, as on every notice.
   const tone = state.kind === "failed" ? " error" : state.kind === "done" ? " ok" : "";
-  return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
+  return <div ref={strip} className={`convo-strip doan-notice${tone}${stacked ? " stacked" : ""}`} role="region" aria-label="Conversation">
     <span className="strip-agent doan-alert-icon">{mark}</span>
     <span className="strip-main">
       <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>
@@ -92,6 +116,14 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
         ? <Tooltip key={key}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{action.detail}</TooltipContent></Tooltip> : button;
     })}</span>
   </div>;
+}
+
+// The text's own width: stacked, the title box is as wide as the strip and its scrollWidth is too.
+function textWidth(node: Element | null): number {
+  if (!node) return 0;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  return range.getBoundingClientRect().width;
 }
 
 // One strip instance per conversation: its Stop-focus memory must not carry over when the project's strip switches to
