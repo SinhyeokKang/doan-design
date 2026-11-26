@@ -1,5 +1,7 @@
 import { object } from "./sessions";
-import { codexPermission, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, steerTransport, type CodexContext, type CodexReplyOwner, type SteerResult } from "./transport";
+import { codexPermission, codexQuestionReply, endTransport, initialTransport, normalizeCodex, normalizeCodexReply, permissionAnswer, steerTransport, storedAnswers, type CodexContext, type CodexReplyOwner, type SteerResult } from "./transport";
+import { questionAnswer } from "./questionAnswer";
+import type { Question, QuestionAnswerInput } from "./question";
 import type { BoundaryKind } from "./commandRecords";
 import type { EventPayload, PendingPermission, TurnStage } from "./types";
 // The server's own error answer to a pending request; timeouts, write failures and exit reject with a plain Error.
@@ -12,6 +14,8 @@ export class CodexDispatcher {
   private context: CodexContext = { root: "", sessionId: "", turnId: "" };
   private pending = new Map<string | number, Pending>();
   private permissions = new Map<string, { id: string | number; request: PendingPermission }>();
+  // Async questions: the server waits for no reply, only for a turn/steer, so nothing is written when one expires.
+  private questions = new Map<string, Question[]>();
   private next = 1;
   private closed = false;
   // consumed: a steered message the server echoed, called in line with emit. stage: the turn's stage after a notification,
@@ -65,6 +69,7 @@ export class CodexDispatcher {
           try { this.write(result.request.response); } catch { this.fail(); return; }
         } else if (!this.reject(id)) return;
       }
+      if (result.question) this.questions.set(result.question.requestId, result.question.questions);
       this.apply(result); return;
     }
     if ((typeof raw.id !== "string" && typeof raw.id !== "number") || ("result" in raw) === ("error" in raw) || ("error" in raw && !object(raw.error))) { this.fail(); return; }
@@ -84,7 +89,21 @@ export class CodexDispatcher {
     try { this.write(answer.response); } catch { this.fail(); return false; }
     this.permissions.delete(requestId); this.emit(answer.event); return true;
   }
+  // The answer is steered without a clientUserMessageId: its echo is the question's answer, not a message of the thread.
+  // A refused or unanswered steer refuses only itself; the turn's end then ends the wait.
+  answerQuestion(requestId: string, given: QuestionAnswerInput): "ok" | "stale" | "bad_request" {
+    const questions = this.questions.get(requestId); if (!questions || !this.running()) return "stale";
+    const answer = questionAnswer(questions, given); if (!answer) return "bad_request";
+    this.questions.delete(requestId);
+    this.call("turn/steer", { threadId: this.context.sessionId, expectedTurnId: this.context.turnId, input: [{ type: "text", text: codexQuestionReply(questions, answer) }] }, undefined, false).catch(() => {});
+    this.emit({ type: "question.resolved", requestId, outcome: answer.outcome, ...(answer.outcome === "answered" ? { answers: storedAnswers(questions, answer) } : {}) });
+    return "ok";
+  }
   expire(): void {
+    for (const requestId of this.questions.keys()) {
+      this.questions.delete(requestId);
+      this.emit({ type: "question.resolved", requestId, outcome: "expired" });
+    }
     for (const [requestId, pending] of this.permissions) {
       this.permissions.delete(requestId); this.reject(pending.id);
       this.emit({ type: "permission.resolved", requestId, optionId: "expired" });

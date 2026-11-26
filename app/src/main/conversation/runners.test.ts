@@ -1445,6 +1445,32 @@ readline.createInterface({input:process.stdin}).on('line', line => {
     expect(events.filter(e => e.type === "turn.failed" || e.type.startsWith("question.") || e.type.startsWith("permission."))).toEqual([]);
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
+// request_user_input_async comes as an agentMessage item; the turn sleeps until the answer arrives as a turn/steer.
+it("asks a Codex async question and steers the person's answer into the sleeping turn", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-async-")), command = join(root, "codex"), seen = join(root, "seen");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
+ if(r.method==='turn/start') { send({id:r.id,result:{turn:{id:'native-turn'}}}); send({method:'item/completed',params:{threadId:'session',turnId:'native-turn',item:{type:'agentMessage',id:'call_q',text:'Which color?',delivery:'async',questions:[{title:'Which color?',options:['Red','Blue']}]}}}); }
+ if(r.method==='turn/steer') { fs.appendFileSync(${JSON.stringify(seen)}, line + '\\n'); send({id:r.id,result:{turnId:'native-turn'}}); send({method:'turn/completed',params:{threadId:'session',turn:{id:'native-turn',status:'completed'}}}); }
+});
+`, { mode: 0o700 });
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("hello", "local-turn");
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: "question.request", requestId: "call_q" })));
+    expect(events.filter(e => e.type === "message.done")).toEqual([]);
+    expect(runner.answerQuestion!("call_q", { outcome: "answered", answers: { "0": { selected: [1] } } })).toBe("ok");
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(readFileSync(seen, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line).params)).toEqual([{ threadId: "session", expectedTurnId: "native-turn", input: [{ type: "text", text: "Blue" }] }]);
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
 // A Doan-account turn's end reads usage on the run's own connection, never a new process.
 describe("usage at a turn's end", () => {
   const usageReply = { rate_limits_available: true, rate_limits: { five_hour: { utilization: 12, resets_at: null } } };
