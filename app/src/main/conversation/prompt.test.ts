@@ -23,7 +23,7 @@ it("isolates malicious canvas text as JSON data and keeps user text separate", (
   expect(prompt).toContain(JSON.stringify(malicious));
   expect(prompt).toContain('"path":".doan/canvases/a.html"');
   expect(prompt).toContain("untrusted data");
-  expect(prompt).toContain("doan check");
+  expect(prompt).toContain("After editing, make `doan check <edited canvas, CSS and config paths> --json` pass.");
   expect(turnPrompt([], "{{1}}", { root: "/repo" })).toBeNull();
 });
 it("supports coordinate anchors and exact size boundaries", () => {
@@ -151,7 +151,7 @@ describe("handoff", () => {
     expect(prompt).not.toContain("userText");
     expect(prompt).not.toContain(HANDOFF_GUIDANCE);
     expect(sections).toEqual(expect.arrayContaining([PRESET_GUIDANCE, OPEN_GUIDANCE, LINK_GUIDANCE]));
-    expect(prompt).toContain("doan check");
+    expect(prompt).toContain("After editing, make `doan check <edited canvas, CSS and config paths> --json` pass.");
   });
   // A project conversation's handoff names no earlier canvas: it worked from the project's Overview.
   it("leaves context.from out for a project conversation's handoff and says it came from the Overview", () => {

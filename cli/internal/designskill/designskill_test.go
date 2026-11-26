@@ -634,3 +634,17 @@ func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 		}
 	}
 }
+
+func TestPresetsRequireEditedPathsWhenPassingCheck(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathless := regexp.MustCompile("(?i)(make `doan check` pass|passes? `doan check`|`doan check` passes|a passing `doan check`)")
+	for _, p := range c.Presets() {
+		body, _ := c.Body(p.ID, "dev")
+		if match := pathless.FindString(body); match != "" {
+			t.Errorf("preset %s has a path-less check instruction: %s", p.ID, match)
+		}
+	}
+}
