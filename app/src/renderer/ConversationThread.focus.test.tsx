@@ -427,6 +427,17 @@ describe("the popover's motion", () => {
     for (const fade of fades) expect(fade.cancel).toHaveBeenCalled();
   });
 
+  test("a request that ends while the body fades out still collapses, over the requests left", async () => {
+    draw([permission("a"), permission("b")]);
+    attach();
+    (popover()!.props.onEscape as () => void)();
+    draw([permission("a", "answered"), permission("b")]);
+    for (const fade of [...runs]) fade.finish();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(props.onCollapse).toHaveBeenCalledExactlyOnceWith(["b"]);
+    expect(composer).toHaveBeenCalledOnce();
+  });
+
   test("a height run cancelled for the next one leaves the next run's clip alone when its cancel event comes", async () => {
     draw([permission("a")]);
     attach();
