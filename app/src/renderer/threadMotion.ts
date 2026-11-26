@@ -160,15 +160,16 @@ export function nextFollow(state: FollowState, event: FollowEvent): FollowState 
   }
 }
 
-// height: the scroller's scrollHeight; inset: the end inset inside it that keeps the popover off the last item.
-export interface ThreadSize { height: number; inset: number }
+// content: the thread's own height, measured apart from the end inset and the viewport (the scroll height has the
+// viewport as its floor); inset: the end inset under the popover; distance: from the bottom, before and after.
+export interface ThreadSize { content: number; inset: number; distance: number }
 export type FollowMove = "snap" | "ease" | "none";
-// distance: from the bottom before the change. A revealing reply or an inset change snaps (an ease would leave the line
-// being written, or the last item under the popover, out of view); an inset change is no new content for Jump to latest.
-export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
-  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
-  const grew = change.after.height - change.after.inset > change.before.height - change.before.inset;
-  if (!next.pinned) return { state: next, move: "none", behind: grew && change.distance > FOLLOW_DISTANCE ? true : null };
+// A revealing reply or an inset change snaps (an ease would leave the line being written, or the last item under the
+// popover, out of view); only the content's own growth is new for Jump to latest.
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; now: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.before.distance });
+  const grew = change.after.content - change.before.content >= 0.5;
+  if (!next.pinned) return { state: next, move: "none", behind: grew && Math.max(change.before.distance, change.after.distance) > FOLLOW_DISTANCE ? true : null };
   const snap = change.reduced || change.revealing || change.after.inset !== change.before.inset;
   return { state: next, move: snap ? "snap" : "ease", behind: false };
 }

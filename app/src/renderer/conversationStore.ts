@@ -79,8 +79,8 @@ export class ConversationStore {
   private deletedIds = new Set<string>();
   // Kept across the thread's redraw for another conversation or canvas; not across a reload.
   private questions = new Map<string, Map<string, QuestionDraft>>();
-  // The popover's fold: the requests waiting when it was collapsed. A request not covered opens it again. Kept here,
-  // since the thread is made anew for each conversation it shows.
+  // The popover's fold: the requests waiting when it was collapsed. A request that arrives later drops it, so the popover
+  // stays open after that request ends. Kept here, since the thread is made anew for each conversation it shows.
   private folds = new Map<string, ReadonlySet<string>>();
   // Kept for a conversation not read yet; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
@@ -409,6 +409,7 @@ export class ConversationStore {
     if (this.deletedIds.has(event.conversationId)) return;
     if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
     if (event.type === "question.resolved" || event.type === "permission.resolved") this.unfold(event.conversationId, event.requestId);
+    if ((event.type === "question.request" || event.type === "permission.request") && this.folds.get(event.conversationId)?.has(event.requestId) === false) this.expandPopover(event.conversationId);
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     this.threads.set(event.conversationId, { ...thread, events: mergeEvents(thread.events, [event], event.conversationId) });
