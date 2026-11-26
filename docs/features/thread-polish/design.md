@@ -15,7 +15,7 @@
 - `handoffView.ts`: 카드 뷰에서 메타 뷰로 바꾼다. 배너와 프레임 수는 쓰지 않는다.
 - `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `prototype/PrototypeConversation.tsx`: Copy 성공을 각 창의 공용 토스트(`onNotice`)로 보낸다. 프로토타입 창의 토스트 경로는 구현 때 확인한다.
 - `threadMotion.ts`: `FOLLOW_DISTANCE`(24) 고정값 대신 높이에 따른 따라가기 거리를 쓴다.
-- `styles.css`: 에이전트 입력 버블(채움, 전체 폭, 메타 줄, 구분선, forced colors 가장자리), 캔버스 카드 Open의 색 규칙(`.card-head .cc-open { color }`)을 `subtle`에 맞게 정리.
+- `styles.css`: 에이전트 입력 버블(사람 버블과 같은 채움과 폭, 메타 줄, 구분선, 본문 Markdown), 캔버스 카드 Open의 색 규칙(`.card-head .cc-open { color }`)을 `subtle`에 맞게 정리.
 
 ## 따라가기 규칙
 
@@ -46,7 +46,7 @@
 
 ## postmortem에서 가져온 주의
 
-- 2026-11-25 "In forced colours the thread's sent bubble read as plain text": 채움만으로 그리는 모양은 `@media (forced-colors: active)` 가장자리를 둔다. 에이전트 입력 버블도 같다.
+- 2026-11-25 "In forced colours the thread's sent bubble read as plain text": 채움만으로 그리는 모양은 `@media (forced-colors: active)` 가장자리를 둔다. 에이전트 입력 버블은 같은 `.bubble`이라 그 규칙을 받는지, 메타 구분선이 보이는지 확인한다.
 - 2026-11-25 "A canvas card's meta line wrapped": 시각처럼 저절로 바뀌는 글이 있는 줄은 줄바꿈하지 않는다. 메타 줄은 `nowrap`, 출처 이름이 먼저 잘리고, CSS 규칙 테스트로 고정한다.
 - 2026-11-25 "Chromium scroll anchoring moved the followed thread": `.thread-scroll`의 `overflow-anchor: none`을 지킨다. 따라가기 변경은 실제 앱에서 내용이 위에서 자랄 때도 확인한다.
 - 2026-11-18 "A handoff's first message that starts with a command name was drawn as a command turn": 에이전트 입력 버블도 `origin`이 있는 메시지를 명령으로 읽지 않는다(`messageCommand`).
@@ -57,5 +57,5 @@
 - 프레임
   - `card-open`: 캔버스 카드의 Open이 `subtle`인 상태들(그리는 중, 그림, 넘김, 넘긴 뒤 열기), 347과 280.
   - `copy-toast`: 코드 블록과 "Copied code" 토스트, 실패 안내(지금 그대로).
-  - `agent-bubble`: 캔버스 출처, Overview 출처, 사라진 캔버스, 지운 대화, 280 폭에서 이름 잘림, 옮겨 온 직후 포커스, 뒤에 오는 사람 버블과의 대비.
+  - `agent-bubble`: 캔버스 출처, Overview 출처, 사라진 캔버스, 지운 대화, 280 폭에서 이름 잘림, 옮겨 온 직후 포커스, 뒤에 오는 사람 버블과의 대비(채움과 폭은 같고 메타로만 구분).
   - `follow`: 따라가기 거리를 그림으로 설명(거리 안 스크롤 → 버튼 없음, 거리 밖 → Jump to latest).
