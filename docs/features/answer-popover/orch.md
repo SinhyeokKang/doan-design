@@ -23,6 +23,7 @@
 - 이 링크에서 Codex를 쓴 범위: 아래 배치 표의 모델 열에 적는다. 리뷰 워커도 배치 워커로 본다.
 - 시작 시점 Codex 사용률: 5h 2%, 7d 1%.
 - R1(T3 리뷰): Codex `gpt-6.1-sol` `high`. 띄우기 전 사용률 5h 32%, 7d 5%.
+- R2(T4 리뷰): Claude Opus high. 띄우기 전 Codex 5h가 52%였고, check-scope의 `/agent-eval`이 같은 Codex 한도를 쓰므로 Claude로 띄웠다.
 
 ## 배치
 
@@ -30,8 +31,8 @@
 |---|---|---|---|---|---|---|
 | B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 통합 `2fd83aea6` |
 | B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 통합 `54c574aef` |
-| B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 진행 |
-| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 대기 |
+| B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 통합 `ebc627ecf`(ff) |
+| B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 진행 |
 | R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
 | C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 대기 |
 
@@ -57,3 +58,5 @@
 - B2b: 같은 워커에 T4를 보냈다(dispatch `ctx_48bdfdebeec6`). 워커는 브랜치를 `feat/answer-popover`로 맞춘 뒤 시작한다.
 - R1: T3 diff 리뷰를 Codex에 맡겼다(dispatch `ctx_2ce1c12da0d6`).
 - R1: 🔴 0, 🟡 1(F1: `scrollHeight − inset`으로는 내용 성장을 믿을 수 없다. 소수 높이와 뷰포트 하한에서 여백만 바뀌어도 `behind`가 켜진다), ⚪ 2(N1: `resized()`의 raw `grew` 분기, N2: 턴이 resolved 없이 끝나면 접힘이 남는다), 결정 1(D1, 사용자 답 반영). F1·N1·N2와 D1을 B2에 고칠 거리로 보냈다.
+- B2b: T4와 R1 고칠 거리(F1, N1, N2, D1)를 `e29991a73`..`ebc627ecf`로 fast-forward 통합했다. 워커의 `/verify`는 `app/src/main/exportViewer.test.ts`의 waitFor 3000 ms 시간 초과에서 실패했다(부하 평균 약 25, 이 브랜치는 `app/src/main`을 건드리지 않는다, 혼자 돌리면 3/3 통과). 격리 앱 probe는 13/13 통과했다. 실제 앱에서 확인하지 못한 것(docked buddy 비켜서기, 권한 요청, 프로토타입 창, Overview, 테마, 모션)과 드래프트와 다른 점(본문 아래 fade, 접기 fade 순서)은 B2c로 넘겼다.
+- B2c: 같은 워커에 T5를 보냈다(dispatch `ctx_a4d7ab98a0e0`). R2: T4 리뷰를 새 child worktree `ap-r2`에서 시작했다(dispatch `ctx_bbcbcacec4e3`).
