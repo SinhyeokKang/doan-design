@@ -142,34 +142,37 @@ export function followBand(height: number): number {
 }
 
 // inputAt: the last wheel or scroll key; trackpad inertia or a key's scroll animation may still be moving the view.
-// pressed: a pointer held on the scroller (its scrollbar). origin: the distance from the bottom where the person's input
-// began, moved with any growth since, or null once that input is judged (or for a scroll that was no input of theirs).
-export interface FollowState { pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: number | null }
+// pressed: a pointer held on the scroller (its scrollbar). origin: set only by the input that unpinned the follow, until
+// a frame judges it once that input is over: the scrollTop where it began (with scroll anchoring off, growth never moves
+// scrollTop, so the person's own move is origin.top − top) and whether the content grew since.
+export interface FollowOrigin { top: number; grew: boolean }
+export interface FollowState { pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: FollowOrigin | null }
 // The composer is outside the thread. scroll: one the follow loop did not write. A pointer's release comes from the
-// window, since a scrollbar drag often ends outside the scroller.
+// window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop.
 export type FollowEvent =
-  | { type: "input"; kind: "wheel"; at: number; distance: number }
-  | { type: "input"; kind: "key"; key: string; at: number; distance: number }
-  | { type: "pointer"; down: boolean; distance: number }
+  | { type: "input"; kind: "wheel"; at: number; top: number }
+  | { type: "input"; kind: "key"; key: string; at: number; top: number }
+  | { type: "pointer"; down: true; top: number }
+  | { type: "pointer"; down: false }
   | { type: "scroll" }
   | { type: "selection"; active: boolean }
   | { type: "jump" }
-  | { type: "frame"; at: number; distance: number };
+  | { type: "frame"; at: number; distance: number; top: number };
 
 export const FOLLOW_START: FollowState = { pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null };
 const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
 
-// A wheel or key within the hold of the last one, or while pressed, continues the same input and keeps its origin.
-const inInput = (state: FollowState, at: number) => !state.pinned && (state.pressed || at - state.inputAt < WHEEL_HOLD_MS);
+// An input that starts while already unpinned (the person reading further up) gets no origin: only BOTTOM re-pins it.
+const unpinBy = (state: FollowState, top: number): FollowOrigin | null => state.pinned ? { top, grew: false } : state.origin;
 
 export function nextFollow(state: FollowState, event: FollowEvent): FollowState {
   switch (event.type) {
     case "input":
       if (event.kind === "key" && !SCROLL_KEYS.has(event.key)) return state;
-      return { ...state, pinned: false, inputAt: event.at, origin: inInput(state, event.at) ? state.origin : event.distance };
+      return { ...state, pinned: false, inputAt: event.at, origin: unpinBy(state, event.top) };
     case "pointer":
       if (!event.down) return state.pressed ? { ...state, pressed: false } : state;
-      return { ...state, pinned: false, pressed: true, origin: state.pressed ? state.origin : event.distance };
+      return { ...state, pinned: false, pressed: true, origin: unpinBy(state, event.top) };
     case "scroll": return state.pinned ? { ...state, pinned: false, origin: null } : state;
     case "selection":
       if (!event.active) return { ...state, selecting: false };
@@ -177,10 +180,16 @@ export function nextFollow(state: FollowState, event: FollowEvent): FollowState 
     case "jump": return { ...state, pinned: true };
     case "frame": {
       if (state.pinned || state.selecting || state.pressed || event.at - state.inputAt < WHEEL_HOLD_MS) return state;
-      if (event.distance <= BOTTOM || (state.origin !== null && event.distance - state.origin <= NUDGE)) return { ...state, pinned: true, origin: null };
+      if (event.distance <= BOTTOM || (state.origin !== null && state.origin.top - event.top <= NUDGE)) return { ...state, pinned: true, origin: null };
       return state.origin === null ? state : { ...state, origin: null };
     }
   }
+}
+
+// Jump to latest waits while the unpinning input is unjudged; once a frame judges it without a re-pin, it shows if the
+// content grew meanwhile and the view is past the band.
+export function judgedBehind(before: FollowState, after: FollowState, distance: number, band: number): boolean {
+  return before.origin !== null && after.origin === null && !after.pinned && before.origin.grew && distance > band;
 }
 
 // content: the thread's own height, measured apart from the end inset and the viewport (the scroll height has the
@@ -190,13 +199,14 @@ export type FollowMove = "snap" | "ease" | "none";
 // A revealing reply or an inset change snaps (an ease would leave the line being written, or the last item under the
 // popover, out of view), except that a running ease, or one starting from outside BOTTOM, only moves its goal. Only the
 // content's own growth past the band is new for Jump to latest; back within the band it goes.
-export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; easing: boolean; now: number; band: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
-  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.before.distance });
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; easing: boolean; now: number; top: number; band: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.before.distance, top: change.top });
   const grew = change.after.content - change.before.content >= 0.5;
   if (!next.pinned) {
-    // Nothing here is the person's move, so the input's origin moves with the view's distance.
-    const moved = next.origin === null ? next : { ...next, origin: next.origin + change.after.distance - change.before.distance };
-    return { state: moved, move: "none", behind: change.after.distance <= change.band ? false : grew ? true : null };
+    const within = change.after.distance <= change.band;
+    if (next.origin !== null) return { state: grew && !next.origin.grew ? { ...next, origin: { ...next.origin, grew: true } } : next, move: "none", behind: within ? false : null };
+    if (within) return { state: next, move: "none", behind: false };
+    return { state: next, move: "none", behind: grew || judgedBehind(state, next, change.after.distance, change.band) ? true : null };
   }
   if (change.reduced) return { state: next, move: "snap", behind: false };
   const insetMoved = change.after.inset !== change.before.inset;

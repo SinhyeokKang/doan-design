@@ -6,7 +6,8 @@ import type { ThreadItem } from "./threadItems";
 // The follow's ResizeObserver callback with the answer popover's end inset, run through ThreadBody's own effects. No DOM:
 // the scroller, the thread, the root and the popover are stand-ins with the sizes a layout would give.
 const hooks = vi.hoisted(() => ({
-  slots: [] as unknown[], cursor: 0, effects: [] as ({ deps: unknown[] | undefined } | undefined)[], effectCursor: 0, pending: [] as (() => void)[],
+  slots: [] as unknown[], cursor: 0, effectCursor: 0, pending: [] as (() => void)[],
+  effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
 }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
@@ -15,11 +16,17 @@ vi.mock("react", async original => {
     if (!(index in hooks.slots)) hooks.slots[index] = init();
     return index;
   };
-  const effect = (run: () => void, deps?: unknown[]) => {
+  // As React runs them: a changed effect's cleanup before its next run, every cleanup on unmount.
+  const effect = (run: () => void | (() => void), deps?: unknown[]) => {
     const index = hooks.effectCursor++, previous = hooks.effects[index];
     if (previous && deps && previous.deps && deps.every((dep, i) => Object.is(dep, previous.deps![i]))) return;
-    hooks.effects[index] = { deps };
-    hooks.pending.push(run);
+    const entry: { deps: unknown[] | undefined; cleanup?: () => void } = { deps };
+    hooks.effects[index] = entry;
+    hooks.pending.push(() => {
+      previous?.cleanup?.();
+      const cleanup = run();
+      if (typeof cleanup === "function") entry.cleanup = cleanup;
+    });
   };
   return {
     ...actual,
@@ -48,16 +55,21 @@ let tree: ReactElement<Record<string, unknown>>[];
 // The thread's content, the end inset and the viewport; the scroller's scroll height follows them as a layout would.
 const layout = { content: 1000, inset: 0, viewport: 400 };
 const vars = new Map<string, string>();
-// The scroller's and the window's listeners, and the animation frames waiting to run.
-const on = new Map<string, (event: unknown) => void>(), onWindow = new Map<string, (event: unknown) => void>();
-let frames: ((now: number) => void)[] = [];
-let clock = 0;
+// The scroller's and the window's listeners, and the animation frames waiting to run. A remove takes only the listener
+// that was added.
+type Listener = (event: unknown) => void;
+const on = new Map<string, Listener>(), onWindow = new Map<string, Listener>();
+const listen = (map: Map<string, Listener>) => ({
+  addEventListener: (type: string, listener: Listener) => { map.set(type, listener); },
+  removeEventListener: (type: string, listener: Listener) => { if (map.get(type) === listener) map.delete(type); },
+});
+const frames = new Map<number, (now: number) => void>();
+let frameId = 0, clock = 0;
 const scroller = {
   scrollTop: 0, clientHeight: 400,
   get scrollHeight() { return Math.max(layout.viewport, layout.content + 32 + Number.parseFloat(vars.get("--ap-inset") ?? "0")); },
   firstElementChild: { getBoundingClientRect: () => ({ height: layout.content }) },
-  addEventListener: (type: string, listener: (event: unknown) => void) => { on.set(type, listener); },
-  removeEventListener: (type: string) => { on.delete(type); },
+  ...listen(on),
 };
 // No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
 const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null, hasAttribute: () => false, toggleAttribute: () => false };
@@ -89,16 +101,16 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
-  on.clear(); onWindow.clear(); frames = []; clock = 0;
+  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0;
   vi.spyOn(performance, "now").mockImplementation(() => clock);
-  vi.stubGlobal("window", { addEventListener: (type: string, listener: (event: unknown) => void) => { onWindow.set(type, listener); }, removeEventListener: (type: string) => { onWindow.delete(type); } });
+  vi.stubGlobal("window", listen(onWindow));
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
   scroller.scrollTop = 0; scroller.clientHeight = 400;
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("document", { activeElement: null, body: null, hasFocus: () => true, querySelectorAll: () => [], getSelection: () => null, addEventListener: () => {}, removeEventListener: () => {}, timeline: { currentTime: 0 } });
   vi.stubGlobal("Element", class {});
-  vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => frames.push(callback));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
+  vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++frameId, callback); return frameId; });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -174,14 +186,18 @@ function scrollBy(dy: number): void {
   scroller.scrollTop += dy;
   (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
 }
-// Runs the waiting animation frames, 16 ms apart, until `until`.
+// Runs the waiting animation frames, 16 ms apart, until `until`. One follow loop never has two frames waiting.
 function frameUntil(until: number): void {
   while (clock < until) {
     clock += 16;
-    const now = frames;
-    frames = [];
+    const now = [...frames.values()];
+    frames.clear();
     for (const run of now) run(clock);
+    expect(frames.size).toBeLessThanOrEqual(1);
   }
+}
+function unmount(): void {
+  for (const effect of hooks.effects) effect?.cleanup?.();
 }
 
 test("a wheel of NUDGE or less near the bottom shows no Jump to latest and, once the wheel is over, eases back to the bottom", () => {
@@ -248,4 +264,88 @@ test("the window losing focus or the pointer being cancelled ends the press too"
     frameUntil(clock + 1000);
     expect(atBottom()).toBe(0);
   }
+});
+
+// The observer runs after the follow's frame has read the grown distance: the growth must still not count as the
+// person's move.
+test("growth read by a follow frame before the observer still leaves a small wheel's nudge at NUDGE or less", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  layout.content = 1060;
+  frameUntil(32);
+  observed();
+  draw([user]);
+  expect(jump()).toBe(false);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a person reading far up who wheels a little is not pulled to the bottom", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -400 });
+  scrollBy(-400);
+  frameUntil(1000);
+  expect(atBottom()).toBe(400);
+  on.get("wheel")!({ deltaY: 30 });
+  scrollBy(30);
+  frameUntil(2000);
+  expect(atBottom()).toBe(370);
+  on.get("pointerdown")!({ target: scroller });
+  scrollBy(-20);
+  onWindow.get("pointerup")!({});
+  frameUntil(3000);
+  expect(atBottom()).toBe(390);
+});
+
+test("Jump to latest waits while the unpinning wheel is unjudged; once it ends away from the bottom, it shows for the growth", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -100 });
+  scrollBy(-100);
+  resize({ content: 1200 }, [user]);
+  expect(atBottom()).toBe(300);
+  expect(jump()).toBe(false);
+  frameUntil(1000);
+  draw([user]);
+  expect(atBottom()).toBe(300);
+  expect(jump()).toBe(true);
+});
+
+test("an unjudged wheel that ends without growth shows no Jump to latest", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -300 });
+  scrollBy(-300);
+  frameUntil(1000);
+  draw([user]);
+  expect(atBottom()).toBe(300);
+  expect(jump()).toBe(false);
+});
+
+// The band is a third of the scroller's height less the end inset: (900 − 300) / 3 = 200.
+test("in a tall thread under the popover, growth shows Jump to latest only past the band of the visible height", () => {
+  Object.assign(layout, { viewport: 900, inset: 300 });
+  scroller.clientHeight = 900;
+  draw([user, ask]);
+  observed();
+  scroller.scrollTop -= 199;
+  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+  resize({ content: 1001 }, [user, ask]);
+  expect(atBottom()).toBe(200);
+  expect(jump()).toBe(false);
+  resize({ content: 1002 }, [user, ask]);
+  expect(atBottom()).toBe(201);
+  expect(jump()).toBe(true);
+});
+
+test("unmounting removes every listener it added and cancels the follow's waiting frame", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  frameUntil(120);
+  expect(frames.size).toBe(1);
+  expect([...onWindow.keys()].sort()).toEqual(["blur", "pointercancel", "pointerup"]);
+  unmount();
+  expect(on.size).toBe(0);
+  expect(onWindow.size).toBe(0);
+  expect(frames.size).toBe(0);
 });

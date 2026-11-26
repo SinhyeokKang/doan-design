@@ -32,7 +32,7 @@ import { AnswerPopover, popoverCramped, popoverFloor, type AskItem } from "./Ans
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
-import { entering, FOLLOW_START, followBand, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
+import { entering, FOLLOW_START, followBand, followResize, followStep, judgedBehind, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -1140,8 +1140,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       if (step.done) easeTo.current = null;
     }
     distance.current = bottomOf(node) - node.scrollTop;
-    apply({ type: "frame", at: now, distance: distance.current });
-    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.inputAt < WHEEL_HOLD_MS * 2)) loop.current = requestAnimationFrame(tick);
+    const was = follow.current;
+    apply({ type: "frame", at: now, distance: distance.current, top: node.scrollTop });
+    if (judgedBehind(was, follow.current, distance.current, bandOf(node))) setBehind(true);
+    // apply() may have scheduled the next frame already: one loop id, so unmount cancels it.
+    if (easeTo.current !== null || (!follow.current.pinned && now - follow.current.inputAt < WHEEL_HOLD_MS * 2)) run();
     else lastFrame.current = null;
   };
   const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
@@ -1160,7 +1163,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
     contentHeight.current = after.content;
     inset.current = insetNow;
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), easing: easeTo.current !== null, now, band: bandOf(node), before, after });
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), easing: easeTo.current !== null, now, top: node.scrollTop, band: bandOf(node), before, after });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
@@ -1200,18 +1203,18 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     // a scrollbar drag is often released outside the scroller, or outside the window (blur).
     const wheel = (event: WheelEvent) => {
       if (event.deltaY >= 0 && follow.current.pinned) return;
-      calls().apply({ type: "input", kind: "wheel", at: performance.now(), distance: distance.current });
+      calls().apply({ type: "input", kind: "wheel", at: performance.now(), top: node.scrollTop });
       calls().run();
     };
-    const pointer = (event: PointerEvent) => { if (event.target === node) calls().apply({ type: "pointer", down: true, distance: distance.current }); };
+    const pointer = (event: PointerEvent) => { if (event.target === node) calls().apply({ type: "pointer", down: true, top: node.scrollTop }); };
     const release = () => {
       if (!follow.current.pressed) return;
-      calls().apply({ type: "pointer", down: false, distance: distance.current });
+      calls().apply({ type: "pointer", down: false });
       calls().run();
     };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
-      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now(), distance: distance.current });
+      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now(), top: node.scrollTop });
       calls().run();
     };
     const selection = () => {
