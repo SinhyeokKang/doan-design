@@ -11,6 +11,7 @@
 - T1(드래프트)은 끝났다. 드래프트 `.doan/canvases/answer-popover.html`은 사용자가 확정했고 develop에 있다(chain.md). 이 링크는 T2부터 한다.
 - 구현 시작 조건인 comment-trim 머지는 develop에 있다(`fa680f913`).
 - T2 PoC의 방식(A·B) 선택: conductor가 design.md 기준으로 정한다(chain.md '시작 점검'). 두 방식 모두 요구 항목을 못 채우면 멈추고 사용자에게 묻는다.
+- conductor's call — 끝 여백은 방식 A(overlay + ResizeObserver 여백)로 한다. 근거는 design.md 'PoC 결과'다. 남은 항목(여백만 바뀔 때의 거짓 Jump to latest)은 design이 계획한 따라가기 변경으로 T4에서 없애고 B2c `/runtime-test`에서 확인한다.
 - conductor's call — 문서에 '확인 필요' 항목이 없으므로 시작 전에 사용자에게 물을 것이 없다(chain.md '시작 점검').
 - conductor's call — T6(PRODUCT·ARCHITECTURE·BACKLOG 승격, 기능 디렉터리 삭제)는 문서만 바꾸므로 conductor가 통합 뒤 직접 한다(`/orchestrate` §4·§5).
 - conductor's call — T5 `/design-sync`와 `/runtime-test`는 코드를 고칠 수 있으므로 T3·T4를 맡은 워커(B2)가 같은 worktree에서 이어서 한다. 고치는 코드의 주인이 같아야 한다.
@@ -25,7 +26,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 대기 |
+| B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 통합 `2fd83aea6` |
 | B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 대기 |
 | B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 대기 |
 | B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 대기 |
@@ -48,3 +49,5 @@
 - T6 → C
 
 ## 진행 기록
+
+- B1: PoC 커밋 `5d29b6799`를 `2fd83aea6`로 통합했다. probe와 근거는 conductor checkout의 `.scratch/answer-popover/`에 복사했다. 실제 프로토타입 창은 열지 않고 스레드 영역 150으로 근사했다.
