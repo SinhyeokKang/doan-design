@@ -18,6 +18,7 @@ vi.mock("react", async original => {
       const ref = { current: value }; hooks.refs.push(ref); hooks.at++; return ref;
     },
     useEffect: (effect: () => void, deps?: unknown[]) => { if (!hooks.mock) return actual.useEffect(effect, deps); hooks.effects.push(effect); },
+    useLayoutEffect: (effect: () => void, deps?: unknown[]) => { if (!hooks.mock) return actual.useLayoutEffect(effect, deps); hooks.effects.push(effect); },
     useState: (initial: unknown) => {
       if (!hooks.mock) return actual.useState(initial);
       const index = hooks.stateAt++;
@@ -276,4 +277,40 @@ test("a refused Skip or permission answer shows its error line until the next pr
   expect(line(QUESTION)).toBeNull();
   late({ error: "unknown" }); await flush();
   expect(line(QUESTION)).toBeNull();
+});
+
+// Codex can offer four long choices beside Stop; kept beside the text, the row squeezed the text to one character a line.
+test("the actions stack under the text once they would push the title off its line, and go back beside it when they fit", () => {
+  let resized: (() => void) | undefined;
+  vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
+  const box = (width: number) => ({ getBoundingClientRect: () => ({ width }) });
+  let actions = [70, 66, 140, 250, 75].map(box);
+  const node = { clientWidth: 650, querySelector: (selector: string) => (({ ".strip-agent": box(16), ".strip-text > b": { scrollWidth: 205 }, ".strip-actions": { children: actions } }) as Record<string, unknown>)[selector] ?? null };
+  vi.stubGlobal("getComputedStyle", (el: unknown) => el === node ? { paddingLeft: "16px", paddingRight: "16px", columnGap: "6px" } : { columnGap: "8px" });
+  const codex: StripState = { kind: "permission", requestId: "r2", summary: "echo hello", options: [
+    { id: "a", label: "Allow", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" },
+    { id: "s", label: "Allow for this session", kind: "allowAlways" }, { id: "r", label: "Allow with proposed command rule", kind: "allowAlways" }] };
+  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.stateAt = 0; hooks.effects = []; const tree = ConversationStrip({ conversationId: "c1", provider: "codex", state, view: stripView(state, { ...CTX, provider: "codex" }), onEditOnHome: noop, onDismiss: noop }); hooks.reuse = true; return tree; };
+  const strip = (tree: ReactNode) => elements(tree).find(props => typeof props.className === "string" && props.className.startsWith("convo-strip"))!;
+  const settle = (state: StripState) => { draw(state); for (const effect of hooks.effects) effect(); return strip(draw(state)).className; };
+
+  const first = strip(draw(codex));
+  (first.ref as { current: unknown }).current = node;
+  for (const effect of hooks.effects) effect();
+  // 16 + 6 + 205 + 6 + 633 is wider than the 618 content box: the shared stacked notice (DESIGN 'Alignment').
+  expect(strip(draw(codex)).className).toBe("convo-strip doan-notice stacked");
+  // Claude's three choices and Stop (345) fit beside the title.
+  actions = [66, 110, 70, 75].map(box);
+  expect(settle(ASK)).toBe("convo-strip doan-notice");
+  // A narrower window stacks them again.
+  node.clientWidth = 500; resized!();
+  expect(strip(draw(ASK)).className).toBe("convo-strip doan-notice stacked");
+});
+
+// Stacked, the row wraps its buttons rather than running past the strip; the title is measured on one line.
+test("the strip's action row wraps and its title stays on one line", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\n\.strip-actions \{[^}]*flex-wrap: wrap;/);
+  expect(css).toMatch(/\.convo-strip \.strip-text > b \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
 });
