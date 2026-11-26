@@ -28,7 +28,7 @@ import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbna
 import { providerLogo, sentFileView, splitRequest } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { EMPTY_QUESTION_DRAFT, questionDraft, questionInput, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { AnswerPopover, type AskItem } from "./AnswerPopover";
+import { AnswerPopover, popoverFloor, type AskItem } from "./AnswerPopover";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
@@ -966,6 +966,18 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The popover's running collapse or expand; a new one cancels it so two never fight over the height.
   const motions = useRef<Animation[]>([]);
   const stopMotion = () => { for (const run of motions.current) run.cancel(); motions.current = []; };
+  // The head and the buttons always show (the body shrinks first): where the cap is smaller than they are, as in the
+  // prototype window's smallest size, the popover keeps their height and rises over the thread area's top, at most to
+  // the panel's top (popoverFloor). Left off while the height runs, which the overflow clip marks.
+  const holdChrome = (node: HTMLElement) => {
+    if (node.style.overflow === "hidden") return;
+    const body = node.querySelector<HTMLElement>(":scope > .ap-body"), style = body ? getComputedStyle(body) : null;
+    const chrome = [...node.querySelectorAll<HTMLElement>(":scope > .ap-head, :scope > .ap-actions, :scope > .ap-error, :scope > .ap-bar")].map(part => part.offsetHeight);
+    const panel = node.closest(".doan-conv-panel, .ov-main"), area = node.parentElement;
+    const room = panel && area ? area.getBoundingClientRect().bottom - panel.getBoundingClientRect().top : Infinity;
+    const value = `${popoverFloor({ chrome, bodyPadding: style ? Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) : 0, room })}px`;
+    if (node.style.minHeight !== value) node.style.minHeight = value;
+  };
   // The body and buttons fade out first, then the fold draws the bar and its height runs (the layout effect below).
   const collapse = (andThen: "bar" | "composer") => {
     if (!ask) return;
@@ -1107,6 +1119,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const node = scroller.current;
     if (!node || !opened.current) return;
     const now = performance.now();
+    if (popover.current) holdChrome(popover.current);
     const insetNow = popover.current?.isConnected === false ? 0 : popover.current?.offsetHeight ?? 0;
     if (insetNow !== inset.current) root.current?.style.setProperty("--ap-inset", `${insetNow}px`);
     const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
@@ -1223,6 +1236,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // Collapse and expand run the surface's height between the popover and the bar; the end inset follows it each frame.
   const shape = ask === null ? null : collapsed ? "bar" : "open";
   const drawnShape = useRef(shape);
+  useLayoutEffect(() => { if (popover.current) holdChrome(popover.current); });
   useLayoutEffect(() => {
     const was = drawnShape.current, node = popover.current;
     drawnShape.current = shape;
@@ -1230,9 +1244,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const token = (name: string) => getComputedStyle(node).getPropertyValue(name).trim();
     const duration = timeMs(token("--time-thread-enter"));
     stopMotion();
+    const target = node.offsetHeight;
     node.style.overflow = "hidden";
-    const run = node.animate([{ height: `${inset.current}px` }, { height: `${node.offsetHeight}px` }], { duration, easing: token("--ease-settle") || "ease" });
-    run.onfinish = run.oncancel = () => { node.style.overflow = ""; };
+    node.style.minHeight = "";
+    const run = node.animate([{ height: `${inset.current}px` }, { height: `${target}px` }], { duration, easing: token("--ease-settle") || "ease" });
+    run.onfinish = run.oncancel = () => { node.style.overflow = ""; holdChrome(node); };
     // Opening: the body and buttons appear last, once the height has run.
     const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timeMs(token("--time-fast")), delay: duration, fill: "backwards" })) : [];
     motions.current = [run, ...fades];

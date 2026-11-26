@@ -43,6 +43,12 @@ export interface AnswerPopoverProps {
 
 export const ANSWER_FIRST_TEXT = "Choose or type an answer first.";
 
+// The popover's least height: its head and button rows (or the bar) and the body's padding, so they always show and the body
+// shrinks first. room: from the thread area's bottom up to the conversation panel's top, which it never passes.
+export function popoverFloor({ chrome, bodyPadding, room }: { chrome: readonly number[]; bodyPadding: number; room: number }): number {
+  return Math.max(0, Math.min(chrome.reduce((sum, height) => sum + height, bodyPadding), room));
+}
+
 // An Other reached by arrow keys only opens its input; a click or Space also moves focus there. keydown comes before the
 // change and keyup after, so a flag between them tells the two apart.
 let arrowing = false;
