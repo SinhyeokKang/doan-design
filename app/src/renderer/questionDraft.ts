@@ -81,8 +81,3 @@ export function otherReturn(questions: readonly Question[], draft: QuestionDraft
   const button = stepButton(questions, draft);
   return button.enabled ? button.kind : null;
 }
-
-// "each" reads oddly for a single question.
-export function sendBlockedText(questions: readonly Question[]): string {
-  return questions.length === 1 ? "Choose or type an answer first." : "Answer each question first.";
-}

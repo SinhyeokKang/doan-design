@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Question } from "../main/conversation/question";
-import { canSend, EMPTY_QUESTION_DRAFT, lastStep, otherReturn, questionAnswered, questionDraft, questionInput, sendBlockedText, stepButton, type QuestionDraft } from "./questionDraft";
+import { canSend, EMPTY_QUESTION_DRAFT, lastStep, otherReturn, questionAnswered, questionDraft, questionInput, stepButton, type QuestionDraft } from "./questionDraft";
 
 const single: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }, { label: "Two rows" }], multiSelect: false, other: true };
 const several: Question = { id: "1", header: "Sections", question: "Which sections?", options: [{ label: "Agents" }, { label: "Notifications" }, { label: "Appearance" }], multiSelect: true, other: true };
@@ -82,11 +82,6 @@ describe("questionDraft", () => {
     const skipped = questionDraft(questionDraft(chosen, { type: "sending", how: "skip" }), { type: "failed" });
     expect(skipped).toEqual({ choices: chosen.choices, step: 0, sending: null, failed: "skip" });
     expect(questionDraft(questionDraft(skipped, { type: "sending", how: "answer" }), { type: "failed" }).failed).toBe("answer");
-  });
-
-  test("the disabled Send's tooltip says what is missing", () => {
-    expect(sendBlockedText([single])).toBe("Choose or type an answer first.");
-    expect(sendBlockedText([single, several])).toBe("Answer each question first.");
   });
 });
 
