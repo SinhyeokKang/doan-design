@@ -1031,6 +1031,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const focusIn = (key: string): boolean => {
     const control = root.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(key)}"] ${ENTRY_FOCUS}`);
     control?.focus({ preventScroll: true });
+    // The thread does not scroll for it; a cramped popover's own scroll brings the choice out from under its head.
+    if (control?.closest(".ap[data-cramped]")) control.scrollIntoView({ block: "nearest" });
     return !!control;
   };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
