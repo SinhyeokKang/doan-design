@@ -55,3 +55,9 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
 ## 인계 기록
 
 - 2026-11-26 lead: 체인 파일을 만들었다. 시작 점검은 아직 사용자와 확인하지 않았다.
+- 2026-11-26 lead(이 체인을 만든 세션): 이 체인은 새 lead 세션이 이어서 진행한다. 새 lead가 알아야 할 것:
+  - 시작 점검은 아직 사용자와 확인하지 않았다. 체인 시작 요청을 받으면 '시작 점검'을 한 번에 묻는다.
+  - answer-popover 드래프트에서 고르지 않은 후보(바탕 B·C, 접힌 막대 B, 280×360 불채택안)는 지웠다(`426e68f06`). 남은 프레임이 구현 기준이다.
+  - 로그인: 2026-11-26 subagent-progress PoC 때 실제 HOME의 Claude 로그인이 로그아웃 상태였다. 그래서 PoC는 Orca 프로필의 Keychain 항목(`Claude Code-credentials-36ffc8d1`)에서 refresh token을 비운 access token만 임시 홈에 복사해 썼다. 사용자는 그 PoC에 대해 이 방식을 허용했다. 이 체인에서 같은 방식을 쓸지는 시작 점검에서 다시 묻는다.
+  - 체인 뒤 순서: canvas-chip(드래프트 확정, T1 PoC부터) → subagent-progress(T1·T1b PoC 완료, 드래프트 `.doan/canvases/subagent-progress.html` 확정, T3부터). subagent-progress의 PoC 스크립트와 기록은 main checkout의 `.scratch/subagent-progress/`에 있다.
+  - subagent-progress에서 나눈 "Claude Code 프로세스를 대화 수명 동안 유지"는 아직 feature가 없다(`docs/BACKLOG.md` 'Undecided'). 사용자가 정한 방향이고, `/feature`로 시작해야 한다.
