@@ -705,6 +705,12 @@ function CardName({ name }: { name: string }) {
   return <span className="cc-title" ref={title}><PanelsTopLeft className="cc-kind" aria-hidden="true" />
     {shown === name ? label : <Tooltip><TooltipTrigger asChild>{label}</TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>}</span>;
 }
+// The meta name's cut: none while its box is as wide as the whole name's laid-out text (whole), since the measured width
+// is rounded up and the box's down, and a name that fits by a fraction would otherwise be cut. The slack is under one
+// 1/64 px layout step.
+export function metaNameKeep(name: string, width: number, whole: number, measure: (text: string) => number): number | null {
+  return width >= whole - 0.01 ? null : fitKeep(name, Math.floor(width), measure);
+}
 // The source's name on the meta line, cut in the middle as a card's name is. A hidden copy of the whole name keeps the
 // line's widest size, so the bubble can grow back as the thread widens and the cut never feeds its own width.
 function MetaName({ name, title }: { name: string; title: string | null }) {
@@ -712,10 +718,12 @@ function MetaName({ name, title }: { name: string; title: string | null }) {
   const [keep, setKeep] = useState<number | null>(null);
   const [tip, setTip] = useState<string | null>(null);
   useLayoutEffect(() => {
-    const box = node.current, shown = box?.firstElementChild;
-    if (!box || !(shown instanceof HTMLElement) || typeof ResizeObserver === "undefined") return;
-    const style = getComputedStyle(shown);
-    const observer = new ResizeObserver(() => setKeep(fitKeep(name, Math.floor(box.getBoundingClientRect().width), text => textWidth(text, style))));
+    const box = node.current, shown = box?.firstElementChild, full = box?.lastElementChild;
+    if (!box || !(shown instanceof HTMLElement) || !full || typeof ResizeObserver === "undefined") return;
+    // A range over the whole copy's text reads its laid-out width; the copy's own box is clipped to the name's box.
+    const style = getComputedStyle(shown), range = document.createRange();
+    range.selectNodeContents(full);
+    const observer = new ResizeObserver(() => setKeep(metaNameKeep(name, box.getBoundingClientRect().width, range.getBoundingClientRect().width, text => textWidth(text, style))));
     observer.observe(box);
     return () => observer.disconnect();
   }, [name]);

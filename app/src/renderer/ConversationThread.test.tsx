@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, metaNameKeep, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
 import type { ThumbnailState } from "./thumbnails";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
@@ -788,6 +788,14 @@ describe("canvas cards and the received handoff", () => {
     expect(out).toMatch(new RegExp(`${group("Handoff from drafts.html", true).replace('"t"', '"[^"]+"')}${meta("drafts.html", TIME(at(-1), "5m ago"), PANEL_OPEN("Open drafts.html"))}<p>Pick up <strong>Payment</strong>.</p>\\s*<p>The person wrote “\\{\\{1\\}\\}”.</p></div><span id="[^"]+" hidden="">5 minutes ago</span></div>`));
     // No card, no image, no frame count, no "From" or direction words.
     for (const gone of ["card-surface", "cc-banner", "frames", "From", "Handed off"]) expect(out).not.toContain(gone);
+  });
+
+  // The measured text width rounds up and the box width down, so a box exactly as wide as the name must still keep it whole.
+  test("a meta name that fits by a fraction of a pixel is not cut; a narrower box cuts it in the middle", () => {
+    const measure = (text: string) => Math.ceil(text.length * 5.7934);
+    expect(metaNameKeep("drafts.html", 63.7265625, 63.7265625, measure)).toBeNull();
+    expect(metaNameKeep("drafts.html", 80, 63.7265625, measure)).toBeNull();
+    expect(metaNameKeep("drafts.html", 52.5, 63.7265625, measure)).toBe(7);
   });
 
   test("the same time element from just now to 1m ago, so only its words change", () => {
