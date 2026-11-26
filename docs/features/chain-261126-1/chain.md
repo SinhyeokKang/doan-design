@@ -78,3 +78,4 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
   - answer-popover T2 PoC 방식은 conductor가 design.md 기준으로 고르고 기록한다. 두 방식 모두 안 되면 멈추고 묻는다.
   - 두 링크를 병렬 그룹으로 함께 시작했다. 두 링크 모두 `7e8f22f75`에서 갈라졌다.
 - 2026-11-26 lead: check-scope conductor가 알렸다. 사용자가 그 세션에서 T5 `/agent-eval`용으로 Doan 앱 프로필의 Claude 로그인(Keychain `Claude Code-credentials-9e813622`, refresh token 포함)을 임시 `CLAUDE_CONFIG_DIR`와 임시 Keychain 항목에 복제해 쓰고 지우는 방식을 승인했다. 복제본이 토큰을 갱신하면 Doan 앱의 Claude 로그인이 풀릴 수 있다. 이 승인은 check-scope T5에만 해당한다. 그 시점에 A·B를 통합했고 C(W14)는 리뷰 중이었다.
+- 2026-11-26 lead: check-scope conductor가 알렸다. `/agent-eval` 전체 회차 `check-scope-261126`가 약 15분 만에 Codex 5시간 한도에 닿았다(Plus, 52%→100%, 리셋 뒤 약 12분에 0→19%). 30/94 실행에서 사용자가 그 세션에서 일회성 예외를 정했다: 이 링크는 전체 회차를 돌리지 않고 W14(새 시나리오)와 R10(앱 턴 프롬프트 변경)만 두 에이전트와 judge로 돌린다. 측정하지 않은 범위는 회차 기록과 PR 본문에 남긴다. 그 시점에 A·B·C를 통합했고 `a8ec42d41`에서 `verify --eval` PASS, 문서 승격(`6699110a5..855070cb2`)을 마쳤다.
