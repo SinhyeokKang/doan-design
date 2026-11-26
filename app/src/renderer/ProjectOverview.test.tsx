@@ -238,8 +238,8 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }");
   // 32 under the last item: the docked buddy stands 56px over the card's top edge.
-  expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) calc(var(--space-8) + var(--ap-inset, 0px)); }");
-  expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) calc(var(--space-8) + var(--ap-inset, 0px)); }");
+  expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }");
+  expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }");
   expect(css).toContain(".doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }");
   // 32 under the suggestions as well: the docked buddy stays on the card while they show, and the last row must clear it.
   expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-8); }");

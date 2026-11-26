@@ -176,10 +176,12 @@ describe("follow", () => {
   });
 
   // The popover overlays the scroller's bottom; its height comes back as the end inset (--ap-inset, set by the follow's
-  // observer), so the last item clears it and Jump to latest sits above it.
-  test("the end inset pads the thread's end and lifts Jump to latest above the popover", () => {
-    expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) calc(var(--space-8) + var(--ap-inset, 0px)); }");
-    expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) calc(var(--space-8) + var(--ap-inset, 0px)); }");
+  // observer) on a spacer after the thread. Padding there would set the scroller's least height, and a short thread area
+  // (the prototype window's) would then let it run past the area's bottom under the composer.
+  test("the end inset is a spacer after the thread; the scroller keeps its fixed padding; Jump to latest sits above the popover", () => {
+    expect(css).toContain(".conversation-thread .thread-end { flex: none; height: var(--ap-inset, 0px); }");
+    expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }");
+    expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }");
     expect(css).toMatch(/\.conversation-thread \.jump-latest \{[^}]*bottom: calc\(var\(--ap-inset, 0px\) \+ var\(--space-3\)\);/);
   });
 

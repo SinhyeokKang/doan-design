@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { Question } from "../main/conversation/question";
-import { AnswerPopover, popoverFloor, type AnswerPopoverProps } from "./AnswerPopover";
+import { AnswerPopover, popoverCramped, popoverFloor, type AnswerPopoverProps } from "./AnswerPopover";
 import { Tooltip, TooltipProvider } from "./components/ui/tooltip";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import type { ThreadItem } from "./threadItems";
@@ -402,6 +402,16 @@ describe("popoverFloor", () => {
   });
 });
 
+// Where even the full rise cannot hold the head and the buttons, the head stays and the body and the buttons scroll
+// together under it, so the popover never lies over the composer.
+describe("popoverCramped", () => {
+  test("only when the head and button rows with the body's padding are taller than the room up to the panel's top", () => {
+    expect(popoverCramped({ chrome: [40, 96], bodyPadding: 8, room: 108 })).toBe(true);
+    expect(popoverCramped({ chrome: [40, 96], bodyPadding: 8, room: 144 })).toBe(false);
+    expect(popoverCramped({ chrome: [48], bodyPadding: 0, room: 52 })).toBe(false);
+  });
+});
+
 describe("styles", () => {
   const css = readFileSync(new URL("styles.css", import.meta.url), "utf8");
   // A body past the cap fades at its lower edge; one that fits (an inactive scroll timeline) draws none.
@@ -412,6 +422,12 @@ describe("styles", () => {
 
   // While an answer is out, every control but Send (which keeps its fill with the spinner) reads as off, the pressed
   // permission button and the option rows included.
+  test("a cramped popover scrolls its body and buttons together under a sticky head", () => {
+    expect(css).toContain(".conversation-thread .ap[data-cramped] { overflow-y: auto; scroll-padding-top: calc(var(--size-control-sm) + var(--space-2)); }");
+    expect(css).toContain(".conversation-thread .ap[data-cramped] > .ap-head { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); }");
+    expect(css).toContain(".conversation-thread .ap[data-cramped] > .ap-body { flex: none; overflow: visible; animation: none; }");
+  });
+
   test("a locked popover dims its option rows and every unavailable control but Send", () => {
     expect(css).toContain('.conversation-thread .ap.is-locked :is([aria-disabled="true"]:not(.q-send), .q-pref) { color: var(--text-disabled); cursor: default; }');
   });

@@ -402,7 +402,7 @@ describe("the popover's motion", () => {
   type Run = { cancel: ReturnType<typeof vi.fn>; finished: Promise<void>; finish(): void; onfinish: null | (() => void); oncancel: null | (() => void) };
   let runs: Run[];
   const stand = (name: string) => ({
-    name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null,
+    name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null, hasAttribute: () => false, toggleAttribute: () => false,
     animate: () => { let finish!: () => void; const run: Run = { cancel: vi.fn(), finished: new Promise<void>(resolve => { finish = resolve; }), finish: () => finish(), onfinish: null, oncancel: null }; runs.push(run); return run; },
   });
   let surface: ReturnType<typeof stand> & { querySelector(): null; querySelectorAll(selector: string): unknown[]; closest(): null };

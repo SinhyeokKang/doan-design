@@ -56,7 +56,7 @@ const scroller = {
   removeEventListener: () => {},
 };
 // No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
-const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null };
+const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null, hasAttribute: () => false, toggleAttribute: () => false };
 const root = { style: { setProperty: (name: string, value: string) => { vars.set(name, value); } }, contains: () => false, querySelector: () => null };
 
 function draw(items: ThreadItem[]): void {
@@ -121,6 +121,20 @@ test("scrolled away, the popover opening or changing height shows no Jump to lat
   // Tab order runs thread → popover → composer, so the thread's Jump to latest comes first.
   const order = tree.findIndex(element => element.type === "button" && String(element.props.className).includes("jump-latest"));
   expect(order).toBeLessThan(tree.findIndex(element => element.type === AnswerPopover));
+});
+
+// Jump to latest rides above the popover; with no room left there in the thread area it would sit on the panel's head.
+test("Jump to latest stays away while the popover leaves it no room in the thread area", () => {
+  layout.inset = 120;
+  draw([user, ask]);
+  observed();
+  scroller.scrollTop = 200;
+  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+  resize({ inset: 360 }, [user, ask]);
+  resize({ content: 1300 }, [user, ask]);
+  expect(jump()).toBe(false);
+  resize({ inset: 120 }, [user, ask]);
+  expect(jump()).toBe(true);
 });
 
 test("the popover going away sets the end inset back to nothing", () => {

@@ -60,6 +60,10 @@ describe("the thread's question items", () => {
     expect(asked).toContainEqual(["r1", "q1"]);
   });
 
+  test("the end inset is a spacer after the thread inside the scroller", () => {
+    expect(html([permission()], { liveAfter: 10 })).toMatch(/<\/div><div class="thread-end" aria-hidden="true"><\/div><\/div><div class="ap"/);
+  });
+
   test("with nothing waiting there is no popover", () => {
     expect(html([permission({ status: "answered", answer: { id: "allow", label: "Allow", kind: "allow" } })])).not.toContain('class="ap');
   });
