@@ -10,9 +10,6 @@ import type { ThreadItem } from "./threadItems";
 
 const layout: Question = { id: "0", header: "Layout", question: "Which layout should the settings header use?", options: [{ label: "Compact", description: "Title and actions on one line" }, { label: "Two rows" }], multiSelect: false, other: true };
 const sections: Question = { id: "1", header: "Sections", question: "Which sections should the Settings page keep?", options: [{ label: "Agents" }, { label: "Notifications" }], multiSelect: true, other: true };
-const name: Question = { id: "n", header: "Canvas name", question: "What should the new canvas be called?", options: [], multiSelect: false, other: true };
-const token: Question = { id: "t", header: "Staging token", question: "Paste the token", options: [], multiSelect: false, other: true, secret: true };
-const fixed: Question = { ...layout, id: "f", other: false };
 type QuestionItem = Extract<ThreadItem, { kind: "question" }>;
 const item = (questions: Question[], patch: Partial<QuestionItem> = {}): QuestionItem => ({ kind: "question", key: "Qq1", seq: 5, requestId: "q1", questions, status: "pending", answers: null, ...patch });
 
@@ -38,12 +35,12 @@ describe("the thread's question items", () => {
     expect(out).not.toContain('data-item="Qq1"><div');
     expect(out).toMatch(/<\/div><\/div><div class="ap" id="[^"]*-ap" role="region" aria-labelledby="[^"]*-ap-title" data-item="Qq1">/);
     expect(inThread(out)).not.toContain("Which layout");
-    expect(out).toMatch(/<input type="radio" aria-labelledby="[^"]*-q1-0-l1" name="[^"]*-q1-0" checked=""/);
+    expect(out).toMatch(/<input type="radio" aria-labelledby="[^"]*-q1-0-l1" data-entry="" name="[^"]*-q1-0" checked=""/);
     expect(out).toContain('<div class="sr-only" role="status">Claude Code needs your answer</div>');
   });
 
   test("a pending permission request has no card in the thread either; the popover holds it", () => {
-    const out = html([permission()]);
+    const out = html([permission()], { liveAfter: 10 });
     expect(inThread(out)).not.toContain("npm test");
     expect(out).toContain('data-item="pr1"><div class="ap-head">');
     expect(out).toContain('<span class="ask-command">npm test</span>');

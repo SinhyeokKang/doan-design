@@ -448,7 +448,7 @@ test.each(["permission", "question"] as const)("an entry's request on a waiting 
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
-  run.request({ root: ROOT, canvas: CANVAS }, "c-wait", "permission");
+  run.request({ root: ROOT, canvas: CANVAS }, "c-wait", null);
   run.sync();
   await flush();
   store.collapsePopover("c-wait", ["r1", "r2"]);
@@ -462,6 +462,8 @@ test.each(["permission", "question"] as const)("an entry's request on a waiting 
   const ref = threadRef(render(panel));
   const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
   ref!.current = handle;
+  // The entry, on the conversation already shown.
+  run.request({ root: ROOT, canvas: CANVAS }, "c-wait", "permission");
   render(panel);
   await flush();
   render(panel);

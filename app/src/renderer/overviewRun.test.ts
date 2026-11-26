@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, ConversationEvent, EventPayload } from "../main/conversation/types";
 import { plainText, textSegments } from "./anchorField";
 import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
-import { endSeq, lastTurnSeq, OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
+import { endSeq, lastTurnSeq, OverviewRun, entryTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 import { dropAttachment } from "./conversationStore";
 import { AttachmentStore } from "../main/attachments";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -515,9 +515,9 @@ test("each entry request scrolls anew, and the scroll waits until the permission
   h.run.request(ROOT, A, "permission");
   expect(h.run.scrollRequest(A)!.seq).toBeGreaterThan(first!.seq);
   const ask = { kind: "permission" as const, key: "p1", seq: 5, requestId: "r", summary: "s", options: [], status: "pending" as const, answer: null };
-  expect(scrollTarget([], true)).toEqual({ kind: "wait" });
-  expect(scrollTarget([ask], true)).toEqual({ kind: "item", key: "p1" });
-  expect(scrollTarget([{ ...ask, status: "answered" }], false)).toEqual({ kind: "drop" });
+  expect(entryTarget([], true)).toEqual({ kind: "wait" });
+  expect(entryTarget([ask], true)).toEqual({ kind: "item", key: "p1" });
+  expect(entryTarget([{ ...ask, status: "answered" }], false)).toEqual({ kind: "drop" });
   h.run.takeScroll(A);
   expect(h.run.scrollRequest(A)).toBeNull();
 });
@@ -525,12 +525,12 @@ test("each entry request scrolls anew, and the scroll waits until the permission
 test("a waiting question is the entry's target; with a permission request too, the earliest one is", () => {
   const question = { kind: "question" as const, key: "Qq1", seq: 6, requestId: "q1", questions: [], status: "pending" as const, answers: null };
   const ask = { kind: "permission" as const, key: "p1", seq: 5, requestId: "r", summary: "s", options: [], status: "pending" as const, answer: null };
-  expect(scrollTarget([question], true)).toEqual({ kind: "item", key: "Qq1" });
-  expect(scrollTarget([ask, question], true)).toEqual({ kind: "item", key: "p1" });
-  expect(scrollTarget([question, { ...ask, key: "p2", seq: 7 }], true)).toEqual({ kind: "item", key: "Qq1" });
-  expect(scrollTarget([ask, { ...ask, key: "p2", seq: 7, requestId: "r2" }], true)).toEqual({ kind: "item", key: "p1" });
-  expect(scrollTarget([{ ...question, status: "skipped" }, ask], true)).toEqual({ kind: "item", key: "p1" });
-  expect(scrollTarget([{ ...question, status: "answered" }], false)).toEqual({ kind: "drop" });
+  expect(entryTarget([question], true)).toEqual({ kind: "item", key: "Qq1" });
+  expect(entryTarget([ask, question], true)).toEqual({ kind: "item", key: "p1" });
+  expect(entryTarget([question, { ...ask, key: "p2", seq: 7 }], true)).toEqual({ kind: "item", key: "Qq1" });
+  expect(entryTarget([ask, { ...ask, key: "p2", seq: 7, requestId: "r2" }], true)).toEqual({ kind: "item", key: "p1" });
+  expect(entryTarget([{ ...question, status: "skipped" }, ask], true)).toEqual({ kind: "item", key: "p1" });
+  expect(entryTarget([{ ...question, status: "answered" }], false)).toEqual({ kind: "drop" });
 });
 test("the thread is read after subscribing: an event that arrives before the reply is kept", async () => {
   const h = harness();

@@ -88,6 +88,8 @@ function draw(patch: Partial<ConversationThreadProps> = {}, commit?: () => void)
     scrollHeight: 100, scrollTop: 0, clientHeight: 100, contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: () => null,
   };
+  // Focus is found within the whole thread, the answer popover included.
+  (tree.find(element => element.props.className === "conversation-thread")!.props.ref as { current: unknown }).current = scroller.current;
   commit?.();
   for (const run of hooks.pending) run();
 }

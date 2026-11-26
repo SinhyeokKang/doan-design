@@ -26,7 +26,8 @@ const popoverProps = (patch: Partial<AnswerPopoverProps> = {}): AnswerPopoverPro
   item: asked([layout]), provider: "claude", count: 1, base: "b", collapsed: false, announce: 0, draft: EMPTY_QUESTION_DRAFT, pressed: null, failed: false,
   onAnswer: noop, onDraft: noop, onNext: noop, onBack: noop, onSend: noop, onSkip: noop, onStop: noop, onCollapse: noop, onExpand: noop, onEscape: noop, ...patch,
 });
-const html = (patch: Partial<AnswerPopoverProps> = {}) => renderToStaticMarkup(<TooltipProvider><AnswerPopover {...popoverProps(patch)} /></TooltipProvider>);
+// React puts an image preload link before the markup; the popover's own markup is what follows it.
+const html = (patch: Partial<AnswerPopoverProps> = {}) => renderToStaticMarkup(<TooltipProvider><AnswerPopover {...popoverProps(patch)} /></TooltipProvider>).replace(/^<link[^>]*>/, "");
 const draftOf = (...actions: QuestionDraftAction[]): QuestionDraft => actions.reduce(questionDraft, EMPTY_QUESTION_DRAFT);
 
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
@@ -153,12 +154,12 @@ describe("a question", () => {
 
   test("options are Settings rows named by their label line and described by their description; Other closes a list that allows it", () => {
     const out = html({ item: asked([layout]) });
-    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0" data-entry=""\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l0">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
+    expect(out).toMatch(/<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" data-entry="" name="b-q1-0"\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l0">Compact<\/span><span class="doan-preference-row-description" id="b-q1-0-d0">Title and actions on one line<\/span><\/span><\/label>/);
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0"\/>/);
     expect(out).toContain('<span class="doan-preference-row-label" id="b-q1-0-lother">Other</span>');
     const several = html({ item: asked([sections]) });
     expect(several).toContain('role="group" aria-label="Sections: Which sections should the Settings page keep?"');
-    expect(several).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-l0" name="b-q1-1" data-entry=""\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" aria-hidden="true"><\/span>/);
+    expect(several).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-l0" data-entry="" name="b-q1-1"\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" aria-hidden="true"><\/span>/);
   });
 
   test("Antigravity's question: named by its sentence alone, no Other", () => {
@@ -169,14 +170,14 @@ describe("a question", () => {
 
   test("a question without options is answered in its input alone, which takes entry focus; a secret one is masked", () => {
     const out = html({ item: asked([name]) });
-    expect(out).toContain('<div class="ap-question" role="group" aria-label="Canvas name: What should the new canvas be called?"><div class="ap-q"><span class="ap-q-text">What should the new canvas be called?</span></div><input class="doan-input q-input q-text-answer" type="text" placeholder="Type your answer" aria-label="Canvas name: answer" maxLength="4096" id="b-q1-n-other" value="" data-entry=""/></div>');
+    expect(out).toContain('<div class="ap-question" role="group" aria-label="Canvas name: What should the new canvas be called?"><div class="ap-q"><span class="ap-q-text">What should the new canvas be called?</span></div><input class="doan-input q-input q-text-answer" type="text" placeholder="Type your answer" aria-label="Canvas name: answer" maxLength="4096" id="b-q1-n-other" data-entry="" value=""/></div>');
     expect(html({ item: asked([token]) })).toContain('type="password"');
   });
 
   test("entry focus is the chosen option, else the first", () => {
     const out = html({ item: asked([layout]), draft: draftOf({ type: "choose", question: layout, option: 1 }) });
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l0" aria-describedby="b-q1-0-d0" name="b-q1-0"\/>/);
-    expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked="" data-entry=""\/>/);
+    expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" data-entry="" name="b-q1-0" checked=""\/>/);
     expect(out.match(/data-entry/g)).toHaveLength(1);
   });
 
@@ -240,7 +241,7 @@ describe("a question", () => {
     const draft = questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" });
     const out = html({ draft });
     expect(out).toMatch(/^<div class="ap is-locked"/);
-    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
+    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
     expect(out).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-disabled="true">Skip</button>');
     const els = tree({ draft, onSend, onSkip, onStop });
     click(button(els, "Send"));
@@ -332,7 +333,7 @@ describe("several questions", () => {
     draft = questionDraft(draft, { type: "next", questions });
     draft = questionDraft(draft, { type: "text", questionId: "t", text: "sk-123" });
     draft = questionDraft(questionDraft(draft, { type: "back" }), { type: "next", questions });
-    expect(html({ item: asked(questions), draft })).toContain('type="password" placeholder="Type your answer" aria-label="Staging token: answer" maxLength="4096" id="b-q1-t-other" value="sk-123"');
+    expect(html({ item: asked(questions), draft })).toContain('type="password" placeholder="Type your answer" aria-label="Staging token: answer" maxLength="4096" id="b-q1-t-other" data-entry="" value="sk-123"');
   });
 
   test("a failed send keeps the step and its answers", () => {

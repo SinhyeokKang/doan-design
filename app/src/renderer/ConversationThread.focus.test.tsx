@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Question } from "../main/conversation/question";
 import type { ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
@@ -83,10 +83,9 @@ function draw(items: ThreadItem[], commit?: () => void): void {
   const outer = (ConversationThread as unknown as { render(props: ConversationThreadProps, ref: null): ReactElement<ConversationThreadProps> }).render(props, null);
   tree = all((outer.type as (props: ConversationThreadProps) => ReactNode)(outer.props));
   const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: unknown };
-  scroller.current = { scrollHeight: 100, scrollTop: 0, clientHeight: 100 };
-  // Focus is found and moved within the whole thread, the popover included.
+  // Focus is found and moved within the whole thread, the popover included; a card's Open is found in the scroller.
   const root = tree.find(element => element.props.className === "conversation-thread")!.props.ref as { current: unknown };
-  root.current = {
+  const query = {
     contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: (selector: string) => {
       const key = /data-item="([^"]+)"/.exec(selector)?.[1] ?? "";
@@ -94,10 +93,12 @@ function draw(items: ThreadItem[], commit?: () => void): void {
       return controls.get(key);
     },
   };
+  root.current = query;
+  scroller.current = { scrollHeight: 100, scrollTop: 0, clientHeight: 100, querySelector: query.querySelector };
   commit?.();
   for (const run of hooks.pending) run();
 }
-const permissionButton = (requestId: string, label: string) => tree.find(element => element.type === "button" && element.props["data-request"] === requestId && element.props.children === label)!;
+const permissionButton = (requestId: string, label: string) => tree.find(element => element.type === "button" && element.props["data-request"] === requestId && [element.props.children].flat().includes(label))!;
 const popover = () => tree.find(element => element.type === AnswerPopover);
 const stopOf = (requestId: string) => {
   const shown = popover()!;
