@@ -117,6 +117,9 @@ test("scrolled away, the popover opening or changing height shows no Jump to lat
   expect(jump()).toBe(false);
   resize({ content: 1300 }, [user, ask]);
   expect(jump()).toBe(true);
+  // Tab order runs thread → popover → composer, so the thread's Jump to latest comes first.
+  const order = tree.findIndex(element => element.type === "button" && String(element.props.className).includes("jump-latest"));
+  expect(order).toBeLessThan(tree.findIndex(element => element.type === AnswerPopover));
 });
 
 test("the popover going away sets the end inset back to nothing", () => {

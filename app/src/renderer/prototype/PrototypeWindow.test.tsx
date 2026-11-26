@@ -867,6 +867,18 @@ describe("the conversation panel", () => {
     expect(input.focus).toHaveBeenCalledOnce();
   });
 
+  // The badge's entry when a request waits: the answer popover's choice takes focus, not the composer.
+  test("opening with an answer popover drawn focuses its entry control instead of the composer", () => {
+    show(view());
+    const input = field(), entry = field();
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".ap [data-entry]" ? entry : selector === ".composer-input" ? input : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    vi.runAllTicks();
+    expect(entry.focus).toHaveBeenCalledOnce();
+    expect(input.focus).not.toHaveBeenCalled();
+  });
+
   // Space and Enter on the header's button are its click; Hide conversation in the panel's head is the same toggle.
   test("opened by key it focuses the composer; Hide conversation closes it onto the header's button; Esc is no toggle", () => {
     show(view());

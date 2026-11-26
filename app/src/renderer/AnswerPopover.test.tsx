@@ -79,6 +79,14 @@ describe("the popover", () => {
     expect(onCollapse).toHaveBeenCalledOnce();
   });
 
+  // Focus left on a control of an ended request must not land on the next request's control in the same place.
+  test("each request draws its own subtree under the kept surface, keyed by the request", () => {
+    for (const [item, collapsed] of [[asked([layout]), false], [permission, false], [permission, true]] as const) {
+      const inner = (root({ item, collapsed }).props.children as ReactNode[]).filter(isValidElement);
+      expect(inner.map(el => el.key), `${item.key} collapsed=${collapsed}`).toEqual([item.key]);
+    }
+  });
+
   test("announce > 0 reads the title once more in an alert keyed by it; 0 reads nothing", () => {
     expect(html()).not.toContain('role="alert"');
     const els = tree({ announce: 3 });
@@ -204,11 +212,14 @@ describe("a question", () => {
     expect([onSend.mock.calls.length, onSkip.mock.calls.length, onStop.mock.calls.length]).toEqual([1, 1, 1]);
   });
 
-  // The tooltip wraps the button in every state, so the button stays the same element when it turns on or off.
-  test("the Send tooltip is closed while Send can send, and the button keeps its place", () => {
+  // The tooltip wraps the button in every state, so the button stays the same element when it turns on or off; only its
+  // content comes and goes, so the tooltip never switches between controlled and uncontrolled.
+  test("the Send tooltip has its reason only while Send cannot send, and the button keeps its place", () => {
     const tip = (draft: QuestionDraft) => tree({ draft }).find(el => el.type === Tooltip && all(el.props.children as ReactNode).some(child => child.props.className === "doan-button q-send"))!;
-    expect(tip(EMPTY_QUESTION_DRAFT).props.open).toBeUndefined();
-    expect(tip(draftOf({ type: "choose", question: layout, option: 0 })).props.open).toBe(false);
+    const reason = (draft: QuestionDraft) => all(tip(draft).props.children as ReactNode).some(el => textOf(el.props.children as ReactNode) === "Choose or type an answer first.");
+    for (const draft of [EMPTY_QUESTION_DRAFT, draftOf({ type: "choose", question: layout, option: 0 })]) expect("open" in tip(draft).props).toBe(false);
+    expect(reason(EMPTY_QUESTION_DRAFT)).toBe(true);
+    expect(reason(draftOf({ type: "choose", question: layout, option: 0 }))).toBe(false);
   });
 
   test("choosing an option or Other edits the draft by the question; typing edits its text", () => {

@@ -373,6 +373,29 @@ test("a popover drawn open clears any fold left in the host", () => {
   expect(props.onExpand).toHaveBeenCalled();
 });
 
+// Not a modal: focus moving outside does not collapse it, and nothing listens for it.
+test("focus leaving the popover does not collapse it", () => {
+  draw([permission("a")]);
+  const props = all((AnswerPopover as (p: unknown) => ReactNode)(popover()!.props))[0]!.props;
+  for (const name of ["onBlur", "onBlurCapture", "onFocusOut"]) expect(props[name], name).toBeUndefined();
+  active = { elsewhere: true };
+  draw([permission("a")]);
+  expect(popover()!.props.collapsed).toBe(false);
+});
+
+test("a new request opening a collapsed popover leaves focus where it was", () => {
+  fold.collapsed = true;
+  draw([permission("a")]);
+  active = { composer: true };
+  // The store drops the fold when the request arrives.
+  fold.collapsed = false;
+  draw([permission("a"), asked("q")]);
+  expect(popover()!.props.collapsed).toBe(false);
+  expect(focusedOption()).toEqual([]);
+  expect(composer).not.toHaveBeenCalled();
+  expect(active).toEqual({ composer: true });
+});
+
 describe("the popover's announcement", () => {
   const announce = () => popover()?.props.announce as number;
   test("a request drawn from the history is not read; one that arrives live is, once", () => {

@@ -472,6 +472,90 @@ test.each(["permission", "question"] as const)("an entry's request on a waiting 
   expect(store.popoverCollapsed("c-wait", ["r1", "r2"])).toBe(false);
 });
 
+// A toast's or notification's Open, a board notice's Open and a sidebar slot arrive with focus "permission".
+test.each(["permission", "question"] as const)("a permission arrival on a waiting %s opens the collapsed popover and focuses the earliest request, without a scroll", async kind => {
+  const row = { conversationId: "c-wait", title: "t", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "waiting", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" };
+  const list = [row] as never;
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "c-wait", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload });
+  const ask = kind === "permission"
+    ? at(3, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "a", label: "Allow", kind: "allow" }] })
+    : at(3, { type: "question.request", requestId: "r1", questions: [{ id: "x", header: "Tone", question: "Which tone?", multiSelect: false, other: true, options: [{ label: "Plain" }] }] });
+  const events = [at(1, { type: "user.message", text: "Go", anchors: [] }), at(2, { type: "turn.started" }), ask, at(4, { type: "permission.request", requestId: "r2", tool: "Bash", summary: "pwd", options: [{ id: "a", label: "Allow", kind: "allow" }] })];
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.readConversation = vi.fn(async () => ({ events, lastSeq: 4, turn: "waitingPermission" }));
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.request({ root: ROOT, canvas: CANVAS }, "c-wait", null);
+  run.sync();
+  await flush();
+  store.collapsePopover("c-wait", ["r1", "r2"]);
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+  let arrival: { focus: "permission"; seq: number } | null = null;
+  const onArrived = vi.fn();
+  const panel = () => CanvasConversation({
+    calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival, onArrived,
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+  });
+  const ref = threadRef(render(panel));
+  const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
+  ref!.current = handle;
+  arrival = { focus: "permission", seq: 3 };
+  render(panel);
+  await flush();
+  render(panel);
+  expect(onArrived).toHaveBeenCalledWith(3);
+  expect(handle.scrollToItem).not.toHaveBeenCalled();
+  expect(handle.focusItem).toHaveBeenCalledWith(kind === "permission" ? "pt1:r1" : "Qr1");
+  expect(store.popoverCollapsed("c-wait", ["r1", "r2"])).toBe(false);
+});
+
+// The thread is drawn anew for each conversation it shows; the fold and the step live in the store and come back with it.
+test("the fold and a question's step survive switching to another conversation and back", async () => {
+  const rows = ["c-q", "c-other"].map(conversationId => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: conversationId === "c-q" ? "waiting" : "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }));
+  const list = rows as never;
+  const questions = [{ id: "x", header: "Tone", question: "Which tone?", multiSelect: false, other: true, options: [{ label: "Plain" }] }, { id: "y", header: "Size", question: "Which size?", multiSelect: false, other: true, options: [{ label: "S" }] }];
+  const at = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload });
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.readConversation = vi.fn(async ({ conversationId }: { conversationId: string }) => conversationId === "c-q"
+    ? { events: [at("c-q", 1, { type: "turn.started" }), at("c-q", 2, { type: "question.request", requestId: "q1", questions })], lastSeq: 2, turn: "waitingPermission" }
+    : { events: [], lastSeq: 0, turn: "idle" });
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.request({ root: ROOT, canvas: CANVAS }, "c-q", null);
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+  const panel = () => CanvasConversation({
+    calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+  });
+  let thread = threadProps(render(panel))!;
+  (thread.onQuestionDraft as (id: string, action: unknown) => void)("q1", { type: "choose", question: questions[0], option: 0 });
+  (thread.onQuestionDraft as (id: string, action: unknown) => void)("q1", { type: "next", questions });
+  (thread.onCollapse as (waiting: readonly string[]) => void)(["q1"]);
+  run.select("c-other");
+  await flush();
+  expect(threadProps(render(panel))!.conversationId).toBe("c-other");
+  run.select("c-q");
+  await flush();
+  thread = threadProps(render(panel))!;
+  expect(thread.conversationId).toBe("c-q");
+  expect((thread.popoverCollapsed as (waiting: readonly string[]) => boolean)(["q1"])).toBe(true);
+  expect((thread.questionDraft as (id: string) => { step: number }).call(null, "q1").step).toBe(1);
+});
+
 // A handoff moves the screen with no window-focus condition, so a turn that ends while the person is in another app moves
 // focus in the background; activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window
 // activation put focus on Hide sidebar'). The card, or the composer when no card is drawn, takes focus again on activation,
