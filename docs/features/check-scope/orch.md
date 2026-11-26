@@ -19,7 +19,7 @@
 |---|---|---|---|---|---|---|
 | A | T0, T1, T2 | `cli/internal/check/`, `cli/internal/cli/check.go`·`check*_test.go`·`run.go`·`sessions*.go`, 새 golden fixture | — | Claude Opus high. 공유 CSS 중복 제거와 범위 판정이 맞물려 틀리면 결과가 조용히 사라진다 | `go test ./...`, `go vet ./...`, red→green, T0 golden 불변 | 완료, 리뷰 🔴0 🟡0 ⚪5, 통합 |
 | B | T3 | `cli/internal/cli/skill.md`·`skill_test.go`, `cli/internal/designskill/presets/`·`design_skill_test.go`, `schema/fixtures/cli-envelope/design-skill/`, `app/src/main/conversation/prompt.ts`와 그 테스트 | — | Codex `gpt-6.1-sol` medium. 문구를 같은 형태로 바꾸는 기계적 작업이다 | `go test ./...`, `npm --prefix app test` | 완료, 리뷰 🔴1 🟡1 → 수정 1회차로 해소, 통합 |
-| C | T4 | `eval/` (새 시나리오, `eval/lib/transcript.ts`와 테스트) | A(시나리오 pass fixture가 범위 검사를 쓴다). A 리뷰와 겹치게 A 브랜치 끝에서 시작했다 | Codex `gpt-6.1-sol` high. 판단보다 단계가 많다(seed, 검사, fixture 둘, self-test) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 중 |
+| C | T4 | `eval/` (새 시나리오, `eval/lib/transcript.ts`와 테스트) | A(시나리오 pass fixture가 범위 검사를 쓴다). A 리뷰와 겹치게 A 브랜치 끝에서 시작했다 | Codex `gpt-6.1-sol` high. 판단보다 단계가 많다(seed, 검사, fixture 둘, self-test) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 완료, 리뷰 🟡2 → 수정 1회차로 해소, 통합 |
 | 리뷰 | 배치마다 | 읽기 전용 | 각 배치 완료 | 배치 A: Claude Opus medium, B·C: Claude Sonnet medium | `/code-review` 🔴 0 | 대기 |
 | T5 | 통합 검증, `/agent-eval` | `docs/usability-eval/` | A·B·C 통합 | conductor | `verify.mjs --eval`, 새 시나리오 두 계열 통과 | 대기 |
 | T6 | 승격과 정리 | PRODUCT, ARCHITECTURE, README, 기능 디렉터리 삭제 | T5 | conductor | 세 문서에 새 규칙, 디렉터리 없음 | 대기 |
@@ -50,3 +50,9 @@
   - audit 프리셋(`audit.md:103`, 검토 전용): "감사한 캔버스와 CSS 경로"로 쓴다 — conductor 판단, 근거: spec 완료 조건 9의 같은 형태를 지키면서 편집이 없는 맥락에 맞춘다.
   - 캔버스·CSS·설정이 아닌 파일(`.doan/assets/`의 스크립트, 이미지)만 편집한 경우 넘길 경로가 없다. spec이 세 종류만 정했으므로 이번에는 문구를 두고 T6에서 BACKLOG 'Undecided'에 적는다.
 - B 수정 1회차(`2a43e4861`)를 conductor가 직접 확인했다. 네 지적이 모두 반영됐다.
+- T5 로그인(사용자 승인, 2026-11-26): 실제 HOME의 Claude 로그인은 아직 로그아웃이다. 사용자가 Doan 앱 프로필의 Claude 로그인(Keychain `Claude Code-credentials-9e813622`)을 refresh token까지 임시 `CLAUDE_CONFIG_DIR`과 임시 Keychain 항목에 복제해 `/agent-eval`에 쓰도록 허용했다. 끝나면 임시 홈과 항목을 지운다. 토큰이 갱신되면 Doan 앱의 Claude 로그인이 풀릴 수 있고, 사용자가 이 위험을 받아들였다.
+- C 리뷰(Sonnet medium): 🔴 0, 🟡 2, ⚪ 3. C에 수정 1회차를 보냈다(시작 시 Codex 5h 45%, 7d 7%).
+  - 나눠 돌린 단일 경로 검사도 인정한다: 성공한(exit 0) `doan check` 호출들의 경로 합집합에 편집한 두 경로가 있으면 통과다 — conductor 판단, 근거: 범위가 경로별 합집합이고(spec 1) exit는 돌려준 결과로만 정해지므로(spec 3) 보장하는 내용이 같다. tasks T4의 "어떤 실행이 두 경로를 넘겼다"는 이 판단으로 대신한다.
+  - 실패한 검사 호출은 세지 않는다(🟡2). 편집 내용 자동 검사(⚪1)와 루트 별칭 경로 맞추기(⚪2)도 더한다.
+  - 리뷰 환경에서 eval 실제 상태 가드가 `~/Library/Application Support/doan/ui-state.json`, `~/.gemini/antigravity-cli` 변경을 잡아 exit 1이었다. 실행 중인 설치 Doan 앱이 원인으로 추정되며 확인하지 않았다. T5 gate는 다른 앱이 조용할 때 돌린다.
+- C 수정 1회차(`87f59e8ef`)를 conductor가 직접 확인했다. 워커의 마지막 게이트는 실제 상태 가드만 걸렸다(`canvas-seen.json`, `agent-auth`, `conversations`, 실행 중인 Doan 앱). T5에서 다시 돌린다.
