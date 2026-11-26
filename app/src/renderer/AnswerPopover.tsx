@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode, Ref } from "react";
+import { Fragment, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { ChevronDown, ChevronUp, CircleStop } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { QUESTION_LIMITS, type Question } from "../main/conversation/question";
@@ -78,7 +78,8 @@ export function AnswerPopover(props: AnswerPopoverProps) {
   return <div className={`ap${locked ? " is-locked" : ""}`} id={regionId} role="region" aria-labelledby={titleId} data-item={item.key} data-collapsed={collapsed ? "" : undefined}
     ref={props.rootRef} onKeyDown={onKeyDown} onKeyDownCapture={onKeyDownCapture} onPointerDown={() => { arrowing = false; }}>
     {props.announce > 0 && <span key={props.announce} className="sr-only" role="alert">{title}</span>}
-    {collapsed
+    {/* One subtree per request: focus left on an ended request's control must not stay on the next one's in its place. */}
+    <Fragment key={item.key}>{collapsed
       ? <button type="button" className="ap-bar" aria-expanded="false" aria-controls={regionId} aria-label={order ? `${title} · ${order}` : title} onClick={props.onExpand}>
         {logo}<b id={titleId}>{title}</b>{order && <span className="ap-order">{order}</span>}<span className="bar-chev"><ChevronUp aria-hidden="true" /></span>
       </button>
@@ -89,7 +90,7 @@ export function AnswerPopover(props: AnswerPopoverProps) {
           </TooltipTrigger><TooltipContent>Collapse</TooltipContent></Tooltip>
         </div>
         {item.kind === "question" ? questionStep(item, props, locked) : permissionBody(item, props)}
-      </>}
+      </>}</Fragment>
   </div>;
 }
 
@@ -157,7 +158,7 @@ function questionStep(item: Extract<AskItem, { kind: "question" }>, props: Answe
     </label>;
   };
   // aria-disabled, as New conversation: the button keeps focus and its tooltip says what is missing. The tooltip wraps it
-  // in every state, so it stays the same element as it turns on, off, or from Next into Send.
+  // in every state, so it stays the same element as it turns on, off, or from Next into Send; only the reason comes and goes.
   const blocked = !primary.enabled && !locked;
   const press = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!primary.enabled || busy) || undefined} aria-busy={(busy && primary.kind === "send") || undefined}
     onClick={() => { if (primary.enabled) { if (primary.kind === "next") props.onNext(); else props.onSend(); } }}>
@@ -176,7 +177,7 @@ function questionStep(item: Extract<AskItem, { kind: "question" }>, props: Answe
       </span>
       <span className="ap-group end">
         {step > 0 && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-disabled={locked || undefined} onClick={() => { if (!locked) props.onBack(); }}>Back</button>}
-        <Tooltip open={blocked ? undefined : false}><TooltipTrigger asChild>{press}</TooltipTrigger><TooltipContent>{ANSWER_FIRST_TEXT}</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>{press}</TooltipTrigger>{blocked && <TooltipContent>{ANSWER_FIRST_TEXT}</TooltipContent>}</Tooltip>
       </span>
     </div>
     {draft.failed && failure(draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again.")}

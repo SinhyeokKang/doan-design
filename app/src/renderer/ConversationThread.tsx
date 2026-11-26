@@ -1406,13 +1406,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
             {line.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <CircleStop aria-hidden="true" />}{line.stopping ? "Stopping" : "Stop"}</button>
         </div></div>}</div>
     </div>
+    {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     {ask && <AnswerPopover item={ask} provider={provider} count={asks.length} base={base} collapsed={collapsed} announce={announce}
       draft={ask.kind === "question" ? draftOf(ask.requestId) : EMPTY_QUESTION_DRAFT} pressed={pressing.get(ask.requestId) ?? null} failed={unanswered.has(ask.requestId)} rootRef={popoverRef}
       onAnswer={optionId => answer(ask.requestId, optionId)} onDraft={action => editQuestion(ask.requestId, action)}
       onNext={() => { if (ask.kind === "question") moveStep(ask, { type: "next", questions: ask.questions }); }} onBack={() => { if (ask.kind === "question") moveStep(ask, { type: "back" }); }}
       onSend={() => { if (ask.kind === "question") sendQuestion(ask, "answer"); }} onSkip={() => { if (ask.kind === "question") sendQuestion(ask, "skip"); }} onStop={() => stop(ask.requestId)}
       onCollapse={() => collapse("bar")} onExpand={() => expand(ask.key)} onEscape={() => collapse("composer")} />}
-    {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
   </div></Motion.Provider></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };
