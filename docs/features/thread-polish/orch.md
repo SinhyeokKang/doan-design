@@ -10,6 +10,7 @@
 - tasks 2(design.md 이름 대조): 지휘자가 했다. 24px 사용처가 `nextFollow` `frame`, `followResize`, `onScroll`로 바뀌었고 끝 여백 이름(`inset`, `--ap-inset`)과 `ENTRY_FOCUS`·`scrollToItem` 위치를 design.md에 고쳤다.
 - 배치 나누기: 지휘자 판단 — 4·5·6이 모두 `ConversationThread.tsx`를 고치고 5·6은 `styles.css`도 함께 고친다. 병렬로 돌리지 않고 A → B → C 순서로 돌린다. tasks 3의 `/tdd`는 각 배치의 `/deliver bypass` 안에서 그 배치 몫만 쓴다.
 - A 리뷰 뒤 사용자 결정(2026-11-26): 48px 규칙은 붙어 있던 따라가기를 끊은 입력에만 쓴다. 이미 끊긴 채 위에서 하는 입력은 `BOTTOM`(24px) 규칙만 쓴다. 그 입력이 판정되기 전에는 Jump to latest를 켜지 않고, 입력이 끝나 다시 붙지 않았을 때 판정한다. spec·design에 반영했다.
+- A 3차 리뷰 뒤 사용자 결정(2026-11-26): 사람의 스크롤과 브라우저 clamp가 같은 읽기 사이에 함께 일어나는 경우를 한계로 받아들인다(다시 붙음). 테스트만 실제 clamp를 만들게 고친다. design.md에 적었다.
 - 리뷰: 각 구현 배치는 Codex `gpt-6.1-sol` 리뷰 워커가 `/code-review`로 본다(다른 계열의 눈).
 
 ## 배치
