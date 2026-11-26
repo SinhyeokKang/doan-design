@@ -423,3 +423,11 @@ test("the buddy's layers: an absolute 0-high slot under the queue and Jump to la
   // Under every portalled menu and tooltip (50), toast (6) and the problem overlay (5).
   expect(z(".docked-buddy-slot")).toBeLessThan(5);
 });
+
+// The row's own ink must not outweigh the shared disabled ink, or an unavailable Send now reads as pressable.
+test("an unavailable Send now takes the shared disabled ink", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const rules = [...css.matchAll(/([^{}]*\.queue-send[^{}]*)\{[^}]*color: var\(--text-standard\)/g)].map(match => match[1]!.trim());
+  expect(rules.length).toBeGreaterThan(0);
+  expect(rules.every(selector => selector.includes(":not([data-disabled])"))).toBe(true);
+});
