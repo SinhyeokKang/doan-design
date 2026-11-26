@@ -17,15 +17,19 @@
 
 | 배치 | 항목 | 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| A 따라가기 | tasks 3(따라가기 몫: `followBand`, `nextFollow`, `followResize`, `scrollFollow`, 포인터 눌림), 4 | `threadMotion.ts`, `threadItems.ts`, `ConversationThread.tsx`(따라가기 부분), 해당 테스트 | 없음 | Claude Opus high — 시간·입력 상태 기계이고 따라가기 회귀가 postmortem에 여러 번 있다 | test·typecheck·lint, `FOLLOW_DISTANCE` grep | 1차 `2c1db55df`·`7181755b7`, 리뷰 🟡1 ⚪2 → 고침 라운드 |
-| A 리뷰 | A diff | 읽기만 | A | Codex Sol high — 판단이 많은 diff | 🔴 0 | 1차 🔴0 🟡1(A1 성장 보정 순서) ⚪2, 제품 결정 2건 |
-| B 받은 handoff 버블 | tasks 3(버블 markup, `messageCommand`, `handoffView` 메타 뷰), 5 | `handoffView.ts`, `ConversationThread.tsx`(`HandoffCard`, `ENTRY_FOCUS`, `scrollToItem`, `cardBanners`), `styles.css`, 해당 테스트 | A 통합 | Claude Opus medium — 접근성·CSS container·잘림 순서 판단, 테스트 다시 쓰기가 많다 | test·typecheck·lint | 대기 |
+| A 따라가기 | tasks 3(따라가기 몫: `followBand`, `nextFollow`, `followResize`, `scrollFollow`, 포인터 눌림), 4 | `threadMotion.ts`, `threadItems.ts`, `ConversationThread.tsx`(따라가기 부분), 해당 테스트 | 없음 | Claude Opus high — 시간·입력 상태 기계이고 따라가기 회귀가 postmortem에 여러 번 있다 | test·typecheck·lint, `FOLLOW_DISTANCE` grep | 통합(fast-forward) `16e4eb03f`..`09cc41d52`, 고침 3라운드. 워커·워크트리 `tp-follow`는 runtime-test의 따라가기 고침을 위해 남겨 둔다 |
+| A 리뷰 | A diff | 읽기만 | A | Codex Sol high — 판단이 많은 diff | 🔴 0 | 3라운드: A1(성장 보정 순서)·R1(clamp) 고침, R3은 한계로 수용, R4 테스트 고침. 🔴0 |
+| B 받은 handoff 버블 | tasks 3(버블 markup, `messageCommand`, `handoffView` 메타 뷰), 5 | `handoffView.ts`, `ConversationThread.tsx`(`HandoffCard`, `ENTRY_FOCUS`, `scrollToItem`, `cardBanners`), `styles.css`, 해당 테스트 | A 통합 | Claude Opus medium — 접근성·CSS container·잘림 순서 판단, 테스트 다시 쓰기가 많다 | test·typecheck·lint | 진행 (`tp-bubble`) |
 | B 리뷰 | B diff | 읽기만 | B | Codex Sol high — 접근성·CSS 규칙 판단 | 🔴 0 | 대기 |
 | C Open·Copy 토스트 | tasks 3(`cc-open` subtle, `onCopy` 토스트), 6 | `ConversationThread.tsx`(`cc-open`, `copied`), `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`(`.cc-open`), 해당 테스트 | B 통합 | Codex Sol medium — 정해진 바꾸기, 판단이 적다 | test·typecheck·lint | 대기 |
 | C 리뷰 | C diff | 읽기만 | C | Codex Sol medium — 작은 diff | 🔴 0 | 대기 |
 | D design-sync | tasks 7 | 위 구현 파일(측정 뒤 고침), `docs/design/conversation.md`, `.scratch/design-sync/` | C 통합 | Claude Opus medium — 실제 앱 측정과 고침 판단 | measure.mjs가 드래프트와 맞음 | 대기 |
 | E runtime-test | tasks 8 | `.scratch/runtime-test/thread-polish/`만 | D 통합 | Claude Opus medium — 격리 실수 비용이 크고 판단이 필요하다 | 항목별 결과·스크린샷 | 대기 |
 | 지휘자 | tasks 2(완료), 9, 10 | `docs/` | E | — | verify 통과, tasks 10 grep | 대기 |
+
+## lead 요청
+
+- 최종 `/verify`(tasks 9) 전에 `origin/develop`을 `feat/thread-polish`에 merge commit으로 합친다(rebase·force push 없음). `docs/DESIGN.md`, `docs/BACKLOG.md`, `docs/postmortem/2026-11.md`를 고치면 develop의 문장을 두고 더한다.
 
 ## 파일 겹침과 순서
 
