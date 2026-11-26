@@ -1,6 +1,6 @@
 # canvas-message — 작업
 
-시작 조건: `git fetch && git ls-tree origin/develop docs/features/check-scope docs/features/answer-popover docs/features/thread-polish`의 출력이 비어 있다(세 기능이 머지되고 디렉터리가 지워졌다). canvas-chip과의 순서는 사용자가 정한다(design '순서 제약').
+선행 과제(시작 조건): check-scope, thread-polish, canvas-chip이 develop에 머지됐다. `git fetch && git ls-tree origin/develop docs/features/check-scope docs/features/thread-polish docs/features/canvas-chip`의 출력이 비어 있다(answer-popover는 머지됐다). 후행 과제: subagent-progress.
 
 `/agent-eval` 해당: 가이드, CLI 명령, 스킬 stub이 바뀐다. 실제 회차는 사용량 한도가 넉넉한 계정으로 돌린다(사용자 지정).
 

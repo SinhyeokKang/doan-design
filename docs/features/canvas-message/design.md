@@ -6,7 +6,7 @@
   - check-scope는 `prompt.ts`를 바꾼다.
   - answer-popover는 `ConversationThread`, `conversationStore`, `CanvasConversationPanel`, `styles.css`를 바꾼다.
   - thread-polish는 받은 handoff 버블과 메타 뷰(`handoffView.ts`)를 만든다.
-- canvas-chip도 `prompt.ts`와 `ConversationThread`를 바꾼다. canvas-chip이 먼저 머지되면 시작할 때 `prompt.ts`와 `eval/` 프롬프트 fixture를 다시 맞춘다. 순서는 사용자가 정한다.
+- canvas-chip도 `prompt.ts`와 `ConversationThread`를 바꾼다. 사용자가 canvas-chip을 먼저 하기로 했다. 시작할 때 `prompt.ts`와 `eval/` 프롬프트 fixture를 canvas-chip이 바꾼 것에 맞춘다.
 
 ## 영향 받는 부분
 

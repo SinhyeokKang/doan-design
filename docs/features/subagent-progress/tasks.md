@@ -2,6 +2,8 @@
 
 순서: PoC(실제 프레임, 보고 턴) → 드래프트(모습 결정) → 이벤트 형식과 순수 함수 → main 배선 → UI → 측정과 실기 확인 → 게이트 → 승격. `[commit]`은 커밋 경계다. 드래프트(T2)는 T1의 결과(실제로 오는 종류와 숫자)를 보고 그린다.
 
+선행 과제(구현 T3 이후의 시작 조건): canvas-message가 develop에 머지됐다. `git fetch && git ls-tree origin/develop docs/features/canvas-message`의 출력이 비어 있다. canvas-message는 `conversation/service.ts`의 큐·handoff 경로와 `threadItems.ts`를 바꾼다. 후행 과제: Claude Code 프로세스를 대화 수명 동안 유지하는 기능(아직 `/feature` 전, `docs/BACKLOG.md` 'Undecided').
+
 ## T1. PoC: 작업 프레임 (Claude Code, Codex) — 완료(design.md 'PoC 결과')
 
 - design.md 'PoC (T1)'대로 `.scratch/subagent-progress/`의 probe로 실제 Claude Code와 Codex를 돌린다. 실제 로그인은 복사본으로 쓴다(AGENTS.md 'Real agent sign-ins').

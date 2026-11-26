@@ -1,6 +1,8 @@
 # 캔버스 칩 — tasks
 
-순서: PoC(끌기와 놓기) → 드래프트 → 앵커 형식과 거울 → 판정 규칙 → UI(네 덩어리) → eval → 측정과 실기 확인 → 승격. `[commit]`은 커밋 경계다. T1과 T2는 comment-trim 전에 develop에서 할 수 있다. 구현(T3 이후)은 comment-trim이 develop에 머지된 뒤 conductor가 한다.
+순서: PoC(끌기와 놓기) → 드래프트 → 앵커 형식과 거울 → 판정 규칙 → UI(네 덩어리) → eval → 측정과 실기 확인 → 승격. `[commit]`은 커밋 경계다. T1과 T2는 선행 과제를 기다리지 않고 develop에서 할 수 있다(코드를 바꾸지 않는다).
+
+선행 과제(구현 T3 이후의 시작 조건): check-scope와 thread-polish가 develop에 머지됐다. `git fetch && git ls-tree origin/develop docs/features/check-scope docs/features/thread-polish`의 출력이 비어 있다. check-scope는 `prompt.ts`를, thread-polish는 `ConversationThread.tsx`·`styles.css`를 바꾼다. 후행 과제: canvas-message.
 
 ## T1. PoC: 끌기와 놓기
 
