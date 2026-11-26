@@ -464,8 +464,7 @@ describe("followResize", () => {
   });
 });
 
-// A registered time token computes in seconds ("0.12s"); read as a plain number it gave 0.12 ms, so the popover's collapse
-// and expand finished at once.
+// A registered time token computes in seconds ("0.12s"), so a plain number would read it as milliseconds.
 describe("timeMs", () => {
   test("reads a CSS time in either unit as milliseconds; anything else is 0", () => {
     expect(timeMs("120ms")).toBe(120);
