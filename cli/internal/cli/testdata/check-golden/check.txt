@@ -1,0 +1,73 @@
+6 canvases checked
+{
+  "findings": [
+    {
+      "severity": "error",
+      "code": "undefined_token",
+      "message": "undefined token",
+      "path": ".doan/assets/deep.css",
+      "canvas": "alpha",
+      "token": "--deep"
+    },
+    {
+      "severity": "error",
+      "code": "undefined_token",
+      "message": "undefined token",
+      "path": ".doan/assets/shared.css",
+      "canvas": "alpha",
+      "token": "--brand"
+    },
+    {
+      "severity": "warning",
+      "code": "hardcoded_color",
+      "message": "hardcoded color",
+      "path": ".doan/assets/shared.css",
+      "value": "#123456"
+    },
+    {
+      "severity": "warning",
+      "code": "canvas_extension_case",
+      "message": "Only a lower-case .html file is a canvas, so Doan does not list this file. Rename it to end in .html.",
+      "path": ".doan/canvases/Upper.HTML"
+    },
+    {
+      "severity": "error",
+      "code": "unparsable_canvas",
+      "message": "Cannot parse canvas: parse .doan/canvases/broken.html: html: open stack of elements exceeds 512 nodes",
+      "path": ".doan/canvases/broken.html"
+    },
+    {
+      "severity": "error",
+      "code": "duplicate_canvas_id",
+      "message": "duplicate canvas id",
+      "path": ".doan/canvases/sub/dup.html",
+      "canvas": "dup"
+    },
+    {
+      "severity": "error",
+      "code": "token_css_not_found",
+      "message": "token css not found",
+      "path": ".doan/config.json",
+      "target": "tokens/missing.css"
+    },
+    {
+      "severity": "warning",
+      "code": "serve_withheld",
+      "message": "Doan never serves a .git directory or .env files, so this serve entry is ignored. Ask the user before removing it with doan config --remove-serve.",
+      "path": ".doan/config.json",
+      "target": ".env"
+    },
+    {
+      "severity": "error",
+      "code": "duplicate_canvas_id",
+      "message": "duplicate canvas id",
+      "path": ".doan/ds/dup.html",
+      "canvas": "dup"
+    }
+  ],
+  "summary": {
+    "canvases": 6,
+    "errors": 6,
+    "warnings": 3
+  }
+}
