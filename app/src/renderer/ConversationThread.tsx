@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas, EditLines } from "../main/conversation/types";
 import { editHeadName, editLinesLabel } from "./editLinesLabel";
-import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
+import type { QuestionAnswerInput } from "../main/conversation/question";
 import { chipLabel, type FrameName } from "../main/conversation/messageText";
 import { parseReplyAnchor, type ReplyAnchor } from "../main/conversation/replyAnchor";
 import type { CanvasRow } from "../main/view";
@@ -18,7 +18,6 @@ import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText, trailingCards, type CanvasCardMeta } from "./canvasCardText";
 import { sameCanvas } from "./canvasConversationRows";
 import { canvasLabel, canvasStem } from "./canvasTree";
-import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { NameTip } from "./NameTip";
@@ -28,11 +27,12 @@ import { handoffCardView } from "./handoffView";
 import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbnails";
 import { providerLogo, sentFileView, splitRequest } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
-import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
+import { EMPTY_QUESTION_DRAFT, questionDraft, questionInput, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
+import { AnswerPopover, popoverCramped, popoverFloor, type AskItem } from "./AnswerPopover";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
-import { anchorParts, FOLLOW_DISTANCE, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
-import { entering, FOLLOW_START, followStep, nextFollow, revealBoundary, revealStep, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
+import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
+import { entering, FOLLOW_START, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -64,6 +64,11 @@ export interface ConversationThreadProps {
   onQuestionDraft?(requestId: string, action: QuestionDraftAction): void;
   // Where focus goes when an answered question leaves no request waiting (composerRules.focusAfter's field).
   onFocusComposer?(): void;
+  // The answer popover's fold, kept by the host's store per conversation: whether it is collapsed over these waiting
+  // requests, collapsing over them, and opening (which also clears a fold left when nothing waits).
+  popoverCollapsed?(waiting: readonly string[]): boolean;
+  onCollapse?(waiting: readonly string[]): void;
+  onExpand?(): void;
   onStop(): void;
   onEditAndResend(): void;
   onSignIn(): void;
@@ -126,10 +131,11 @@ export interface ConversationThreadProps {
   // Main is stopping the turn: a reply still revealing shows whole at once.
   stopping?: boolean;
 }
-// focusItem: a question's first option or answer input, a permission request's first choice, or after a handoff's move the
-// handoff card itself. False when the item has no such control drawn.
+// focusItem: the request the answer popover shows (its chosen or first option, its answer input, or a permission request's
+// first choice), opening the popover first, or after a handoff's move the handoff card itself. False when the item has no
+// such control drawn.
 export interface ConversationThreadHandle { scrollToItem(key: string): void; focusItem(key: string): boolean }
-const ENTRY_FOCUS = ":is(.q-card input, .strip-actions button, .handoff-card)";
+const ENTRY_FOCUS = ":is([data-entry], .ap-bar, .handoff-card)";
 
 export const LOADING_DELAY_MS = 300;
 
@@ -504,93 +510,6 @@ export async function settleQuestionSend(send: () => Promise<void | { error: str
   if (refusal !== null && refusal !== "stale") edit({ type: "failed" });
 }
 
-// An Other reached by arrow keys only opens its input; a click or Space also moves focus there. keydown comes before the
-// change and keyup after, so a flag between them tells the two apart; one flag serves every card.
-let arrowing = false;
-const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
-const arrowKeys = {
-  onKeyDown: (event: { key: string }) => { if (ARROWS.has(event.key)) arrowing = true; },
-  onKeyUp: (event: { key: string }) => { if (ARROWS.has(event.key)) arrowing = false; },
-};
-
-export interface QuestionCardProps {
-  item: Extract<ThreadItem, { kind: "question" }>;
-  provider: Provider;
-  // Arrived while the thread was open: its title is the live alert.
-  live: boolean;
-  // Prefix of the card's ids and radio names, unique in the thread.
-  base: string;
-  draft: QuestionDraft;
-  onDraft(action: QuestionDraftAction): void;
-  onSend(): void;
-  onSkip(): void;
-  onStop(): void;
-}
-// The first question is the title beside the mark, and each further question's sentence sits above its options. No hooks:
-// the draft is the host's, and focus goes by id.
-export function QuestionCard({ item, provider, live, base, draft, onDraft, onSend, onSkip, onStop }: QuestionCardProps) {
-  const locked = draft.sending !== null, ready = canSend(item.questions, draft);
-  const id = (question: Question, part: string) => `${base}-${item.requestId}-${question.id}${part}`;
-  const focusInput = (question: Question) => queueMicrotask(() => document.getElementById(id(question, "-other"))?.focus());
-  const name = (question: Question) => question.header ? `${question.header}: ${question.question}` : question.question;
-  const field = (question: Question, alone: boolean) => {
-    const choice = draft.choices[question.id];
-    return <input className={alone ? "doan-input q-input q-text-answer" : "doan-input q-input"} type={question.secret ? "password" : "text"} placeholder="Type your answer"
-      aria-label={alone ? `${question.header || question.question}: answer` : "Other answer"} maxLength={QUESTION_LIMITS.text} id={id(question, "-other")} value={choice?.text ?? ""}
-      readOnly={locked || undefined} aria-disabled={locked || undefined}
-      onChange={event => onDraft({ type: "text", questionId: question.id, text: event.currentTarget.value })}
-      onKeyDown={event => {
-        // Return sends only when Send can, and never while an IME composes (keyCode 229 is Chromium's composing key).
-        if (event.key !== "Enter" || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || !ready) return;
-        event.preventDefault();
-        onSend();
-      }} />;
-  };
-  const row = (question: Question, option: number | "other") => {
-    const choice = draft.choices[question.id];
-    const other = option === "other", checked = other ? !!choice?.other : !!choice?.selected.includes(option);
-    const description = other ? undefined : question.options[option]!.description;
-    // The name is the label line alone: the wrapping <label> would also put the description into it, and VoiceOver
-    // would read the description twice.
-    const describedBy = description ? id(question, `-d${option}`) : undefined, labelledBy = id(question, `-l${option}`);
-    return <label key={option} className="doan-preference-row q-pref" data-has-icon="">
-      <input type={question.multiSelect ? "checkbox" : "radio"} name={id(question, "")} checked={checked} aria-labelledby={labelledBy} aria-describedby={describedBy} aria-disabled={locked || undefined} {...arrowKeys}
-        onChange={() => {
-          if (!other) { onDraft({ type: "choose", question, option }); return; }
-          onDraft({ type: "other", question });
-          if (!arrowing && !locked && !checked) focusInput(question);
-        }} />
-      <span className="doan-preference-row-icon">{question.multiSelect ? <span className="doan-checkbox q-check" data-state={checked ? "checked" : undefined} aria-hidden="true" /> : <span className="ob-radio" aria-hidden="true" />}</span>
-      <span className="doan-preference-row-content"><span className="doan-preference-row-label" id={labelledBy}>{other ? "Other" : question.options[option]!.label}</span>
-        {description && <span className="doan-preference-row-description" id={describedBy}>{description}</span>}</span>
-      {other && checked && <span className="doan-preference-row-extra">{field(question, false)}</span>}
-    </label>;
-  };
-  const busy = draft.sending === "answer";
-  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing. While sending it is busy
-  // too (aria-busy), keeping its fill with the spinner, as every busy confirm does.
-  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready || busy) || undefined} aria-busy={busy || undefined}
-    onClick={() => { if (ready) onSend(); }}>{busy && <span className="doan-spinner" aria-hidden="true" />}Send</button>;
-  return <div className={`doan-notice thread-notice q-card${locked ? " is-locked" : ""}`}
-    onPointerDown={() => { arrowing = false; }}
-    // Esc inside the card does nothing: it does not reach the panel or the page.
-    onKeyDown={event => { if (event.key === "Escape") event.stopPropagation(); }}>
-    <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-    {/* Only the title is the alert: on the whole card VoiceOver would read every option. */}
-    <span className="strip-text q-title" role={live ? "alert" : undefined}><b>{item.questions[0]?.question}</b></span>
-    <div className="q-list">{item.questions.map((question, i) => <div key={question.id} className="q" role={question.options.length && !question.multiSelect ? "radiogroup" : "group"} aria-label={name(question)}>
-      {i > 0 && <div className="q-head"><span className="q-text">{question.question}</span></div>}
-      {question.options.length ? <div className="q-opts doan-settings-group q-group">{question.options.map((_, n) => row(question, n))}{question.other && row(question, "other")}</div> : field(question, true)}
-    </div>)}</div>
-    <span className="strip-actions">
-      {ready || locked ? send : <Tooltip><TooltipTrigger asChild>{send}</TooltipTrigger><TooltipContent>{sendBlockedText(item.questions)}</TooltipContent></Tooltip>}
-      <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled={locked || undefined} onClick={() => { if (!locked) onSkip(); }}>Skip</button>
-      <button type="button" className="doan-button" data-ui-size="sm" onClick={onStop}><CircleStop aria-hidden="true" />Stop</button>
-    </span>
-    {draft.failed && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>{draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again."}</span></p>}
-  </div>;
-}
-
 function ChipTip({ detail, children }: { detail: string; children: ReactElement }) {
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip>;
 }
@@ -941,11 +860,6 @@ export function replyStart(prev: readonly ThreadItem[], entry: Extract<ThreadIte
 export function flushesReply(entry: ThreadItem, drawn: readonly ThreadItem[], after: { stopping: boolean; notice: boolean }): boolean {
   return after.stopping || after.notice || entry.key !== drawn.at(-1)?.key;
 }
-// A scroll to a permission or question still waiting holds the follow until it is answered; to anything else it is a
-// plain scroll.
-export function scrollToItemHolds(items: ConversationThreadProps["items"], key: string): boolean {
-  return Array.isArray(items) && items.some(item => item.key === key && waitsForPerson(item));
-}
 
 // When each user message this thread drew began its entry (entering), by key. A history message that replaces a
 // Sending one drawn in the previous render (same words and chips) takes that one's start, so the entry runs once.
@@ -961,24 +875,17 @@ export function entryTimes(prev: readonly ThreadItem[], items: readonly ThreadIt
   return added.length ? new Map([...times, ...added]) : times;
 }
 
-// The thread item (its data-item key) holding focus, if focus is inside the thread.
-function focusedItem(scroller: HTMLElement | null): string | null {
+// The thread item or the popover (its data-item key) holding focus, if focus is inside the thread.
+function focusedItem(root: HTMLElement | null): string | null {
   const active = typeof document === "undefined" ? null : document.activeElement;
-  if (!scroller || !active || !scroller.contains(active)) return null;
+  if (!root || !active || !root.contains(active)) return null;
   return active.closest("[data-item]")?.getAttribute("data-item") ?? null;
 }
 
-// distance: from the bottom before the change. While a reply reveals, the view sticks to the bottom each frame (an ease
-// would keep the line being written below the fold); a one-time growth eases. behind: only new content shows it.
-export type FollowMove = "snap" | "ease" | "none";
-export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; distance: number; now: number; grew: boolean }): { state: FollowState; move: FollowMove; behind: boolean | null } {
-  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.distance });
-  if (!next.pinned) return { state: next, move: "none", behind: change.grew && change.distance > FOLLOW_DISTANCE ? true : null };
-  return { state: next, move: change.reduced || change.revealing ? "snap" : "ease", behind: false };
-}
 // The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
 const frameTime = () => typeof document !== "undefined" ? document.timeline.currentTime : null;
 const NO_SENDS: readonly LocalSend[] = [];
+const JUMP_ROOM = 56;
 // Keys that edit text or press a control there rather than scroll the thread.
 const OWN_KEYS = "input, textarea, select, button, [contenteditable]";
 
@@ -997,15 +904,19 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const latest = useRef(props);
   latest.current = props;
   const base = useId();
-  const scroller = useRef<HTMLDivElement | null>(null);
-  const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0);
+  const scroller = useRef<HTMLDivElement | null>(null), root = useRef<HTMLDivElement | null>(null);
+  // content: the thread's own height; inset: the popover's height, kept clear at the thread's end (--ap-inset).
+  const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0), inset = useRef(0);
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
-  // wrote, so a scroll event of its own is told from the person's. heldKey: the waiting card scrollToItem went to.
+  // wrote, so a scroll event of its own is told from the person's.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
-  const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity), heldKey = useRef<string | null>(null);
+  const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
   const [behind, setBehindState] = useState(false), behindNow = useRef(false);
+  // Jump to latest rides above the popover; where the popover leaves less than its height and margins (32 + 2 × 12) in
+  // the thread area, it would sit on the panel's head, so it stays away.
+  const [jumpFits, setJumpFits] = useState(true);
   const setBehind = (value: boolean) => { if (behindNow.current !== value) { behindNow.current = value; setBehindState(value); } };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
@@ -1017,15 +928,24 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
   // A card can fold with no press here (the CLI cancels it or the turn ends); focus in it, or unsent Other text, moves on as
   // after an answer. Focus is read before this commit replaces the card; the drafts are the last commit's.
-  const focusedKey = focusedItem(scroller.current);
+  const focusedKey = focusedItem(root.current);
   const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
   const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; latest.current.onStop(); };
-  // Requests whose last answer did not reach main: the person chooses again.
+  // Requests whose last answer did not reach main: the person chooses again. pressing: the option sent for a request,
+  // which locks its others until main answers; a refusal unlocks it and opens a collapsed popover.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
+  const [pressing, setPressing] = useState<ReadonlyMap<string, string>>(new Map());
   const answer = (requestId: string, optionId: string) => {
+    if (pressing.has(requestId)) return;
     folding.current = { requestId, action: { kind: "answered", requestId } };
+    setPressing(current => new Map(current).set(requestId, optionId));
     setUnanswered(current => { if (!current.has(requestId)) return current; const next = new Set(current); next.delete(requestId); return next; });
-    void answerReached(() => latest.current.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
+    void answerReached(() => latest.current.onAnswer(requestId, optionId)).then(reached => {
+      if (reached) return;
+      setPressing(current => { const next = new Map(current); next.delete(requestId); return next; });
+      setUnanswered(current => new Set(current).add(requestId));
+      latest.current.onExpand?.();
+    });
   };
   const draftOf = (requestId: string) => latest.current.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
   const editQuestion = (requestId: string, action: QuestionDraftAction) => latest.current.onQuestionDraft?.(requestId, action);
@@ -1035,11 +955,91 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const answer: QuestionAnswerInput = how === "skip" ? { outcome: "skipped" } : questionInput(entry.questions, draft);
     editQuestion(entry.requestId, { type: "sending", how });
     folding.current = { requestId: entry.requestId, action: { kind: "answered", requestId: entry.requestId } };
-    void settleQuestionSend(() => latest.current.onAnswerQuestion ? latest.current.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
+    void settleQuestionSend(() => latest.current.onAnswerQuestion ? latest.current.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }),
+      action => { editQuestion(entry.requestId, action); if (action.type === "failed") latest.current.onExpand?.(); });
   };
+  // The answer popover shows the earliest waiting request; its fold is the host's.
+  const asks: AskItem[] = Array.isArray(items) ? items.filter(waitsForPerson) : [];
+  const ask = asks[0] ?? null, waitingIds = asks.map(item => item.requestId);
+  const collapsed = ask !== null && (props.popoverCollapsed?.(waitingIds) ?? false);
+  const popoverNow = useRef<{ key: string | null; collapsed: boolean }>({ key: null, collapsed: false }), waitingNow = useRef(waitingIds);
+  waitingNow.current = waitingIds;
+  popoverNow.current = { key: ask?.key ?? null, collapsed };
+  // Focus the popover takes once it draws as asked: open after an entry or the bar, at the new step after Next or Back,
+  // or the bar after Collapse. A render before the host's fold or draft moved does not take it.
+  const popoverFocus = useRef<{ key: string; open: boolean; step?: number } | null>(null);
+  // The popover's running collapse or expand; a new one cancels it so two never fight over the height.
+  const motions = useRef<Animation[]>([]);
+  // Cancel events arrive a frame later, so the surface's clip is restored here and a run's handlers act only while it is
+  // still the current one.
+  const stopMotion = () => {
+    for (const run of motions.current) run.cancel();
+    motions.current = [];
+    if (popover.current?.style.overflow === "hidden") popover.current.style.overflow = "";
+  };
+  // The head and buttons always show (popoverFloor): past the cap the popover rises, at most to the panel's top. Left off
+  // while the height runs, which the overflow clip marks.
+  const holdChrome = (node: HTMLElement) => {
+    if (node.style.overflow === "hidden") return;
+    const body = node.querySelector<HTMLElement>(":scope > .ap-body"), style = body ? getComputedStyle(body) : null;
+    const chrome = [...node.querySelectorAll<HTMLElement>(":scope > .ap-head, :scope > .ap-actions, :scope > .ap-error, :scope > .ap-bar")].map(part => part.offsetHeight);
+    const panel = node.closest(".doan-conv-panel, .ov-main"), area = node.parentElement;
+    const room = panel && area ? area.getBoundingClientRect().bottom - panel.getBoundingClientRect().top : Infinity;
+    const fit = { chrome, bodyPadding: style ? Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) : 0, room };
+    const value = `${popoverFloor(fit)}px`, cramped = popoverCramped(fit);
+    if (node.style.minHeight !== value) node.style.minHeight = value;
+    if (node.hasAttribute("data-cramped") !== cramped) {
+      node.toggleAttribute("data-cramped", cramped);
+      // An expand's run holds the floor off, so focus may already be on a choice the cramped scroll now hides.
+      const focused = document.activeElement;
+      if (cramped && focused && node.contains(focused)) focused.scrollIntoView({ block: "nearest" });
+    }
+  };
+  // The body and buttons fade out first, then the fold draws the bar and its height runs (the layout effect below).
+  const collapse = (andThen: "bar" | "composer") => {
+    if (!ask) return;
+    const ids = waitingIds, key = ask.key, node = popover.current;
+    const fold = () => {
+      // A request that came during the fade keeps it open (the fade is undone); one that ended leaves the rest to fold.
+      const now = waitingNow.current;
+      if (now.some(id => !ids.includes(id))) { stopMotion(); return; }
+      latest.current.onCollapse?.(now);
+      // The bar drawn is the request shown now, which may not be the one pressed if that one ended during the fade.
+      if (andThen === "bar") popoverFocus.current = { key: popoverNow.current.key ?? key, open: false };
+    };
+    // Esc hands focus over at once, so a key pressed during the fade never reaches a control that is fading out.
+    if (andThen === "composer") handFocus(() => latest.current.onFocusComposer?.());
+    if (!node || motion.reduced() || typeof node.animate !== "function") { fold(); return; }
+    stopMotion();
+    const duration = timeMs(getComputedStyle(node).getPropertyValue("--time-fast"));
+    const fades = [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 1 }, { opacity: 0 }], { duration, fill: "forwards" }));
+    motions.current = fades;
+    void Promise.all(fades.map(fade => fade.finished)).then(fold, () => {});
+  };
+  const expand = (key: string) => { popoverFocus.current = { key, open: true }; latest.current.onExpand?.(); };
+  const expandRef = useRef(expand);
+  expandRef.current = expand;
+  const moveStep = (entry: Extract<ThreadItem, { kind: "question" }>, action: QuestionDraftAction) => {
+    const step = questionDraft(draftOf(entry.requestId), action).step;
+    if (step === draftOf(entry.requestId).step) return;
+    editQuestion(entry.requestId, action);
+    popoverFocus.current = { key: entry.key, open: true, step };
+  };
+  // A new request shown, and a new request opening a collapsed popover, are read once; a request drawn from the history
+  // at first is not.
+  const [seen, setSeen] = useState<{ key: string | null; collapsed: boolean; count: number; announce: number }>({ key: null, collapsed: false, count: 0, announce: 0 });
+  let announce = seen.announce;
+  if (seen.key !== (ask?.key ?? null) || seen.collapsed !== collapsed || seen.count !== asks.length) {
+    const changed = ask !== null && ask.key !== seen.key && (seen.key !== null || ask.seq > props.liveAfter);
+    const reopened = ask !== null && ask.key === seen.key && seen.collapsed && !collapsed && asks.length > seen.count;
+    if (changed || reopened) announce += 1;
+    setSeen({ key: ask?.key ?? null, collapsed, count: asks.length, announce });
+  }
   const focusIn = (key: string): boolean => {
-    const control = scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(key)}"] ${ENTRY_FOCUS}`);
+    const control = root.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(key)}"] ${ENTRY_FOCUS}`);
     control?.focus({ preventScroll: true });
+    // The thread does not scroll for it; a cramped popover's own scroll brings the choice out from under its head.
+    if (control?.closest(".ap[data-cramped]")) control.scrollIntoView({ block: "nearest" });
     return !!control;
   };
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1137,19 +1137,27 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     else lastFrame.current = null;
   };
   const run = () => { if (loop.current === 0) loop.current = requestAnimationFrame(tick); };
+  const contentOf = (node: HTMLElement) => node.firstElementChild?.getBoundingClientRect().height ?? 0;
+  // The popover's height becomes the end inset first, so the scroll extent read next already holds it.
   const resized = () => {
     const node = scroller.current;
     if (!node || !opened.current) return;
     const now = performance.now();
-    const grew = node.scrollHeight > contentHeight.current;
-    contentHeight.current = node.scrollHeight;
-    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), distance: distance.current, now, grew });
+    if (popover.current) holdChrome(popover.current);
+    const insetNow = popover.current?.isConnected === false ? 0 : popover.current?.offsetHeight ?? 0;
+    if (insetNow !== inset.current) root.current?.style.setProperty("--ap-inset", `${insetNow}px`);
+    const fits = insetNow === 0 || node.clientHeight - insetNow >= JUMP_ROOM;
+    if (fits !== jumpFits) setJumpFits(fits);
+    const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
+    const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
+    contentHeight.current = after.content;
+    inset.current = insetNow;
+    const change = followResize(follow.current, { reduced: motion.reduced(), revealing: revealedAt.current === frameTime(), now, before, after });
     follow.current = change.state;
     if (change.move === "snap") { easeTo.current = null; write(node, bottomOf(node)); }
     else if (change.move === "ease") { easeTo.current = bottomOf(node); run(); }
-    else distance.current = bottomOf(node) - node.scrollTop;
-    if (change.behind === false) setBehind(false);
-    else if (grew && change.move === "none" && distance.current > FOLLOW_DISTANCE) setBehind(true);
+    else distance.current = after.distance;
+    if (change.behind !== null) setBehind(change.behind);
   };
   const latestFollow = useRef({ resized, apply, run });
   latestFollow.current = { resized, apply, run };
@@ -1158,24 +1166,27 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const node = scroller.current;
     if (!node || !Array.isArray(items) || opened.current) return;
     opened.current = true;
-    contentHeight.current = node.scrollHeight;
+    contentHeight.current = contentOf(node);
     write(node, bottomOf(node));
   }, [items]);
-  // A card scrollToItem went to that stopped waiting (answered, expired or gone) lets the follow resume at the bottom.
-  useLayoutEffect(() => {
-    const key = heldKey.current;
-    if (key === null || !Array.isArray(items) || items.some(item => item.key === key && waitsForPerson(item))) return;
-    heldKey.current = null;
-    apply({ type: "release" });
-  }, [items]);
   const ready = Array.isArray(items);
+  // The popover is watched by the follow's observer while it is drawn; this callback stays the same across renders.
+  const popover = useRef<HTMLDivElement | null>(null), observer = useRef<ResizeObserver | null>(null);
+  const popoverRef = useRef((node: HTMLDivElement | null) => {
+    if (popover.current) observer.current?.unobserve(popover.current);
+    popover.current = node;
+    if (node) observer.current?.observe(node);
+    else latestFollow.current.resized();
+  }).current;
   useEffect(() => {
     const node = scroller.current, content = node?.firstElementChild;
     if (!ready || !node || !content) return;
     const calls = () => latestFollow.current;
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => calls().resized());
-    observer?.observe(content);
-    observer?.observe(node);
+    const watch = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => calls().resized());
+    observer.current = watch;
+    watch?.observe(content);
+    watch?.observe(node);
+    if (popover.current) watch?.observe(popover.current);
     // The person's input, on the thread only: a wheel that can leave the bottom, a press on the scroller itself (its
     // scrollbar), a scroll key outside a field or control. The composer is outside the thread.
     const wheel = (event: WheelEvent) => {
@@ -1201,7 +1212,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     node.addEventListener("keydown", key);
     document.addEventListener("selectionchange", selection);
     return () => {
-      observer?.disconnect();
+      watch?.disconnect();
+      observer.current = null;
       node.removeEventListener("wheel", wheel);
       node.removeEventListener("pointerdown", pointer);
       node.removeEventListener("keydown", key);
@@ -1235,6 +1247,40 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
   });
+  // An open popover, or none, leaves no fold in the host: a request that ended without a resolved event (a turn's end)
+  // would otherwise keep one.
+  useLayoutEffect(() => { if (Array.isArray(items) && !collapsed) latest.current.onExpand?.(); });
+  useLayoutEffect(() => {
+    const want = popoverFocus.current;
+    if (!want) return;
+    if (want.key !== ask?.key) { popoverFocus.current = null; return; }
+    if (collapsed === want.open || (want.step !== undefined && (ask.kind !== "question" || draftOf(ask.requestId).step !== want.step))) return;
+    popoverFocus.current = null;
+    // A cramped popover scrolls the body itself, so its own scroll goes back to the top.
+    const surface = popover.current;
+    if (want.step !== undefined) (surface?.hasAttribute("data-cramped") ? surface : surface?.querySelector(".ap-body"))?.scrollTo({ top: 0 });
+    handFocus(() => focusIn(want.key));
+  });
+  // Collapse and expand run the surface's height between the popover and the bar; the end inset follows it each frame.
+  const shape = ask === null ? null : collapsed ? "bar" : "open";
+  const drawnShape = useRef(shape);
+  useLayoutEffect(() => { if (popover.current) holdChrome(popover.current); });
+  useLayoutEffect(() => {
+    const was = drawnShape.current, node = popover.current;
+    drawnShape.current = shape;
+    if (!node || !was || !shape || was === shape || motion.reduced() || typeof node.animate !== "function") return;
+    const token = (name: string) => getComputedStyle(node).getPropertyValue(name).trim();
+    const duration = timeMs(token("--time-thread-enter"));
+    stopMotion();
+    const target = node.offsetHeight;
+    node.style.overflow = "hidden";
+    node.style.minHeight = "";
+    const run = node.animate([{ height: `${inset.current}px` }, { height: `${target}px` }], { duration, easing: token("--ease-settle") || "ease" });
+    run.onfinish = run.oncancel = () => { if (!motions.current.includes(run)) return; node.style.overflow = ""; holdChrome(node); };
+    // Opening: the body and buttons appear last, once the height has run.
+    const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timeMs(token("--time-fast")), delay: duration, fill: "backwards" })) : [];
+    motions.current = [run, ...fades];
+  }, [shape, motion]);
   // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll
   // anchoring is off on the scroller (styles.css), or it would move the view as a reply grows above.
   const onScroll = () => {
@@ -1256,13 +1302,18 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
-      const holds = scrollToItemHolds(latest.current.items, key);
-      if (holds) latestFollow.current.apply({ type: "scrollToItem" });
-      heldKey.current = holds ? key : null;
-      // A question or handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
-      node?.scrollIntoView({ block: node.querySelector(".q-card, .handoff-card") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
+      // A handoff card scrolls to its top: in a 280px panel a tall card's centre would leave its title out of view.
+      node?.scrollIntoView({ block: node.querySelector(".handoff-card") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },
-    focusItem: focusIn,
+    // A request is focused only in the popover, which shows the earliest one: a collapsed popover opens first.
+    focusItem(key: string) {
+      const now = popoverNow.current;
+      if (Array.isArray(latest.current.items) && latest.current.items.some(item => item.key === key && waitsForPerson(item))) {
+        if (key !== now.key) return false;
+        if (now.collapsed) { expandRef.current(key); return true; }
+      }
+      return focusIn(key);
+    },
   }), []);
 
   // The Markdown is memoized, so its links and Copy buttons read the latest callbacks through one stable context value.
@@ -1314,8 +1365,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null, entered.current.get(entry.key) ?? null];
       case "agent": return [flushes(entry)];
       case "activity": return [expanded.has(entry.key)];
-      case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
-      case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
       case "canvasCard": {
         const canvas = cardCanvas(entry, rows);
@@ -1346,30 +1395,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           {open && <Steps id={id} steps={entry.steps} />}
         </div>;
       }
+      // A waiting request is the popover's; the thread keeps its folded line once it ends.
       case "permission": {
-        if (entry.status !== "pending") return <div className="activity"><div className="activity-head ask-answered"><span className="selectable">
+        if (entry.status === "pending") return null;
+        return <div className="activity"><div className="activity-head ask-answered"><span className="selectable">
           {entry.status === "answered" ? `${entry.answer ? ANSWERED[entry.answer.kind] : "Answered"} · ${entry.summary}` : `Expired without an answer · ${entry.summary}`}</span></div></div>;
-        const live = entry.seq > props.liveAfter;
-        return <div className="doan-notice thread-notice" role={live ? "alert" : undefined}>
-          <span className="strip-agent doan-alert-icon"><img className="logo" src={providerLogo(provider)} alt="" /></span>
-          {/* What will run leads; the agent's words about it and what a saving choice adds follow (ARCHITECTURE §7). */}
-          <span className="strip-text selectable"><b>{`${p} needs your answer`}</b><span className="ask-command">{entry.summary}</span>
-            {entry.reason && <span className="ask-reason">{entry.reason}</span>}
-            {entry.options.flatMap(option => option.detail ? [<span key={option.id} className="ask-saves">{`${option.label}: ${option.detail}`}</span>] : [])}</span>
-          <span className="strip-actions">
-            {entry.options.map(option => <button key={option.id} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={option.kind === "allow" ? "prominent" : "panel"}
-              data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
-            <button type="button" className="doan-button" data-ui-size="sm" onClick={() => stop(entry.requestId)}><CircleStop aria-hidden="true" />Stop</button>
-          </span>
-          {unanswered.has(entry.requestId) && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>Couldn’t send your answer. Choose again.</span></p>}
-        </div>;
       }
-      case "question": {
-        if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
+      case "question":
+        if (entry.status === "pending") return null;
+        return <div className="q-folded">{questionLines(entry).map((line, i) =>
           <div key={i} className="activity"><div className="activity-head ask-answered"><NameTip text={line}><span className="selectable">{line}</span></NameTip></div></div>)}</div>;
-        return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
-          onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
-      }
       case "end": {
         const isLast = entry.key === last?.key;
         const view = endView(entry.end, provider, isLast ? props.limitResets ?? null : null);
@@ -1397,10 +1432,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
   };
 
-  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><Motion.Provider value={motion}><div className="conversation-thread">
+  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><Motion.Provider value={motion}><div className="conversation-thread" ref={root}>
     {props.thumbnails && <CardThumbnails hub={props.thumbnails.hub} root={props.thumbnails.root} banners={cardBanners(drawn, rows, props.canvasListed, card => canvasCardText(card, { project: props.project, provider, listed: props.canvasListed }).icon === "spinner")} scroller={scroller} onImages={setImages} />}
     <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
-      <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
+      <div className="thread">{stacks(drawn.filter(entry => !waitsForPerson(entry))).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
         // A run of cards stacks closer than thread items do; each card stays its own item.
         : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
@@ -1414,8 +1449,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
             aria-disabled={line.stopping || undefined} data-disabled={line.stopping ? "" : undefined} onClick={() => stopLine(line.turnId, line.stopping)}>
             {line.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <CircleStop aria-hidden="true" />}{line.stopping ? "Stopping" : "Stop"}</button>
         </div></div>}</div>
+      <div className="thread-end" aria-hidden="true" />
     </div>
-    {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
+    {behind && jumpFits && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
+    {ask && <AnswerPopover item={ask} provider={provider} count={asks.length} base={base} collapsed={collapsed} announce={announce}
+      draft={ask.kind === "question" ? draftOf(ask.requestId) : EMPTY_QUESTION_DRAFT} pressed={pressing.get(ask.requestId) ?? null} failed={unanswered.has(ask.requestId)} rootRef={popoverRef}
+      onAnswer={optionId => answer(ask.requestId, optionId)} onDraft={action => editQuestion(ask.requestId, action)}
+      onNext={() => { if (ask.kind === "question") moveStep(ask, { type: "next", questions: ask.questions }); }} onBack={() => { if (ask.kind === "question") moveStep(ask, { type: "back" }); }}
+      onSend={() => { if (ask.kind === "question") sendQuestion(ask, "answer"); }} onSkip={() => { if (ask.kind === "question") sendQuestion(ask, "skip"); }} onStop={() => stop(ask.requestId)}
+      onCollapse={() => collapse("bar")} onExpand={() => expand(ask.key)} onEscape={() => collapse("composer")} />}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
   </div></Motion.Provider></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };

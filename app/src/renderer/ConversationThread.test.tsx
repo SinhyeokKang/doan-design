@@ -169,13 +169,15 @@ describe("thread items", () => {
     expect(out).toMatch(/<span class="verb">Edited<\/span><span class="path">b.ts<\/span><\/li>/);
   });
 
-  test("a permission request that arrived live is an alert; one drawn from history is not; no choice is the default", () => {
+  // The waiting request is the answer popover's; only its title is read, and only for one that arrived live.
+  test("a permission request that arrived live is read once by its title; one drawn from history is not; no choice is the default", () => {
     const ask = (seq: number): ThreadItem => ({ kind: "permission", key: "pr1", seq, requestId: "r1", summary: "Run doan check", options: [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }], status: "pending", answer: null });
     const live = html([ask(5)], { liveAfter: 4 }), history = html([ask(5)], { liveAfter: 5 });
-    expect(live).toContain('<div class="doan-notice thread-notice" role="alert">');
-    expect(history).toContain('<div class="doan-notice thread-notice">');
-    expect(live).toContain('<b>Claude Code needs your answer</b><span class="ask-command">Run doan check</span></span>');
-    expect(live).toContain('data-ui-variant="prominent" data-request="r1">Allow once</button>');
+    expect(live).toContain('<span class="sr-only" role="alert">Claude Code needs your answer</span>');
+    expect(history).not.toContain('role="alert"');
+    expect(live).toContain('<b id="');
+    expect(live).toContain('<span class="ask-command">Run doan check</span></div>');
+    expect(live).toContain('data-ui-variant="prominent" data-request="r1" data-entry="">Allow once</button>');
     expect(live).not.toContain("autofocus");
     expect(live).toMatch(/<button type="button" class="doan-button" data-ui-size="sm"><svg[^>]*lucide-circle-stop[^>]*>.*<\/svg>Stop<\/button>/);
   });
@@ -184,8 +186,8 @@ describe("thread items", () => {
   test("a pending permission request shows the command, then the agent's reason, then what a saving choice adds", () => {
     const out = html([{ kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "npm test", reason: "Run the tests", status: "pending", answer: null,
       options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "always", label: "Allow with suggested permissions", kind: "allowAlways", detail: "Adds the allow rule Bash(npm test:*) in .claude/settings.local.json." }] }]);
-    expect(out).toContain('<b>Claude Code needs your answer</b><span class="ask-command">npm test</span><span class="ask-reason">Run the tests</span>'
-      + '<span class="ask-saves">Allow with suggested permissions: Adds the allow rule Bash(npm test:*) in .claude/settings.local.json.</span></span>');
+    expect(out).toContain('<span class="ask-command">npm test</span><span class="ask-reason">Run the tests</span>'
+      + '<span class="ask-saves">Allow with suggested permissions: Adds the allow rule Bash(npm test:*) in .claude/settings.local.json.</span></div>');
   });
 
   test("answered and expired requests shrink to one line", () => {
@@ -197,10 +199,10 @@ describe("thread items", () => {
   // The thread body is unselectable by default; secondary text opts in with `selectable` while the answer buttons stay out of it.
   test("a pending permission request's text is selectable and its buttons are not", () => {
     const out = html([{ kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options: [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }], status: "pending", answer: null }]);
-    expect(out).toContain('<span class="strip-text selectable"><b>Claude Code needs your answer</b>');
-    expect(out).toMatch(/<span class="strip-actions">(?:(?!<\/span>).)*Allow once/);
+    expect(out).toContain('<div class="strip-text selectable"><span class="ask-command">Run doan check</span>');
+    expect(out).toMatch(/<div class="ap-actions perm">(?:(?!<\/div>).)*Allow once/);
     expect(out).not.toMatch(/<button[^>]*class="[^"]*selectable/);
-    expect(out).not.toMatch(/<span class="strip-actions[^"]*selectable/);
+    expect(out).not.toMatch(/<div class="ap-actions[^"]*selectable/);
   });
 
   test("an answered or expired permission line is selectable", () => {

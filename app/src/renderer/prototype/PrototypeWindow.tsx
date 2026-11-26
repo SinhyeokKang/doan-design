@@ -175,8 +175,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     setPanelMotion(true);
     void api.setPanel({ open });
   };
-  // Opening focuses the composer, or the head's menu button before the first view; closing focuses the header's button, which has its
-  // box again by this effect. A composer blocked while open keeps focus itself (readOnly).
+  // Opening focuses the answer popover's request when one waits (the badge's entry), else the composer, or the head's menu button
+  // before the first view; closing focuses the header's button, which has its box again by this effect. A composer blocked while
+  // open keeps focus itself (readOnly).
   const headFallback = useRef(false);
   const composer = () => column.current?.querySelector<HTMLElement>(".composer-input") ?? null;
   const headTitle = () => column.current?.querySelector<HTMLElement>(".doan-conv-title .ov-title") ?? null;
@@ -185,7 +186,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     if (panelAsked.current !== panelOpen) return;
     panelAsked.current = null;
     if (!panelOpen) { convButton.current?.focus(); return; }
-    const field = composer();
+    const field = column.current?.querySelector<HTMLElement>(".ap [data-entry]") ?? composer();
     if (field) { field.focus(); return; }
     headFallback.current = true;
     headTitle()?.focus();
