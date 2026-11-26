@@ -71,6 +71,10 @@ let rawTop = 0;
 // A smooth scroll the browser runs toward `to`, from the frame after it was asked for, one step a frame; a scrollTop the
 // code writes cancels it.
 let smooth: { to: number; moving: boolean } | null = null, smoothStep = 150;
+// With echo, the code's own scrollTop writes come back at the next frame as a scroll and a scrollend, as Chromium sends
+// them; a fractional write reads back truncated until then and lands on the next whole pixel, so the event can be 1 px
+// off the read.
+let echo = false, echoing = false;
 // A focus target for a key: in a field, or anywhere else.
 class El {
   constructor(readonly kind = "div") {}
@@ -79,8 +83,11 @@ class El {
 let frameId = 0, clock = 0;
 const scroller = {
   // The browser keeps scrollTop within the scroll extent: a shrinking extent lowers it.
-  get scrollTop() { return rawTop = Math.min(Math.max(rawTop, 0), Math.max(0, this.scrollHeight - this.clientHeight)); },
-  set scrollTop(value: number) { smooth = null; rawTop = value; void this.scrollTop; },
+  get scrollTop() {
+    rawTop = Math.min(Math.max(rawTop, 0), Math.max(0, this.scrollHeight - this.clientHeight));
+    return echoing ? Math.floor(rawTop) : rawTop;
+  },
+  set scrollTop(value: number) { smooth = null; rawTop = value; echoing = echo; void this.scrollTop; },
   clientHeight: 400,
   get scrollHeight() { return Math.max(layout.viewport, layout.content + 32 + Number.parseFloat(vars.get("--ap-inset") ?? "0")); },
   firstElementChild: { getBoundingClientRect: () => ({ height: layout.content }) },
@@ -118,7 +125,7 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
-  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null; smoothStep = 150;
+  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null; smoothStep = 150; echo = false; echoing = false;
   vi.spyOn(performance, "now").mockImplementation(() => clock);
   vi.stubGlobal("window", listen(onWindow));
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
@@ -210,6 +217,12 @@ function scrollBy(dy: number): void {
 function frameUntil(until: number): void {
   while (clock < until) {
     clock += 16;
+    if (echoing) {
+      echoing = false;
+      rawTop = Math.ceil(rawTop);
+      scrolled();
+      on.get("scrollend")?.({});
+    }
     if (smooth?.moving) {
       const to = smooth.to;
       rawTop = rawTop > to ? Math.max(to, rawTop - smoothStep) : Math.min(to, rawTop + smoothStep);
@@ -592,4 +605,22 @@ test("scrolling to a received handoff in a thread that barely overflows keeps it
   resize({ content: 488 }, [user]);
   frameUntil(1000);
   expect(scroller.scrollTop).toBe(0);
+});
+
+// The canvas panel's trace: the pinned follow still eases toward a revealing reply when the key goes down, so its own
+// writes come back as scroll + scrollend before the key's animation (upward, about 150 ms) starts.
+test("the follow's own scroll and scrollend right after a scroll key neither take the key nor end it", () => {
+  echo = true;
+  draw([user]);
+  resize({ content: 1002 }, [user]);
+  key();
+  frameUntil(80);
+  expect(atBottom()).toBe(0);
+  for (let at = 80; at < 208; at += 16) { scrollBy(-5); frameUntil(at + 16); }
+  expect(atBottom()).toBeGreaterThan(35);
+  on.get("scrollend")?.({});
+  frameUntil(2000);
+  expect(atBottom()).toBe(0);
+  draw([user]);
+  expect(jump()).toBe(false);
 });

@@ -938,11 +938,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // content: the thread's own height; inset: the popover's height, kept clear at the thread's end (--ap-inset).
   const distance = useRef(0), opened = useRef(false), contentHeight = useRef(0), inset = useRef(0);
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
-  // wrote, so a scroll event of its own is told from the person's.
+  // wrote. echo: a write whose scroll event has not come yet; own: the last scroll activity was the follow's write, so
+  // the scrollend Chromium sends for it is not the end of the person's scroll.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
+  const echo = useRef(false), own = useRef(false);
   // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move. keyDown: a scroll key
   // pressed anywhere outside a field, which becomes this thread's input only if this thread then scrolls.
-  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number; top: number } | null>(null);
+  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number } | null>(null);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
@@ -1143,6 +1145,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const write = (node: HTMLElement, top: number) => {
     node.scrollTop = top;
     wrote.current = seenTop.current = node.scrollTop;
+    echo.current = own.current = true;
     distance.current = bottomOf(node) - node.scrollTop;
   };
   // The person's scroll never shrinks the extent, so an extent now below the last scrollTop read means the browser
@@ -1257,9 +1260,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
-      keyDown.current = { key: event.key, at: performance.now(), top: node.scrollTop };
+      keyDown.current = { key: event.key, at: performance.now() };
     };
     const ended = () => {
+      if (own.current) return;
       calls().apply({ type: "scrollend" });
       calls().run();
     };
@@ -1353,15 +1357,20 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
-    const moved = clampSeen(node);
+    const from = seenTop.current, moved = clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
-    if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) {
+    // The follow's own write comes back by the next frame, maybe a pixel off what it read back (fractional writes land
+    // rounded); it only ever writes toward the bottom, so a move up from it is someone else's.
+    const mine = echo.current && wrote.current !== null && node.scrollTop > wrote.current - 2;
+    echo.current = false;
+    if (!mine) {
+      own.current = false;
       // A key is this thread's only when it moved this thread: not a clamp or a re-read, and not during the thread's
-      // own scroll to an item.
+      // own scroll to an item. Its move starts where this scroll started, after any write of the follow's since the key.
       const pressed = keyDown.current, now = performance.now();
       if (pressed && moved && !follow.current.item && now - pressed.at < WHEEL_HOLD_MS) {
         keyDown.current = null;
-        apply({ type: "input", kind: "key", ...pressed });
+        apply({ type: "input", kind: "key", key: pressed.key, at: pressed.at, top: from });
       }
       apply({ type: "scroll", at: now, distance: distance.current, top: node.scrollTop, moved });
       run();
