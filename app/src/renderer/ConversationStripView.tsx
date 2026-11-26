@@ -49,6 +49,8 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
   const strip = useRef<HTMLDivElement | null>(null);
   const [stacked, setStacked] = useState(false);
   const actionsKey = view.actions.map(action => action.label).join("\n");
+  // The working line changes with every activity, so it stays ellipsized rather than move the strip's height during a turn.
+  const stackingBody = state.kind === "working" ? null : view.body;
   useLayoutEffect(() => {
     const node = strip.current;
     if (!node || typeof ResizeObserver === "undefined") return;
@@ -61,6 +63,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
         icon: node.querySelector(".strip-agent")?.getBoundingClientRect().width ?? 0,
         gap,
         title: textWidth(node.querySelector(".strip-text > b")),
+        body: stackingBody === null ? 0 : textWidth(node.querySelector(".strip-text > span")),
         actions: buttons.reduce((sum, button) => sum + button.getBoundingClientRect().width, 0) + rowGap * Math.max(0, buttons.length - 1),
       }));
     };
@@ -68,7 +71,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [actionsKey, view.title]);
+  }, [actionsKey, view.title, stackingBody]);
   const run = (action: StripAction) => {
     if (action.command === "answer") {
       if (state.kind === "permission") send(state.requestId, "answer", () => window.doan.answerConversationPermission({ conversationId, requestId: state.requestId, optionId: action.optionId }));
