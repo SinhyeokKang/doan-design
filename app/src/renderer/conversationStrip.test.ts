@@ -176,11 +176,19 @@ test("a refusal fails the send, except a stale Skip", () => {
   expect(stripSendFailed("skip", "stale")).toBe(false);
 });
 
-// The actions stay beside the text while the title keeps its one line next to them (DESIGN 'Alignment').
-test("the strip stacks its actions only when the icon, the title and the action row do not fit on one line", () => {
-  const fits = { content: 618, icon: 16, gap: 6, title: 205, actions: 345 };
+// The actions stay beside the text while its title and its body each keep their one line next to them (DESIGN 'Alignment').
+test("the strip stacks its actions only when the icon, the wider text line and the action row do not fit on one line", () => {
+  const fits = { content: 618, icon: 16, gap: 6, title: 205, body: 120, actions: 345 };
   expect(stripStacks(fits)).toBe(false);
   expect(stripStacks({ ...fits, actions: 618 - 16 - 6 - 205 - 6 })).toBe(false);
   expect(stripStacks({ ...fits, actions: 618 - 16 - 6 - 205 - 6 + 1 })).toBe(true);
   expect(stripStacks({ ...fits, actions: 633 })).toBe(true);
+});
+
+// "Stopped" fits beside Edit on Home and Dismiss at 960 wide, but "You stopped the agent." was cut to "You stopped the age…".
+test("a body wider than its title stacks the actions when it would be cut beside them", () => {
+  const stopped = { content: 380, icon: 16, gap: 6, title: 60, body: 160, actions: 208 };
+  expect(stripStacks(stopped)).toBe(true);
+  expect(stripStacks({ ...stopped, body: 380 - 16 - 6 - 6 - 208 })).toBe(false);
+  expect(stripStacks({ ...stopped, body: 380 - 16 - 6 - 6 - 208 + 1 })).toBe(true);
 });
