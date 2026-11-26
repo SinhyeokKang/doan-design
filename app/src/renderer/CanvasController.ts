@@ -926,7 +926,9 @@ export class CanvasController {
       // cannot raise the layer over clicks by itself; its release always counts.
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
       else if (message.key === "V" || message.key === "H") this.shortcut({ kind: "tool", tool: message.key === "V" ? "select" : "hand" }, !this.onCanvasPage());
-      else if (message.key === "Shift2" || message.key === "ShiftSpace") this.shortcut({ kind: message.key === "Shift2" ? "zoomSelection" : "play" }, !this.onCanvasPage());
+      else if (message.key === "Shift2") this.shortcut({ kind: "zoomSelection" }, !this.onCanvasPage());
+      // Playing activates the prototype window, so a ⇧Space the canvas forged must not count, as for Space down.
+      else if (message.key === "ShiftSpace") this.shortcut({ kind: "play" }, !this.onCanvasPage() || document.activeElement !== this.frame || !document.hasFocus());
       // Unlike Escape, an old modifier snapshot must not override a newer press.
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- the key check narrows the message to its Alt variant, which TypeScript cannot do after the V/H branch
       else if (message.key === "Alt" && message.seq >= this.hoverSeq) {
