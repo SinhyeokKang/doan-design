@@ -5,8 +5,8 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { ConversationThreadHandle } from "./ConversationThread";
 
-// The Overview's entry on a waiting conversation, hooks as plain state: it scrolls to the newest unanswered request and focuses
-// its first choice (PRODUCT §5 item 3 'Project Overview', 'Questions').
+// The Overview's entry on a waiting conversation, hooks as plain state: it opens the answer popover on the earliest waiting
+// request and focuses its first choice, without scrolling the thread.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -77,7 +77,7 @@ function threadRef(node: ReactNode): { current: ConversationThreadHandle | null 
   return threadRef(element.props.children);
 }
 
-test.each(["permission", "question"] as const)("a waiting %s entry scrolls to the request and focuses its first choice", async kind => {
+test.each(["permission", "question"] as const)("a waiting %s entry opens a collapsed popover and focuses its request, without a scroll", async kind => {
   const events = [at(1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(2, { type: "turn.started" }), asks[kind]];
   vi.stubGlobal("window", { doan: {
     readConversation: vi.fn(async () => ({ events, lastSeq: 3, turn: "waitingPermission" })),
@@ -100,14 +100,17 @@ test.each(["permission", "question"] as const)("a waiting %s entry scrolls to th
   // The row's (or toast's) entry: the conversation shows and its request is to be scrolled to once its history draws.
   run.request(ROOT, A, "permission");
   run.store.track(A);
+  const requestId = kind === "permission" ? "r1" : "q1";
+  run.store.collapsePopover(A, [requestId]);
   const ref = threadRef(render(overview));
   expect(ref).not.toBeNull();
   const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
   ref!.current = handle;
   await flush();
   render(overview);
-  expect(handle.scrollToItem).toHaveBeenCalledOnce();
-  expect(handle.focusItem).toHaveBeenCalledExactlyOnceWith(handle.scrollToItem.mock.calls[0]![0]);
+  expect(handle.scrollToItem).not.toHaveBeenCalled();
+  expect(handle.focusItem).toHaveBeenCalledExactlyOnceWith(kind === "permission" ? "pt1:r1" : "Qq1");
+  expect(run.store.popoverCollapsed(A, [requestId])).toBe(false);
 });
 
 // The props the Overview hands its ConversationThread.

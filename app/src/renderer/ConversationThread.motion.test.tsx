@@ -174,4 +174,18 @@ describe("follow", () => {
   test("the thread's scroller has no scroll anchoring, which would move a followed view as a reply grows", () => {
     expect(css).toContain(".conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }");
   });
+
+  // The popover overlays the scroller's bottom; its height comes back as the end inset (--ap-inset, set by the follow's
+  // observer), so the last item clears it and Jump to latest sits above it.
+  test("the end inset pads the thread's end and lifts Jump to latest above the popover", () => {
+    expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) calc(var(--space-8) + var(--ap-inset, 0px)); }");
+    expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) calc(var(--space-8) + var(--ap-inset, 0px)); }");
+    expect(css).toMatch(/\.conversation-thread \.jump-latest \{[^}]*bottom: calc\(var\(--ap-inset, 0px\) \+ var\(--space-3\)\);/);
+  });
+
+  // Below the composer's / list (z 2), at the thread area's bottom, capped against the thread area.
+  test("the popover sits on the thread area's bottom edge under a cap relative to it", () => {
+    expect(css).toMatch(/\.conversation-thread \.ap \{ position: absolute; z-index: 1; inset-inline: 0; bottom: 0;[^}]*max-height: min\(70%, calc\(100% - var\(--space-10\)\)\);/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.conversation-thread \.ap \{ animation: none; \}/);
+  });
 });

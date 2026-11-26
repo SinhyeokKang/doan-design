@@ -429,6 +429,47 @@ function threadProps(node: ReactNode): Record<string, unknown> | null {
 }
 const threadRef = (node: ReactNode) => threadProps(node)?.ref as { current: { scrollToItem(key: string): void; focusItem(key: string): boolean } | null } | undefined;
 
+// A badge or sidebar entry (and the prototype window's badge, which has no arrival) asks the panel to show the waiting
+// request: it opens the answer popover and focuses what it shows, without scrolling the thread.
+test.each(["permission", "question"] as const)("an entry's request on a waiting %s opens the collapsed popover and focuses the earliest request, without a scroll", async kind => {
+  const row = { conversationId: "c-wait", title: "t", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "waiting", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" };
+  const list = [row] as never;
+  const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "c-wait", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload });
+  const ask = kind === "permission"
+    ? at(3, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "a", label: "Allow", kind: "allow" }] })
+    : at(3, { type: "question.request", requestId: "r1", questions: [{ id: "x", header: "Tone", question: "Which tone?", multiSelect: false, other: true, options: [{ label: "Plain" }] }] });
+  const later = at(4, { type: "permission.request", requestId: "r2", tool: "Bash", summary: "pwd", options: [{ id: "a", label: "Allow", kind: "allow" }] });
+  const events = [at(1, { type: "user.message", text: "Go", anchors: [] }), at(2, { type: "turn.started" }), ask, later];
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.readConversation = vi.fn(async () => ({ events, lastSeq: 4, turn: "waitingPermission" }));
+  vi.stubGlobal("document", { querySelector: () => null, hasFocus: () => true, querySelectorAll: () => [] });
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, changed: vi.fn() }, store, window.doan);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.request({ root: ROOT, canvas: CANVAS }, "c-wait", "permission");
+  run.sync();
+  await flush();
+  store.collapsePopover("c-wait", ["r1", "r2"]);
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+  const panel = () => CanvasConversation({
+    calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), work: [],
+  });
+  const ref = threadRef(render(panel));
+  const handle = { scrollToItem: vi.fn(), focusItem: vi.fn(() => true) };
+  ref!.current = handle;
+  render(panel);
+  await flush();
+  render(panel);
+  expect(handle.scrollToItem).not.toHaveBeenCalled();
+  expect(handle.focusItem).toHaveBeenCalledWith(kind === "permission" ? "pt1:r1" : "Qr1");
+  expect(store.popoverCollapsed("c-wait", ["r1", "r2"])).toBe(false);
+});
+
 // A handoff moves the screen with no window-focus condition, so a turn that ends while the person is in another app moves
 // focus in the background; activation then restores the element focused before (POSTMORTEM 2026-11-17 'Window
 // activation put focus on Hide sidebar'). The card, or the composer when no card is drawn, takes focus again on activation,

@@ -391,13 +391,14 @@ describe("nextFollow", () => {
   });
 });
 
-// height: the scroller's scrollHeight; inset: the end inset inside it, so height − inset is the thread's own content.
+// content: the thread's own height (.thread), apart from the scroller's end inset and its viewport; inset: the end inset;
+// distance: from the bottom, before the change and after it (the view not moved).
 describe("followResize", () => {
   const pinned = FOLLOW_START, at = 1000;
   const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
-  const size = (height: number, inset = 0) => ({ height, inset });
+  const size = (content: number, inset = 0, distance = 0) => ({ content, inset, distance });
   const change = (patch: Partial<Parameters<typeof followResize>[1]>) =>
-    ({ reduced: false, revealing: false, distance: 0, now: at, before: size(1000), after: size(1100), ...patch });
+    ({ reduced: false, revealing: false, now: at, before: size(1000), after: size(1100), ...patch });
 
   test("while a reply reveals, the view sticks to the bottom; a one-time growth eases", () => {
     expect(followResize(pinned, change({ revealing: true }))).toEqual({ state: pinned, move: "snap", behind: false });
@@ -409,39 +410,56 @@ describe("followResize", () => {
   });
 
   test("scrolled away by the person, growth leaves the view and shows Jump to latest", () => {
-    expect(followResize(away, change({ revealing: true, distance: 300 }))).toEqual({ state: away, move: "none", behind: true });
+    expect(followResize(away, change({ revealing: true, before: size(1000, 0, 300), after: size(1100, 0, 400) }))).toEqual({ state: away, move: "none", behind: true });
+  });
+
+  // Near the bottom but not following (the wheel's inertia): growth that leaves the view far from the bottom shows it too.
+  test("growth that takes the view past the follow band shows Jump to latest even from near the bottom", () => {
+    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1100, 0, 110) })).behind).toBe(true);
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1010, 0, 20) })).behind).toBeNull();
   });
 
   test("scrolled away, a row folding or unfolding or the viewport resizing without new content leaves Jump to latest as it was", () => {
-    expect(followResize(away, change({ distance: 300, after: size(900) })).behind).toBeNull();
-    expect(followResize(away, change({ distance: 280, after: size(1000) })).behind).toBeNull();
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(900, 0, 200) })).behind).toBeNull();
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1000, 0, 280) })).behind).toBeNull();
   });
 
   test("back near the bottom once the wheel's inertia is over, it follows again", () => {
     const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
-    expect(followResize(wheeled, change({ distance: 10 })).move).toBe("none");
-    expect(followResize(wheeled, change({ distance: 10, now: at + 200 })).move).toBe("ease");
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10) })).move).toBe("none");
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), now: at + 200 })).move).toBe("ease");
     expect(FOLLOW_DISTANCE).toBeGreaterThan(10);
   });
 
   // The popover appears whole at once, so an eased follow would leave the last item under it for a moment.
   test("at the bottom, an end inset that grows or shrinks keeps the bottom at once, without ease, and never shows Jump to latest", () => {
-    expect(followResize(pinned, change({ before: size(1000), after: size(1180, 180) }))).toEqual({ state: pinned, move: "snap", behind: false });
-    expect(followResize(pinned, change({ before: size(1180, 180), after: size(1040, 40) }))).toEqual({ state: pinned, move: "snap", behind: false });
+    expect(followResize(pinned, change({ before: size(1000), after: size(1000, 180, 180) }))).toEqual({ state: pinned, move: "snap", behind: false });
+    expect(followResize(pinned, change({ before: size(1000, 180), after: size(1000, 40) }))).toEqual({ state: pinned, move: "snap", behind: false });
   });
 
   test("at the bottom, new content that comes with an inset change also lands at once", () => {
-    expect(followResize(pinned, change({ before: size(1000), after: size(1400, 180) })).move).toBe("snap");
+    expect(followResize(pinned, change({ before: size(1000), after: size(1300, 180, 480) })).move).toBe("snap");
   });
 
   test("scrolled away, an inset change alone is not new content: Jump to latest stays as it was", () => {
-    expect(followResize(away, change({ distance: 300, before: size(1000), after: size(1180, 180) }))).toEqual({ state: away, move: "none", behind: null });
-    expect(followResize(away, change({ distance: 300, before: size(1180, 180), after: size(1040, 40) })).behind).toBeNull();
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1000, 180, 480) }))).toEqual({ state: away, move: "none", behind: null });
+    expect(followResize(away, change({ before: size(1000, 180, 480), after: size(1000, 40, 340) })).behind).toBeNull();
+  });
+
+  // Border-box heights are fractional; the content is measured apart from the inset, so only its own change counts.
+  test("a fractional inset-only change is not new content", () => {
+    expect(followResize(away, change({ before: size(1000.25, 40, 300), after: size(1000.25, 180.5, 440.5) })).behind).toBeNull();
+  });
+
+  // The scroll height has the viewport as its floor, so it says nothing about the content once the thread stops overflowing.
+  test("an inset shrinking until the thread no longer overflows is not new content", () => {
+    expect(followResize(away, change({ before: size(200, 400, 50), after: size(200, 40, 0) })).behind).toBeNull();
   });
 
   test("scrolled away, new content that comes with an inset change still shows Jump to latest", () => {
-    expect(followResize(away, change({ distance: 300, before: size(1000), after: size(1300, 180) }))).toEqual({ state: away, move: "none", behind: true });
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1300, 180, 780) }))).toEqual({ state: away, move: "none", behind: true });
     // The inset shrank by more than the content grew: the content still grew.
-    expect(followResize(away, change({ distance: 300, before: size(1180, 180), after: size(1100, 40) })).behind).toBe(true);
+    expect(followResize(away, change({ before: size(1000, 180, 480), after: size(1060, 40, 400) })).behind).toBe(true);
   });
 });

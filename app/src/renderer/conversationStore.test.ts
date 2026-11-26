@@ -362,6 +362,26 @@ describe("popover fold", () => {
     expect(h.store.popoverCollapsed(A, ["r2"])).toBe(true);
   });
 
+  // Once a new request opened it, it stays open until the person collapses it again, whatever ends first.
+  test("a request that arrives after the collapse opens it for good: its end alone does not collapse it again", async () => {
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    h.store.collapsePopover(A, ["r1"]);
+    h.host.changed.mockClear();
+    h.store.event(event({ type: "permission.request", requestId: "r2", tool: "Bash", summary: "ls", options: [] }));
+    expect(h.host.changed).toHaveBeenCalled();
+    expect(h.store.popoverCollapsed(A, ["r1", "r2"])).toBe(false);
+    h.store.event(event({ type: "permission.resolved", requestId: "r2", optionId: "allow" }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+    // A question arriving does the same; a request it already covers does not.
+    h.store.collapsePopover(A, ["r1"]);
+    h.store.event(event({ type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [] }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(true);
+    h.store.event(event({ type: "question.request", requestId: "q3", questions: [] }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+  });
+
   // Both a refused send and an entry point open it through the store.
   test.each(["a refused send", "an entry point"])("%s opens it", () => {
     const h = harness();
