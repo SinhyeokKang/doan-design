@@ -21,14 +21,15 @@
 - 사용자가 체인 '상시 권한'에서 배치 워커에 Codex `gpt-6.1-sol`, effort `high`까지를 허가했다.
 - 이 링크에서 Codex를 쓴 범위: 아래 배치 표의 모델 열에 적는다. 리뷰 워커도 배치 워커로 본다.
 - 시작 시점 Codex 사용률: 5h 2%, 7d 1%.
+- R1(T3 리뷰): Codex `gpt-6.1-sol` `high`. 띄우기 전 사용률 5h 32%, 7d 5%.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | B1 | T2 PoC(끝 여백 A·B) | `.scratch/answer-popover/`, design.md 'PoC 결과' | 없음 | Claude Opus medium — 격리된 실제 앱에서 스크롤 따라가기를 재고 해석해야 한다 | 비교 항목마다 측정값·스크린샷이 `.scratch/`에 있다 | 통합 `2fd83aea6` |
-| B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 대기 |
-| B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 대기 |
+| B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 통합 `54c574aef` |
+| B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 진행 |
 | B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 대기 |
 | R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
 | C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 대기 |
@@ -51,3 +52,6 @@
 ## 진행 기록
 
 - B1: PoC 커밋 `5d29b6799`를 `2fd83aea6`로 통합했다. probe와 근거는 conductor checkout의 `.scratch/answer-popover/`에 복사했다. 실제 프로토타입 창은 열지 않고 스레드 영역 150으로 근사했다.
+- B2a: T3 커밋 3개를 `c5e8d9fe3`, `d3e6ec847`, `54c574aef`로 통합했다. 워커의 `/verify`는 `app/src/main/conversation/editLines.test.ts`의 50 ms 시간 테스트에서 실패했다(부하 평균 약 100, 이 브랜치는 `app/src/main`을 건드리지 않는다). 통합 HEAD의 `/verify`는 마지막에 다시 돌린다. `followResize`가 `ConversationThread.tsx`에서 `threadMotion.ts`로 옮겨 갔다.
+- B2b: 같은 워커에 T4를 보냈다(dispatch `ctx_48bdfdebeec6`). 워커는 브랜치를 `feat/answer-popover`로 맞춘 뒤 시작한다.
+- R1: T3 diff 리뷰를 Codex에 맡겼다(dispatch `ctx_2ce1c12da0d6`).
