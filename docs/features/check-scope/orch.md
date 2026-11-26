@@ -18,7 +18,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | T0, T1, T2 | `cli/internal/check/`, `cli/internal/cli/check.go`·`check*_test.go`·`run.go`·`sessions*.go`, 새 golden fixture | — | Claude Opus high. 공유 CSS 중복 제거와 범위 판정이 맞물려 틀리면 결과가 조용히 사라진다 | `go test ./...`, `go vet ./...`, red→green, T0 golden 불변 | 완료, 리뷰 🔴0 🟡0 ⚪5, 통합 |
-| B | T3 | `cli/internal/cli/skill.md`·`skill_test.go`, `cli/internal/designskill/presets/`·`design_skill_test.go`, `schema/fixtures/cli-envelope/design-skill/`, `app/src/main/conversation/prompt.ts`와 그 테스트 | — | Codex `gpt-6.1-sol` medium. 문구를 같은 형태로 바꾸는 기계적 작업이다 | `go test ./...`, `npm --prefix app test` | 진행 중 |
+| B | T3 | `cli/internal/cli/skill.md`·`skill_test.go`, `cli/internal/designskill/presets/`·`design_skill_test.go`, `schema/fixtures/cli-envelope/design-skill/`, `app/src/main/conversation/prompt.ts`와 그 테스트 | — | Codex `gpt-6.1-sol` medium. 문구를 같은 형태로 바꾸는 기계적 작업이다 | `go test ./...`, `npm --prefix app test` | 완료, 리뷰 🔴1 🟡1 → 수정 1회차로 해소, 통합 |
 | C | T4 | `eval/` (새 시나리오, `eval/lib/transcript.ts`와 테스트) | A(시나리오 pass fixture가 범위 검사를 쓴다). A 리뷰와 겹치게 A 브랜치 끝에서 시작했다 | Codex `gpt-6.1-sol` high. 판단보다 단계가 많다(seed, 검사, fixture 둘, self-test) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 중 |
 | 리뷰 | 배치마다 | 읽기 전용 | 각 배치 완료 | 배치 A: Claude Opus medium, B·C: Claude Sonnet medium | `/code-review` 🔴 0 | 대기 |
 | T5 | 통합 검증, `/agent-eval` | `docs/usability-eval/` | A·B·C 통합 | conductor | `verify.mjs --eval`, 새 시나리오 두 계열 통과 | 대기 |
@@ -44,3 +44,9 @@
 - A 리뷰(Opus medium): 🔴 0, 🟡 0, ⚪ 5. 고치지 않고 통합한다. 리뷰가 올린 두 결정은 conductor가 정했다.
   - 세션 기록: 경로 오류로 끝나면 기록하지 않고, `checkInput` 읽기 실패는 지금처럼 읽은 캔버스를 기록한다. 근거: spec 완료 조건 6·8. T6에서 ARCHITECTURE에 이 규칙으로 적는다.
   - `.doan/Config.json`과 지운 CSS 인자는 적힌 표기로 맞춘다(대소문자를 접지 않는다). 근거: spec 완료 조건 7은 CSS·설정에 심볼릭 링크와 루트 별칭만 풀라고 한다. 에이전트는 자기가 쓴 표기를 넘긴다.
+- B 리뷰(Sonnet medium): 🔴 1, 🟡 1, ⚪ 2. B에 수정 1회차를 보냈다(시작 시 Codex 5h 24%, 7d 4%).
+  - 🔴 `eval/scenarios/R8d·R9b·R10·R11·R12/prompt.md`가 옛 턴 프롬프트 문장이라 `node --test 'eval/**/*.test.ts'`가 5건 실패한다. 프롬프트를 바꾼 B가 고친다. C와 파일이 겹치지 않으므로 B의 소유를 이 다섯 파일까지 넓혔다.
+  - 🟡 `skill.md`의 줄인 `doan check` 설명은 리뷰가 낸 예산 안 문구로 바꾼다. ⚪1(경로 없는 표현 검사의 정규식 확장)도 고친다. ⚪2(규칙 설명 문장)는 그대로 둔다.
+  - audit 프리셋(`audit.md:103`, 검토 전용): "감사한 캔버스와 CSS 경로"로 쓴다 — conductor 판단, 근거: spec 완료 조건 9의 같은 형태를 지키면서 편집이 없는 맥락에 맞춘다.
+  - 캔버스·CSS·설정이 아닌 파일(`.doan/assets/`의 스크립트, 이미지)만 편집한 경우 넘길 경로가 없다. spec이 세 종류만 정했으므로 이번에는 문구를 두고 T6에서 BACKLOG 'Undecided'에 적는다.
+- B 수정 1회차(`2a43e4861`)를 conductor가 직접 확인했다. 네 지적이 모두 반영됐다.
