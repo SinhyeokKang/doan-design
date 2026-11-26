@@ -12,6 +12,7 @@
 - 구현 시작 조건인 comment-trim 머지는 develop에 있다(`fa680f913`).
 - T2 PoC의 방식(A·B) 선택: conductor가 design.md 기준으로 정한다(chain.md '시작 점검'). 두 방식 모두 요구 항목을 못 채우면 멈추고 사용자에게 묻는다.
 - conductor's call — 끝 여백은 방식 A(overlay + ResizeObserver 여백)로 한다. 근거는 design.md 'PoC 결과'다. 남은 항목(여백만 바뀔 때의 거짓 Jump to latest)은 design이 계획한 따라가기 변경으로 T4에서 없애고 B2c `/runtime-test`에서 확인한다.
+- 사용자 — 접힌 팝오버가 새 요청으로 펼쳐지면 펼친 채 남는다. 새 요청만 끝나도 다시 접히지 않는다(R1 D1, design '상태'에 반영).
 - conductor's call — 문서에 '확인 필요' 항목이 없으므로 시작 전에 사용자에게 물을 것이 없다(chain.md '시작 점검').
 - conductor's call — T6(PRODUCT·ARCHITECTURE·BACKLOG 승격, 기능 디렉터리 삭제)는 문서만 바꾸므로 conductor가 통합 뒤 직접 한다(`/orchestrate` §4·§5).
 - conductor's call — T5 `/design-sync`와 `/runtime-test`는 코드를 고칠 수 있으므로 T3·T4를 맡은 워커(B2)가 같은 worktree에서 이어서 한다. 고치는 코드의 주인이 같아야 한다.
@@ -55,3 +56,4 @@
 - B2a: T3 커밋 3개를 `c5e8d9fe3`, `d3e6ec847`, `54c574aef`로 통합했다. 워커의 `/verify`는 `app/src/main/conversation/editLines.test.ts`의 50 ms 시간 테스트에서 실패했다(부하 평균 약 100, 이 브랜치는 `app/src/main`을 건드리지 않는다). 통합 HEAD의 `/verify`는 마지막에 다시 돌린다. `followResize`가 `ConversationThread.tsx`에서 `threadMotion.ts`로 옮겨 갔다.
 - B2b: 같은 워커에 T4를 보냈다(dispatch `ctx_48bdfdebeec6`). 워커는 브랜치를 `feat/answer-popover`로 맞춘 뒤 시작한다.
 - R1: T3 diff 리뷰를 Codex에 맡겼다(dispatch `ctx_2ce1c12da0d6`).
+- R1: 🔴 0, 🟡 1(F1: `scrollHeight − inset`으로는 내용 성장을 믿을 수 없다. 소수 높이와 뷰포트 하한에서 여백만 바뀌어도 `behind`가 켜진다), ⚪ 2(N1: `resized()`의 raw `grew` 분기, N2: 턴이 resolved 없이 끝나면 접힘이 남는다), 결정 1(D1, 사용자 답 반영). F1·N1·N2와 D1을 B2에 고칠 거리로 보냈다.
