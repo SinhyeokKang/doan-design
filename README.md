@@ -139,7 +139,7 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 |---|---|
 | `doan init` · `doan config` | Set up a repo for Doan: the token CSS canvases use, extra paths canvases may load, and whether Doan's files go in Git |
 | `doan ls` | List the repo's canvases and design-system canvases with their frames |
-| `doan check` | Check canvases for Doan's conventions, undefined tokens and external resources |
+| `doan check [<path>...]` | Check canvases for Doan's conventions, undefined tokens and external resources; with paths, report only the canvases those files affect |
 | `doan active` | Read what you selected in the app: canvas, frame and element |
 | `doan work start` · `update` · `done` | Show in the app that an agent is working on a canvas, and on which frame |
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame; with `--prototype`, play that frame alone in the prototype window |
@@ -155,7 +155,7 @@ A typical agent turn:
 doan work start .doan/canvases/tasks.html --json
 doan work update .doan/canvases/tasks.html --frame approval --note "Update the approval frame" --json
 # … the agent edits the canvas …
-doan check --json
+doan check .doan/canvases/tasks.html --json
 doan work done .doan/canvases/tasks.html --json
 # Only when the person asks to open it:
 doan open .doan/canvases/tasks.html --frame approval --json
