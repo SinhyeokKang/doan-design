@@ -32,7 +32,7 @@ import { AnswerPopover, type AskItem } from "./AnswerPopover";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
-import { entering, FOLLOW_START, followResize, followStep, nextFollow, revealBoundary, revealStep, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
+import { entering, FOLLOW_START, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, WHEEL_HOLD_MS, type FollowEvent, type FollowState, type LocalSend, type RevealPhase } from "./threadMotion";
 import { bubbleBlocks, type BubbleList } from "./composerLists";
 import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
@@ -977,7 +977,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     };
     if (!node || motion.reduced() || typeof node.animate !== "function") { fold(); return; }
     stopMotion();
-    const duration = Number.parseFloat(getComputedStyle(node).getPropertyValue("--time-fast")) || 0;
+    const duration = timeMs(getComputedStyle(node).getPropertyValue("--time-fast"));
     const fades = [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 1 }, { opacity: 0 }], { duration, fill: "forwards" }));
     motions.current = fades;
     void Promise.all(fades.map(fade => fade.finished)).then(fold, () => {});
@@ -1228,13 +1228,13 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     drawnShape.current = shape;
     if (!node || !was || !shape || was === shape || motion.reduced() || typeof node.animate !== "function") return;
     const token = (name: string) => getComputedStyle(node).getPropertyValue(name).trim();
-    const duration = Number.parseFloat(token("--time-thread-enter")) || 0;
+    const duration = timeMs(token("--time-thread-enter"));
     stopMotion();
     node.style.overflow = "hidden";
     const run = node.animate([{ height: `${inset.current}px` }, { height: `${node.offsetHeight}px` }], { duration, easing: token("--ease-settle") || "ease" });
     run.onfinish = run.oncancel = () => { node.style.overflow = ""; };
     // Opening: the body and buttons appear last, once the height has run.
-    const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Number.parseFloat(token("--time-fast")) || 0, delay: duration, fill: "backwards" })) : [];
+    const fades = shape === "open" ? [...node.querySelectorAll(".ap-body, .ap-actions, .ap-error")].map(part => part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: timeMs(token("--time-fast")), delay: duration, fill: "backwards" })) : [];
     motions.current = [run, ...fades];
   }, [shape, motion]);
   // A scroll the follow did not write is the person's (or a clamp); a frame then re-pins it near the bottom. Scroll

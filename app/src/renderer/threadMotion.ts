@@ -173,3 +173,11 @@ export function followResize(state: FollowState, change: { reduced: boolean; rev
   const snap = change.reduced || change.revealing || change.after.inset !== change.before.inset;
   return { state: next, move: snap ? "snap" : "ease", behind: false };
 }
+
+// A time token read back from computed style: registered tokens compute in seconds ("0.12s"), plain ones keep "120ms".
+export function timeMs(value: string): number {
+  const match = /^\s*(-?[\d.]+)(ms|s)\s*$/.exec(value);
+  if (!match) return 0;
+  const n = Number.parseFloat(match[1]!);
+  return Number.isFinite(n) ? (match[2] === "s" ? n * 1000 : n) : 0;
+}
