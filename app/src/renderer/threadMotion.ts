@@ -148,13 +148,15 @@ export function followBand(height: number): number {
 export interface FollowOrigin { top: number; grew: boolean }
 export interface FollowState { pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: FollowOrigin | null }
 // The composer is outside the thread. scroll: one the follow loop did not write. A pointer's release comes from the
-// window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop.
+// window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop. clamp: the browser
+// lowered scrollTop by `by` to a scroll extent that shrank (content or the end inset), which is no move of the person's.
 export type FollowEvent =
   | { type: "input"; kind: "wheel"; at: number; top: number }
   | { type: "input"; kind: "key"; key: string; at: number; top: number }
   | { type: "pointer"; down: true; top: number }
   | { type: "pointer"; down: false }
   | { type: "scroll" }
+  | { type: "clamp"; by: number }
   | { type: "selection"; active: boolean }
   | { type: "jump" }
   | { type: "frame"; at: number; distance: number; top: number };
@@ -174,6 +176,7 @@ export function nextFollow(state: FollowState, event: FollowEvent): FollowState 
       if (!event.down) return state.pressed ? { ...state, pressed: false } : state;
       return { ...state, pinned: false, pressed: true, origin: unpinBy(state, event.top) };
     case "scroll": return state.pinned ? { ...state, pinned: false, origin: null } : state;
+    case "clamp": return state.origin === null ? state : { ...state, origin: { ...state.origin, top: state.origin.top - event.by } };
     case "selection":
       if (!event.active) return { ...state, selecting: false };
       return { ...state, selecting: true, pinned: false, origin: state.pinned ? null : state.origin };

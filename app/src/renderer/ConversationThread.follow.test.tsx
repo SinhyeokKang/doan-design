@@ -64,9 +64,13 @@ const listen = (map: Map<string, Listener>) => ({
   removeEventListener: (type: string, listener: Listener) => { if (map.get(type) === listener) map.delete(type); },
 });
 const frames = new Map<number, (now: number) => void>();
+let rawTop = 0;
 let frameId = 0, clock = 0;
 const scroller = {
-  scrollTop: 0, clientHeight: 400,
+  // The browser keeps scrollTop within the scroll extent: a shrinking extent lowers it.
+  get scrollTop() { return rawTop = Math.min(Math.max(rawTop, 0), Math.max(0, this.scrollHeight - this.clientHeight)); },
+  set scrollTop(value: number) { rawTop = value; void this.scrollTop; },
+  clientHeight: 400,
   get scrollHeight() { return Math.max(layout.viewport, layout.content + 32 + Number.parseFloat(vars.get("--ap-inset") ?? "0")); },
   firstElementChild: { getBoundingClientRect: () => ({ height: layout.content }) },
   ...listen(on),
@@ -348,4 +352,61 @@ test("unmounting removes every listener it added and cancels the follow's waitin
   expect(on.size).toBe(0);
   expect(onWindow.size).toBe(0);
   expect(frames.size).toBe(0);
+});
+
+// A shrink lowers scrollTop to the new bottom; that is the browser's move, not the person's.
+test("a small wheel whose view the browser clamps when content shrinks still follows again after later growth", () => {
+  draw([user]);
+  expect(scroller.scrollTop).toBe(632);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  resize({ content: 700 }, [user]);
+  expect(scroller.scrollTop).toBe(332);
+  resize({ content: 760 }, [user]);
+  expect(atBottom()).toBe(60);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+// Here the follow's frame reads the clamped scrollTop before the observer or a scroll event does.
+test("a small wheel whose view is clamped when the popover goes away still follows again, whichever sees the clamp first", () => {
+  layout.inset = 180;
+  draw([user, ask]);
+  observed();
+  expect(scroller.scrollTop).toBe(812);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  layout.inset = 0;
+  observed();
+  expect(scroller.scrollTop).toBe(632);
+  layout.content = 1060;
+  frameUntil(48);
+  observed();
+  expect(atBottom()).toBe(60);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a clamp seen first by the follow's frame is not counted as the person's move", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  layout.content = 700;
+  frameUntil(32);
+  layout.content = 760;
+  frameUntil(64);
+  observed();
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a wheel of more than NUDGE stays away even when a clamp moves the view down meanwhile", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -100 });
+  scrollBy(-100);
+  resize({ content: 900 }, [user]);
+  expect(atBottom()).toBe(0);
+  resize({ content: 1000 }, [user]);
+  frameUntil(1000);
+  expect(atBottom()).toBe(100);
 });

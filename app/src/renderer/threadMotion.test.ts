@@ -477,6 +477,18 @@ describe("nextFollow", () => {
     expect(settle(nextFollow(nextFollow(release(away), { type: "jump" }), { type: "scroll" }), 0, 0).pinned).toBe(true);
   });
 
+  // The browser lowers scrollTop when the scroll extent drops below it; the person's move stays what it was.
+  test("a clamp moves a pending origin by the same amount, and nothing else", () => {
+    const wheeled = wheel(FOLLOW_START, 1000, 1000);
+    const clamped = nextFollow(wheeled, { type: "clamp", by: 270 });
+    expect(clamped.origin).toEqual({ top: 730, grew: false });
+    expect(settle(clamped, 1100, 60, 700).pinned).toBe(true);
+    expect(settle(clamped, 1100, 60, 660).pinned).toBe(false);
+    expect(nextFollow(FOLLOW_START, { type: "clamp", by: 100 })).toBe(FOLLOW_START);
+    const reading = settle(wheeled, 1200, 2000);
+    expect(nextFollow(reading, { type: "clamp", by: 100 })).toBe(reading);
+  });
+
   test("a frame changes nothing while pinned", () => {
     expect(settle(FOLLOW_START, 0, 500)).toBe(FOLLOW_START);
   });

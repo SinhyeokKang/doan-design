@@ -910,6 +910,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
   // wrote, so a scroll event of its own is told from the person's.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
+  // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move.
+  const seenTop = useRef(0);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
@@ -1113,8 +1115,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const bandOf = (node: HTMLElement) => followBand(node.clientHeight - inset.current);
   const write = (node: HTMLElement, top: number) => {
     node.scrollTop = top;
-    wrote.current = node.scrollTop;
+    wrote.current = seenTop.current = node.scrollTop;
     distance.current = bottomOf(node) - node.scrollTop;
+  };
+  // Scrolling up never ends at the bottom, so a lower scrollTop at the bottom is the browser's clamp to a shrunk extent.
+  // The frame, a scroll event or the observer may read it first; seenTop makes it count once.
+  const clampSeen = (node: HTMLElement) => {
+    const top = node.scrollTop;
+    if (top < seenTop.current - 0.5 && bottomOf(node) - top < 1) apply({ type: "clamp", by: seenTop.current - top });
+    seenTop.current = top;
   };
   const apply = (event: FollowEvent) => {
     const before = follow.current;
@@ -1134,6 +1143,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!node) return;
     const dt = lastFrame.current === null ? 16 : now - lastFrame.current;
     lastFrame.current = now;
+    clampSeen(node);
     if (easeTo.current !== null && follow.current.pinned) {
       const step = followStep(node.scrollTop, easeTo.current, dt, bottomOf(node));
       write(node, step.pos);
@@ -1160,6 +1170,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const fits = insetNow === 0 || node.clientHeight - insetNow >= JUMP_ROOM;
     if (fits !== jumpFits) setJumpFits(fits);
     const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
+    clampSeen(node);
     const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
     contentHeight.current = after.content;
     inset.current = insetNow;
@@ -1305,6 +1316,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
+    clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
     if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) { apply({ type: "scroll" }); run(); }
     if (scrollFollow(distance.current, bandOf(node))) setBehind(false);
