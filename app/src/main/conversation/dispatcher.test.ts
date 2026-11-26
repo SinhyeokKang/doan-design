@@ -312,3 +312,53 @@ it("starts a reused server's next turn with no item running, whatever the previo
   rpc.receive(item("t2", "item/completed", "b"));
   expect(stages).toEqual([{ kind: "general" }]);
 });
+// A Codex async question is held until the person answers; the answer goes into the sleeping turn as a turn/steer with
+// no clientUserMessageId (it is the question's answer, not a message of the thread), and the question expires with the turn.
+describe("Codex async question wiring", () => {
+  function asking() {
+    const writes: unknown[] = [], events: EventPayload[] = [], consumed: string[] = []; const cleanup = vi.fn();
+    const rpc = new CodexDispatcher(v => writes.push(v), v => events.push(v), cleanup, id => consumed.push(id));
+    rpc.begin({ root: "/repo", sessionId: "s", turnId: "local" }); rpc.started("t");
+    rpc.receive({ method: "item/completed", params: { threadId: "s", turnId: "t", item: { type: "agentMessage", id: "call_q", text: "Which color?", delivery: "async", questions: [{ title: "Which color?", options: ["Red", "Blue"] }] } } });
+    return { rpc, writes, events, consumed, cleanup };
+  }
+  const steered = (text: string) => ({ id: "doan-1", method: "turn/steer", params: { threadId: "s", expectedTurnId: "t", input: [{ type: "text", text }] } });
+  it("asks without writing anything, and steers the answer into the turn once", () => {
+    const h = asking();
+    expect(h.writes).toEqual([]);
+    expect(h.events).toEqual([{ type: "question.request", requestId: "call_q", questions: [expect.objectContaining({ id: "0", question: "Which color?" })] }]);
+    expect(h.rpc.answerQuestion("call_q", { outcome: "answered", answers: { "0": { selected: [1] } } })).toBe("ok");
+    expect(h.writes).toEqual([steered("Blue")]);
+    expect(h.events.at(-1)).toEqual({ type: "question.resolved", requestId: "call_q", outcome: "answered", answers: { "0": { selected: ["Blue"] } } });
+    expect(h.rpc.answerQuestion("call_q", { outcome: "skipped" })).toBe("stale");
+    // The steer's echo is not a thread message.
+    h.rpc.receive({ id: "doan-1", result: { turnId: "t" } });
+    h.rpc.receive({ method: "item/completed", params: { threadId: "s", turnId: "t", item: { type: "userMessage", id: "u", clientId: null, content: [] } } });
+    expect(h.consumed).toEqual([]); expect(h.cleanup).not.toHaveBeenCalled(); expect(h.writes).toHaveLength(1);
+  });
+  it("steers a skip as a note that the person skipped", () => {
+    const h = asking();
+    expect(h.rpc.answerQuestion("call_q", { outcome: "skipped" })).toBe("ok");
+    expect(h.writes).toEqual([steered("The person skipped the question.")]);
+    expect(h.events.at(-1)).toEqual({ type: "question.resolved", requestId: "call_q", outcome: "skipped" });
+  });
+  it("refuses an answer that does not fit the question or names no question held, writing nothing", () => {
+    const h = asking();
+    expect(h.rpc.answerQuestion("call_q", { outcome: "answered", answers: { "0": { selected: [5] } } })).toBe("bad_request");
+    expect(h.rpc.answerQuestion("other", { outcome: "skipped" })).toBe("stale");
+    expect(h.writes).toEqual([]);
+    expect(h.rpc.answerQuestion("call_q", { outcome: "answered", answers: { "0": { selected: [0] } } })).toBe("ok");
+  });
+  it.each([
+    ["Stop", (h: ReturnType<typeof asking>) => h.rpc.stop("user")],
+    ["the turn's end", (h: ReturnType<typeof asking>) => h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } })],
+    ["close", (h: ReturnType<typeof asking>) => h.rpc.close()],
+    ["the next turn", (h: ReturnType<typeof asking>) => h.rpc.begin({ root: "/repo", sessionId: "s", turnId: "next" })],
+  ])("expires a held question at %s without writing to the server", (_label, end) => {
+    const h = asking(); end(h);
+    expect(h.events).toContainEqual({ type: "question.resolved", requestId: "call_q", outcome: "expired" });
+    expect(h.events.filter(e => e.type === "question.resolved")).toHaveLength(1);
+    expect(h.rpc.answerQuestion("call_q", { outcome: "skipped" })).toBe("stale");
+    expect(h.writes.filter(w => (w as { method?: string }).method === "turn/steer")).toEqual([]);
+  });
+});

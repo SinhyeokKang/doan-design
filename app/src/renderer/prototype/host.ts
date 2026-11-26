@@ -72,7 +72,7 @@ function gotoMessage(data: object): GotoMessage | null {
   return { gen, goto };
 }
 
-export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage };
+export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage } | { kind: "key"; message: { gen: number; key: "z" } };
 
 // Only the current iframe's own window, at a sandboxed canvas's opaque origin, for the current gen, and only a report in
 // the prototype script's shape, so IPC never copies an object the canvas sized; main validates every field again.
@@ -85,6 +85,10 @@ export function forwardedMessage(event: { source: unknown; origin: string; data:
     const report = runReport(data);
     if (report === null) return null;
     return { kind: "result", message: report.state === "ready" ? { ...report, size: (data as Record<string, unknown>).size as string } : report };
+  }
+  if ("key" in data) {
+    const keys = Object.keys(data);
+    return keys.length === 2 && keys.includes("gen") && Reflect.get(data, "key") === "z" ? { kind: "key", message: { gen: run.gen, key: "z" } } : null;
   }
   if (!("goto" in data)) {
     const message = framesReport(data);

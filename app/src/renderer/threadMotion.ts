@@ -132,36 +132,52 @@ export function followStep(pos: number, target: number, dtMs: number, bottom: nu
   return Math.abs(goal - next) < 0.5 ? { pos: goal, done: true } : { pos: next, done: false };
 }
 
-// held: scrollToItem moved it, so it waits for the person's own input or a release. wheelAt: trackpad inertia may
-// still scroll.
-export interface FollowState { pinned: boolean; held: boolean; selecting: boolean; wheelAt: number }
+// wheelAt: trackpad inertia may still scroll.
+export interface FollowState { pinned: boolean; selecting: boolean; wheelAt: number }
 // The composer is outside the thread. scroll: one the follow loop did not write.
 export type FollowEvent =
   | { type: "input"; kind: "wheel" | "pointer"; at: number }
   | { type: "input"; kind: "key"; key: string; at: number }
   | { type: "scroll" }
-  | { type: "scrollToItem" }
-  // The card scrollToItem went to stopped waiting.
-  | { type: "release" }
   | { type: "selection"; active: boolean }
   | { type: "jump" }
   | { type: "frame"; at: number; distance: number };
 
-export const FOLLOW_START: FollowState = { pinned: true, held: false, selecting: false, wheelAt: -Infinity };
+export const FOLLOW_START: FollowState = { pinned: true, selecting: false, wheelAt: -Infinity };
 const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
 
 export function nextFollow(state: FollowState, event: FollowEvent): FollowState {
   switch (event.type) {
     case "input":
       if (event.kind === "key" && !SCROLL_KEYS.has(event.key)) return state;
-      return { ...state, pinned: false, held: false, wheelAt: event.kind === "wheel" ? event.at : state.wheelAt };
+      return { ...state, pinned: false, wheelAt: event.kind === "wheel" ? event.at : state.wheelAt };
     case "scroll": return state.pinned ? { ...state, pinned: false } : state;
-    case "scrollToItem": return { ...state, pinned: false, held: true };
-    case "release": return state.held ? { ...state, held: false } : state;
     case "selection": return { ...state, selecting: event.active, pinned: event.active ? false : state.pinned };
-    case "jump": return { ...state, pinned: true, held: false };
+    case "jump": return { ...state, pinned: true };
     case "frame":
-      if (state.pinned || state.held || state.selecting || event.at - state.wheelAt < WHEEL_HOLD_MS || event.distance > FOLLOW_DISTANCE) return state;
+      if (state.pinned || state.selecting || event.at - state.wheelAt < WHEEL_HOLD_MS || event.distance > FOLLOW_DISTANCE) return state;
       return { ...state, pinned: true };
   }
+}
+
+// content: the thread's own height, measured apart from the end inset and the viewport (the scroll height has the
+// viewport as its floor); inset: the end inset under the popover; distance: from the bottom, before and after.
+export interface ThreadSize { content: number; inset: number; distance: number }
+export type FollowMove = "snap" | "ease" | "none";
+// A revealing reply or an inset change snaps (an ease would leave the line being written, or the last item under the
+// popover, out of view); only the content's own growth is new for Jump to latest.
+export function followResize(state: FollowState, change: { reduced: boolean; revealing: boolean; now: number; before: ThreadSize; after: ThreadSize }): { state: FollowState; move: FollowMove; behind: boolean | null } {
+  const next = nextFollow(state, { type: "frame", at: change.now, distance: change.before.distance });
+  const grew = change.after.content - change.before.content >= 0.5;
+  if (!next.pinned) return { state: next, move: "none", behind: grew && Math.max(change.before.distance, change.after.distance) > FOLLOW_DISTANCE ? true : null };
+  const snap = change.reduced || change.revealing || change.after.inset !== change.before.inset;
+  return { state: next, move: snap ? "snap" : "ease", behind: false };
+}
+
+// A time token read back from computed style: registered tokens compute in seconds ("0.12s"), plain ones keep "120ms".
+export function timeMs(value: string): number {
+  const match = /^\s*(-?[\d.]+)(ms|s)\s*$/.exec(value);
+  if (!match) return 0;
+  const n = Number.parseFloat(match[1]!);
+  return Number.isFinite(n) ? (match[2] === "s" ? n * 1000 : n) : 0;
 }

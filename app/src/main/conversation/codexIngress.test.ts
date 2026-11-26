@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import request from "./fixtures/codex-mcp-elicitation.json";
-import { initialTransport, normalizeCodex, normalizeCodexReply, codexPermission, permissionAnswer } from "./transport";
+import { initialTransport, normalizeCodex, normalizeCodexReply, codexPermission, codexQuestionReply, permissionAnswer } from "./transport";
 
 const context = { root: "/repo", sessionId: "s", turnId: "t" };
 const elicitation = { threadId: "s", serverName: "synthetic", mode: "form", message: "Synthetic question", requestedSchema: { type: "object", properties: {} } };
@@ -146,5 +146,51 @@ describe("Codex requestUserInput", () => {
   it("keeps the unsupported answer and turn failure for other requests of this turn", () => {
     expect(normalizeCodex(initialTransport(), { id: 3, method: "item/tool/somethingElse", params: { threadId: "s", turnId: "t" } }, context))
       .toMatchObject({ request: { disposition: "unsupported" }, events: [{ type: "turn.failed", code: "session_unavailable" }] });
+  });
+});
+
+// request_user_input_async reaches the client only as an agentMessage item with delivery "async" and its questions
+// (observed on Codex 0.171.0); no server request comes, and the turn sleeps until a turn/steer brings the answer.
+describe("Codex async question", () => {
+  const asked = { type: "agentMessage", id: "call_q", text: "Which color do you prefer?\n- Red\n- Blue", phase: "final_answer", delivery: "async", questions: [{ title: "Which color do you prefer?", options: ["Red", "Blue"] }] };
+  const item = (method: "item/started" | "item/completed", patch: Record<string, unknown> = {}) => ({ method, params: { threadId: "s", turnId: "t", item: { ...asked, ...patch } } });
+  const color = { id: "0", header: "", question: "Which color do you prefer?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: true };
+  it("asks the item's questions in place of its text, once, when it completes", () => {
+    expect(normalizeCodex(initialTransport(), item("item/started"), context).events).toEqual([]);
+    const result = normalizeCodex(initialTransport(), item("item/completed"), context);
+    expect(result.events).toEqual([{ type: "question.request", requestId: "call_q", questions: [color] }]);
+    expect(result.question).toEqual({ requestId: "call_q", questions: [color] });
+    expect(normalizeCodex(result.state, item("item/completed"), context).events).toEqual([]);
+  });
+  it("asks a question with no options as Other only, keeping the questions' order", () => {
+    const questions = [{ title: "Which color do you prefer?", options: ["Red", "Blue"] }, { title: "What should the canvas be called?", options: null }];
+    expect(normalizeCodex(initialTransport(), item("item/completed", { questions }), context).events).toEqual([{ type: "question.request", requestId: "call_q", questions: [color, { id: "1", header: "", question: "What should the canvas be called?", options: [], multiSelect: false, other: true }] }]);
+  });
+  it.each([
+    ["no questions", { questions: [] }],
+    ["too many questions", { questions: Array.from({ length: 5 }, (_, n) => ({ title: `Q${n}`, options: null })) }],
+    ["an empty title", { questions: [{ title: "", options: null }] }],
+    ["a title past the limit", { questions: [{ title: "x".repeat(4_097), options: null }] }],
+    ["too many options", { questions: [{ title: "Q", options: Array.from({ length: 9 }, (_, n) => `o${n}`) }] }],
+    ["an empty option", { questions: [{ title: "Q", options: [""] }] }],
+    ["a non-string option", { questions: [{ title: "Q", options: [1] }] }],
+  ])("keeps an async question with %s as the agent's text", (_label, patch) => {
+    expect(normalizeCodex(initialTransport(), item("item/completed", patch), context).events).toEqual([{ type: "message.done", messageId: "call_q", text: asked.text }]);
+  });
+  it("keeps the text of a message that is not an async question", () => {
+    expect(normalizeCodex(initialTransport(), item("item/completed", { delivery: null, questions: null }), context).events).toEqual([{ type: "message.done", messageId: "call_q", text: asked.text }]);
+  });
+  it("asks nothing after Stop, keeping the text", () => {
+    const result = normalizeCodex({ ...initialTransport(), stop: "user" }, item("item/completed"), context);
+    expect(result.events).toEqual([{ type: "message.done", messageId: "call_q", text: asked.text }]);
+    expect(result.question).toBeUndefined();
+  });
+  it("words the steered answer from the chosen labels and Other text, naming each question when there are several", () => {
+    const name = { id: "1", header: "", question: "What should the canvas be called?", options: [], multiSelect: false, other: true };
+    expect(codexQuestionReply([color], { outcome: "answered", answers: { "0": { selected: [1] } } })).toBe("Blue");
+    expect(codexQuestionReply([color], { outcome: "answered", answers: { "0": { selected: [], other: "Green" } } })).toBe("Green");
+    expect(codexQuestionReply([color, name], { outcome: "answered", answers: { "0": { selected: [0] }, "1": { selected: [], other: "Ocean" } } }))
+      .toBe("Which color do you prefer?: Red\nWhat should the canvas be called?: Ocean");
+    expect(codexQuestionReply([color], { outcome: "skipped" })).toBe("The person skipped the question.");
   });
 });

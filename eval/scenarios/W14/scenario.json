@@ -1,0 +1,9 @@
+{
+  "id": "W14",
+  "title": "Check a canvas and its shared CSS without fixing an unrelated canvas",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null
+}

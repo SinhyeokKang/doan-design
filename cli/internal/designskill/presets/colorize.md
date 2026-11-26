@@ -82,7 +82,7 @@ When deriving OKLCH ramps, vary lightness and reduce chroma near white and black
 - Change only the color in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When a color role or token drawn on the canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the audit, the proposed strategy and roles, and any proposed tokens without editing files.
-- After editing a canvas, make `doan check` pass and review its warnings.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass and review its warnings.
 - In your answer, list what changed, the tokens you proposed rather than added, the contrast pairs you computed and those left unverified, and what you left unchanged on purpose.
 
 ## Verify

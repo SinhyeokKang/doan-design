@@ -134,12 +134,12 @@ app.setName("doan");
 export interface ProjectInitRequest { root: string; choiceId: string | null; storage: "local" | null; gitInit?: true }
 export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable"; message: string };
 
-export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
+export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "zoomSelection" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar";
+export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCanvas" | "toggleSidebar" | "toggleUi";
 // What the renderer reports so main can enable menu items. `projectSettings`: the "settings" screen is Project
 // Settings, which enables the menu as Settings does; only `doan remove`'s busy sentence tells them apart.
-export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; uiHidden?: boolean; projectSettings?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" } | { kind: "busy" } | { kind: "loading" } | { kind: "groupChanged"; paths: string[] };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
@@ -535,8 +535,9 @@ function setMenu(): void {
       {
         label: "View",
         submenu: [
-          // Its name follows the renderer's sidebar state, which is why `sidebarHidden` is a menu input.
+          // Their names follow the renderer's columns, which is why `sidebarHidden` and `uiHidden` are menu inputs.
           { label: menuInputs.sidebarHidden === true ? "Show Sidebar" : "Hide Sidebar", accelerator: "CmdOrCtrl+B", enabled: enabled.toggleSidebar, click: command("toggleSidebar") },
+          { label: menuInputs.uiHidden === true ? "Show UI" : "Hide UI", accelerator: "CmdOrCtrl+\\", enabled: enabled.toggleUi, click: command("toggleUi") },
           { type: "separator" },
           { label: "Zoom In", accelerator: "CmdOrCtrl+=", enabled: enabled.canvasView, click: view("zoomIn") },
           { label: "Zoom Out", accelerator: "CmdOrCtrl+-", enabled: enabled.canvasView, click: view("zoomOut") },
@@ -581,12 +582,12 @@ const realHomeDirectory = (): string => realHome(homeDirectory());
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
-    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden && next.projectSettings === menuInputs.projectSettings) return;
+    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden && next.uiHidden === menuInputs.uiHidden && next.projectSettings === menuInputs.projectSettings) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden", "projectSettings"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden", "uiHidden", "projectSettings"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);

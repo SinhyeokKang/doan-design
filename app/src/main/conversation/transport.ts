@@ -529,12 +529,39 @@ export function storedAnswers(questions: readonly Question[], answer: Extract<Qu
   }
   return stored;
 }
+// request_user_input_async's questions (an agentMessage item with delivery "async"); null for anything the popover cannot
+// show whole, which then stays the agent's text. Options are plain labels, and the answer is free text, so Other is always on.
+export function codexAsyncQuestion(item: Record<string, unknown>): Question[] | null {
+  const L = QUESTION_LIMITS;
+  if (item.delivery !== "async" || !Array.isArray(item.questions) || item.questions.length < 1 || item.questions.length > L.questions) return null;
+  const questions: Question[] = [];
+  for (const [index, raw] of item.questions.entries()) {
+    if (!object(raw) || !bounded(raw.title, L.text) || !raw.title) return null;
+    if (raw.options !== null && raw.options !== undefined && !Array.isArray(raw.options)) return null;
+    const labels: unknown[] = Array.isArray(raw.options) ? raw.options : [];
+    if (labels.length > L.options || !labels.every((label): label is string => bounded(label, L.label) && label !== "")) return null;
+    questions.push({ id: String(index), header: "", question: raw.title, options: labels.map(label => ({ label })), multiSelect: false, other: true });
+  }
+  return questions;
+}
+// The text a turn/steer carries as the answer: each question's choices and Other comma-joined, named by the question when
+// there are several. A skip must still steer something, or the turn sleeps on; the wording matches Claude's skip denial.
+export function codexQuestionReply(questions: readonly Question[], answer: QuestionAnswer): string {
+  if (answer.outcome === "skipped") return "The person skipped the question.";
+  const lines = questions.map(question => {
+    const given = answer.answers[question.id]!;
+    return [...given.selected.map(n => question.options[n]!.label), ...(given.other ? [given.other] : [])].join(", ");
+  });
+  return lines.length === 1 ? lines[0]! : questions.map((question, n) => `${question.question}: ${lines[n]!}`).join("\n");
+}
 // labels: the connector names of the run (connectorLabels); the presets when absent.
 export interface CodexContext { root: string; sessionId: string; turnId: string; labels?: Readonly<Record<string, string>> }
 // decline: answered at once and the turn goes on (an MCP elicitation doan does not ask about, every requestUserInput of
 // this thread). unsupported and route: answered with an error. boundary: the compaction item completed.
+// question: an async question to hold until the person answers it.
 export interface CodexTransportResult extends SteerResult {
   boundary?: BoundaryKind;
+  question?: { requestId: string; questions: Question[] };
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
 }
 const MCP_ELICITATION = "mcpServer/elicitation/request";
@@ -595,6 +622,9 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const id = text(item.id);
     if (raw.method === "item/completed" && id in state.fileSummaries) state = { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, id) };
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
+      // A stopped turn asks nothing more; its question stays text.
+      const questions = state.stop ? null : codexAsyncQuestion(item);
+      if (questions) return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "question.request", requestId: id, questions }], question: { requestId: id, questions } };
       return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: storableText(text(item.text)) }] };
     }
     // A tool item runs from its start to its completion. Only a read has a stage of its own; any tool's completion

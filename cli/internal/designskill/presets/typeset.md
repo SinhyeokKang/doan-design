@@ -83,7 +83,7 @@ After Matthew Butterick's *Practical Typography*, paraphrased; where his numbers
 - Change only the typography in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When the canvas uses a type token, family, or text style that is not in code yet, including a proposed token, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the assessment, the proposed role system, and the changes without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed, any type tokens you proposed rather than added, and what you left unchanged on purpose.
 
 ## Verify

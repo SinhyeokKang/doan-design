@@ -103,7 +103,7 @@ Do not claim performance numbers you did not measure.
 - Reference token CSS variables for color and spacing; do not copy raw hex or rgb values.
 - When a state, message, or component you draw is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the missing states and proposed treatments without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list the states you added or changed and the conditions you left unhandled on purpose, such as error codes the product does not have.
 
 ## Verify

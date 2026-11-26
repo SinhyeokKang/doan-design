@@ -1,0 +1,4 @@
+body { margin: 0; padding: 48px; background: var(--color-canvas); color: var(--color-text); font-family: system-ui, sans-serif; }
+.page { width: 1104px; }
+.card {  padding: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+.button { display: inline-flex; padding: var(--space-4); border-radius: var(--radius); background: var(--color-primary); color: var(--color-surface); text-decoration: none; }

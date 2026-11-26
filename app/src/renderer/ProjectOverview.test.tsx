@@ -273,3 +273,10 @@ test("the Overview's project crumb is capped at 40% and its name ellipsizes", as
   expect(css).toMatch(/\.ov-project \{[^}]*flex: 0 1 auto; max-width: 40%; min-width: 0;/);
   expect(css).toMatch(/\.ov-project-name \{[^}]*min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
 });
+
+// Shrinking along with the title, the project crumb fell to 33px under a long title and the worktree chip lay under it.
+test("the Overview's title cell gives way before the project crumb", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ov-head > .ov-title-wrap { flex: 0 1e8 auto; }");
+});

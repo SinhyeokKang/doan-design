@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellCommands, commandWords, parseCommand, readCommands, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_COMMAND_FLAGS, DOAN_COMMANDS, DOAN_VALUE_FLAGS } from "./transcript.ts";
@@ -537,6 +537,10 @@ before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(cliRoot, { recursive: true, force: true }));
 test("the reader refuses the argument shapes the CLI refuses as usage errors", () => {
   const env = { ...process.env, HOME: cliRoot, DOAN_RUNTIME: join(cliRoot, "runtime.json") };
+  execFileSync(cli, ["init", "--repo", cliRoot], { env });
+  mkdirSync(join(cliRoot, ".doan/assets"), { recursive: true });
+  writeFileSync(join(cliRoot, ".doan/assets/shared.css"), "body { margin: 0; }\n");
+  writeFileSync(join(cliRoot, ".doan/canvases/a.html"), '<meta name="doan:canvas" content="a"><meta name="doan:width" content="800"><link rel="stylesheet" href="../assets/shared.css"><main data-doan-frame="main"></main>');
   const usage = (args: string[]) => {
     let stdout: string;
     try { stdout = execFileSync(cli, [...args, "--json"], { cwd: cliRoot, env, stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 }).toString(); }
@@ -544,6 +548,20 @@ test("the reader refuses the argument shapes the CLI refuses as usage errors", (
     return JSON.parse(stdout).error?.code === "usage_error";
   };
   for (const args of [
+    ["check"],
+    ["check", ".doan/canvases/a.html"],
+    ["check", ".doan/canvases/missing.html"],
+    ["check", ".doan/assets/shared.css", "--repo", cliRoot, ".doan/canvases/a.html"],
+    ["check", join(cliRoot, ".doan/assets/shared.css")],
+    ["check", ".doan/config.json"],
+    ["check", join(cliRoot, ".doan/config.json"), "--repo", cliRoot],
+    ["check", "x.md"],
+    ["check", "x.CSS"],
+    ["check", ""],
+    ["check", "../x.css"],
+    ["check", ".doan/assets/"],
+    ["check", ".doan/canvases/a.html", "x.md"],
+    ["check", ".doan/canvases/a.html", "--frame", "main"],
     ["open", ".doan/canvases/a.html", "--frame", "f"],
     ["open", ".doan/canvases/a.html", "--frame", "x", "--frame", "f"],
     ["open", ".doan/canvases/a.html", ".doan/canvases/b.html"],

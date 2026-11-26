@@ -1,0 +1,4 @@
+[
+  ["check", ".doan/canvases/pricing.html", "--repo", "{{repo}}", "--json"],
+  ["check", ".doan/assets/cards.css", "--repo", "{{repo}}", "--json"]
+]

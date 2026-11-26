@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Question } from "../main/conversation/question";
-import { canSend, EMPTY_QUESTION_DRAFT, questionDraft, questionInput, sendBlockedText, type QuestionDraft } from "./questionDraft";
+import { canSend, EMPTY_QUESTION_DRAFT, lastStep, otherReturn, questionAnswered, questionDraft, questionInput, stepButton, type QuestionDraft } from "./questionDraft";
 
 const single: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }, { label: "Two rows" }], multiSelect: false, other: true };
 const several: Question = { id: "1", header: "Sections", question: "Which sections?", options: [{ label: "Agents" }, { label: "Notifications" }, { label: "Appearance" }], multiSelect: true, other: true };
@@ -71,21 +71,96 @@ describe("questionDraft", () => {
     expect(questionDraft(sending, { type: "choose", question: single, option: 0 })).toBe(sending);
     expect(questionDraft(sending, { type: "text", questionId: "0", text: "x" })).toBe(sending);
     const failed = questionDraft(sending, { type: "failed" });
-    expect(failed).toEqual({ choices: chosen.choices, sending: null, failed: "answer" });
+    expect(failed).toEqual({ choices: chosen.choices, step: 0, sending: null, failed: "answer" });
     // The next send clears the error line.
-    expect(questionDraft(failed, { type: "sending", how: "skip" })).toEqual({ choices: chosen.choices, sending: "skip", failed: null });
+    expect(questionDraft(failed, { type: "sending", how: "skip" })).toEqual({ choices: chosen.choices, step: 0, sending: "skip", failed: null });
   });
 
   // The failure line names the press main refused, as the strip's does.
   test("a refused Skip is remembered as a skip failure, a refused answer as an answer failure", () => {
     const chosen = run([single], { type: "choose", question: single, option: 1 });
     const skipped = questionDraft(questionDraft(chosen, { type: "sending", how: "skip" }), { type: "failed" });
-    expect(skipped).toEqual({ choices: chosen.choices, sending: null, failed: "skip" });
+    expect(skipped).toEqual({ choices: chosen.choices, step: 0, sending: null, failed: "skip" });
     expect(questionDraft(questionDraft(skipped, { type: "sending", how: "answer" }), { type: "failed" }).failed).toBe("answer");
   });
+});
 
-  test("the disabled Send's tooltip says what is missing", () => {
-    expect(sendBlockedText([single])).toBe("Choose or type an answer first.");
-    expect(sendBlockedText([single, several])).toBe("Answer each question first.");
+describe("question steps", () => {
+  const secret: Question = { id: "key", header: "Key", question: "Which API key?", options: [], multiSelect: false, other: true, secret: true };
+  const three = [single, several, textOnly];
+  const next = { type: "next", questions: three } as const;
+
+  test("Next moves on only when the current question has an answer, and not past the last step", () => {
+    expect(EMPTY_QUESTION_DRAFT.step).toBe(0);
+    expect(questionDraft(EMPTY_QUESTION_DRAFT, next)).toBe(EMPTY_QUESTION_DRAFT);
+    let draft = run(three, { type: "choose", question: single, option: 1 }, next);
+    expect(draft.step).toBe(1);
+    expect(questionDraft(draft, next)).toBe(draft);
+    draft = run(three, { type: "choose", question: single, option: 1 }, next, { type: "choose", question: several, option: 0 }, next);
+    expect(draft.step).toBe(2);
+    draft = questionDraft(draft, { type: "text", questionId: "name", text: "Header" });
+    expect(questionDraft(draft, next)).toBe(draft);
+  });
+
+  test("Back moves back except on the first question, and every answer stays across the steps", () => {
+    expect(questionDraft(EMPTY_QUESTION_DRAFT, { type: "back" })).toBe(EMPTY_QUESTION_DRAFT);
+    const questions = [single, secret];
+    const forward = run(questions, { type: "choose", question: single, option: 1 }, { type: "next", questions }, { type: "text", questionId: "key", text: "sk-123" });
+    const back = questionDraft(forward, { type: "back" });
+    expect(back.step).toBe(0);
+    expect(back.choices).toEqual(forward.choices);
+    // A secret answer is kept, still typed, for when the person comes forward again.
+    const again = questionDraft(back, { type: "next", questions });
+    expect(again.step).toBe(1);
+    expect(again.choices["key"]).toEqual({ selected: [], other: false, text: "sk-123" });
+  });
+
+  test("each question is judged on its own: one choice answers a several-choice question; Other with only spaces does not", () => {
+    expect(questionAnswered(several, EMPTY_QUESTION_DRAFT)).toBe(false);
+    expect(questionAnswered(several, run([several], { type: "choose", question: several, option: 2 }))).toBe(true);
+    const blank = run([single], { type: "other", question: single }, { type: "text", questionId: "0", text: "   " });
+    expect(questionAnswered(single, blank)).toBe(false);
+    expect(questionAnswered(single, questionDraft(blank, { type: "text", questionId: "0", text: " Both " }))).toBe(true);
+    // A question without options is answered by its text.
+    expect(questionAnswered(textOnly, run([textOnly], { type: "text", questionId: "name", text: "Header" }))).toBe(true);
+    // Another question's answer does not count for this one.
+    expect(questionAnswered(several, run([single], { type: "choose", question: single, option: 0 }))).toBe(false);
+  });
+
+  test("the shared button is Next before the last step and Send on it, on only when the question in view has an answer", () => {
+    expect(stepButton(three, EMPTY_QUESTION_DRAFT)).toEqual({ kind: "next", enabled: false });
+    const first = run(three, { type: "choose", question: single, option: 0 });
+    expect(stepButton(three, first)).toEqual({ kind: "next", enabled: true });
+    const last = run(three, { type: "choose", question: single, option: 0 }, next, { type: "choose", question: several, option: 1 }, next);
+    expect(lastStep(three, last)).toBe(true);
+    expect(lastStep(three, first)).toBe(false);
+    expect(stepButton(three, last)).toEqual({ kind: "send", enabled: false });
+    const ready = questionDraft(last, { type: "text", questionId: "name", text: "Header" });
+    expect(stepButton(three, ready)).toEqual({ kind: "send", enabled: true });
+    // A single question has only the last step.
+    expect(lastStep([single], EMPTY_QUESTION_DRAFT)).toBe(true);
+    expect(stepButton([single], run([single], { type: "choose", question: single, option: 0 }))).toEqual({ kind: "send", enabled: true });
+    // Locked while sending.
+    expect(stepButton(three, questionDraft(first, { type: "sending", how: "answer" })).enabled).toBe(false);
+  });
+
+  test("Return in Other's field presses Next before the last step and Send on it, only while that is on", () => {
+    const blank = run(three, { type: "other", question: single });
+    expect(otherReturn(three, blank)).toBeNull();
+    const typed = questionDraft(blank, { type: "text", questionId: "0", text: "Both" });
+    expect(otherReturn(three, typed)).toBe("next");
+    const last = run(three, { type: "other", question: single }, { type: "text", questionId: "0", text: "Both" }, next,
+      { type: "choose", question: several, option: 0 }, next, { type: "text", questionId: "name", text: "Header" });
+    expect(otherReturn(three, last)).toBe("send");
+    expect(otherReturn(three, questionDraft(last, { type: "sending", how: "answer" }))).toBeNull();
+  });
+
+  test("while sending, the steps are locked; a refused send keeps the step and every answer", () => {
+    const second = run(three, { type: "choose", question: single, option: 0 }, next, { type: "choose", question: several, option: 1 });
+    const sending = questionDraft(second, { type: "sending", how: "answer" });
+    expect(questionDraft(sending, { type: "back" })).toBe(sending);
+    expect(questionDraft(sending, next)).toBe(sending);
+    const failed = questionDraft(sending, { type: "failed" });
+    expect(failed).toEqual({ choices: second.choices, step: 1, sending: null, failed: "answer" });
   });
 });

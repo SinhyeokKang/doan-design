@@ -75,7 +75,7 @@ export function turnPrompt(anchors: readonly Anchor[], text: string, scope: { ro
     PRESET_GUIDANCE,
     OPEN_GUIDANCE,
     LINK_GUIDANCE,
-    "After making changes, run doan check.",
+    "After editing, make `doan check <edited canvas, CSS and config paths> --json` pass.",
     ...(extras.handoff ? [HANDOFF_GUIDANCE] : []),
   ].join("\n\n");
 }
@@ -93,6 +93,6 @@ export function handoffPrompt(text: string, scope: { root: string; canvas?: Canv
     PRESET_GUIDANCE,
     OPEN_GUIDANCE,
     LINK_GUIDANCE,
-    "After making changes, run doan check.",
+    "After editing, make `doan check <edited canvas, CSS and config paths> --json` pass.",
   ].join("\n\n");
 }

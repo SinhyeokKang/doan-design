@@ -33,7 +33,7 @@ import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedRequest } from "./DockedComposer";
-import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, waitingAsk, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import type { RowAction } from "./homeCards";
 import {
@@ -43,7 +43,7 @@ import {
 import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 import { projectConversationMenu } from "./overviewConversation";
-import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
+import { entryTarget, type ListView, type OverviewRun } from "./overviewRun";
 import { worktreeSwitchModel } from "./worktreeSwitchModel";
 import { WorktreeSwitch } from "./WorktreeSwitch";
 import { projectHue, projectInitial } from "./shellNavigation";
@@ -212,7 +212,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     else focusPicker(document.querySelector(".ov-main .ov-foot"), target);
   };
   const dismissCard = () => { run.store.showCard(key, null); focusField(); };
-  // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
+  // An entry's request, also for the conversation already shown; it waits for the request's item when the list told
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
@@ -223,13 +223,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const stillShowing = (shown: { conversationId: string; revision: number }) => { const now = shownNow(); return now?.conversationId === shown.conversationId && now.revision === shown.revision; };
   useEffect(() => {
     if (!conversationId || !scroll || !Array.isArray(items)) return;
-    const target = scrollTarget(items, asking);
+    const target = entryTarget(items, asking);
     if (target.kind === "wait") return;
     run.takeScroll(conversationId);
     if (target.kind !== "item") return;
-    handle.current?.scrollToItem(target.key);
-    // The entry also focuses the request's first choice: a permission request's first choice, a question's first
-    // option or answer input.
+    // The answer popover opens on the request and focuses its choice; the thread does not scroll.
+    run.store.expandPopover(conversationId);
     const shown = { conversationId, revision: run.revision(root) };
     handFocus(() => { if (stillShowing(shown)) handle.current?.focusItem(target.key); });
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
@@ -435,6 +434,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}
+        popoverCollapsed={waiting => run.store.popoverCollapsed(conversationId, waiting)} onCollapse={waiting => run.store.collapsePopover(conversationId, waiting)} onExpand={() => run.store.expandPopover(conversationId)}
         onFocusComposer={focusField}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={run.store.resendHidden(conversationId)}
@@ -469,7 +469,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} asks={conversationId ? waitingAsk(thread?.events ?? null) : null} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: false }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.

@@ -253,7 +253,6 @@ test("an accepted send clears the notice an earlier refusal left", async () => {
   await flush();
   props.turn = "waiting";
   expect(render().some(item => item.children === "Claude Code reached a usage limit. Send again after it resets.")).toBe(false);
-  expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
 });
 
 const BLOCKED = "This canvas isn’t listed in doan-design, so its conversation can’t continue.";
@@ -347,7 +346,9 @@ test("a live blocking reason and its action show over an old error notice, and t
   expect(tree.some(item => item.children === "Open Agents settings")).toBe(true);
   props.auth = AUTH; props.turn = "waiting";
   tree = render();
-  expect(tree.some(item => item.children === "Answer or stop the request above.")).toBe(true);
+  // The wait's reason is Queue's tooltip and description, not a line the field names.
+  expect(tree.some(item => item.children === "Answer the permission request first")).toBe(true);
+  expect(field(tree)["aria-describedby"]).toBeUndefined();
 });
 
 test("the / list's closed state and highlight belong to the draft on screen", () => {
@@ -1383,4 +1384,30 @@ test("a queued or sent pasted text carries its lines and excerpt and renders a q
   hooks.states = []; hooks.refs = [];
   const tree = render(true);
   expect(tree.some(p => p["aria-label"] === "Attachments: Pasted text, 24 lines — Checkout spec")).toBe(true);
+});
+
+// The agent reads a queued or sent-now message only after the answer, so nothing goes out while a request waits.
+test.each(["Enter", "Control+Enter", "Queue", "Send now"])("while a question waits, %s sends, queues and steers nothing, and the text stays", async how => {
+  const { render, props, send, queue, store } = shortcutSetup({ turn: "waiting", asks: "question" }, "Reply");
+  const tree = render();
+  if (how === "Enter") (field(tree).onKeyDown as (event: unknown) => void)(enter());
+  else if (how === "Control+Enter") pressControl(tree);
+  else if (how === "Queue") (button(tree, "Queue").onClick as () => void)();
+  else for (const row of tree.filter(item => item.children === "Send now")) (row.onClick as () => void)();
+  await flush();
+  expect(send).not.toHaveBeenCalled(); expect(queue).not.toHaveBeenCalled();
+  expect(props.onSendQueuedNow).not.toHaveBeenCalled(); expect(props.onStop).not.toHaveBeenCalled();
+  expect(draftText(store.current.get("conversation:a"))).toBe("Reply");
+});
+
+test("once the request ends, Send now and Queue work again", async () => {
+  const { render, props, queue } = shortcutSetup({ turn: "waiting", asks: "permission" }, "Reply");
+  render();
+  props.turn = "running"; props.asks = null;
+  const tree = render();
+  (tree.find(item => item.children === "Send now")!.onClick as () => void)();
+  (button(tree, "Queue").onClick as () => void)();
+  await flush();
+  expect(props.onSendQueuedNow).toHaveBeenCalledWith("q1");
+  expect(queue).toHaveBeenCalledOnce();
 });

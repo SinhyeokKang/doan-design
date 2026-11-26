@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -369,10 +370,11 @@ func TestSessionInternalCheckFailureAndNoInspectedCanvases(t *testing.T) {
 				t.Fatal(code, out, err)
 			}
 			t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
+			// A path of no kind check takes ends before any canvas is read.
 			var output bytes.Buffer
-			Run([]string{"check", "unexpected", "--repo", root}, strings.NewReader(""), &output, &output)
+			Run([]string{"check", "notes.md", "--repo", root}, strings.NewReader(""), &output, &output)
 			if len(sessionRows(t, log)) != 0 {
-				t.Fatal("uninspected canvas recorded")
+				t.Fatal("canvas recorded by a check refusing its path kind")
 			}
 			c, o, e := checkOutput(root, jsonMode)
 			if c != code || o != out || e != err {
@@ -601,6 +603,58 @@ func TestSessionRejectsNonregularLog(t *testing.T) {
 			c, o, err := checkOutput(root, true)
 			if c != code || o != out || err != stderr {
 				t.Fatal("output changed")
+			}
+		})
+	}
+}
+
+// A check given paths still reads every canvas, so it records the same lines as one without.
+func TestSessionScopedCheckRecordsEveryCanvas(t *testing.T) {
+	strip := func(rows []map[string]any) []map[string]any {
+		for _, row := range rows {
+			for _, key := range []string{"at", "root", "cwd", "configDir"} {
+				delete(row, key)
+			}
+		}
+		return rows
+	}
+	var want []map[string]any
+	for i, args := range [][]string{nil, {".doan/canvases/a.html"}, {".doan/config.json"}} {
+		root, log := sessionFixture(t)
+		putFile(t, root, ".doan/canvases/b.html", strings.Replace(validCanvas, `content="foo"`, `content="bar"`, 1))
+		t.Setenv("CLAUDE_CODE_SESSION_ID", "s")
+		var out bytes.Buffer
+		Run(append(append([]string{"check"}, args...), "--repo", root, "--json"), strings.NewReader(""), &out, &out)
+		rows := strip(sessionRows(t, log))
+		if i == 0 {
+			if len(rows) != 2 {
+				t.Fatal(rows)
+			}
+			want = rows
+		} else if !reflect.DeepEqual(rows, want) {
+			t.Fatalf("%v recorded %v, want %v", args, rows, want)
+		}
+	}
+}
+
+// A check that ends on a path error records nothing, even when it had already read the canvases.
+func TestSessionPathErrorsRecordNothing(t *testing.T) {
+	for _, tt := range []struct{ arg, code string }{
+		{"notes.md", "usage_error"},
+		{".doan/canvases/nope.html", "canvas_not_found"},
+		{".doan/assets/lonely.css", "usage_error"},
+	} {
+		t.Run(tt.arg, func(t *testing.T) {
+			root, log := sessionFixture(t)
+			putFile(t, root, ".doan/assets/lonely.css", "")
+			t.Setenv("CLAUDE_CODE_SESSION_ID", "s")
+			var out bytes.Buffer
+			Run([]string{"check", tt.arg, "--repo", root, "--json"}, strings.NewReader(""), &out, &out)
+			if !strings.Contains(out.String(), `"code":"`+tt.code+`"`) {
+				t.Fatal(out.String())
+			}
+			if rows := sessionRows(t, log); len(rows) != 0 {
+				t.Fatal(rows)
 			}
 		})
 	}

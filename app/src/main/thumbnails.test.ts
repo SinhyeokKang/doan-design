@@ -538,6 +538,23 @@ test("removing a project deletes its cache files and drops its running capture",
   expect(f.changed).toHaveLength(1);
 });
 
+// The shell sends the new list before main calls removed (shell.ts remove/replace, then index.ts rootsLeft).
+test("a missing project's cache files go on Remove or Locate although the list without it came first", async () => {
+  const f = fixture([".doan/canvases/a.html"]);
+  const thumbnails = make(f.deps);
+  thumbnails.entriesChanged(f.entries);
+  await thumbnails.get(f.root, ".doan/canvases/a.html", true, "main");
+  await vi.waitFor(() => expect(f.changed).toHaveLength(1));
+  expect(readdirSync(f.dir)).toHaveLength(2);
+  f.entries = [{ path: f.root, kind: "notFound" }];
+  thumbnails.entriesChanged(f.entries);
+  const before = f.entries;
+  f.entries = [];
+  thumbnails.entriesChanged(f.entries);
+  await thumbnails.removed([f.root], before);
+  expect(readdirSync(f.dir)).toEqual([]);
+});
+
 test("a project removed while its cache write runs leaves no files behind", async () => {
   const f = fixture([".doan/canvases/a.html"]);
   const thumbnails = make(f.deps);

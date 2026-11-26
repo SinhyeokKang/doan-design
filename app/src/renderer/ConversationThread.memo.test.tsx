@@ -134,7 +134,7 @@ function asks(): ConversationEvent[] {
   ];
 }
 
-test("handoffs, asks and attachments draw again when what they read from outside their data changes", () => {
+test("handoffs and attachments draw again when what they read from outside their data changes", () => {
   const items = threadItems(asks(), ROOT, true);
   const key = (kind: ThreadItem["kind"]) => items.find(item => item.kind === kind)!.key;
   expect(new Set(items.map(item => item.kind))).toEqual(new Set(["handoffCard", "canvasCard", "noReply", "user", "permission", "question"]));
@@ -147,8 +147,9 @@ test("handoffs, asks and attachments draw again when what they read from outside
   expect(changed({ homeDirectory: "/Users/bob" }, "user")).toBe(true);
   expect(changed({ canvasListed: () => false }, "canvasCard")).toBe(true);
   expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
-  expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
-  expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: null }) }, "question")).toBe(true);
+  // Waiting requests are the answer popover's, drawn with the thread on every render, not kept entries.
+  expect(base.has(key("permission"))).toBe(false);
+  expect(base.has(key("question"))).toBe(false);
 });
 
 // A card's meta reads its canvas's row and the time: the host's clock ticks each second, the meta's words once a minute.
@@ -186,15 +187,6 @@ test("an activity draws again when it opens", () => {
   const at = items.find(item => item.kind === "activity")!.key;
   const before = run(props(items));
   pressWith(drawn(before.get(at)!), "aria-expanded")!();
-  expect(same(before.get(at)!, run(props(items)).get(at)!)).toBe(false);
-});
-
-test("a permission draws again when its answer did not reach main", async () => {
-  const items = threadItems(asks(), ROOT, true);
-  const at = items.find(item => item.kind === "permission")!.key;
-  const before = run(props(items, { onAnswer: async () => ({ error: "gone" }) }));
-  press(drawn(before.get(at)!), "Allow")!();
-  await new Promise(resolve => setTimeout(resolve, 0));
   expect(same(before.get(at)!, run(props(items)).get(at)!)).toBe(false);
 });
 

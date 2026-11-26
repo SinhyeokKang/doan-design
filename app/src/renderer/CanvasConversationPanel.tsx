@@ -39,14 +39,14 @@ import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
 import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
-import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
+import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, waitingAsk, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
   attachRefusal, MAX_ATTACHMENTS, attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, MAX_PASTED_BYTES, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { scrollTarget } from "./overviewRun";
+import { entryTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
 import { stopBackground, threadTurn, turnOf } from "./turnStatus";
@@ -332,7 +332,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const prompts = view.kind === "new" && mode.kind === "new" && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
   const started = draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0;
 
-  // The thread, and an entry's scroll to its pending permission request.
+  // The thread, and an entry's request, which opens the answer popover.
   const handle = useRef<ConversationThreadHandle | null>(null);
   const commands = conversationId && provider && thread ? threadCommands(provider, thread.events, store.boundaries(conversationId)) : null;
   const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live, commands ?? undefined), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
@@ -347,12 +347,16 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const dismissCard = () => { store.showCard(key, null); focusField(); };
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
+  // A badge or sidebar entry (the prototype window's badge too): the popover opens on the earliest request and takes focus.
   useEffect(() => {
     if (!conversationId || !scroll || !Array.isArray(items)) return;
-    const target = scrollTarget(items, asking);
+    const target = entryTarget(items, asking);
     if (target.kind === "wait") return;
     run.takeScroll(conversationId);
-    if (target.kind === "item") handle.current?.scrollToItem(target.key);
+    if (target.kind !== "item") return;
+    store.expandPopover(conversationId);
+    const shown = shownNow();
+    handFocus(() => { if (shownNow() === shown) handle.current?.focusItem(target.key); });
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   // An entry's focus: a permission's first choice once its request draws, a question's first option or input, else the
   // composer. Each arrival is applied once; one with nothing pending falls back to the composer.
@@ -367,12 +371,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     let item: string | null = null;
     if (arrival.focus === "permission" && conversationId) {
       if (!Array.isArray(items)) return;
-      const ask = scrollTarget(items, asking);
+      const ask = entryTarget(items, asking);
       if (ask.kind === "wait") return;
       arrived.current = arrival.seq;
       props.onArrived(arrival.seq);
       if (ask.kind === "item") {
-        handle.current?.scrollToItem(ask.key);
+        store.expandPopover(conversationId);
         item = ask.key;
       }
     } else if (arrival.focus === "handoff" && arrival.handoff) {
@@ -539,6 +543,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onAnswer={(requestId, optionId) => calls.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => calls.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => store.editQuestion(conversationId, requestId, action)}
+        popoverCollapsed={waiting => store.popoverCollapsed(conversationId, waiting)} onCollapse={waiting => store.collapsePopover(conversationId, waiting)} onExpand={() => store.expandPopover(conversationId)}
         onFocusComposer={focusField}
         onStop={() => void calls.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => {
@@ -582,7 +587,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles} onPastedText={addPastedText}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} asks={conversationId ? waitingAsk(thread?.events ?? null) : null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         unavailable={unavailable} locked={unavailable !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}

@@ -53,7 +53,7 @@ Choose the outcome from the request:
 In every case:
 
 - Leave frames, elements, and ids outside the request unchanged.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what you extracted or changed, what you left duplicated on purpose, and the uses you did not migrate.
 
 ## Avoid
@@ -69,7 +69,7 @@ In every case:
 
 - Each extracted token or component has at least three same-intent uses, with evidence.
 - Names match the project's conventions, and no new token duplicates an existing one.
-- Edited canvases reference token CSS variables and pass `doan check`.
+- Edited canvases reference token CSS variables and pass `doan check <edited canvas, CSS and config paths> --json`.
 - After a code refactor, the affected tests pass and no use outside the migration list changed.
 
 Visual parity after a code refactor needs the screens rendered. If you could not render them, or could not run the tests, report that as unverified rather than passed.

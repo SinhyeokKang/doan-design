@@ -31,7 +31,8 @@ const entries = [
     "main/prototype/requests": "parseRunReport, parseFramesReport",
     "main/prototype/mark": "parsePrototypeMark",
     "main/prototype/ipc": "PROTOTYPE_LOAD_TIMEOUT_MS",
-    "renderer/prototype/view": "LOADING_LABEL, RETRY, CLOSE, windowTitle, modeTooltip, drawerGroups, drawerLabel, exportAvailability, linkMove",
+    "renderer/prototype/view": "LOADING_LABEL, RETRY, CLOSE, windowTitle, modeTooltip, viewportKey, otherMode, drawerGroups, drawerLabel, exportAvailability, linkMove",
+    "renderer/viewport": "selectionView",
     "renderer/toastState": "TOAST_MS, initialToastState, toastState",
   }],
 ];

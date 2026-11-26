@@ -97,7 +97,7 @@ By default, polish does not introduce these category patterns: same-size icon-he
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When something you draw on the canvas, such as a new state or component, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the findings and proposed fixes without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed and what you left unchanged on purpose, such as suspected redesign work or token changes that need the user's decision.
 
 ## Verify

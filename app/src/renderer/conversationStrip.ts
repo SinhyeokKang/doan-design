@@ -78,6 +78,12 @@ export function stripSendFailed(how: StripSendError["how"], refusal: string | nu
   return refusal !== null && !(how === "skip" && refusal === "stale");
 }
 
+// The actions stay beside the text while the title keeps its one line next to them; otherwise they take their own row
+// (DESIGN 'Alignment'). Widths in CSS px: the strip's content box, the icon slot, the strip's gap, the title, the action row.
+export function stripStacks(m: { content: number; icon: number; gap: number; title: number; actions: number }): boolean {
+  return m.icon + m.gap + m.title + m.gap + m.actions > m.content;
+}
+
 // A turn can end ~300 ms after an answer and take Stop away; focus moves on to Dismiss instead of falling to the page.
 export function focusAfterStop(actions: readonly StripAction[]): "stop" | "dismiss" | null {
   return actions.some(a => a.command === "stop") ? "stop" : actions.some(a => a.command === "dismiss") ? "dismiss" : null;

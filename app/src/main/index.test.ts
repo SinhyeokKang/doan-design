@@ -1219,7 +1219,7 @@ describe("menus", () => {
   // renderer's state, a page lock keeps it, a modal turns it off.
   test("View > Hide/Show Sidebar follows the validated sidebar state and tells the renderer", async () => {
     const contents = window().webContents;
-    expect(submenu("View").slice(0, 2).map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Hide Sidebar", "CmdOrCtrl+B"], ["separator", undefined]]);
+    expect(submenu("View").slice(0, 3).map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Hide Sidebar", "CmdOrCtrl+B"], ["Hide UI", "CmdOrCtrl+\\"], ["separator", undefined]]);
     // The test app starts in first run, which turns it off.
     expect(menuEnabled("Hide Sidebar")).toBe(false);
     await completeFirstRun();
@@ -1239,6 +1239,28 @@ describe("menus", () => {
     }
     await invoke("menu:state", contents, null, state("canvas"));
     expect(submenu("View")[0]?.label).toBe("Hide Sidebar");
+  });
+
+  // View > Hide/Show UI (⌘\\) folds the canvas page's three columns; its name follows the renderer's state.
+  test("View > Hide/Show UI follows the validated column state, on the canvas page only", async () => {
+    const contents = window().webContents;
+    await completeFirstRun();
+    await invoke("menu:state", contents, null, state("home"));
+    expect(menuEnabled("Hide UI")).toBe(false);
+    await invoke("menu:state", contents, null, state("canvas"));
+    expect(menuEnabled("Hide UI")).toBe(true);
+    click("Hide UI");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "toggleUi");
+    await invoke("menu:state", contents, null, { ...state("canvas"), sidebarHidden: true, uiHidden: true });
+    expect(submenu("View")[1]).toMatchObject({ label: "Show UI", accelerator: "CmdOrCtrl+\\" });
+    expect(menuEnabled("Show UI")).toBe(true);
+    await invoke("menu:state", contents, null, { ...state("canvas", true), uiHidden: true });
+    expect(menuEnabled("Show UI")).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("canvas"), uiHidden: "true" });
+    expect(submenu("View")[1]?.label).toBe("Show UI");
+    expect(menuEnabled("Show UI")).toBe(false);
+    await invoke("menu:state", contents, null, state("canvas"));
+    expect(submenu("View")[1]?.label).toBe("Hide UI");
   });
 
   test("Pick from Canvas follows the validated picker state, without a selection", async () => {

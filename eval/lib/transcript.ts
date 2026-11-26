@@ -1,4 +1,5 @@
 import type { RecordedCall } from "./call-log.ts";
+import { basename, isAbsolute, normalize, sep } from "node:path";
 // Read literal arguments without evaluating agent-authored JavaScript. Strings
 // and comments are tokens, so quoted examples cannot become tool invocations.
 export function scriptTokens(source: string): string[] {
@@ -42,6 +43,11 @@ function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean
   const prototype = last("prototype") !== undefined && (last("prototype")!.value === undefined || TRUE.test(last("prototype")!.value!));
   const operands = positionals.length - 1;
   switch (positionals[0]) {
+    case "check": return positionals.slice(1).every(arg => {
+      const clean = normalize(arg);
+      return arg !== "" && !arg.endsWith("/") && (isAbsolute(arg) || (clean !== ".." && !clean.startsWith(`..${sep}`))) &&
+        (/\.html$/i.test(arg) || arg.endsWith(".css") || basename(arg) === "config.json");
+    });
     case "open": return operands === 1 && frames <= 1 && frameAccepted(last("frame")?.value) && (frames === 1 || !prototype);
     case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && frameAccepted(last("frame")?.value) && prototype === (frames === 1);
     case "design-skill": return operands === 0 || (operands === 1 && /^[a-z]+(?:-[a-z]+)*$/.test(positionals[1]!));

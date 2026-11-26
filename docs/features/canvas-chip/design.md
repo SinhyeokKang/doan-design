@@ -136,6 +136,7 @@
   - `home`: Home의 root 불일치, 프로젝트·worktree를 바꿀 때의 알림
   - `copy`: 문구
 - 문구는 `clarify` 프리셋으로 정한다.
+- **확정**: 사용자가 `.doan/canvases/canvas-chip.html`을 확정했다. 후보가 있는 곳(칩 모양, 드래그 이미지, 놓일 자리, 받지 않는 composer, tooltip)은 드래프트가 추천한 A를 따른다.
 
 ## 읽은 design preset
 

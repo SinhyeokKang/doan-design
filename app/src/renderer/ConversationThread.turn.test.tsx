@@ -52,6 +52,7 @@ vi.mock("react", async original => {
   };
 });
 const { ConversationThread, ThreadEntry, TurnIndicator } = await import("./ConversationThread");
+const { TooltipProvider } = await import("./components/ui/tooltip");
 
 function reset() { hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.pending = []; }
 // Renders until state settles, then runs the effects, as React would.
@@ -92,7 +93,7 @@ const props = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Par
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const at = (status: TurnStatus, turnId = "t1"): ThreadTurn => ({ turnId, status, at: AT });
-const html = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, turn, patch)} />);
+const html = (items: readonly ThreadItem[], turn: ThreadTurn | null, patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, turn, patch)} /></TooltipProvider>);
 // The thread body run with plain hooks (ConversationThread is a forwardRef whose render keys the body by conversation).
 function body(p: ConversationThreadProps): () => ReactNode {
   return () => {
@@ -121,7 +122,7 @@ afterEach(() => { unmount(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("the turn indicator in the thread", () => {
   test("is the thread's last item from the render the message enters, with the provider's logo, words and time", () => {
     const out = html([user], at({ kind: "general" }));
-    expect(out).toMatch(/<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="[^"]+" alt=""\/><span class="ti-text ti-shimmer">Claude Code is working<\/span><span class="ti-time" aria-hidden="true">0s<\/span><\/div><\/div><\/div><\/div>/);
+    expect(out).toMatch(/<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="[^"]+" alt=""\/><span class="ti-text ti-shimmer">Claude Code is working<\/span><span class="ti-time" aria-hidden="true">0s<\/span><\/div><\/div><\/div><div class="thread-end" aria-hidden="true"><\/div><\/div>/);
     expect(out.indexOf("Make the checkout button")).toBeLessThan(out.indexOf("ti-reply"));
   });
 
