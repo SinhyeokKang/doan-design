@@ -113,6 +113,20 @@ export function elementView(rect: Rect, viewport: Size, inset: Inset, current: V
   };
 }
 
+// ⇧2: the selection fits whole, zooming in or out, unlike a frame jump, which keeps 100% as its ceiling.
+export function selectionView(rect: Rect, viewport: Size, inset: Inset, current: View): View {
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return current;
+  const safe = safeArea(viewport, inset);
+  const sides = [rect.width > 0 ? safe.width / rect.width : Infinity, rect.height > 0 ? safe.height / rect.height : Infinity];
+  const wanted = Math.min(...sides);
+  const scale = Number.isFinite(wanted) ? clamp(wanted, MIN_SCALE, MAX_SCALE) : current.scale;
+  return {
+    x: safe.x + safe.width / 2 - (rect.x + rect.width / 2) * scale,
+    y: safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale,
+    scale,
+  };
+}
+
 // A zero-size frame has no size to fit and keeps the scale the person already chose.
 export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View): View {
   const safe = safeArea(viewport, inset);

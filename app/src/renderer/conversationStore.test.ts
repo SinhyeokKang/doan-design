@@ -299,7 +299,7 @@ test("a question's chosen answer is kept by conversation and request until that 
   history.push(event({ type: "question.request", requestId: "q1", questions: [question] }));
   h.store.track(A);
   await flush();
-  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: null });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, step: 0, sending: null, failed: null });
   h.host.changed.mockClear();
   h.store.editQuestion(A, "q1", { type: "choose", question, option: 1 });
   expect(h.host.changed).toHaveBeenCalled();
@@ -322,11 +322,11 @@ test("a resolved or deleted question's draft is not made again by a late edit", 
   h.host.changed.mockClear();
   h.store.editQuestion(A, "q1", { type: "failed" });
   h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
-  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: null });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, step: 0, sending: null, failed: null });
   expect(h.host.changed).not.toHaveBeenCalled();
   h.store.deleted(A);
   h.store.editQuestion(A, "q2", { type: "failed" });
-  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, sending: null, failed: null });
+  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, step: 0, sending: null, failed: null });
 });
 
 test("a deleted conversation's chosen answers go with it", () => {
@@ -335,6 +335,104 @@ test("a deleted conversation's chosen answers go with it", () => {
   h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
   h.store.deleted(A);
   expect(h.store.questionDraft(A, "q1").choices).toEqual({});
+});
+
+// The popover's fold: collapsing covers the requests waiting then, so a request that comes later opens it again.
+describe("popover fold", () => {
+  const B = "bbbbbbbb-0000-4000-8000-000000000002";
+
+  test("nothing waiting is never collapsed, and a collapse covers the requests waiting then", () => {
+    const h = harness();
+    expect(h.store.popoverCollapsed(A, [])).toBe(false);
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+    h.host.changed.mockClear();
+    h.store.collapsePopover(A, ["r1"]);
+    expect(h.host.changed).toHaveBeenCalled();
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(true);
+    expect(h.store.popoverCollapsed(A, [])).toBe(false);
+  });
+
+  test("a new request opens it again; collapsing again covers both", () => {
+    const h = harness();
+    h.store.collapsePopover(A, ["r1"]);
+    expect(h.store.popoverCollapsed(A, ["r1", "r2"])).toBe(false);
+    h.store.collapsePopover(A, ["r1", "r2"]);
+    expect(h.store.popoverCollapsed(A, ["r1", "r2"])).toBe(true);
+    // The first answered, the second still covered.
+    expect(h.store.popoverCollapsed(A, ["r2"])).toBe(true);
+  });
+
+  // Once a new request opened it, it stays open until the person collapses it again, whatever ends first.
+  test("a request that arrives after the collapse opens it for good: its end alone does not collapse it again", async () => {
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    h.store.collapsePopover(A, ["r1"]);
+    h.host.changed.mockClear();
+    h.store.event(event({ type: "permission.request", requestId: "r2", tool: "Bash", summary: "ls", options: [] }));
+    expect(h.host.changed).toHaveBeenCalled();
+    expect(h.store.popoverCollapsed(A, ["r1", "r2"])).toBe(false);
+    h.store.event(event({ type: "permission.resolved", requestId: "r2", optionId: "allow" }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+    // A question arriving does the same; a request it already covers does not.
+    h.store.collapsePopover(A, ["r1"]);
+    h.store.event(event({ type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [] }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(true);
+    h.store.event(event({ type: "question.request", requestId: "q3", questions: [] }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+  });
+
+  // Both a refused send and an entry point open it through the store.
+  test.each(["a refused send", "an entry point"])("%s opens it", () => {
+    const h = harness();
+    h.store.collapsePopover(A, ["r1"]);
+    h.host.changed.mockClear();
+    h.store.expandPopover(A);
+    expect(h.host.changed).toHaveBeenCalled();
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+    h.host.changed.mockClear();
+    h.store.expandPopover(A);
+    expect(h.host.changed).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["permission", { type: "permission.resolved", requestId: "r1", optionId: "allow" }],
+    ["question", { type: "question.resolved", requestId: "r1", outcome: "skipped" }],
+  ] as const)("a resolved %s leaves the fold; once none it covered waits, nothing is kept", async (_kind, resolved) => {
+    const h = harness();
+    h.store.track(A);
+    await flush();
+    h.store.collapsePopover(A, ["r1", "r2"]);
+    h.store.event(event(resolved));
+    // Were r1 to wait again, it would not be covered.
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+    expect(h.store.popoverCollapsed(A, ["r2"])).toBe(true);
+    h.store.event(event({ ...resolved, requestId: "r2" }));
+    expect(h.store.popoverCollapsed(A, ["r2"])).toBe(false);
+  });
+
+  test("a resolved event for a conversation not yet read still leaves the fold", () => {
+    const h = harness();
+    h.store.collapsePopover(A, ["r1"]);
+    h.store.event(event({ type: "permission.resolved", requestId: "r1", optionId: "allow" }));
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+  });
+
+  test("each conversation keeps its own, also while another is shown", () => {
+    const h = harness();
+    h.store.collapsePopover(A, ["r1"]);
+    expect(h.store.popoverCollapsed(B, ["r1"])).toBe(false);
+    h.store.collapsePopover(B, ["q9"]);
+    h.store.expandPopover(B);
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(true);
+  });
+
+  test("a deleted conversation's fold goes with it", () => {
+    const h = harness();
+    h.store.collapsePopover(A, ["r1"]);
+    h.store.deleted(A);
+    expect(h.store.popoverCollapsed(A, ["r1"])).toBe(false);
+  });
 });
 
 // Main answers capture_failed for an empty image or a PNG it could not

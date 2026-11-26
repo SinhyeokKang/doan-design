@@ -17,16 +17,18 @@ export interface MenuEnabled {
   pickFromCanvas: boolean;
   // View > Hide/Show Sidebar: it never leaves the screen, so a page lock keeps it.
   toggleSidebar: boolean;
+  // View > Hide/Show UI: the canvas page's sidebar, conversation panel and inspector together.
+  toggleUi: boolean;
 }
 
 // An open modal disables main-window actions so the window cannot act behind it; a `locked` page phase nothing may
 // leave disables Settings… too. `prototypeFocused`: only app-level items stay, so nothing changes the main window behind it.
 export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; prototypeFocused?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
-  if (context.prototypeFocused === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false };
+  if (context.prototypeFocused === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false, toggleUi: false };
   const toggleSidebar = !context.wizardOpen && !modalOpen;
-  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar };
-  return { settings, toggleSidebar, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
+  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar, toggleUi: false };
+  return { settings, toggleSidebar, toggleUi: !context.wizardOpen && screen === "canvas" && context.overview !== true, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
     newConversation: screen === "canvas" || (screen === "workspace" && context.overview === true),
     pickFromCanvas: screen === "canvas" && context.pickerAvailable === true };
 }

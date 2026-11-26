@@ -1036,10 +1036,15 @@ body:has(.shell-top) { background: transparent; }
 .settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
 .project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Scoped to the thread so short names (.activity, .marker, .md) never reach other screens. */
+/* The answer popover's height, which each thread sets on itself (ConversationThread's follow) to keep its end clear. */
+:root { --ap-inset: 0px; }
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
 /* The follow writes the scroll itself; scroll anchoring would move it as a reply grows above. */
 .conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
+/* The answer popover's height, kept clear after the last item. A spacer, not the scroller's padding: padding would set the
+   scroller's least height and run it past a short thread area's bottom, under the composer. */
+.conversation-thread .thread-end { flex: none; height: var(--ap-inset, 0px); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
 /* One line tall and top-aligned, so it never makes the last line taller and the reply does not shrink when it goes. */
 .conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
@@ -1139,8 +1144,6 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line overflow clip would cut glyphs overhanging a wrapped line. */
 .conversation-thread .thread-notice .strip-text span, :is(.cp-scroll, .ov-new) > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
-/* The command keeps its line breaks so every line that will run shows. */
-.conversation-thread .thread-notice .strip-text span.ask-command { white-space: pre-wrap; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -1185,11 +1188,12 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .handoff-card .card-layout > :is(.chip-missing, .copy-failed) { margin: 0 var(--space-4) var(--space-4); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* Above the docked buddy's slot (z-index 2) in the same stacking context. */
-.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: calc(var(--ap-inset, 0px) + var(--space-3)); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
 /* Forced colours paint fills as Canvas and drop shadows, so fill-only shapes need a real edge. */
 @media (forced-colors: active) {
   .conversation-thread :is(.bubble, .md-code, .md blockquote, .md-table, .msg-files .attach-chip) { border: 1px solid CanvasText; }
   .conversation-thread .jump-latest { border: 1px solid ButtonText; }
+  .conversation-thread .ap { border: 1px solid CanvasText; }
 }
 /* Fixed one-line height, so a stage change never moves the thread; a long path ellipsizes and the time stays. */
 .conversation-thread .ti-reply { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-subtle); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
@@ -1575,14 +1579,52 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .area[data-picking] { cursor: crosshair; }
-.conversation-thread .thread-notice > .ask-error { grid-column: 2; }
-/* Questions, actions and error span the card's full width; nothing in a question is cut. */
-.conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }
-.conversation-thread .q-card .q-title b { overflow-wrap: anywhere; }
-.conversation-thread .q-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
-.conversation-thread .q { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
-.conversation-thread .q-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); min-width: 0; }
-.conversation-thread .q-text { font-weight: var(--type-weight-medium); overflow-wrap: anywhere; }
+/* The answer popover: over the thread area's bottom edge, as wide as the thread column, capped against the thread area.
+   Its height comes back as the thread's end inset (--ap-inset), so the last item clears it. Under the composer's lists (z 2). */
+.conversation-thread .ap { position: absolute; z-index: 1; inset-inline: 0; bottom: 0; display: flex; flex-direction: column; min-height: 0; max-height: min(70%, calc(100% - var(--space-10))); margin-inline: var(--space-4); background: var(--surface-panel); border-radius: var(--radius-container); box-shadow: var(--shadow-floating); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); animation: ap-enter var(--time-thread-enter) var(--ease-enter) both; }
+@keyframes ap-enter { from { translate: 0 var(--space-2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .conversation-thread .ap { animation: none; }
+}
+.ov-main .conversation-thread .ap { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
+.conversation-thread .ap-head { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-1h); padding: var(--space-2) var(--space-2) 0 var(--space-4); }
+.conversation-thread :is(.ap-head, .ap-bar) b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.conversation-thread .ap-order { margin-right: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.conversation-thread .ap-head .doan-icon-button { color: var(--text-subtle); }
+/* Only the body scrolls past the cap; the head and the buttons stay. */
+.conversation-thread .ap-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-2) var(--space-4) 0; }
+/* A body past the cap fades at its lower edge until it is scrolled to the end; a scroll timeline is inactive while
+   nothing overflows, so a body that fits draws no fade. */
+.conversation-thread .ap-body { animation: ap-body-fade linear both; animation-timeline: scroll(self); }
+@keyframes ap-body-fade { from, 99% { mask-image: linear-gradient(to bottom, black calc(100% - var(--space-6)), transparent); } to { mask-image: none; } }
+.conversation-thread .ap-question { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.conversation-thread .ap-q { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.conversation-thread .ap-step { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-variant-numeric: tabular-nums; }
+.conversation-thread .ap-q-text { font-weight: var(--type-weight-medium); overflow-wrap: anywhere; }
+/* The strip's one-line clip would cut a request's text; the command keeps its line breaks so every line that will run shows. */
+.conversation-thread .ap-body .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .ap-body .strip-text span.ask-command { white-space: pre-wrap; padding: var(--space-2) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-inset); font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .ap-body .ask-reason { color: var(--text-standard); }
+.conversation-thread .ap-body .ask-saves { color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* Two groups; when both do not fit, the end group wraps under the first and keeps to the row's end, so Next and Send
+   never move sideways. */
+.conversation-thread .ap-actions { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.conversation-thread .ap-group { display: flex; align-items: center; gap: var(--space-2); }
+.conversation-thread .ap-group.end { margin-left: auto; }
+.conversation-thread .ap-actions .doan-button svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .ap-error { flex: none; padding: 0 var(--space-4) var(--space-3); }
+/* The collapsed bar: the head alone on the same surface, one button. */
+.conversation-thread .ap-bar { display: flex; align-items: center; gap: var(--space-1h); width: 100%; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: inherit; text-align: left; }
+.conversation-thread .ap-bar b { flex: 1; }
+.conversation-thread .ap-bar:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.conversation-thread .ap-bar .bar-chev { display: grid; place-items: center; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); color: var(--text-subtle); }
+.conversation-thread .ap-bar .bar-chev svg { width: var(--size-icon); height: var(--size-icon); }
+/* Cramped (the head and buttons do not fit up to the panel's top): the head stays and the body and buttons scroll under it. */
+.conversation-thread .ap[data-cramped] { overflow-y: auto; scroll-padding-top: calc(var(--size-control-sm) + var(--space-2)); }
+.conversation-thread .ap[data-cramped] > .ap-head { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); }
+.conversation-thread .ap[data-cramped] > .ap-body { flex: none; overflow: visible; animation: none; }
+.conversation-thread .ap .q-group { box-shadow: none; }
+.conversation-thread .ap .q-input { background: var(--surface-inset); }
 /* The chosen option shows by its control only. */
 .conversation-thread .q-group { background: var(--surface-panel); border-radius: var(--radius-row); }
 .conversation-thread .q-pref { position: relative; align-items: start; cursor: pointer; }
@@ -1595,10 +1637,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Above the row's invisible control so it takes clicks and focus. */
 .conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
 .conversation-thread .q-pref .q-input { background: var(--surface-inset); }
-/* Unavailable Send is aria-disabled to keep focus and tooltip, with the shared disabled fill. */
-.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled, [aria-busy="true"]) { background: var(--affordance-disabled); color: var(--text-disabled); }
-.conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
-.conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
+/* Unavailable Next and Send are aria-disabled to keep focus and tooltip, with the shared disabled fill. */
+.conversation-thread .ap .q-send[aria-disabled="true"]:not(:disabled, [aria-busy="true"]) { background: var(--affordance-disabled); color: var(--text-disabled); }
+.conversation-thread .ap.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
+/* While an answer is out everything but Send reads as off: the option rows and the pressed permission button too. */
+.conversation-thread .ap.is-locked :is([aria-disabled="true"]:not(.q-send), .q-pref) { color: var(--text-disabled); cursor: default; }
 .conversation-thread .q-folded { display: flex; flex-direction: column; gap: var(--space-6); }
 .doan-conv-panel .conversation-thread .q-folded { gap: var(--space-5); }
 /* An invisible 8px strip on the panel's left border; only the bar shows, on hover, drag and keyboard focus. */

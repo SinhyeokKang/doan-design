@@ -129,9 +129,22 @@ describe("the viewport toggle", () => {
   });
 
   test("its tooltips name the frame's size for Fit, and the mode alone for Responsive", () => {
-    const tips = (over: Partial<ShellProps>) => all(tree(over)).filter(element => element.type === TooltipContent).map(element => element.props.children);
+    const text = (children: unknown) => (Array.isArray(children) ? children[0] : children);
+    const tips = (over: Partial<ShellProps>) => all(tree(over)).filter(element => element.type === TooltipContent).map(element => text(element.props.children));
     expect(tips({})).toEqual(expect.arrayContaining(["Fit 390 × 844 to the window", "Responsive"]));
     expect(tips({ view: null, layers: NO_LAYERS })).toEqual(expect.arrayContaining(["Fit to the window", "Responsive"]));
+  });
+
+  // PRODUCT §5 item 2 'Prototype window' 'Header': Z presses the other mode's button, which names the key.
+  test("the button Z would press names the key, the pressed one does not, and none before the first view", () => {
+    for (const [mode, pressed, other] of [["fit", "Fit", "Responsive"], ["responsive", "Responsive", "Fit"]] as const) {
+      const html = markup({ view: view({ mode }) });
+      expect(tag(html, `aria-label="${other}"`)).toContain('aria-keyshortcuts="Z"');
+      expect(tag(html, `aria-label="${pressed}"`)).not.toContain("aria-keyshortcuts");
+      const keyTips = all(tree({ view: view({ mode }) })).filter(element => element.type === TooltipContent && element.props.className === "has-key");
+      expect(keyTips).toHaveLength(1);
+    }
+    expect(markup({ view: null, layers: NO_LAYERS })).not.toContain("aria-keyshortcuts");
   });
 
   test("←/→ walk between the toggle's two items only, with the shared roving move", () => {

@@ -168,6 +168,15 @@ describe("forwardedMessage", () => {
     expect(forwardedMessage(event({ gen: 3, goto: "a", extra: 1 }), run)).toBeNull();
   });
 
+  // The prototype script posts `{gen, key: "z"}` for a Z the playing frame did not take (PRODUCT §5 item 2 'Prototype window').
+  test("routes the viewport key, and only in exactly that shape", () => {
+    expect(forwardedMessage(event({ gen: 3, key: "z" }), run)).toEqual({ kind: "key", message: { gen: 3, key: "z" } });
+    expect(forwardedMessage(event({ gen: 2, key: "z" }), run)).toBeNull();
+    expect(forwardedMessage(event({ gen: 3, key: "z" }, { source: other }), run)).toBeNull();
+    for (const key of ["Z", "x", "KeyZ", null, 1]) expect(forwardedMessage(event({ gen: 3, key }), run), String(key)).toBeNull();
+    expect(forwardedMessage(event({ gen: 3, key: "z", extra: 1 }), run)).toBeNull();
+  });
+
   test("drops another window's, another origin's, an old gen's or a non-object message", () => {
     const ready = { gen: 3, state: "ready", size: "390x844", frames: [], gotos: [] };
     expect(forwardedMessage(event(ready, { source: other }), run)).toBeNull();

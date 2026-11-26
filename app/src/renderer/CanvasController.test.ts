@@ -3985,6 +3985,25 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // A canvas can post its own key messages; a forged ⇧Space must not open and activate the prototype window.
+  it("⇧Space from the canvas plays only while its iframe has focus in a focused window", () => {
+    const h = harness();
+    try {
+      const play = vi.fn();
+      h.controller.playKey = play;
+      canvasKey(h, "ShiftSpace");
+      expect(play).not.toHaveBeenCalled();
+      h.doc.activeElement = h.current();
+      h.doc.hasFocus = () => false;
+      canvasKey(h, "ShiftSpace");
+      expect(play).not.toHaveBeenCalled();
+      h.doc.hasFocus = () => true;
+      canvasKey(h, "ShiftSpace");
+      expect(play).toHaveBeenCalledOnce();
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
   it("Space down from the canvas counts only while its iframe has focus; Space up always counts", () => {
     const h = harness();
     try {

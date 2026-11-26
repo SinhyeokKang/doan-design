@@ -65,7 +65,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
 });
 
 it("routes each menu command to its own handler, and an unknown or removed command reaches none", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), pickFromCanvas: vi.fn(), toggleSidebar: vi.fn() };
+  const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), pickFromCanvas: vi.fn(), toggleSidebar: vi.fn(), toggleUi: vi.fn() };
   for (const name of ["nextResolved", "previousResolved", "future"]) menuCommand(name as never, to);
   for (const handler of Object.values(to)) expect(handler).not.toHaveBeenCalled();
   menuCommand("home", to); menuCommand("quickOpen", to);
@@ -78,6 +78,9 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   menuCommand("pickFromCanvas", to);
   expect(to.pickFromCanvas).toHaveBeenCalledOnce();
   menuCommand("toggleSidebar", to);
+  expect(to.toggleSidebar).toHaveBeenCalledOnce();
+  menuCommand("toggleUi", to);
+  expect(to.toggleUi).toHaveBeenCalledOnce();
   expect(to.toggleSidebar).toHaveBeenCalledOnce();
 });
 
