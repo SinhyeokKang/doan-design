@@ -411,6 +411,25 @@ test("an entry's focus in a cramped popover brings the choice into view; elsewhe
   expect(controls.get("pa")!.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
 });
 
+// After an expand's height run the popover can turn cramped with focus already on its choice (the bar focused it while
+// the run held the floor off), so the choice is brought into view then.
+test("a popover turning cramped with focus inside brings the focused control into view", () => {
+  draw([permission("a")]);
+  const focused = { scrollIntoView: vi.fn() };
+  const surface = {
+    style: { overflow: "", minHeight: "" }, attributes: new Set<string>(),
+    hasAttribute(name: string) { return this.attributes.has(name); }, toggleAttribute(name: string, on: boolean) { if (on) this.attributes.add(name); else this.attributes.delete(name); return on; },
+    querySelector: () => null, querySelectorAll: (selector: string) => selector.includes(":scope") ? [{ offsetHeight: 80 }, { offsetHeight: 80 }] : [],
+    closest: () => ({ getBoundingClientRect: () => ({ top: 0 }) }), parentElement: { getBoundingClientRect: () => ({ bottom: 100 }) }, contains: (node: unknown) => node === focused,
+  };
+  vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "", paddingTop: "0px", paddingBottom: "0px" }));
+  active = focused;
+  (popover()!.props.rootRef as (node: unknown) => void)(surface);
+  draw([permission("a")]);
+  expect(surface.attributes.has("data-cramped")).toBe(true);
+  expect(focused.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+});
+
 describe("the popover's motion", () => {
   type Run = { cancel: ReturnType<typeof vi.fn>; finished: Promise<void>; finish(): void; onfinish: null | (() => void); oncancel: null | (() => void) };
   let runs: Run[];
