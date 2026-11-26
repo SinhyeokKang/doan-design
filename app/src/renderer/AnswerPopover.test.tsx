@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -376,5 +377,20 @@ describe("a permission request", () => {
 
   test("a refused answer asks to choose again under the buttons", () => {
     expect(html({ item: permission, failed: true })).toMatch(/<div class="ap-error"><p class="settings-msg error ask-error" role="alert"><svg[^>]*>.*?<\/svg><span>Couldn’t send your answer\. Choose again\.<\/span><\/p><\/div><\/div>$/);
+  });
+});
+
+describe("styles", () => {
+  const css = readFileSync(new URL("styles.css", import.meta.url), "utf8");
+  // While an answer is out, every control but Send (which keeps its fill with the spinner) reads as off, the pressed
+  // permission button and the option rows included.
+  // A body past the cap fades at its lower edge; one that fits (an inactive scroll timeline) draws none.
+  test("the body fades at its lower edge only while it scrolls", () => {
+    expect(css).toContain(".conversation-thread .ap-body { animation: ap-body-fade linear both; animation-timeline: scroll(self); }");
+    expect(css).toContain("@keyframes ap-body-fade { from, 99% { mask-image: linear-gradient(to bottom, black calc(100% - var(--space-6)), transparent); } to { mask-image: none; } }");
+  });
+
+  test("a locked popover dims its option rows and every unavailable control but Send", () => {
+    expect(css).toContain('.conversation-thread .ap.is-locked :is([aria-disabled="true"]:not(.q-send), .q-pref) { color: var(--text-disabled); cursor: default; }');
   });
 });
