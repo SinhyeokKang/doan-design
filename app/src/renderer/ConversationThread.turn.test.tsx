@@ -122,7 +122,7 @@ afterEach(() => { unmount(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("the turn indicator in the thread", () => {
   test("is the thread's last item from the render the message enters, with the provider's logo, words and time", () => {
     const out = html([user], at({ kind: "general" }));
-    expect(out).toMatch(/<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="[^"]+" alt=""\/><span class="ti-text ti-shimmer">Claude Code is working<\/span><span class="ti-time" aria-hidden="true">0s<\/span><\/div><\/div><\/div><\/div>/);
+    expect(out).toMatch(/<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="[^"]+" alt=""\/><span class="ti-text ti-shimmer">Claude Code is working<\/span><span class="ti-time" aria-hidden="true">0s<\/span><\/div><\/div><\/div><div class="thread-end" aria-hidden="true"><\/div><\/div>/);
     expect(out.indexOf("Make the checkout button")).toBeLessThan(out.indexOf("ti-reply"));
   });
 
