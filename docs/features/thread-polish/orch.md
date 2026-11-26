@@ -11,6 +11,8 @@
 - 배치 나누기: 지휘자 판단 — 4·5·6이 모두 `ConversationThread.tsx`를 고치고 5·6은 `styles.css`도 함께 고친다. 병렬로 돌리지 않고 A → B → C 순서로 돌린다. tasks 3의 `/tdd`는 각 배치의 `/deliver bypass` 안에서 그 배치 몫만 쓴다.
 - A 리뷰 뒤 사용자 결정(2026-11-26): 48px 규칙은 붙어 있던 따라가기를 끊은 입력에만 쓴다. 이미 끊긴 채 위에서 하는 입력은 `BOTTOM`(24px) 규칙만 쓴다. 그 입력이 판정되기 전에는 Jump to latest를 켜지 않고, 입력이 끝나 다시 붙지 않았을 때 판정한다. spec·design에 반영했다.
 - A 3차 리뷰 뒤 사용자 결정(2026-11-26): 사람의 스크롤과 브라우저 clamp가 같은 읽기 사이에 함께 일어나는 경우를 한계로 받아들인다(다시 붙음). 테스트만 실제 clamp를 만들게 고친다. design.md에 적었다.
+- E(runtime-test) 뒤 사용자 결정(2026-11-26): 키 입력은 그 키가 만든 스크롤이 멈춘 뒤 끝난다(`scrollend`). 스크롤 키는 `window`에서 받아 포커스가 스레드 밖이어도 사람의 입력으로 센다. spec·design에 반영했다.
+- E 뒤 지휘자 판단: 입력 도중 바닥 24px 안에 닿았으면 입력이 끝날 때 다시 붙는다(spec '언제든 다시 붙는다'). handoff 직후 스크롤 실패, clamp와 성장이 한 번에 읽힐 때 clamp를 놓치는 것도 고친다. forced colors에서 Open 캡슐의 가장자리가 없는 것과 모달 뒤의 토스트는 공용 DS·토스트의 기존 동작이라 BACKLOG로 보낸다.
 - 리뷰: 각 구현 배치는 Codex `gpt-6.1-sol` 리뷰 워커가 `/code-review`로 본다(다른 계열의 눈).
 
 ## 배치
@@ -24,13 +26,16 @@
 | C Open·Copy 토스트 | tasks 3(`cc-open` subtle, `onCopy` 토스트), 6 | `ConversationThread.tsx`(`cc-open`, `copied`), `CanvasConversationPanel.tsx`, `ProjectOverview.tsx`, `styles.css`(`.cc-open`), 해당 테스트 | B 통합 | Codex Sol medium — 정해진 바꾸기, 판단이 적다 | test·typecheck·lint | 통합(cherry-pick) `e9d3ca0c6`·`1b0b0f6d8`. 워커 해제, `tp-copy` 제거 |
 | C 리뷰 | C diff | 읽기만 | C | Codex Sol medium — 작은 diff | 🔴 0 | 🔴0 🟡0. ⚪ 실제 스크린 리더 발화는 E에서 본다 |
 | D design-sync | tasks 7 | 위 구현 파일(측정 뒤 고침), `docs/design/conversation.md`, `.scratch/design-sync/` | C 통합 | Claude Opus medium — 실제 앱 측정과 고침 판단 | measure.mjs가 드래프트와 맞음 | 통합 `f5805b8ae`·`e4082059c`·`fe7c3c356`. 78/78 일치, 고친 것 1개(맞는 이름이 잘림). Overview의 받은 버블은 도달할 수 없음(handoff는 캔버스 대화로만 감) |
-| E runtime-test | tasks 8 | `.scratch/runtime-test/thread-polish/`만 | D 통합 | Claude Opus medium — 격리 실수 비용이 크고 판단이 필요하다. D 워커에 이어서 맡긴다(같은 격리 하네스) | 항목별 결과·스크린샷 | 진행 (`tp-sync`) |
+| E runtime-test | tasks 8 | `.scratch/runtime-test/thread-polish/`만 | D 통합 | Claude Opus medium — 격리 실수 비용이 크고 판단이 필요하다. D 워커에 이어서 맡긴다(같은 격리 하네스) | 항목별 결과·스크린샷 | 1차: 실패 5(handoff 직후 스크롤, 키 애니메이션, 스레드 밖 포커스의 키, clamp+성장, reveal 중 바닥 복귀), 사용자 확인 필요 4 → A 워커가 고친다 |
 | 지휘자 | tasks 2(완료), 9, 10 | `docs/` | E | — | verify 통과, tasks 10 grep | 대기 |
 
 ## BACKLOG 후보
 
 - 대화 제목이 첫 줄이 아니라 줄을 이어 붙인 문장이다(B 리뷰 ⚪, 기존 문제).
 - 캔버스 카드 `CardName`도 floor/ceil 반올림으로 맞는 이름을 자를 수 있다(D, 기존 문제).
+
+- forced colors에서 `.doan-button`(Open `panel`·`subtle`)에 가장자리가 없어 글자로만 보인다(공용 DS).
+- Copy 직후 모달이 열리면 토스트가 배경막 뒤에 남는다(공용 토스트).
 
 ## lead 요청
 
