@@ -17,9 +17,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | T0, T1, T2 | `cli/internal/check/`, `cli/internal/cli/check.go`·`check*_test.go`·`run.go`·`sessions*.go`, 새 golden fixture | — | Claude Opus high. 공유 CSS 중복 제거와 범위 판정이 맞물려 틀리면 결과가 조용히 사라진다 | `go test ./...`, `go vet ./...`, red→green, T0 golden 불변 | 대기 |
-| B | T3 | `cli/internal/cli/skill.md`·`skill_test.go`, `cli/internal/designskill/presets/`·`design_skill_test.go`, `schema/fixtures/cli-envelope/design-skill/`, `app/src/main/conversation/prompt.ts`와 그 테스트 | — | Codex `gpt-6.1-sol` medium. 문구를 같은 형태로 바꾸는 기계적 작업이다 | `go test ./...`, `npm --prefix app test` | 대기 |
-| C | T4 | `eval/` (새 시나리오, `eval/lib/transcript.ts`와 테스트) | A 통합(시나리오 pass fixture가 범위 검사를 쓴다) | Codex `gpt-6.1-sol` high. 판단보다 단계가 많다(seed, 검사, fixture 둘, self-test) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 대기 |
+| A | T0, T1, T2 | `cli/internal/check/`, `cli/internal/cli/check.go`·`check*_test.go`·`run.go`·`sessions*.go`, 새 golden fixture | — | Claude Opus high. 공유 CSS 중복 제거와 범위 판정이 맞물려 틀리면 결과가 조용히 사라진다 | `go test ./...`, `go vet ./...`, red→green, T0 golden 불변 | 완료, 리뷰 🔴0 🟡0 ⚪5, 통합 |
+| B | T3 | `cli/internal/cli/skill.md`·`skill_test.go`, `cli/internal/designskill/presets/`·`design_skill_test.go`, `schema/fixtures/cli-envelope/design-skill/`, `app/src/main/conversation/prompt.ts`와 그 테스트 | — | Codex `gpt-6.1-sol` medium. 문구를 같은 형태로 바꾸는 기계적 작업이다 | `go test ./...`, `npm --prefix app test` | 진행 중 |
+| C | T4 | `eval/` (새 시나리오, `eval/lib/transcript.ts`와 테스트) | A(시나리오 pass fixture가 범위 검사를 쓴다). A 리뷰와 겹치게 A 브랜치 끝에서 시작했다 | Codex `gpt-6.1-sol` high. 판단보다 단계가 많다(seed, 검사, fixture 둘, self-test) | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 중 |
 | 리뷰 | 배치마다 | 읽기 전용 | 각 배치 완료 | 배치 A: Claude Opus medium, B·C: Claude Sonnet medium | `/code-review` 🔴 0 | 대기 |
 | T5 | 통합 검증, `/agent-eval` | `docs/usability-eval/` | A·B·C 통합 | conductor | `verify.mjs --eval`, 새 시나리오 두 계열 통과 | 대기 |
 | T6 | 승격과 정리 | PRODUCT, ARCHITECTURE, README, 기능 디렉터리 삭제 | T5 | conductor | 세 문서에 새 규칙, 디렉터리 없음 | 대기 |
@@ -27,10 +27,20 @@
 ## 파일 겹침과 순서
 
 - A와 B는 같은 패키지 `cli/internal/cli/`를 건드리지만 파일이 겹치지 않는다(A는 check·run·sessions, B는 skill). 병렬로 돈다.
-- C는 A가 통합된 뒤 시작한다. B와는 겹치지 않는다.
+- C는 A의 동작이 필요해서 A 브랜치 끝(`3169518f6`)을 기준으로 시작했다. 통합할 때는 C 자신의 커밋만 가져온다. B와는 겹치지 않는다.
 - answer-popover 링크와는 겹치지 않는다(체인 '순서').
 
 ## 모델 계열 교차
 
 - 체인 '상시 권한'의 허가로 배치 워커에만 Codex를 쓴다: B(Sol medium), C(Sol high). 리뷰 워커와 A는 Claude다.
 - 링크 시작 시 Codex 사용률: 5h 2%, 7d 1%.
+
+## 진행 기록
+
+- A 결정(워커): `checkInput`의 internal_error에서도 읽은 캔버스로 세션을 기록한다(기존 세션 테스트와 spec 6의 인자 없는 동작 불변). 경로 오류에서는 기록하지 않는다. 리뷰에서 판단을 받는다.
+- B: 범위 밖 `app/src/main/mcpConnectors/pty.test.ts:30`이 한 번 실패했다. 다시 돌려 보게 했다.
+- C 시작 시 Codex 사용률: 5h 14%, 7d 2%.
+- C seed(conductor 판단): tasks T4의 "두 캔버스가 함께 링크한 공유 CSS"로는 CSS 경로를 넘기면 오류 있는 관계없는 캔버스도 범위에 들어 exit 0이 될 수 없다. 대상 + 정상 동반 캔버스가 공유 CSS를 링크하고, 오류 있는 관계없는 캔버스는 링크하지 않는 세 캔버스 seed로 바꿨다. spec 완료 조건 10은 그대로 판정한다.
+- A 리뷰(Opus medium): 🔴 0, 🟡 0, ⚪ 5. 고치지 않고 통합한다. 리뷰가 올린 두 결정은 conductor가 정했다.
+  - 세션 기록: 경로 오류로 끝나면 기록하지 않고, `checkInput` 읽기 실패는 지금처럼 읽은 캔버스를 기록한다. 근거: spec 완료 조건 6·8. T6에서 ARCHITECTURE에 이 규칙으로 적는다.
+  - `.doan/Config.json`과 지운 CSS 인자는 적힌 표기로 맞춘다(대소문자를 접지 않는다). 근거: spec 완료 조건 7은 CSS·설정에 심볼릭 링크와 루트 별칭만 풀라고 한다. 에이전트는 자기가 쓴 표기를 넘긴다.
