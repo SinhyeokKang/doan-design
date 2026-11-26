@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { threadItems, withSending } from "./threadItems";
 import { combineQueued } from "../main/conversation/queue";
-import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, TAU_MS, WHEEL_HOLD_MS, entering, followResize, followStep, nextFollow, revealBoundary, revealStep, type FollowState } from "./threadMotion";
+import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, TAU_MS, WHEEL_HOLD_MS, entering, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, type FollowState } from "./threadMotion";
 import { FOLLOW_DISTANCE } from "./threadItems";
 
 const ROOT = "/Users/ada/code/doan";
@@ -461,5 +461,17 @@ describe("followResize", () => {
     expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1300, 180, 780) }))).toEqual({ state: away, move: "none", behind: true });
     // The inset shrank by more than the content grew: the content still grew.
     expect(followResize(away, change({ before: size(1000, 180, 480), after: size(1060, 40, 400) })).behind).toBe(true);
+  });
+});
+
+// A registered time token computes in seconds ("0.12s"); read as a plain number it gave 0.12 ms, so the popover's collapse
+// and expand finished at once.
+describe("timeMs", () => {
+  test("reads a CSS time in either unit as milliseconds; anything else is 0", () => {
+    expect(timeMs("120ms")).toBe(120);
+    expect(timeMs("0.12s")).toBe(120);
+    expect(timeMs(" 0.4s ")).toBe(400);
+    expect(timeMs("")).toBe(0);
+    expect(timeMs("fast")).toBe(0);
   });
 });
