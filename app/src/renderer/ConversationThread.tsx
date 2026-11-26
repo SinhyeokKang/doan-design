@@ -989,9 +989,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!ask) return;
     const ids = waitingIds, key = ask.key, node = popover.current;
     const fold = () => {
-      // A request that came during the fade keeps it open: the fade is undone instead.
-      if (waitingNow.current.join("\n") !== ids.join("\n")) { stopMotion(); return; }
-      latest.current.onCollapse?.(ids);
+      // A request that came during the fade keeps it open (the fade is undone); one that ended leaves the rest to fold.
+      const now = waitingNow.current;
+      if (now.some(id => !ids.includes(id))) { stopMotion(); return; }
+      latest.current.onCollapse?.(now);
       if (andThen === "bar") popoverFocus.current = { key, open: false };
       else handFocus(() => latest.current.onFocusComposer?.());
     };
