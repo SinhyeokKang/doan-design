@@ -521,12 +521,14 @@ test("each entry request scrolls anew, and the scroll waits until the permission
   h.run.takeScroll(A);
   expect(h.run.scrollRequest(A)).toBeNull();
 });
-test("a waiting question is the entry's scroll target; with a permission request too, the newest one is", () => {
+// The popover shows the earliest waiting request, so an entry goes to that one.
+test("a waiting question is the entry's target; with a permission request too, the earliest one is", () => {
   const question = { kind: "question" as const, key: "Qq1", seq: 6, requestId: "q1", questions: [], status: "pending" as const, answers: null };
   const ask = { kind: "permission" as const, key: "p1", seq: 5, requestId: "r", summary: "s", options: [], status: "pending" as const, answer: null };
   expect(scrollTarget([question], true)).toEqual({ kind: "item", key: "Qq1" });
-  expect(scrollTarget([ask, question], true)).toEqual({ kind: "item", key: "Qq1" });
-  expect(scrollTarget([question, { ...ask, key: "p2", seq: 7 }], true)).toEqual({ kind: "item", key: "p2" });
+  expect(scrollTarget([ask, question], true)).toEqual({ kind: "item", key: "p1" });
+  expect(scrollTarget([question, { ...ask, key: "p2", seq: 7 }], true)).toEqual({ kind: "item", key: "Qq1" });
+  expect(scrollTarget([ask, { ...ask, key: "p2", seq: 7, requestId: "r2" }], true)).toEqual({ kind: "item", key: "p1" });
   expect(scrollTarget([{ ...question, status: "skipped" }, ask], true)).toEqual({ kind: "item", key: "p1" });
   expect(scrollTarget([{ ...question, status: "answered" }], false)).toEqual({ kind: "drop" });
 });

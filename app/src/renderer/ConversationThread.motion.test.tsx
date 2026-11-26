@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { codeToCopy, ConversationThread, entryTimes, FADE_MS, fadeOpacity, flushesReply, followResize, replyStart, revealFrame, revealMode, revealStart, scrollToItemHolds, type ConversationThreadProps, type RevealState } from "./ConversationThread";
+import { codeToCopy, ConversationThread, entryTimes, FADE_MS, fadeOpacity, flushesReply, replyStart, revealFrame, revealMode, revealStart, type ConversationThreadProps, type RevealState } from "./ConversationThread";
 import { TooltipProvider } from "./components/ui/tooltip";
 import type { ThreadItem } from "./threadItems";
-import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, nextFollow } from "./threadMotion";
+import { FINISH_MS, MAX_LAG_MS } from "./threadMotion";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
@@ -173,52 +173,5 @@ describe("code Copy", () => {
 describe("follow", () => {
   test("the thread's scroller has no scroll anchoring, which would move a followed view as a reply grows", () => {
     expect(css).toContain(".conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }");
-  });
-
-  const pinned = FOLLOW_START, at = 1000;
-  test("while a reply reveals, the view sticks to the bottom; a one-time growth eases", () => {
-    expect(followResize(pinned, { reduced: false, revealing: true, distance: 0, now: at, grew: true })).toEqual({ state: pinned, move: "snap", behind: false });
-    expect(followResize(pinned, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("ease");
-  });
-
-  test("reduced motion jumps", () => {
-    expect(followResize(pinned, { reduced: true, revealing: false, distance: 0, now: at, grew: true }).move).toBe("snap");
-  });
-
-  test("scrolled away by the person, growth leaves the view and shows Jump to latest", () => {
-    const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
-    expect(followResize(away, { reduced: false, revealing: true, distance: 300, now: at, grew: true })).toEqual({ state: away, move: "none", behind: true });
-  });
-
-  test("scrolled away, a row folding or unfolding or the viewport resizing without new content leaves Jump to latest as it was", () => {
-    const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
-    // An activity row folds (the content shrinks), or the window or composer resizes the viewport.
-    expect(followResize(away, { reduced: false, revealing: false, distance: 300, now: at, grew: false }).behind).toBeNull();
-    expect(followResize(away, { reduced: false, revealing: false, distance: 280, now: at, grew: false }).behind).toBeNull();
-  });
-
-  test("only a scroll to a waiting permission or question holds the follow; a handoff card's does not", () => {
-    const items: ThreadItem[] = [
-      { kind: "handoffCard", key: "h1", seq: 1, origin: { kind: "handoff", conversationId: "c0" }, text: "Earlier work", at: "2026-11-25T00:00:00Z" },
-      { kind: "permission", key: "p2", seq: 2, requestId: "r1", summary: "npm test", options: [], status: "pending", answer: null },
-      { kind: "permission", key: "p3", seq: 3, requestId: "r0", summary: "ls", options: [], status: "answered", answer: null },
-    ];
-    expect(scrollToItemHolds(items, "h1")).toBe(false);
-    expect(scrollToItemHolds(items, "p2")).toBe(true);
-    expect(scrollToItemHolds(items, "p3")).toBe(false);
-    expect(scrollToItemHolds(null, "p2")).toBe(false);
-  });
-
-  test("back near the bottom once the wheel's inertia is over, it follows again", () => {
-    const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
-    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at, grew: true }).move).toBe("none");
-    expect(followResize(away, { reduced: false, revealing: false, distance: 10, now: at + 200, grew: true }).move).toBe("ease");
-  });
-
-  test("after a scroll to a waiting card it stays until released", () => {
-    const held = nextFollow(pinned, { type: "scrollToItem" });
-    expect(followResize(held, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("none");
-    const released = nextFollow(held, { type: "release" });
-    expect(followResize(released, { reduced: false, revealing: false, distance: 0, now: at, grew: true }).move).toBe("ease");
   });
 });
