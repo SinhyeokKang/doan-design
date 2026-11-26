@@ -100,7 +100,7 @@ No numeric score is required. Explain why each issue matters and keep recommenda
 
 ## Verify
 
-Before reporting, confirm each finding in context and drop false positives you could not confirm. Check that every dimension in scope appears either as checked, with its evidence level, or as unchecked, with the reason. A passing `doan check <edited canvas, CSS and config paths> --json` means the canvas follows Doan's conventions, not that it is accessible. Screen reader output, keyboard behavior as rendered, touch gestures, real devices, zoom reflow, and performance metrics are unverified unless you actually ran them.
+Before reporting, confirm each finding in context and drop false positives you could not confirm. Check that every dimension in scope appears either as checked, with its evidence level, or as unchecked, with the reason. A passing `doan check <audited canvas and CSS paths> --json` means the canvas follows Doan's conventions, not that it is accessible. Screen reader output, keyboard behavior as rendered, touch gestures, real devices, zoom reflow, and performance metrics are unverified unless you actually ran them.
 
 ---
 

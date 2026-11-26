@@ -593,8 +593,8 @@ func TestSkillGuideKeepsCanvasCopiesOutOfCanvasFolders(t *testing.T) {
 func TestSkillGuideCheckScope(t *testing.T) {
 	for _, required := range []string{
 		"`doan check [<path>...] --json`",
-		"paths: affected canvases; no paths: whole repo, only at human request.",
-		"0: none written yet, no paths only",
+		"reports only canvases the paths affect.",
+		"No paths, when a human asks for all: whole repo (`summary.canvases` 0: none written yet)",
 	} {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing check scope guidance: %s", required)
