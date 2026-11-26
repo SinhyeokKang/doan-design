@@ -1042,6 +1042,9 @@ body:has(.shell-top) { background: transparent; }
 /* The follow writes the scroll itself; scroll anchoring would move it as a reply grows above. */
 .conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
+/* The answer popover's height, kept clear after the last item. A spacer, not the scroller's padding: padding would set the
+   scroller's least height and run it past a short thread area's bottom, under the composer. */
+.conversation-thread .thread-end { flex: none; height: var(--ap-inset, 0px); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
 /* One line tall and top-aligned, so it never makes the last line taller and the reply does not shrink when it goes. */
 .conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
@@ -1244,7 +1247,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
 .ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .ov-scroll > .conversation-thread { flex: 1; }
-.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) calc(var(--space-8) + var(--ap-inset, 0px)); }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
@@ -1489,7 +1492,7 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
 /* Shares the buddy slot's stacking context; above it, the buttons keep their click. */
 .cp-scroll > .doan-notice { position: relative; z-index: 3; }
-.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) calc(var(--space-8) + var(--ap-inset, 0px)); }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }
 .doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
 .doan-conv-panel .msg-user { max-width: 92%; }
 .doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
@@ -1616,6 +1619,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .conversation-thread .ap-bar:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .conversation-thread .ap-bar .bar-chev { display: grid; place-items: center; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); color: var(--text-subtle); }
 .conversation-thread .ap-bar .bar-chev svg { width: var(--size-icon); height: var(--size-icon); }
+/* Cramped (the head and buttons do not fit up to the panel's top): the head stays and the body and buttons scroll under it. */
+.conversation-thread .ap[data-cramped] { overflow-y: auto; scroll-padding-top: calc(var(--size-control-sm) + var(--space-2)); }
+.conversation-thread .ap[data-cramped] > .ap-head { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); }
+.conversation-thread .ap[data-cramped] > .ap-body { flex: none; overflow: visible; animation: none; }
 .conversation-thread .ap .q-group { box-shadow: none; }
 .conversation-thread .ap .q-input { background: var(--surface-inset); }
 /* The chosen option shows by its control only. */

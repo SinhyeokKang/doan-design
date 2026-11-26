@@ -28,7 +28,7 @@ import { useThumbnails, type ThumbnailHub, type ThumbnailState } from "./thumbna
 import { providerLogo, sentFileView, splitRequest } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { EMPTY_QUESTION_DRAFT, questionDraft, questionInput, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { AnswerPopover, popoverFloor, type AskItem } from "./AnswerPopover";
+import { AnswerPopover, popoverCramped, popoverFloor, type AskItem } from "./AnswerPopover";
 import { useActivationFocus } from "./activationFocus";
 import type { VisibleCalls } from "./visibleClock";
 import { anchorParts, pendingAsks, questionLines, sameItem, scrollFollow, waitsForPerson, type ActivityStep, type MessagePart, type ThreadItem, type TurnEnd } from "./threadItems";
@@ -885,6 +885,7 @@ function focusedItem(root: HTMLElement | null): string | null {
 // The current frame's time, which a ResizeObserver callback shares with that frame's rAF callbacks.
 const frameTime = () => typeof document !== "undefined" ? document.timeline.currentTime : null;
 const NO_SENDS: readonly LocalSend[] = [];
+const JUMP_ROOM = 56;
 // Keys that edit text or press a control there rather than scroll the thread.
 const OWN_KEYS = "input, textarea, select, button, [contenteditable]";
 
@@ -913,6 +914,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
   const [behind, setBehindState] = useState(false), behindNow = useRef(false);
+  // Jump to latest rides above the popover; where the popover leaves less than its height and margins (32 + 2 × 12) in
+  // the thread area, it would sit on the panel's head, so it stays away.
+  const [jumpFits, setJumpFits] = useState(true);
   const setBehind = (value: boolean) => { if (behindNow.current !== value) { behindNow.current = value; setBehindState(value); } };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
@@ -981,8 +985,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     const chrome = [...node.querySelectorAll<HTMLElement>(":scope > .ap-head, :scope > .ap-actions, :scope > .ap-error, :scope > .ap-bar")].map(part => part.offsetHeight);
     const panel = node.closest(".doan-conv-panel, .ov-main"), area = node.parentElement;
     const room = panel && area ? area.getBoundingClientRect().bottom - panel.getBoundingClientRect().top : Infinity;
-    const value = `${popoverFloor({ chrome, bodyPadding: style ? Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) : 0, room })}px`;
+    const fit = { chrome, bodyPadding: style ? Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom) : 0, room };
+    const value = `${popoverFloor(fit)}px`, cramped = popoverCramped(fit);
     if (node.style.minHeight !== value) node.style.minHeight = value;
+    if (node.hasAttribute("data-cramped") !== cramped) node.toggleAttribute("data-cramped", cramped);
   };
   // The body and buttons fade out first, then the fold draws the bar and its height runs (the layout effect below).
   const collapse = (andThen: "bar" | "composer") => {
@@ -1131,6 +1137,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (popover.current) holdChrome(popover.current);
     const insetNow = popover.current?.isConnected === false ? 0 : popover.current?.offsetHeight ?? 0;
     if (insetNow !== inset.current) root.current?.style.setProperty("--ap-inset", `${insetNow}px`);
+    const fits = node.clientHeight - insetNow >= JUMP_ROOM;
+    if (fits !== jumpFits) setJumpFits(fits);
     const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
     const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
     contentHeight.current = after.content;
@@ -1430,8 +1438,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
             aria-disabled={line.stopping || undefined} data-disabled={line.stopping ? "" : undefined} onClick={() => stopLine(line.turnId, line.stopping)}>
             {line.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <CircleStop aria-hidden="true" />}{line.stopping ? "Stopping" : "Stop"}</button>
         </div></div>}</div>
+      <div className="thread-end" aria-hidden="true" />
     </div>
-    {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
+    {behind && jumpFits && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     {ask && <AnswerPopover item={ask} provider={provider} count={asks.length} base={base} collapsed={collapsed} announce={announce}
       draft={ask.kind === "question" ? draftOf(ask.requestId) : EMPTY_QUESTION_DRAFT} pressed={pressing.get(ask.requestId) ?? null} failed={unanswered.has(ask.requestId)} rootRef={popoverRef}
       onAnswer={optionId => answer(ask.requestId, optionId)} onDraft={action => editQuestion(ask.requestId, action)}

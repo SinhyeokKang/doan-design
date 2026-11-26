@@ -49,6 +49,11 @@ export function popoverFloor({ chrome, bodyPadding, room }: { chrome: readonly n
   return Math.max(0, Math.min(chrome.reduce((sum, height) => sum + height, bodyPadding), room));
 }
 
+// Even the full rise cannot hold the head and the buttons: the head stays and the body and the buttons scroll under it.
+export function popoverCramped({ chrome, bodyPadding, room }: { chrome: readonly number[]; bodyPadding: number; room: number }): boolean {
+  return chrome.reduce((sum, height) => sum + height, bodyPadding) > room;
+}
+
 // An Other reached by arrow keys only opens its input; a click or Space also moves focus there. keydown comes before the
 // change and keyup after, so a flag between them tells the two apart.
 let arrowing = false;
