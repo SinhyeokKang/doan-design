@@ -443,7 +443,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onRetry={() => run.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
-        onCopy={text => Promise.resolve(copyText(text))}
+        onCopy={async text => { const ok = copyText(text); if (ok) props.onNotice?.("Copied code"); return ok; }}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
         now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
         localSends={run.store.localSends(conversationId)} onSpendSends={marks => run.store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />

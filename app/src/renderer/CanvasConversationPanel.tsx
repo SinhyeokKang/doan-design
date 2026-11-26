@@ -556,7 +556,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})} {...(props.onOpenOverview ? { onOpenOverview: props.onOpenOverview } : {})}
         {...(props.conversationListed ? { conversationListed: props.conversationListed } : {})}
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
-        onCopy={text => Promise.resolve(copyText(text))}
+        onCopy={async text => { const ok = copyText(text); if (ok) props.onNotice("Copied code"); return ok; }}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
         now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}

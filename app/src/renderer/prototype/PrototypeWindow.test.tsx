@@ -683,6 +683,23 @@ describe("Export", () => {
     expect((await settle()).exporting).toBe(false);
   });
 
+  for (const phase of ["progress", "action"] as const) {
+    test(`the conversation's copy notice replaces an export ${phase} toast`, async () => {
+      show(view({ phase: "ready", panel: { open: true, width: 280 } }));
+      const answer = pending();
+      shell.onExport();
+      running(target);
+      if (phase === "progress") { vi.advanceTimersByTime(1_000); render(); }
+      else { answer({ kind: "exported", external: 0, reveal: "id-1" }); await settle(); }
+      expect(toastParts()).not.toBeNull();
+      const panel = shell.conversation!.body as ReactElement<{ onNotice(text: string): void }>;
+      panel.props.onNotice("Copied code");
+      render();
+      expect(toastParts()).toMatchObject({ text: "Copied code", action: null });
+      expect((shell.toast as ReactElement<{ role: string }>).props.role).toBe("status");
+    });
+  }
+
   test("a running event for another export changes nothing", () => {
     show(view({ phase: "ready" }));
     running(target);

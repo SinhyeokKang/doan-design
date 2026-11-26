@@ -58,6 +58,9 @@ describe("under forced colours", () => {
     ["the focused panel handle", ".doan-panel-handle:focus-visible { outline: 2px solid Highlight; }"],
     ["an added project's flashed row", ".shell-side .shell-project-row.flash { outline: 2px solid Highlight; outline-offset: -2px; }"],
     ["a flashed preference row", ".doan-preference-row[data-flash] { outline: 2px solid Highlight; outline-offset: -2px; }"],
+    // The received handoff is a .bubble, so it takes the bubbles' edge; its meta line's divider is its own.
+    ["the received handoff bubble's edge", ".conversation-thread :is(.bubble, .md-code, .md blockquote, .md-table, .msg-files .attach-chip) { border: 1px solid CanvasText; }"],
+    ["the received handoff's meta divider", ".conversation-thread .ho-meta { border-bottom-color: CanvasText; }"],
   ])("%s stays visible", (_name, rule) => {
     expect(forced(styles)).toContain(rule);
   });
