@@ -285,7 +285,10 @@ test("the actions stack under the text once they would push the title off its li
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { resized = callback; } observe() {} disconnect() {} });
   const box = (width: number) => ({ getBoundingClientRect: () => ({ width }) });
   let actions = [70, 66, 140, 250, 75].map(box);
-  const node = { clientWidth: 650, querySelector: (selector: string) => (({ ".strip-agent": box(16), ".strip-text > b": { scrollWidth: 205 }, ".strip-actions": { children: actions } }) as Record<string, unknown>)[selector] ?? null };
+  // A stacked title box is as wide as the strip, so its scrollWidth is too; only its text's own width says whether it fits.
+  const title = { scrollWidth: 596 };
+  const node = { clientWidth: 650, querySelector: (selector: string) => (({ ".strip-agent": box(16), ".strip-text > b": title, ".strip-actions": { children: actions } }) as Record<string, unknown>)[selector] ?? null };
+  vi.stubGlobal("document", { createRange: () => { let of: unknown; return { selectNodeContents: (target: unknown) => { of = target; }, getBoundingClientRect: () => ({ width: of === title ? 205 : 0 }) }; } });
   vi.stubGlobal("getComputedStyle", (el: unknown) => el === node ? { paddingLeft: "16px", paddingRight: "16px", columnGap: "6px" } : { columnGap: "8px" });
   const codex: StripState = { kind: "permission", requestId: "r2", summary: "echo hello", options: [
     { id: "a", label: "Allow", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" },

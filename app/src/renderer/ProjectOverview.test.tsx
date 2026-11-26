@@ -278,5 +278,5 @@ test("the Overview's project crumb is capped at 40% and its name ellipsizes", as
 test("the Overview's title cell gives way before the project crumb", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toMatch(/\.ov-title-wrap \{[^}]*flex: 0 1e8 auto;/);
+  expect(css).toContain(".ov-head > .ov-title-wrap { flex: 0 1e8 auto; }");
 });
