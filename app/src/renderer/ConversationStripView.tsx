@@ -61,6 +61,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
         icon: node.querySelector(".strip-agent")?.getBoundingClientRect().width ?? 0,
         gap,
         title: textWidth(node.querySelector(".strip-text > b")),
+        body: textWidth(node.querySelector(".strip-text > span")),
         actions: buttons.reduce((sum, button) => sum + button.getBoundingClientRect().width, 0) + rowGap * Math.max(0, buttons.length - 1),
       }));
     };
@@ -68,7 +69,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [actionsKey, view.title]);
+  }, [actionsKey, view.title, view.body]);
   const run = (action: StripAction) => {
     if (action.command === "answer") {
       if (state.kind === "permission") send(state.requestId, "answer", () => window.doan.answerConversationPermission({ conversationId, requestId: state.requestId, optionId: action.optionId }));
