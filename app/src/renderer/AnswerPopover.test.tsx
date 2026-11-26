@@ -420,14 +420,14 @@ describe("styles", () => {
     expect(css).toContain("@keyframes ap-body-fade { from, 99% { mask-image: linear-gradient(to bottom, black calc(100% - var(--space-6)), transparent); } to { mask-image: none; } }");
   });
 
-  // While an answer is out, every control but Send (which keeps its fill with the spinner) reads as off, the pressed
-  // permission button and the option rows included.
   test("a cramped popover scrolls its body and buttons together under a sticky head", () => {
     expect(css).toContain(".conversation-thread .ap[data-cramped] { overflow-y: auto; scroll-padding-top: calc(var(--size-control-sm) + var(--space-2)); }");
     expect(css).toContain(".conversation-thread .ap[data-cramped] > .ap-head { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); }");
     expect(css).toContain(".conversation-thread .ap[data-cramped] > .ap-body { flex: none; overflow: visible; animation: none; }");
   });
 
+  // While an answer is out, every control but Send (which keeps its fill with the spinner) reads as off, the pressed
+  // permission button and the option rows included.
   test("a locked popover dims its option rows and every unavailable control but Send", () => {
     expect(css).toContain('.conversation-thread .ap.is-locked :is([aria-disabled="true"]:not(.q-send), .q-pref) { color: var(--text-disabled); cursor: default; }');
   });

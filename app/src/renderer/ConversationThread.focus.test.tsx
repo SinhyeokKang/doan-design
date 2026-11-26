@@ -398,8 +398,6 @@ test("a new request opening a collapsed popover leaves focus where it was", () =
   expect(active).toEqual({ composer: true });
 });
 
-// The surface's motion with stand-in animations: finished and cancel events arrive only when the test says, as a browser
-// dispatches them on a later frame.
 // focusItem focuses without scrolling the thread; in a cramped popover the choice may sit below what shows, so it is
 // scrolled into view within the popover.
 test("an entry's focus in a cramped popover brings the choice into view; elsewhere it scrolls nothing", () => {
@@ -430,11 +428,13 @@ test("a popover turning cramped with focus inside brings the focused control int
   expect(focused.scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
 });
 
+// The surface's motion with stand-in animations: finished and cancel events arrive only when the test says, as a browser
+// dispatches them on a later frame.
 describe("the popover's motion", () => {
   type Run = { cancel: ReturnType<typeof vi.fn>; finished: Promise<void>; finish(): void; onfinish: null | (() => void); oncancel: null | (() => void) };
   let runs: Run[];
   const stand = (name: string) => ({
-    name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null, hasAttribute: () => false, toggleAttribute: () => false,
+    name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null, hasAttribute: (attribute: string) => attribute === "data-cramped" && cramped, toggleAttribute: () => false, scrollTo: vi.fn(),
     animate: () => { let finish!: () => void; const run: Run = { cancel: vi.fn(), finished: new Promise<void>(resolve => { finish = resolve; }), finish: () => finish(), onfinish: null, oncancel: null }; runs.push(run); return run; },
   });
   let surface: ReturnType<typeof stand> & { querySelector(): null; querySelectorAll(selector: string): unknown[]; closest(): null };
@@ -457,6 +457,61 @@ describe("the popover's motion", () => {
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     expect(props.onCollapse).not.toHaveBeenCalled();
     for (const fade of fades) expect(fade.cancel).toHaveBeenCalled();
+  });
+
+  // The fold draws the bar of the request shown then; a key taken at the press would point at one that ended.
+  test("Collapse while the shown request ends during the fade puts focus on the next request's bar", async () => {
+    draw([permission("a"), permission("b")]);
+    attach();
+    active = inCard("pa");
+    (popover()!.props.onCollapse as () => void)();
+    draw([permission("a", "answered"), permission("b")], toBody);
+    expect(focusedOption()).toEqual(["pb"]);
+    const before = controls.get("pb")!.focus.mock.calls.length;
+    active = inCard("pb");
+    for (const fade of [...runs]) fade.finish();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(props.onCollapse).toHaveBeenCalledExactlyOnceWith(["b"]);
+    draw([permission("a", "answered"), permission("b")], toBody);
+    expect(popover()!.props.collapsed).toBe(true);
+    expect(controls.get("pb")!.focus.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  // Esc hands focus to the composer at once, so a quick Return after it cannot press a control that is fading out.
+  test("Esc moves focus to the composer at once and folds once the fade ends", async () => {
+    draw([permission("a")]);
+    attach();
+    (popover()!.props.onEscape as () => void)();
+    expect(composer).toHaveBeenCalledOnce();
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    for (const fade of [...runs]) fade.finish();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(props.onCollapse).toHaveBeenCalledExactlyOnceWith(["a"]);
+    expect(composer).toHaveBeenCalledOnce();
+  });
+
+  test("reduced motion folds at once and runs no motion", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    draw([permission("a")]);
+    attach();
+    (popover()!.props.onCollapse as () => void)();
+    expect(props.onCollapse).toHaveBeenCalledExactlyOnceWith(["a"]);
+    draw([permission("a")]);
+    expect(runs).toEqual([]);
+    expect(surface.style.overflow).toBe("");
+  });
+
+  // In a cramped popover the popover itself scrolls the body, so a new step starts from its top there.
+  test("Next in a cramped popover brings the popover's own scroll back to the top", () => {
+    const two = { kind: "question", key: "qm", seq: 2, requestId: "m", status: "pending", answers: null, questions: [question, { ...question, id: "1" }] } as ThreadItem;
+    let draft = { choices: { "0": { selected: [0], other: false, text: "" } }, step: 0, sending: null, failed: null };
+    props = { ...props, questionDraft: () => draft, onQuestionDraft: (_id, action) => { if (action.type === "next") draft = { ...draft, step: 1 }; } };
+    cramped = true;
+    draw([two]);
+    attach();
+    (popover()!.props.onNext as () => void)();
+    draw([two]);
+    expect(surface.scrollTo).toHaveBeenCalledWith({ top: 0 });
   });
 
   test("a request that ends while the body fades out still collapses, over the requests left", async () => {

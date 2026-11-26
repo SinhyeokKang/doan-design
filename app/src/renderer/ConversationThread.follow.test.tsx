@@ -86,7 +86,7 @@ beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
-  scroller.scrollTop = 0;
+  scroller.scrollTop = 0; scroller.clientHeight = 400;
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("document", { activeElement: null, body: null, hasFocus: () => true, querySelectorAll: () => [], getSelection: () => null, addEventListener: () => {}, removeEventListener: () => {}, timeline: { currentTime: 0 } });
   vi.stubGlobal("requestAnimationFrame", () => 1);
@@ -134,6 +134,17 @@ test("Jump to latest stays away while the popover leaves it no room in the threa
   resize({ content: 1300 }, [user, ask]);
   expect(jump()).toBe(false);
   resize({ inset: 120 }, [user, ask]);
+  expect(jump()).toBe(true);
+});
+
+// The room rule is the popover's: with none drawn, a short thread area keeps Jump to latest.
+test("with no popover, a thread area shorter than Jump to latest's room still shows it for new content", () => {
+  Object.assign(layout, { viewport: 50 });
+  scroller.clientHeight = 50;
+  draw([user]);
+  scroller.scrollTop = 200;
+  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+  resize({ content: 1300 }, [user]);
   expect(jump()).toBe(true);
 });
 
