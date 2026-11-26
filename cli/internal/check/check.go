@@ -43,6 +43,9 @@ type Input struct {
 	// WithheldServe holds the config's serve entries, as written, that name a
 	// .git directory or .env file; the serving scope leaves them out.
 	WithheldServe []string
+
+	// Scope holds the canvas paths whose findings are reported; nil reports the whole repo.
+	Scope map[string]bool
 }
 type Finding struct {
 	Severity string `json:"severity"`
@@ -94,23 +97,34 @@ func Run(in Input) []Finding {
 			seen[f] = true
 		}
 	}
-	if len(in.Canvases)+len(in.Unparsable) == 0 {
+	inScope := func(path string) bool { return in.Scope == nil || in.Scope[path] }
+	if in.Scope == nil && len(in.Canvases)+len(in.Unparsable) == 0 {
 		add(Finding{Severity: "warning", Code: "no_canvases", Path: ".doan/canvases/", Message: "No canvases found under .doan/canvases/ or .doan/ds/. Write a canvas, then run doan check again."})
 	}
-	miscased := append([]string(nil), in.MiscasedCanvases...)
+	var miscased []string
+	if in.Scope == nil {
+		miscased = append(miscased, in.MiscasedCanvases...)
+	}
 	sort.Strings(miscased)
 	for _, path := range miscased {
 		add(Finding{Severity: "warning", Code: "canvas_extension_case", Path: path, Message: "Only a lower-case .html file is a canvas, so Doan does not list this file. Rename it to end in .html."})
 	}
 	for path, message := range in.Unparsable {
+		if !inScope(path) {
+			continue
+		}
 		add(Finding{Code: "unparsable_canvas", Path: path, Message: "Cannot parse canvas: " + message})
 	}
 	canvases := append([]canvas.Canvas(nil), in.Canvases...)
 	sort.Slice(canvases, func(i, j int) bool { return canvases[i].Path < canvases[j].Path })
 	counts := map[string]int{}
+	scopeIDs := map[string]bool{}
 	for _, c := range canvases {
 		if c.ValidID() {
 			counts[c.ID]++
+			if inScope(c.Path) {
+				scopeIDs[c.ID] = true
+			}
 		}
 	}
 	if in.TokenCSS.Configured && in.TokenCSS.State != In {
@@ -126,6 +140,14 @@ func Run(in Input) []Finding {
 	for _, c := range canvases {
 		base := Finding{Path: c.Path, Canvas: c.ID}
 		emit := func(code string) { f := base; f.Code = code; add(f) }
+		// A canvas outside the scope is skipped before it can claim a shared stylesheet's findings; only
+		// its share of an id used in the scope is reported.
+		if !inScope(c.Path) {
+			if c.ValidID() && counts[c.ID] > 1 && scopeIDs[c.ID] {
+				emit("duplicate_canvas_id")
+			}
+			continue
+		}
 		if !c.HasID {
 			f := base
 			f.Code = "missing_canvas_id"
