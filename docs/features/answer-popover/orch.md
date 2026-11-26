@@ -13,6 +13,7 @@
 - T2 PoC의 방식(A·B) 선택: conductor가 design.md 기준으로 정한다(chain.md '시작 점검'). 두 방식 모두 요구 항목을 못 채우면 멈추고 사용자에게 묻는다.
 - conductor's call — 끝 여백은 방식 A(overlay + ResizeObserver 여백)로 한다. 근거는 design.md 'PoC 결과'다. 남은 항목(여백만 바뀔 때의 거짓 Jump to latest)은 design이 계획한 따라가기 변경으로 T4에서 없애고 B2c `/runtime-test`에서 확인한다.
 - 사용자 — 접힌 팝오버가 새 요청으로 펼쳐지면 펼친 채 남는다. 새 요청만 끝나도 다시 접히지 않는다(R1 D1, design '상태'에 반영).
+- 사용자 — 위로 스크롤한 채 답해서 생긴 접힌 줄과 turn indicator는 새 내용이므로 Jump to latest가 뜬다(R2 U1, design '끝 여백과 따라가기'에 반영).
 - conductor's call — 문서에 '확인 필요' 항목이 없으므로 시작 전에 사용자에게 물을 것이 없다(chain.md '시작 점검').
 - conductor's call — T6(PRODUCT·ARCHITECTURE·BACKLOG 승격, 기능 디렉터리 삭제)는 문서만 바꾸므로 conductor가 통합 뒤 직접 한다(`/orchestrate` §4·§5).
 - conductor's call — T5 `/design-sync`와 `/runtime-test`는 코드를 고칠 수 있으므로 T3·T4를 맡은 워커(B2)가 같은 worktree에서 이어서 한다. 고치는 코드의 주인이 같아야 한다.
@@ -33,7 +34,7 @@
 | B2a | T3 순수 함수 | `questionDraft.ts`, `conversationStore.ts`, `overviewRun.ts`, `threadMotion.ts`와 각 테스트 | 없음 | Claude Opus high — T4·T5를 이어 맡으므로 같은 워커이고, 포커스·따라가기 규칙의 판단이 크다 | `npm --prefix app test`(red → green), `typecheck` | 통합 `54c574aef` |
 | B2b | T4 팝오버, 스레드, 진입점 | `app/src/renderer/` 대화 파일 전부와 `styles.css`, 테스트 | B1, B2a | B2a와 같은 워커 | `test`, `typecheck`, `lint` | 통합 `ebc627ecf`(ff) |
 | B2c | T5 `/design-sync`, `/runtime-test` | `docs/design/conversation.md`, `docs/design/canvas-conversation.md`, `docs/DESIGN.md`, 고칠 코드 | B2b | B2a와 같은 워커 | 측정값이 드래프트와 같거나 차이가 기록됨, 스크린샷 | 진행 |
-| R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
+| R | 각 구현 배치의 `/code-review` | 보고만 | 해당 배치 | R1 Codex Sol high, R2 Claude Opus high(아래 '모델 계열 교차') — Codex Sol high — 다른 계열이 구현에 묶이지 않은 눈으로 본다 | 🔴 0 | 대기 |
 | C | T6 승격과 정리 | PRODUCT, ARCHITECTURE, BACKLOG, 기능 디렉터리 삭제 | B2c | conductor | 옛 문장이 남지 않음(읽어서 확인) | 대기 |
 
 ## 겹침과 순서
@@ -60,3 +61,4 @@
 - R1: 🔴 0, 🟡 1(F1: `scrollHeight − inset`으로는 내용 성장을 믿을 수 없다. 소수 높이와 뷰포트 하한에서 여백만 바뀌어도 `behind`가 켜진다), ⚪ 2(N1: `resized()`의 raw `grew` 분기, N2: 턴이 resolved 없이 끝나면 접힘이 남는다), 결정 1(D1, 사용자 답 반영). F1·N1·N2와 D1을 B2에 고칠 거리로 보냈다.
 - B2b: T4와 R1 고칠 거리(F1, N1, N2, D1)를 `e29991a73`..`ebc627ecf`로 fast-forward 통합했다. 워커의 `/verify`는 `app/src/main/exportViewer.test.ts`의 waitFor 3000 ms 시간 초과에서 실패했다(부하 평균 약 25, 이 브랜치는 `app/src/main`을 건드리지 않는다, 혼자 돌리면 3/3 통과). 격리 앱 probe는 13/13 통과했다. 실제 앱에서 확인하지 못한 것(docked buddy 비켜서기, 권한 요청, 프로토타입 창, Overview, 테마, 모션)과 드래프트와 다른 점(본문 아래 fade, 접기 fade 순서)은 B2c로 넘겼다.
 - B2c: 같은 워커에 T5를 보냈다(dispatch `ctx_a4d7ab98a0e0`). R2: T4 리뷰를 새 child worktree `ap-r2`에서 시작했다(dispatch `ctx_bbcbcacec4e3`).
+- R2: 🔴 0, 🟡 2(Y1: 팝오버가 요청이 바뀌어도 같은 컨트롤을 다시 써서, 포커스가 다음 요청의 같은 버튼에 남는다. 실제 DOM에서 재현했다. Y2: 캔버스 패널 arrival 경로와 PrototypeWindow 포커스의 효과 실행 테스트가 없다), ⚪ 4, 결정 1(U1, 사용자 답 반영). R1 고칠 거리는 모두 고쳐졌다. Y1·Y2와 ⚪1–3을 B2에 보냈다.
