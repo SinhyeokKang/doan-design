@@ -62,6 +62,8 @@
   - 입력 대기가 지났다.
   
   그리고 `distance <= BOTTOM`이거나, `origin.top - top <= NUDGE`이면 붙는다.
+- 판정 전 입력 동안 내용이나 끝 여백이 줄어 브라우저가 `scrollTop`을 바닥으로 당기면(clamp), 그 양만큼 `origin.top`을 옮긴다. 마지막으로 읽은 `scrollTop`보다 낮아졌고 바닥에 닿았으면 clamp로 본다.
+  - 한계(사용자 결정): 사람의 스크롤과 clamp가 같은 읽기 사이에 함께 일어나면 둘을 나눌 근거가 없어 전부 clamp로 센다. 그때는 48px보다 많이 움직였어도 다시 붙어 바닥으로 돌아간다.
 - 다시 붙을 때 거리가 `BOTTOM`보다 크면 답이 드러나는 중이어도 `snap`하지 않고 `ease`로 바닥까지 간다. 그 동안 드러남으로 자란 높이는 `easeTo`의 목표만 바꾼다(`followStep`은 움직이는 목표를 받는다).
 - `behind`: 붙지 않았고 `distance > band`일 때 새 내용이 생기면 켠다. 단, 따라가기를 끊은 입력이 아직 판정 전(`origin`이 있음)이면 켜지 않고, 입력이 끝나 다시 붙지 않았을 때 band 밖이면 그때 켠다. `distance <= band`가 되면 끈다. 세 곳(`followResize`, `resized`, `onScroll`)이 같은 `band`와 같은 판정 시점(바뀐 뒤 거리)을 쓴다. `scrollFollow`는 이 판정으로 바꾸고 테스트를 고친다.
 - answer-popover의 끝 여백 규칙(여백 변화는 `behind`가 아님)은 그대로 둔다.
