@@ -396,6 +396,54 @@ test("a new request opening a collapsed popover leaves focus where it was", () =
   expect(active).toEqual({ composer: true });
 });
 
+// The surface's motion with stand-in animations: finished and cancel events arrive only when the test says, as a browser
+// dispatches them on a later frame.
+describe("the popover's motion", () => {
+  type Run = { cancel: ReturnType<typeof vi.fn>; finished: Promise<void>; finish(): void; onfinish: null | (() => void); oncancel: null | (() => void) };
+  let runs: Run[];
+  const stand = (name: string) => ({
+    name, style: { overflow: "", minHeight: "" }, offsetHeight: 120, parentElement: null,
+    animate: () => { let finish!: () => void; const run: Run = { cancel: vi.fn(), finished: new Promise<void>(resolve => { finish = resolve; }), finish: () => finish(), onfinish: null, oncancel: null }; runs.push(run); return run; },
+  });
+  let surface: ReturnType<typeof stand> & { querySelector(): null; querySelectorAll(): unknown[]; closest(): null };
+  beforeEach(() => {
+    runs = [];
+    const parts = [stand("body"), stand("actions")];
+    surface = Object.assign(stand("surface"), { querySelector: () => null, querySelectorAll: (selector: string) => selector.includes(":scope") ? [] : parts, closest: () => null });
+    vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: (name: string) => name === "--time-fast" ? "0.12s" : name === "--time-thread-enter" ? "0.4s" : "ease", paddingTop: "0px", paddingBottom: "0px" }));
+  });
+  const attach = () => (popover()!.props.rootRef as (node: unknown) => void)(surface);
+
+  test("a request that arrives while the body fades out leaves the popover open with its body and buttons back", async () => {
+    draw([permission("a"), permission("b")]);
+    attach();
+    (popover()!.props.onCollapse as () => void)();
+    const fades = [...runs];
+    expect(fades).toHaveLength(2);
+    draw([permission("a"), permission("b"), permission("c")]);
+    for (const fade of fades) fade.finish();
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(props.onCollapse).not.toHaveBeenCalled();
+    for (const fade of fades) expect(fade.cancel).toHaveBeenCalled();
+  });
+
+  test("a height run cancelled for the next one leaves the next run's clip alone when its cancel event comes", async () => {
+    draw([permission("a")]);
+    attach();
+    fold.collapsed = true;
+    draw([permission("a")]);
+    const first = runs.at(-1)!;
+    expect(surface.style.overflow).toBe("hidden");
+    fold.collapsed = false;
+    draw([permission("a")]);
+    expect(first.cancel).toHaveBeenCalled();
+    expect(surface.style.overflow).toBe("hidden");
+    // The browser dispatches the first run's cancel event on a later frame, while the second still runs.
+    first.oncancel?.();
+    expect(surface.style.overflow).toBe("hidden");
+  });
+});
+
 describe("the popover's announcement", () => {
   const announce = () => popover()?.props.announce as number;
   test("a request drawn from the history is not read; one that arrives live is, once", () => {
