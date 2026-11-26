@@ -940,8 +940,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The follow (threadMotion nextFollow): easeTo is the bottom an eased follow heads for, wrote the scrollTop it last
   // wrote, so a scroll event of its own is told from the person's.
   const follow = useRef<FollowState>(FOLLOW_START), easeTo = useRef<number | null>(null), wrote = useRef<number | null>(null);
-  // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move.
-  const seenTop = useRef(0);
+  // seenTop: the scrollTop the follow last read, to tell a browser clamp from the person's move. keyDown: a scroll key
+  // pressed anywhere outside a field, which becomes this thread's input only if this thread then scrolls.
+  const seenTop = useRef(0), keyDown = useRef<{ key: string; at: number; top: number } | null>(null);
   const loop = useRef(0), lastFrame = useRef<number | null>(null), revealedAt = useRef(-Infinity);
   const motion = useRef<ThreadMotion>({ revealed: at => { revealedAt.current = at; }, reduced: prefersReduced }).current;
   // Set only on a change: the follow writes a scroll every frame, and a same-value set can still render the thread.
@@ -1144,13 +1145,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     wrote.current = seenTop.current = node.scrollTop;
     distance.current = bottomOf(node) - node.scrollTop;
   };
-  // Scrolling up never ends at the bottom, so a lower scrollTop at the bottom is the browser's clamp to a shrunk extent.
-  // The frame, a scroll event or the observer may read it first; seenTop makes it count once. A move of the person's
-  // that no read saw before the clamp counts as clamp too (accepted).
-  const clampSeen = (node: HTMLElement) => {
-    const top = node.scrollTop;
-    if (top < seenTop.current - 0.5 && bottomOf(node) - top < 1) apply({ type: "clamp", by: seenTop.current - top });
+  // The person's scroll never shrinks the extent, so an extent now below the last scrollTop read means the browser
+  // clamped it (content or the end inset shrank), even if growth since keeps the view off the bottom. The frame, a scroll
+  // event or the observer may read it first; seenTop makes it count once. A move of the person's that no read saw
+  // before the clamp counts as clamp too (accepted).
+  // Says whether scrollTop moved since the last read by anything but a clamp.
+  const clampSeen = (node: HTMLElement): boolean => {
+    const top = node.scrollTop, last = seenTop.current;
     seenTop.current = top;
+    if (top < last - 0.5 && bottomOf(node) < last - 0.5) { apply({ type: "clamp", by: last - top }); return false; }
+    return Math.abs(top - last) >= 0.5;
   };
   const apply = (event: FollowEvent) => {
     const before = follow.current;
@@ -1236,9 +1240,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     watch?.observe(content);
     watch?.observe(node);
     if (popover.current) watch?.observe(popover.current);
-    // The person's input, on the thread only: a wheel that can leave the bottom, a press on the scroller itself (its
-    // scrollbar), a scroll key outside a field or control. The composer is outside the thread. A press ends anywhere:
-    // a scrollbar drag is often released outside the scroller, or outside the window (blur).
+    // The person's input: a wheel on the thread that can leave the bottom, a press on the scroller itself (its
+    // scrollbar), a scroll key outside a field or control that scrolls this thread (focus often stays outside it after a
+    // click on reply text; onScroll claims the key). A press ends anywhere: a scrollbar drag is often released outside
+    // the scroller, or outside the window (blur).
     const wheel = (event: WheelEvent) => {
       if (event.deltaY >= 0 && follow.current.pinned) return;
       calls().apply({ type: "input", kind: "wheel", at: performance.now(), top: node.scrollTop });
@@ -1252,7 +1257,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     };
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest(OWN_KEYS)) return;
-      calls().apply({ type: "input", kind: "key", key: event.key, at: performance.now(), top: node.scrollTop });
+      keyDown.current = { key: event.key, at: performance.now(), top: node.scrollTop };
+    };
+    const ended = () => {
+      calls().apply({ type: "scrollend" });
       calls().run();
     };
     const selection = () => {
@@ -1265,7 +1273,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     node.addEventListener("wheel", wheel, { passive: true });
     node.addEventListener("pointerdown", pointer);
     for (const type of ["pointerup", "pointercancel", "blur"]) window.addEventListener(type, release);
-    node.addEventListener("keydown", key);
+    window.addEventListener("keydown", key, true);
+    node.addEventListener("scrollend", ended);
     document.addEventListener("selectionchange", selection);
     return () => {
       watch?.disconnect();
@@ -1273,7 +1282,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       node.removeEventListener("wheel", wheel);
       node.removeEventListener("pointerdown", pointer);
       for (const type of ["pointerup", "pointercancel", "blur"]) window.removeEventListener(type, release);
-      node.removeEventListener("keydown", key);
+      window.removeEventListener("keydown", key, true);
+      node.removeEventListener("scrollend", ended);
       document.removeEventListener("selectionchange", selection);
     };
   }, [ready]);
@@ -1343,9 +1353,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const onScroll = () => {
     const node = scroller.current;
     if (!node) return;
-    clampSeen(node);
+    const moved = clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
-    if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) { apply({ type: "scroll" }); run(); }
+    if (wrote.current === null || Math.abs(node.scrollTop - wrote.current) >= 1) {
+      const pressed = keyDown.current;
+      keyDown.current = null;
+      if (pressed && performance.now() - pressed.at < WHEEL_HOLD_MS) apply({ type: "input", kind: "key", ...pressed });
+      apply({ type: "scroll", distance: distance.current, top: node.scrollTop, moved });
+      run();
+    }
     if (scrollFollow(distance.current, bandOf(node))) setBehind(false);
   };
   // Through the same follow: a native smooth scroll heads for the old bottom and can stop short of it.
@@ -1360,6 +1376,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   useImperativeHandle(ref, () => ({
     scrollToItem(key: string) {
       const node = scroller.current?.querySelector(`[data-item="${CSS.escape(key)}"]`);
+      // Not following: the follow's next write would cancel this smooth scroll and pull the item back down.
+      if (node) latestFollow.current.apply({ type: "item", at: performance.now() });
       // A received handoff scrolls to its top: in a 280px panel a tall bubble's centre would leave its meta line out of view.
       node?.scrollIntoView({ block: node.querySelector(".from-agent") ? "start" : "center", behavior: prefersReduced() ? "auto" : "smooth" });
     },

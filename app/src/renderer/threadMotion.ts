@@ -141,50 +141,70 @@ export function followBand(height: number): number {
   return Math.max(120, height / 3);
 }
 
-// inputAt: the last wheel or scroll key; trackpad inertia or a key's scroll animation may still be moving the view.
-// pressed: a pointer held on the scroller (its scrollbar). origin: set only by the input that unpinned the follow, until
-// a frame judges it once that input is over: the scrollTop where it began (with scroll anchoring off, growth never moves
-// scrollTop, so the person's own move is origin.top − top) and whether the content grew since.
+// inputAt: the last wheel or scroll key; trackpad inertia may still be moving the view. pressed: a pointer held on the
+// scroller (its scrollbar). origin: set only by the input that unpinned the follow, until a frame judges it once that
+// input is over: the scrollTop where it began (with scroll anchoring off, growth never moves scrollTop, so the person's
+// own move is origin.top − top) and whether the content grew since. scroll: a scroll key's or an item's scroll, awaited
+// and then running until its scrollend (Chromium animates a key for about 150 ms, past WHEEL_HOLD_MS). floor: the
+// scrollTop of the bottom when a scroll of the person's last ended within BOTTOM while unpinned, so growth after it never
+// keeps the view away.
 export interface FollowOrigin { top: number; grew: boolean }
-export interface FollowState { pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: FollowOrigin | null }
+export interface FollowState { pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: FollowOrigin | null; scroll: "idle" | "awaited" | "running"; floor: number | null }
 // The composer is outside the thread. scroll: one the follow loop did not write. A pointer's release comes from the
 // window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop. clamp: the browser
 // lowered scrollTop by `by` to a scroll extent that shrank (content or the end inset), which is no move of the person's.
+// item: the thread scrolls to an item, which is not following. moved: the scroll changed scrollTop since the last read,
+// and not by a clamp (only the person's own move reaches the bottom).
 export type FollowEvent =
   | { type: "input"; kind: "wheel"; at: number; top: number }
   | { type: "input"; kind: "key"; key: string; at: number; top: number }
   | { type: "pointer"; down: true; top: number }
   | { type: "pointer"; down: false }
-  | { type: "scroll" }
+  | { type: "item"; at: number }
+  | { type: "scroll"; distance: number; top: number; moved: boolean }
+  | { type: "scrollend" }
   | { type: "clamp"; by: number }
   | { type: "selection"; active: boolean }
   | { type: "jump" }
   | { type: "frame"; at: number; distance: number; top: number };
 
-export const FOLLOW_START: FollowState = { pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null };
+export const FOLLOW_START: FollowState = { pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null, scroll: "idle", floor: null };
 const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
 
 // An input that starts while already unpinned (the person reading further up) gets no origin: only BOTTOM re-pins it.
 const unpinBy = (state: FollowState, top: number): FollowOrigin | null => state.pinned ? { top, grew: false } : state.origin;
+const seen = (state: FollowState, event: { distance: number; top: number; moved: boolean }): FollowState =>
+  !state.pinned && event.moved && event.distance <= BOTTOM ? { ...state, floor: event.top + event.distance } : state;
+const PINNED = { pinned: true, origin: null, scroll: "idle", floor: null } as const;
 
 export function nextFollow(state: FollowState, event: FollowEvent): FollowState {
   switch (event.type) {
     case "input":
       if (event.kind === "key" && !SCROLL_KEYS.has(event.key)) return state;
-      return { ...state, pinned: false, inputAt: event.at, origin: unpinBy(state, event.top) };
+      return { ...state, pinned: false, inputAt: event.at, origin: unpinBy(state, event.top), scroll: event.kind === "key" ? "awaited" : "idle" };
     case "pointer":
       if (!event.down) return state.pressed ? { ...state, pressed: false } : state;
-      return { ...state, pinned: false, pressed: true, origin: unpinBy(state, event.top) };
-    case "scroll": return state.pinned ? { ...state, pinned: false, origin: null } : state;
-    case "clamp": return state.origin === null ? state : { ...state, origin: { ...state.origin, top: state.origin.top - event.by } };
+      return { ...state, pinned: false, pressed: true, origin: unpinBy(state, event.top), scroll: "idle" };
+    case "item": return { ...state, pinned: false, origin: null, inputAt: event.at, scroll: "awaited", floor: null };
+    case "scroll": {
+      const next = state.pinned ? { ...state, pinned: false, origin: null } : state.scroll === "awaited" ? { ...state, scroll: "running" as const } : state;
+      return seen(next, event);
+    }
+    case "scrollend": return state.scroll === "running" ? { ...state, scroll: "idle" } : state;
+    case "clamp":
+      if (state.origin === null && state.floor === null) return state;
+      return { ...state, origin: state.origin && { ...state.origin, top: state.origin.top - event.by }, floor: state.floor === null ? null : state.floor - event.by };
     case "selection":
       if (!event.active) return { ...state, selecting: false };
       return { ...state, selecting: true, pinned: false, origin: state.pinned ? null : state.origin };
-    case "jump": return { ...state, pinned: true };
+    case "jump": return { ...state, ...PINNED, origin: state.origin };
     case "frame": {
-      if (state.pinned || state.selecting || state.pressed || event.at - state.inputAt < WHEEL_HOLD_MS) return state;
-      if (event.distance <= BOTTOM || (state.origin !== null && state.origin.top - event.top <= NUDGE)) return { ...state, pinned: true, origin: null };
-      return state.origin === null ? state : { ...state, origin: null };
+      if (state.pinned) return state;
+      const next = state;
+      if (next.selecting || next.pressed || next.scroll === "running" || event.at - next.inputAt < WHEEL_HOLD_MS) return next;
+      const back = event.distance <= BOTTOM || (next.floor !== null && next.floor - event.top <= BOTTOM) || (next.origin !== null && next.origin.top - event.top <= NUDGE);
+      if (back) return { ...next, ...PINNED };
+      return next.origin === null && next.floor === null && next.scroll === "idle" ? next : { ...next, origin: null, floor: null, scroll: "idle" };
     }
   }
 }

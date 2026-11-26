@@ -345,7 +345,7 @@ describe("nextFollow", () => {
   const release = (state: FollowState) => nextFollow(state, { type: "pointer", down: false });
 
   test("starts pinned, not pressed, with no input", () => {
-    expect(FOLLOW_START).toEqual({ pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null });
+    expect(FOLLOW_START).toEqual({ pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null, scroll: "idle", floor: null });
     expect(BOTTOM).toBe(24);
     expect(NUDGE).toBe(48);
     expect(WHEEL_HOLD_MS).toBe(100);
@@ -355,7 +355,7 @@ describe("nextFollow", () => {
     expect(wheel(FOLLOW_START, 0).pinned).toBe(false);
     expect(key(FOLLOW_START, 0, 1000, "PageUp").pinned).toBe(false);
     expect(press(FOLLOW_START).pinned).toBe(false);
-    expect(nextFollow(FOLLOW_START, { type: "scroll" }).pinned).toBe(false);
+    expect(nextFollow(FOLLOW_START, { type: "scroll", distance: 300, top: 700, moved: true }).pinned).toBe(false);
   });
 
   test("the input that unpins the follow keeps where it began; nothing grew yet", () => {
@@ -367,7 +367,7 @@ describe("nextFollow", () => {
   test("back within BOTTOM it follows again once the input is over, from any input or scroll", () => {
     const wheeled = wheel(FOLLOW_START, 1000);
     expect(settle(wheeled, 1200, 24, 0).pinned).toBe(true);
-    const scrolled = nextFollow(FOLLOW_START, { type: "scroll" });
+    const scrolled = nextFollow(FOLLOW_START, { type: "scroll", distance: 300, top: 700, moved: true });
     expect(settle(scrolled, 5000, 25).pinned).toBe(false);
     expect(settle(scrolled, 5000, 24).pinned).toBe(true);
   });
@@ -451,7 +451,7 @@ describe("nextFollow", () => {
 
   // NUDGE is the person's own move; a scroll with no input of theirs (a focus, a clamp) keeps the BOTTOM rule only.
   test("a scroll the loop did not write, with no input, follows again only within BOTTOM", () => {
-    const scrolled = nextFollow(FOLLOW_START, { type: "scroll" });
+    const scrolled = nextFollow(FOLLOW_START, { type: "scroll", distance: 300, top: 700, moved: true });
     expect(settle(scrolled, 5000, 30).pinned).toBe(false);
     expect(settle(scrolled, 5000, 24).pinned).toBe(true);
   });
@@ -474,7 +474,7 @@ describe("nextFollow", () => {
   test("Jump to latest follows again at once, also while the person is scrolled away", () => {
     const away = press(FOLLOW_START);
     expect(nextFollow(release(away), { type: "jump" }).pinned).toBe(true);
-    expect(settle(nextFollow(nextFollow(release(away), { type: "jump" }), { type: "scroll" }), 0, 0).pinned).toBe(true);
+    expect(settle(nextFollow(nextFollow(release(away), { type: "jump" }), { type: "scroll", distance: 300, top: 700, moved: true }), 0, 0).pinned).toBe(true);
   });
 
   // The browser lowers scrollTop when the scroll extent drops below it; the person's move stays what it was.
@@ -485,8 +485,58 @@ describe("nextFollow", () => {
     expect(settle(clamped, 1100, 60, 700).pinned).toBe(true);
     expect(settle(clamped, 1100, 60, 660).pinned).toBe(false);
     expect(nextFollow(FOLLOW_START, { type: "clamp", by: 100 })).toBe(FOLLOW_START);
+    const touched = nextFollow(wheeled, { type: "scroll", distance: 10, top: 990, moved: true });
+    expect(nextFollow(touched, { type: "clamp", by: 270 }).floor).toBe(730);
     const reading = settle(wheeled, 1200, 2000);
     expect(nextFollow(reading, { type: "clamp", by: 100 })).toBe(reading);
+  });
+
+  // Chromium animates a scroll key for about 150 ms, past WHEEL_HOLD_MS.
+  test("a scroll key's input ends when its scroll ends, however long it runs; a key that scrolls nothing ends after the hold", () => {
+    const keyed = key(FOLLOW_START, 1000);
+    expect(keyed.scroll).toBe("awaited");
+    const running = nextFollow(keyed, { type: "scroll", distance: 20, top: 980, moved: true });
+    expect(running.scroll).toBe("running");
+    expect(settle(running, 1300, 40).pinned).toBe(false);
+    const ended = nextFollow(running, { type: "scrollend" });
+    expect(ended.scroll).toBe("idle");
+    expect(settle(ended, 1300, 40).pinned).toBe(true);
+    expect(settle(keyed, 1100, 0).pinned).toBe(true);
+    // A wheel's input keeps the hold and no scroll end.
+    const wheeled = nextFollow(wheel(FOLLOW_START, 1000), { type: "scroll", distance: 30, top: 970, moved: true });
+    expect(wheeled.scroll).toBe("idle");
+    expect(settle(wheeled, 1100, 30).pinned).toBe(true);
+    expect(nextFollow(FOLLOW_START, { type: "scrollend" })).toBe(FOLLOW_START);
+  });
+
+  // Scrolling to an item is not following: the follow waits for that scroll to end, then only BOTTOM re-pins it.
+  test("scrolling to an item stops following, with no nudge, until its scroll ends", () => {
+    const moving = nextFollow(FOLLOW_START, { type: "item", at: 1000 });
+    expect(moving).toMatchObject({ pinned: false, origin: null, scroll: "awaited" });
+    const running = nextFollow(moving, { type: "scroll", distance: 10, top: 990, moved: true });
+    expect(settle(running, 1200, 10).pinned).toBe(false);
+    const there = nextFollow(nextFollow(running, { type: "scroll", distance: 238, top: 762, moved: true }), { type: "scrollend" });
+    expect(settle(there, 1300, 238).pinned).toBe(false);
+    // Nothing to scroll (already in view at the bottom): it follows again after the hold.
+    expect(settle(moving, 1100, 0).pinned).toBe(true);
+  });
+
+  // Growth after the person reached the bottom must not keep them away (the bottom they reached is the floor).
+  test("touching BOTTOM during an input follows again when it ends, even when growth then took it past BOTTOM", () => {
+    const reading = settle(wheel(FOLLOW_START, 0, 1000), 200, 2000);
+    const back = nextFollow(wheel(reading, 1000, -1000), { type: "scroll", distance: 1, top: 999, moved: true });
+    expect(back.floor).toBe(1000);
+    expect(settle(back, 1050, 37, 999).pinned).toBe(false);
+    expect(settle(back, 1100, 37, 999).pinned).toBe(true);
+    // Passing through BOTTOM on the way up is no touch once the person is further up.
+    const up = nextFollow(nextFollow(wheel(FOLLOW_START, 1000, 1000), { type: "scroll", distance: 10, top: 990, moved: true }), { type: "scroll", distance: 500, top: 500, moved: true });
+    expect(settle(up, 1100, 500, 500).pinned).toBe(false);
+    // Only a scroll of the person's touches: a frame's read or a clamp that leaves the view at the bottom does not.
+    const seen = settle(wheel(reading, 1000, -1000), 1050, 5, 995);
+    expect(settle(seen, 1100, 42, 995).pinned).toBe(false);
+    const clamped = nextFollow(wheel(reading, 1000, -1000), { type: "scroll", distance: 0, top: 900, moved: false });
+    expect(clamped.floor).toBeNull();
+    expect(settle(settle(up, 1100, 500, 500), 1200, 60, 940).floor).toBeNull();
   });
 
   test("a frame changes nothing while pinned", () => {
@@ -511,7 +561,7 @@ describe("judgedBehind", () => {
     const near = nextFollow(grown, { type: "frame", at: 200, distance: 230, top: 970 });
     expect(near.pinned).toBe(true);
     expect(judgedBehind(grown, near, 230, 120)).toBe(false);
-    const scrolled = nextFollow(FOLLOW_START, { type: "scroll" });
+    const scrolled = nextFollow(FOLLOW_START, { type: "scroll", distance: 300, top: 700, moved: true });
     expect(judgedBehind(scrolled, judge(scrolled, 300), 300, 120)).toBe(false);
   });
 });

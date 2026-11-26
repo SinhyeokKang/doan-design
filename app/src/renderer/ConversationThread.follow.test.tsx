@@ -6,7 +6,7 @@ import type { ThreadItem } from "./threadItems";
 // The follow's ResizeObserver callback with the answer popover's end inset, run through ThreadBody's own effects. No DOM:
 // the scroller, the thread, the root and the popover are stand-ins with the sizes a layout would give.
 const hooks = vi.hoisted(() => ({
-  slots: [] as unknown[], cursor: 0, effectCursor: 0, pending: [] as (() => void)[],
+  slots: [] as unknown[], cursor: 0, effectCursor: 0, pending: [] as (() => void)[], handle: null as { scrollToItem(key: string): void } | null,
   effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
 }));
 vi.mock("react", async original => {
@@ -36,7 +36,7 @@ vi.mock("react", async original => {
     },
     useRef: (value: unknown) => hooks.slots[slot(() => ({ current: value }))],
     useMemo: (factory: () => unknown) => factory(),
-    useEffect: effect, useLayoutEffect: effect, useImperativeHandle: () => {}, useId: () => "k",
+    useEffect: effect, useLayoutEffect: effect, useImperativeHandle: (_ref: unknown, create: () => { scrollToItem(key: string): void }) => { hooks.handle = create(); }, useId: () => "k",
   };
 });
 const { ConversationThread } = await import("./ConversationThread");
@@ -65,14 +65,21 @@ const listen = (map: Map<string, Listener>) => ({
 });
 const frames = new Map<number, (now: number) => void>();
 let rawTop = 0;
+// A smooth scroll the browser runs toward `to`, from the frame after it was asked for, one step a frame; a scrollTop the
+// code writes cancels it.
+let smooth: { to: number; moving: boolean } | null = null;
+// A focus target for a key: in a field, or anywhere else.
+class El { constructor(readonly field = false) {} closest() { return this.field ? this : null; } }
 let frameId = 0, clock = 0;
 const scroller = {
   // The browser keeps scrollTop within the scroll extent: a shrinking extent lowers it.
   get scrollTop() { return rawTop = Math.min(Math.max(rawTop, 0), Math.max(0, this.scrollHeight - this.clientHeight)); },
-  set scrollTop(value: number) { rawTop = value; void this.scrollTop; },
+  set scrollTop(value: number) { smooth = null; rawTop = value; void this.scrollTop; },
   clientHeight: 400,
   get scrollHeight() { return Math.max(layout.viewport, layout.content + 32 + Number.parseFloat(vars.get("--ap-inset") ?? "0")); },
   firstElementChild: { getBoundingClientRect: () => ({ height: layout.content }) },
+  // The thread's first item, a received handoff bubble at the top of the thread.
+  querySelector: () => ({ querySelector: (selector: string) => selector === ".from-agent" ? {} : null, scrollIntoView: () => { smooth = { to: 0, moving: false }; } }),
   ...listen(on),
 };
 // No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
@@ -105,14 +112,15 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
-  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0;
+  on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null;
   vi.spyOn(performance, "now").mockImplementation(() => clock);
   vi.stubGlobal("window", listen(onWindow));
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
   scroller.scrollTop = 0; scroller.clientHeight = 400;
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("document", { activeElement: null, body: null, hasFocus: () => true, querySelectorAll: () => [], getSelection: () => null, addEventListener: () => {}, removeEventListener: () => {}, timeline: { currentTime: 0 } });
-  vi.stubGlobal("Element", class {});
+  vi.stubGlobal("Element", El);
+  vi.stubGlobal("CSS", { escape: (value: string) => value });
   vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => { frames.set(++frameId, callback); return frameId; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
 });
@@ -186,14 +194,22 @@ test("the popover going away sets the end inset back to nothing", () => {
 });
 
 // The person's own scroll: a scroll event the follow did not write.
+const scrolled = () => (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
 function scrollBy(dy: number): void {
-  scroller.scrollTop += dy;
-  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+  rawTop += dy;
+  void scroller.scrollTop;
+  scrolled();
 }
 // Runs the waiting animation frames, 16 ms apart, until `until`. One follow loop never has two frames waiting.
 function frameUntil(until: number): void {
   while (clock < until) {
     clock += 16;
+    if (smooth?.moving) {
+      const to = smooth.to;
+      rawTop = rawTop > to ? Math.max(to, rawTop - 150) : Math.min(to, rawTop + 150);
+      scrolled();
+      if (scroller.scrollTop === to) { smooth = null; on.get("scrollend")?.({}); }
+    } else if (smooth) smooth.moving = true;
     const now = [...frames.values()];
     frames.clear();
     for (const run of now) run(clock);
@@ -233,13 +249,34 @@ test("a wheel of more than NUDGE stays where the person left it; new content pas
   expect(jump()).toBe(false);
 });
 
-test("a scroll key gets the same wait as the wheel before following again", () => {
+// Chromium animates a scroll key for about 150 ms; focus is often outside the thread (the panel, the page) after a click
+// on reply text, so the key is read from the window.
+test("a scroll key pressed with focus outside the thread counts until its scroll ends, past the wheel's hold", () => {
   draw([user]);
-  on.get("keydown")!({ key: "ArrowUp", target: null });
-  scrollBy(-40);
+  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El() });
+  scrollBy(-20);
   frameUntil(64);
+  scrollBy(-20);
+  frameUntil(160);
   expect(atBottom()).toBe(40);
+  on.get("scrollend")?.({});
   frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a key in a field is not the thread's input; a key that scrolls nothing leaves the follow alone", () => {
+  draw([user]);
+  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El(true) });
+  scrollBy(-40);
+  on.get("scrollend")?.({});
+  frameUntil(1000);
+  expect(atBottom()).toBe(40);
+  scrollBy(40);
+  frameUntil(2000);
+  onWindow.get("keydown")?.({ key: "ArrowUp", target: new El() });
+  frameUntil(3000);
+  resize({ content: 1100 }, [user]);
+  frameUntil(4000);
   expect(atBottom()).toBe(0);
 });
 
@@ -347,7 +384,7 @@ test("unmounting removes every listener it added and cancels the follow's waitin
   scrollBy(-30);
   frameUntil(120);
   expect(frames.size).toBe(1);
-  expect([...onWindow.keys()].sort()).toEqual(["blur", "pointercancel", "pointerup"]);
+  expect([...onWindow.keys()].sort()).toEqual(["blur", "keydown", "pointercancel", "pointerup"]);
   unmount();
   expect(on.size).toBe(0);
   expect(onWindow.size).toBe(0);
@@ -435,5 +472,46 @@ test("known limit: a move past NUDGE that no read saw before a clamp counts as t
   expect(scroller.scrollTop).toBe(432);
   resize({ content: 1000 }, [user]);
   frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+// The panel asks for the scroll after the thread's own effects ran, so the observer's first callback comes after it.
+test("scrolling to a received handoff keeps its top in view: the follow neither eases back nor follows a growing reply", () => {
+  draw([user]);
+  expect(scroller.scrollTop).toBe(632);
+  hooks.handle!.scrollToItem("u1");
+  observed();
+  frameUntil(400);
+  expect(scroller.scrollTop).toBe(0);
+  resize({ content: 1300 }, [user]);
+  frameUntil(1000);
+  expect(scroller.scrollTop).toBe(0);
+});
+
+// One read sees the clamp and new growth at once, so the view is no longer at the bottom.
+test("a clamp read together with growth is still not counted as the person's move", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  layout.content = 700;
+  expect(scroller.scrollTop).toBe(332);
+  layout.content = 760;
+  observed();
+  draw([user]);
+  expect(atBottom()).toBe(60);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("a person reading far up who wheels back to the bottom follows again even when a reply grows during the wheel's hold", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -400 });
+  scrollBy(-400);
+  frameUntil(1000);
+  on.get("wheel")!({ deltaY: 399 });
+  scrollBy(399);
+  resize({ content: 1036 }, [user]);
+  expect(atBottom()).toBe(37);
+  frameUntil(2000);
   expect(atBottom()).toBe(0);
 });
