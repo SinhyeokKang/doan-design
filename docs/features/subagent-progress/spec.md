@@ -37,7 +37,7 @@
 - **다음 send**: 백그라운드 작업이 도는 중에 사람이 메시지를 보내면, 작업을 끝내지 않고 살려 둔 채 보낸다. 지금은 다음 send가 작업을 먼저 끝낸다.
 - **보고 턴의 반복**: 보고 턴은 맨 위 작업 하나가 끝날 때마다 하나씩 열리고, 보고 턴이 띄운 작업이 끝나면 다시 열린다(PoC 결과 T1b). 사람의 턴이 도는 중에 끝난 작업은 그 턴에 접히고 보고 턴을 열지 않는다. 모델이 그 결과를 말하지 않을 수 있지만, 행이 끝남을 보이므로 받아들인다.
 - **보고 턴 중의 send**: 보통 도는 턴과 같다. 큐에 들어가 보고 턴이 끝나면 나가고, Send now는 끼어든다.
-- **프로세스 유지**: Claude Code 대화의 프로세스는 턴이 끝나도 닫지 않고, 대화의 삭제, 앱 종료, 로그아웃이나 연결 변경, 프로젝트 Remove까지 유지한다. 다음 send는 그 프로세스로 간다. 프로세스가 없으면 지금처럼 resume한다.
+- **프로세스 수명**: 백그라운드 작업이 남은 동안과 보고 턴이 끝날 때까지만 입력을 열어 둔다. 그 뒤에는 지금처럼 프로세스를 끝낸다. 작업이 없는 턴 뒤에도 프로세스를 대화 수명 동안 유지하는 것은 사용자가 정했지만 별도 feature로 나눴다(`docs/BACKLOG.md`).
 - **최소 버전의 마지막 알림**: Claude Code 2.1.284는 마지막 작업의 끝남 알림이 빈 작업 집합보다 늦게 올 수 있다(PoC 결과 5). Doan은 알림을 기다리지 않는다. 받지 못한 작업은 기록 없이 사라진다.
 - **명령 행**: 백그라운드 명령(`is_backgrounded: true`)만 행이 된다. 3초를 넘긴 foreground 명령은 지금처럼 활동 단계와 인디케이터가 보인다. 서브에이전트 안에서 도는 작업(`owned_by_subagent`, `parent_task_id`)은 행을 만들지 않는다. 그 서브에이전트 행의 일부이기 때문이다.
 - **기록**: 진행 중인 숫자는 메모리에만 둔다. 작업이 끝나면 그 결과를 대화 이벤트로 한 번 기록한다. 그래서 재시작 뒤에도 무엇이 돌았고 어떻게 끝났는지 남는다. Agent 도구 호출의 활동 이벤트는 지금처럼 저장하고, 표시만 작업 행으로 바뀐다.
@@ -69,8 +69,8 @@
 ## 바뀌는 PRODUCT와 ARCHITECTURE 문장 (승격 때)
 
 - PRODUCT §3 Out of scope 4: 보고 턴을 Handoff, 사용 한도 옆의 새 예외로 더한다.
-- PRODUCT §5 item 3: 보고 턴의 모습과 큐 규칙, 쉬는 프로세스와 터미널 세션 continue(`session_in_use`)
-- ARCHITECTURE §7: "A Claude run opens for one turn", 'Ending a finished turn's process', send마다의 설정 적용, lease와 실행 중 판정, 'Quit and process cleanup'
+- PRODUCT §5 item 3: 보고 턴의 모습과 큐 규칙
+- ARCHITECTURE §7: 'Ending a finished turn's process'(작업이 남은 동안 입력을 열어 둠), 보고 턴을 가려내는 규칙
 - PRODUCT §5 item 3 'Background work line': "No model request goes out without a person's message … Doan ends the process at that moment", "the next send ended it first", 안내 문장 "It stops when you send your next message or press Stop."
 
 - PRODUCT §5 item 3 'Background work line': "No sweep, spinner or output of the work shows", 줄의 모양, 프로토타입 창을 따르는 화면에 더함, 줄의 Stop 뒤 행의 상태
@@ -83,7 +83,7 @@
 
 ## 비목표
 
-- 쉬는 프로세스의 수나 시간 제한(T1c 결과를 보고 다시 정할 수 있다)
+- 작업이 없는 턴 뒤에도 프로세스를 유지하기(별도 feature)
 
 - 작업별 Stop. `stop_task`를 쓴다고 알리면 턴 Stop의 의미가 바뀐다(`sdk.d.ts` `perTaskStopAffordance` 선언). BACKLOG에 적는다.
 - 서브에이전트 안의 도구 단계, 답글, 결과 글(`summary`)을 스레드에 보이기
