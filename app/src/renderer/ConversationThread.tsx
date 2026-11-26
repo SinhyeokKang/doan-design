@@ -1004,9 +1004,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       const now = waitingNow.current;
       if (now.some(id => !ids.includes(id))) { stopMotion(); return; }
       latest.current.onCollapse?.(now);
-      if (andThen === "bar") popoverFocus.current = { key, open: false };
-      else handFocus(() => latest.current.onFocusComposer?.());
+      // The bar drawn is the request shown now, which may not be the one pressed if that one ended during the fade.
+      if (andThen === "bar") popoverFocus.current = { key: popoverNow.current.key ?? key, open: false };
     };
+    // Esc hands focus over at once, so a key pressed during the fade never reaches a control that is fading out.
+    if (andThen === "composer") handFocus(() => latest.current.onFocusComposer?.());
     if (!node || motion.reduced() || typeof node.animate !== "function") { fold(); return; }
     stopMotion();
     const duration = timeMs(getComputedStyle(node).getPropertyValue("--time-fast"));
@@ -1144,7 +1146,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (popover.current) holdChrome(popover.current);
     const insetNow = popover.current?.isConnected === false ? 0 : popover.current?.offsetHeight ?? 0;
     if (insetNow !== inset.current) root.current?.style.setProperty("--ap-inset", `${insetNow}px`);
-    const fits = node.clientHeight - insetNow >= JUMP_ROOM;
+    const fits = insetNow === 0 || node.clientHeight - insetNow >= JUMP_ROOM;
     if (fits !== jumpFits) setJumpFits(fits);
     const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
     const after = { content: contentOf(node), inset: insetNow, distance: bottomOf(node) - node.scrollTop };
@@ -1254,7 +1256,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (want.key !== ask?.key) { popoverFocus.current = null; return; }
     if (collapsed === want.open || (want.step !== undefined && (ask.kind !== "question" || draftOf(ask.requestId).step !== want.step))) return;
     popoverFocus.current = null;
-    if (want.step !== undefined) popover.current?.querySelector(".ap-body")?.scrollTo({ top: 0 });
+    // A cramped popover scrolls the body itself, so its own scroll goes back to the top.
+    const surface = popover.current;
+    if (want.step !== undefined) (surface?.hasAttribute("data-cramped") ? surface : surface?.querySelector(".ap-body"))?.scrollTo({ top: 0 });
     handFocus(() => focusIn(want.key));
   });
   // Collapse and expand run the surface's height between the popover and the bar; the end inset follows it each frame.
