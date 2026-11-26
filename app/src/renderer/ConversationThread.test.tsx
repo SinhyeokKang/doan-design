@@ -862,8 +862,22 @@ describe("the received handoff bubble's rules", () => {
     expect(body(".conversation-thread .ho-meta :is(svg, .sep, time, .doan-button)")).toContain("flex: none;");
   });
   test("a thread 275px wide or less hides the time and its dot", () => {
-    expect(css).toContain(" .conversation-thread .thread { container-type: inline-size; }");
-    expect(css).toContain("@container (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }");
+    expect(css).toContain(" .conversation-thread .thread { container: doan-thread / inline-size; }");
+    expect(css).toContain("@container doan-thread (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }");
+  });
+  // Without its own container a body chip's 100cqw read the thread, wider than the bubble, and the chip overflowed it.
+  test("a canvas chip in the bubble's body caps at the group's width less the bubble's padding and icon margin; replies and cards keep theirs", () => {
+    expect(body(".conversation-thread .msg-user:has(> .from-agent)")).toBe(" width: 100%; container-type: inline-size; ");
+    expect(body(".conversation-thread .from-agent .anchor-chip span.chip-canvas"))
+      .toBe(" max-width: calc(100cqw - 2 * var(--space-4) - 2 * var(--space-1h) - var(--size-icon-sm) - 2 * var(--space-1) - 1em); ");
+    // A bubble's chip icon keeps a margin a reply's has not.
+    expect(body(".bubble .anchor-chip svg")).toContain("margin-right: var(--space-1);");
+    // The bubble's own padding is what the group's width holds beyond the bubble's content.
+    expect(body(".conversation-thread .bubble")).toContain("padding: var(--space-2) var(--space-4);");
+    // A reply's and a card's chips keep their own nearer containers.
+    expect(css).toContain(" .conversation-thread .msg-agent { container-type: inline-size; }");
+    expect(body(".conversation-thread .card-surface")).toContain("container-type: inline-size;");
+    expect(css).toContain(" .anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }");
   });
   test("focus on the group rings its bubble", () => {
     expect(body(".conversation-thread .msg-user[role=\"group\"]:focus-visible")).toContain("outline: none;");

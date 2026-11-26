@@ -1200,8 +1200,13 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .ho-name > .ho-full { visibility: hidden; user-select: none; }
 .conversation-thread .ho-meta .ho-gone { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .conversation-thread .ho-meta .doan-button { margin-left: auto; }
-.conversation-thread .thread { container-type: inline-size; }
-@container (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }
+/* Named: the received handoff's group is a nearer container, so the time asks the thread by name. */
+.conversation-thread .thread { container: doan-thread / inline-size; }
+@container doan-thread (max-width: 275px) { .conversation-thread .ho-meta :is(time, .sep:has(+ time)) { display: none; } }
+/* The group spans the bubble's widest width while the bubble keeps its content width, so a canvas chip in its body caps
+   at that width less the bubble's padding and its chips' icon margin (cqw), as a reply's chip does at .msg-agent's. */
+.conversation-thread .msg-user:has(> .from-agent) { width: 100%; container-type: inline-size; }
+.conversation-thread .from-agent .anchor-chip span.chip-canvas { max-width: calc(100cqw - 2 * var(--space-4) - 2 * var(--space-1h) - var(--size-icon-sm) - 2 * var(--space-1) - 1em); }
 .conversation-thread .msg-user[role="group"]:focus-visible { outline: none; }
 .conversation-thread .msg-user[role="group"]:focus-visible > .bubble { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
