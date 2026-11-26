@@ -61,7 +61,7 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
 | check-scope | Claude conductor `term_51e22458` · `~/orca/workspaces/doan-design/check-scope-orch` (`feat/check-scope`) | 2026-11-26 | — | 진행 중 |
-| answer-popover | Claude conductor `term_8f1ba90a` · `~/orca/workspaces/doan-design/answer-popover-orch` (`feat/answer-popover`) | 2026-11-26 | — | 진행 중 |
+| answer-popover | Claude conductor `term_8f1ba90a` · `~/orca/workspaces/doan-design/answer-popover-orch` (`feat/answer-popover`, 지움) | 2026-11-26 | PR #411 · `69e7d71df` | 머지 |
 
 ## 인계 기록
 
@@ -80,3 +80,4 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
 - 2026-11-26 lead: check-scope conductor가 알렸다. 사용자가 그 세션에서 T5 `/agent-eval`용으로 Doan 앱 프로필의 Claude 로그인(Keychain `Claude Code-credentials-9e813622`, refresh token 포함)을 임시 `CLAUDE_CONFIG_DIR`와 임시 Keychain 항목에 복제해 쓰고 지우는 방식을 승인했다. 복제본이 토큰을 갱신하면 Doan 앱의 Claude 로그인이 풀릴 수 있다. 이 승인은 check-scope T5에만 해당한다. 그 시점에 A·B를 통합했고 C(W14)는 리뷰 중이었다.
 - 2026-11-26 lead: check-scope conductor가 알렸다. `/agent-eval` 전체 회차 `check-scope-261126`가 약 15분 만에 Codex 5시간 한도에 닿았다(Plus, 52%→100%, 리셋 뒤 약 12분에 0→19%). 30/94 실행에서 사용자가 그 세션에서 일회성 예외를 정했다: 이 링크는 전체 회차를 돌리지 않고 W14(새 시나리오)와 R10(앱 턴 프롬프트 변경)만 두 에이전트와 judge로 돌린다. 측정하지 않은 범위는 회차 기록과 PR 본문에 남긴다. 그 시점에 A·B·C를 통합했고 `a8ec42d41`에서 `verify --eval` PASS, 문서 승격(`6699110a5..855070cb2`)을 마쳤다.
 - 2026-11-26 lead: 사용자가 머지 순서를 바꿨다. answer-popover PR #411을 check-scope보다 먼저 머지한다. 두 링크는 파일이 겹치지 않는 병렬 그룹이고, 순서는 머지 순서만 정했기 때문이다. 이유: #411 위에서 시작할 후속 수정(질문·권한 대기 중 Send now와 composer 제출 막기)을 check-scope를 기다리지 않고 띄우기 위해서다.
+- 2026-11-26 lead: answer-popover PR #411을 머지했다(`69e7d71df`). conductor와 배치 워커 `ap-b2`의 worktree를 지웠고 브랜치는 남겼다. PR이 남긴 미검증 항목(로그인된 에이전트의 대기 이유 줄, OS 알림 클릭, 네이티브 IME·VoiceOver, 실제 트랙패드, draft `stack` 프레임(큐·예약 행·`/` 목록과 팝오버), Codex 질문, problem workspace 스트립)은 체인이 끝난 뒤 lead가 develop에서 확인한다. 다음 작업이 알아야 할 것: canvas-chip은 `ConversationThread.tsx`·`styles.css`를 바꾼다. 팝오버는 `.conversation-thread` 안 `.thread-scroll` 뒤에 그려지고, 포커스 검색은 `.conversation-thread` 루트에서 시작한다(ARCHITECTURE §7 'Thread focus').
