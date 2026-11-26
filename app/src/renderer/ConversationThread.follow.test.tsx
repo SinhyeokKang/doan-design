@@ -48,12 +48,16 @@ let tree: ReactElement<Record<string, unknown>>[];
 // The thread's content, the end inset and the viewport; the scroller's scroll height follows them as a layout would.
 const layout = { content: 1000, inset: 0, viewport: 400 };
 const vars = new Map<string, string>();
+// The scroller's and the window's listeners, and the animation frames waiting to run.
+const on = new Map<string, (event: unknown) => void>(), onWindow = new Map<string, (event: unknown) => void>();
+let frames: ((now: number) => void)[] = [];
+let clock = 0;
 const scroller = {
   scrollTop: 0, clientHeight: 400,
   get scrollHeight() { return Math.max(layout.viewport, layout.content + 32 + Number.parseFloat(vars.get("--ap-inset") ?? "0")); },
   firstElementChild: { getBoundingClientRect: () => ({ height: layout.content }) },
-  addEventListener: () => {},
-  removeEventListener: () => {},
+  addEventListener: (type: string, listener: (event: unknown) => void) => { on.set(type, listener); },
+  removeEventListener: (type: string) => { on.delete(type); },
 };
 // No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
 const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null, hasAttribute: () => false, toggleAttribute: () => false };
@@ -85,14 +89,18 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 beforeEach(() => {
   hooks.slots = []; hooks.effects = [];
   vars.clear();
+  on.clear(); onWindow.clear(); frames = []; clock = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => clock);
+  vi.stubGlobal("window", { addEventListener: (type: string, listener: (event: unknown) => void) => { onWindow.set(type, listener); }, removeEventListener: (type: string) => { onWindow.delete(type); } });
   Object.assign(layout, { content: 1000, inset: 0, viewport: 400 });
   scroller.scrollTop = 0; scroller.clientHeight = 400;
   vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("document", { activeElement: null, body: null, hasFocus: () => true, querySelectorAll: () => [], getSelection: () => null, addEventListener: () => {}, removeEventListener: () => {}, timeline: { currentTime: 0 } });
-  vi.stubGlobal("requestAnimationFrame", () => 1);
+  vi.stubGlobal("Element", class {});
+  vi.stubGlobal("requestAnimationFrame", (callback: (now: number) => void) => frames.push(callback));
   vi.stubGlobal("cancelAnimationFrame", () => {});
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 test("at the bottom, the popover's height becomes the end inset and the view lands on the new bottom at once", () => {
   draw([user]);
@@ -159,4 +167,85 @@ test("the popover going away sets the end inset back to nothing", () => {
   layout.inset = 0;
   observed();
   expect(vars.get("--ap-inset")).toBe("0px");
+});
+
+// The person's own scroll: a scroll event the follow did not write.
+function scrollBy(dy: number): void {
+  scroller.scrollTop += dy;
+  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+}
+// Runs the waiting animation frames, 16 ms apart, until `until`.
+function frameUntil(until: number): void {
+  while (clock < until) {
+    clock += 16;
+    const now = frames;
+    frames = [];
+    for (const run of now) run(clock);
+  }
+}
+
+test("a wheel of NUDGE or less near the bottom shows no Jump to latest and, once the wheel is over, eases back to the bottom", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -30 });
+  scrollBy(-30);
+  resize({ content: 1060 }, [user]);
+  expect(jump()).toBe(false);
+  frameUntil(80);
+  expect(atBottom()).toBe(90);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+  draw([user]);
+  expect(jump()).toBe(false);
+});
+
+test("a wheel of more than NUDGE stays where the person left it; new content past the band shows Jump to latest", () => {
+  draw([user]);
+  on.get("wheel")!({ deltaY: -200 });
+  scrollBy(-200);
+  frameUntil(1000);
+  expect(atBottom()).toBe(200);
+  resize({ content: 1100 }, [user]);
+  expect(atBottom()).toBe(300);
+  expect(jump()).toBe(true);
+  // Back within the band, it goes away.
+  scrollBy(200);
+  draw([user]);
+  expect(jump()).toBe(false);
+});
+
+test("a scroll key gets the same wait as the wheel before following again", () => {
+  draw([user]);
+  on.get("keydown")!({ key: "ArrowUp", target: null });
+  scrollBy(-40);
+  frameUntil(64);
+  expect(atBottom()).toBe(40);
+  frameUntil(1000);
+  expect(atBottom()).toBe(0);
+});
+
+test("never follows again while the pointer is held on the scroller; a release anywhere in the window lets it", () => {
+  draw([user]);
+  on.get("pointerdown")!({ target: scroller });
+  scrollBy(-20);
+  frameUntil(2000);
+  expect(atBottom()).toBe(20);
+  resize({ content: 1050 }, [user]);
+  frameUntil(4000);
+  expect(atBottom()).toBe(70);
+  onWindow.get("pointerup")!({});
+  frameUntil(6000);
+  expect(atBottom()).toBe(0);
+});
+
+test("the window losing focus or the pointer being cancelled ends the press too", () => {
+  for (const end of ["pointercancel", "blur"]) {
+    draw([user]);
+    on.get("pointerdown")!({ target: scroller });
+    scrollBy(-20);
+    frameUntil(clock + 1000);
+    expect(atBottom()).toBe(20);
+    onWindow.get(end)!({});
+    frameUntil(clock + 1000);
+    expect(atBottom()).toBe(0);
+  }
 });

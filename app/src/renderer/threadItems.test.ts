@@ -214,11 +214,11 @@ describe("anchorParts and rootRelative", () => {
 });
 
 describe("scrollFollow", () => {
-  test("opens at the bottom, follows within 24px only", () => {
-    expect(scrollFollow(true, 500)).toBe(true);
-    expect(scrollFollow(false, 0)).toBe(true);
-    expect(scrollFollow(false, 24)).toBe(true);
-    expect(scrollFollow(false, 25)).toBe(false);
+  test("Jump to latest goes away back within the band, not outside it", () => {
+    expect(scrollFollow(0, 120)).toBe(true);
+    expect(scrollFollow(120, 120)).toBe(true);
+    expect(scrollFollow(121, 120)).toBe(false);
+    expect(scrollFollow(250, 300)).toBe(true);
   });
 });
 

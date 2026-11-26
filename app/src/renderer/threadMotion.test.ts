@@ -2,8 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { threadItems, withSending } from "./threadItems";
 import { combineQueued } from "../main/conversation/queue";
-import { FINISH_MS, FOLLOW_START, MAX_LAG_MS, TAU_MS, WHEEL_HOLD_MS, entering, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, type FollowState } from "./threadMotion";
-import { FOLLOW_DISTANCE } from "./threadItems";
+import { BOTTOM, FINISH_MS, FOLLOW_START, MAX_LAG_MS, NUDGE, TAU_MS, WHEEL_HOLD_MS, entering, followBand, followResize, followStep, nextFollow, revealBoundary, revealStep, timeMs, type FollowState } from "./threadMotion";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
@@ -329,64 +328,138 @@ describe("followStep", () => {
   });
 });
 
+describe("followBand", () => {
+  test("a third of the visible height, never under 120 px", () => {
+    expect(followBand(90)).toBe(120);
+    expect(followBand(360)).toBe(120);
+    expect(followBand(900)).toBe(300);
+  });
+});
+
 describe("nextFollow", () => {
   const settle = (state: FollowState, at: number, distance = 0) => nextFollow(state, { type: "frame", at, distance });
+  const wheel = (state: FollowState, at: number, distance = 0) => nextFollow(state, { type: "input", kind: "wheel", at, distance });
+  const key = (state: FollowState, at: number, distance = 0, name = "ArrowUp") => nextFollow(state, { type: "input", kind: "key", key: name, at, distance });
+  const press = (state: FollowState, distance = 0) => nextFollow(state, { type: "pointer", down: true, distance });
+  const release = (state: FollowState) => nextFollow(state, { type: "pointer", down: false, distance: 0 });
 
-  test("starts pinned", () => {
-    expect(FOLLOW_START.pinned).toBe(true);
+  test("starts pinned, not pressed, with no input", () => {
+    expect(FOLLOW_START).toEqual({ pinned: true, selecting: false, pressed: false, inputAt: -Infinity, origin: null });
+    expect(BOTTOM).toBe(24);
+    expect(NUDGE).toBe(48);
+    expect(WHEEL_HOLD_MS).toBe(100);
   });
 
   test("a person's input turns following off; a scroll the loop did not write does too", () => {
-    for (const event of [{ type: "input", kind: "wheel", at: 0 }, { type: "input", kind: "pointer", at: 0 }, { type: "input", kind: "key", key: "PageUp", at: 0 }, { type: "scroll" }] as const) {
-      expect(nextFollow(FOLLOW_START, event).pinned).toBe(false);
-    }
+    expect(wheel(FOLLOW_START, 0).pinned).toBe(false);
+    expect(key(FOLLOW_START, 0, 0, "PageUp").pinned).toBe(false);
+    expect(press(FOLLOW_START).pinned).toBe(false);
+    expect(nextFollow(FOLLOW_START, { type: "scroll" }).pinned).toBe(false);
   });
 
-  test("back at the bottom it follows again, but not within WHEEL_HOLD_MS of the last wheel (trackpad inertia)", () => {
-    expect(WHEEL_HOLD_MS).toBe(100);
-    const wheeled = nextFollow(FOLLOW_START, { type: "input", kind: "wheel", at: 1000 });
-    expect(settle(wheeled, 1050).pinned).toBe(false);
-    expect(settle(wheeled, 1099).pinned).toBe(false);
-    expect(settle(wheeled, 1100).pinned).toBe(true);
-    // Still away from the bottom: stays.
-    expect(settle(wheeled, 1200, 25).pinned).toBe(false);
-    const keyed = nextFollow(FOLLOW_START, { type: "input", kind: "key", key: "End", at: 1000 });
-    expect(settle(keyed, 1001).pinned).toBe(true);
-  });
-
-  test("a selection stops following until it ends", () => {
-    const selecting = nextFollow(FOLLOW_START, { type: "selection", active: true });
-    expect(selecting.pinned).toBe(false);
-    expect(settle(selecting, 5000, 0).pinned).toBe(false);
-    expect(settle(nextFollow(selecting, { type: "selection", active: false }), 5000, 0).pinned).toBe(true);
-  });
-
-  test("typing in the composer has no effect: keys that do not scroll the thread are ignored", () => {
-    for (const key of ["a", "Enter", "Backspace", "ArrowLeft", "Shift"]) {
-      expect(nextFollow(FOLLOW_START, { type: "input", kind: "key", key, at: 0 })).toBe(FOLLOW_START);
-    }
-    for (const key of ["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]) {
-      expect(nextFollow(FOLLOW_START, { type: "input", kind: "key", key, at: 0 }).pinned).toBe(false);
-    }
-  });
-
-  test("a scroll the loop did not write leaves it unpinned until the bottom is reached again", () => {
+  test("back within BOTTOM it follows again once the input is over, wherever the input started", () => {
+    const wheeled = wheel(FOLLOW_START, 1000, 300);
+    expect(settle(wheeled, 1200, 24).pinned).toBe(true);
+    expect(settle(wheeled, 1200, 25 + 300 + NUDGE).pinned).toBe(false);
     const scrolled = nextFollow(FOLLOW_START, { type: "scroll" });
-    expect(settle(scrolled, 5000, 30).pinned).toBe(false);
+    expect(settle(scrolled, 5000, 25).pinned).toBe(false);
     expect(settle(scrolled, 5000, 0).pinned).toBe(true);
   });
 
+  test("moved NUDGE or less from where the input started, it follows again once the input is over", () => {
+    const wheeled = wheel(FOLLOW_START, 1000, 0);
+    expect(settle(wheeled, 1100, NUDGE).pinned).toBe(true);
+    expect(settle(wheeled, 1100, NUDGE + 1).pinned).toBe(false);
+    // Measured from the input's start, not from the bottom.
+    const started = wheel(FOLLOW_START, 1000, 200);
+    expect(settle(started, 1100, 200 + NUDGE).pinned).toBe(true);
+    expect(settle(started, 1100, 200 + NUDGE + 1).pinned).toBe(false);
+  });
+
+  test("a wheel gesture's later events keep the start of the first", () => {
+    let state = wheel(FOLLOW_START, 1000, 0);
+    state = wheel(state, 1050, 30);
+    state = wheel(state, 1090, 60);
+    expect(state.origin).toBe(0);
+    expect(settle(state, 1190, 60).pinned).toBe(false);
+  });
+
+  test("not within WHEEL_HOLD_MS of the last wheel (trackpad inertia) or the last scroll key (its animation)", () => {
+    const wheeled = wheel(FOLLOW_START, 1000);
+    expect(settle(wheeled, 1099, 10).pinned).toBe(false);
+    expect(settle(wheeled, 1100, 10).pinned).toBe(true);
+    const keyed = key(FOLLOW_START, 1000);
+    expect(settle(keyed, 1001, 0).pinned).toBe(false);
+    expect(settle(keyed, 1099, 40).pinned).toBe(false);
+    expect(settle(keyed, 1100, 40).pinned).toBe(true);
+  });
+
+  test("never while the pointer is held, however close; on release it can", () => {
+    const pressed = press(FOLLOW_START, 0);
+    expect(pressed.pressed).toBe(true);
+    expect(settle(pressed, 5000, 0).pinned).toBe(false);
+    expect(settle(pressed, 5000, 30).pinned).toBe(false);
+    const released = release(pressed);
+    expect(released.pressed).toBe(false);
+    expect(settle(released, 5000, 30).pinned).toBe(true);
+    expect(settle(released, 5000, NUDGE + 1).pinned).toBe(false);
+  });
+
+  test("a release with no press changes nothing", () => {
+    expect(release(FOLLOW_START)).toBe(FOLLOW_START);
+    const wheeled = wheel(FOLLOW_START, 0);
+    expect(release(wheeled)).toBe(wheeled);
+  });
+
+  test("a wheel while the pointer is held keeps the press's start", () => {
+    const pressed = wheel(press(FOLLOW_START, 10), 1000, 40);
+    expect(pressed.origin).toBe(10);
+    expect(pressed.pressed).toBe(true);
+  });
+
+  test("a selection stops following until it ends, also within NUDGE", () => {
+    const wheeled = wheel(FOLLOW_START, 1000, 0);
+    const selecting = nextFollow(wheeled, { type: "selection", active: true });
+    expect(selecting.pinned).toBe(false);
+    expect(settle(selecting, 5000, 0).pinned).toBe(false);
+    expect(settle(selecting, 5000, 30).pinned).toBe(false);
+    expect(settle(nextFollow(selecting, { type: "selection", active: false }), 5000, 30).pinned).toBe(true);
+    const fromBottom = nextFollow(FOLLOW_START, { type: "selection", active: true });
+    expect(settle(nextFollow(fromBottom, { type: "selection", active: false }), 5000, 0).pinned).toBe(true);
+  });
+
+  // NUDGE is the person's own move; a scroll with no input of theirs (a focus, a clamp) keeps the BOTTOM rule only.
+  test("a scroll the loop did not write, with no input, follows again only within BOTTOM", () => {
+    const scrolled = nextFollow(FOLLOW_START, { type: "scroll" });
+    expect(settle(scrolled, 5000, 30).pinned).toBe(false);
+    expect(settle(scrolled, 5000, 24).pinned).toBe(true);
+  });
+
+  // Judged once the input ends: a later scroll with no input of the person's never counts as their nudge.
+  test("an input that ended further than NUDGE away no longer counts toward NUDGE", () => {
+    const wheeled = wheel(FOLLOW_START, 1000, 0);
+    const stayed = settle(wheeled, 1100, 200);
+    expect(stayed.pinned).toBe(false);
+    expect(stayed.origin).toBeNull();
+    expect(settle(stayed, 1200, 30).pinned).toBe(false);
+  });
+
+  test("typing in the composer has no effect: keys that do not scroll the thread are ignored", () => {
+    for (const name of ["a", "Enter", "Backspace", "ArrowLeft", "Shift"]) {
+      expect(key(FOLLOW_START, 0, 0, name)).toBe(FOLLOW_START);
+    }
+    for (const name of ["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]) {
+      expect(key(FOLLOW_START, 0, 0, name).pinned).toBe(false);
+    }
+  });
+
   test("Jump to latest follows again at once, also while the person is scrolled away", () => {
-    const away = nextFollow(FOLLOW_START, { type: "input", kind: "pointer", at: 0 });
-    expect(nextFollow(away, { type: "jump" }).pinned).toBe(true);
-    expect(settle(nextFollow(nextFollow(away, { type: "jump" }), { type: "scroll" }), 0, 0).pinned).toBe(true);
+    const away = press(FOLLOW_START);
+    expect(nextFollow(release(away), { type: "jump" }).pinned).toBe(true);
+    expect(settle(nextFollow(nextFollow(release(away), { type: "jump" }), { type: "scroll" }), 0, 0).pinned).toBe(true);
   });
 
-  test("the follow has no hold: a state is only pinned, selecting and the last wheel", () => {
-    expect(Object.keys(FOLLOW_START).sort()).toEqual(["pinned", "selecting", "wheelAt"]);
-  });
-
-  test("a frame changes nothing while pinned or far from the bottom", () => {
+  test("a frame changes nothing while pinned", () => {
     expect(settle(FOLLOW_START, 0, 500)).toBe(FOLLOW_START);
   });
 });
@@ -394,11 +467,11 @@ describe("nextFollow", () => {
 // content: the thread's own height (.thread), apart from the scroller's end inset and its viewport; inset: the end inset;
 // distance: from the bottom, before the change and after it (the view not moved).
 describe("followResize", () => {
-  const pinned = FOLLOW_START, at = 1000;
-  const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500 });
+  const pinned = FOLLOW_START, at = 1000, band = 120;
+  const away = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500, distance: 0 });
   const size = (content: number, inset = 0, distance = 0) => ({ content, inset, distance });
   const change = (patch: Partial<Parameters<typeof followResize>[1]>) =>
-    ({ reduced: false, revealing: false, now: at, before: size(1000), after: size(1100), ...patch });
+    ({ reduced: false, revealing: false, easing: false, now: at, band, before: size(1000), after: size(1100), ...patch });
 
   test("while a reply reveals, the view sticks to the bottom; a one-time growth eases", () => {
     expect(followResize(pinned, change({ revealing: true }))).toEqual({ state: pinned, move: "snap", behind: false });
@@ -409,27 +482,59 @@ describe("followResize", () => {
     expect(followResize(pinned, change({ reduced: true })).move).toBe("snap");
   });
 
-  test("scrolled away by the person, growth leaves the view and shows Jump to latest", () => {
-    expect(followResize(away, change({ revealing: true, before: size(1000, 0, 300), after: size(1100, 0, 400) }))).toEqual({ state: away, move: "none", behind: true });
+  test("scrolled away by the person past the band, growth leaves the view and shows Jump to latest", () => {
+    const out = followResize(away, change({ revealing: true, before: size(1000, 0, 300), after: size(1100, 0, 400) }));
+    expect(out.state.pinned).toBe(false);
+    expect(out.move).toBe("none");
+    expect(out.behind).toBe(true);
   });
 
-  // Near the bottom but not following (the wheel's inertia): growth that leaves the view far from the bottom shows it too.
-  test("growth that takes the view past the follow band shows Jump to latest even from near the bottom", () => {
-    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
-    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1100, 0, 110) })).behind).toBe(true);
-    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1010, 0, 20) })).behind).toBeNull();
+  test("unpinned within the band, growth shows no Jump to latest; growth that takes the view past it does", () => {
+    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50, distance: 0 });
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1100, 0, 110) })).behind).toBe(false);
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1100, 0, band) })).behind).toBe(false);
+    expect(followResize(wheeled, change({ before: size(1000, 0, 10), after: size(1111, 0, band + 1) })).behind).toBe(true);
+    expect(followResize(wheeled, change({ band: 300, before: size(1000, 0, 10), after: size(1290, 0, 300) })).behind).toBe(false);
   });
 
-  test("scrolled away, a row folding or unfolding or the viewport resizing without new content leaves Jump to latest as it was", () => {
+  test("scrolled away, a row folding or the viewport resizing without new content: outside the band Jump to latest stays as it was, inside it goes", () => {
     expect(followResize(away, change({ before: size(1000, 0, 300), after: size(900, 0, 200) })).behind).toBeNull();
     expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1000, 0, 280) })).behind).toBeNull();
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(800, 0, 100) })).behind).toBe(false);
+  });
+
+  test("growth while unpinned moves the input's start with it, so NUDGE counts only the person's own move", () => {
+    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50, distance: 0 });
+    // The person moved 30 px; the reply grew 200 px meanwhile.
+    const grown = followResize(wheeled, change({ before: size(1000, 0, 30), after: size(1200, 0, 230) })).state;
+    expect(grown.pinned).toBe(false);
+    expect(nextFollow(grown, { type: "frame", at: at + 200, distance: 230 }).pinned).toBe(true);
+    // Moved 60 px: stays.
+    const far = followResize(wheeled, change({ before: size(1000, 0, 60), after: size(1200, 0, 260) })).state;
+    expect(nextFollow(far, { type: "frame", at: at + 200, distance: 260 }).pinned).toBe(false);
   });
 
   test("back near the bottom once the wheel's inertia is over, it follows again", () => {
-    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50 });
+    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 50, distance: 0 });
     expect(followResize(wheeled, change({ before: size(1000, 0, 10) })).move).toBe("none");
     expect(followResize(wheeled, change({ before: size(1000, 0, 10), now: at + 200 })).move).toBe("ease");
-    expect(FOLLOW_DISTANCE).toBeGreaterThan(10);
+  });
+
+  // A snap from 40 px away would read as a jump; the eased follow catches up with the reply instead.
+  test("following again from outside BOTTOM eases to the bottom, even while a reply reveals", () => {
+    const wheeled = nextFollow(pinned, { type: "input", kind: "wheel", at: at - 500, distance: 0 });
+    const out = followResize(wheeled, change({ revealing: true, before: size(1000, 0, 40), after: size(1100, 0, 140) }));
+    expect(out.state.pinned).toBe(true);
+    expect(out.move).toBe("ease");
+    expect(out.behind).toBe(false);
+    expect(followResize(wheeled, change({ revealing: true, reduced: true, before: size(1000, 0, 40), after: size(1100, 0, 140) })).move).toBe("snap");
+  });
+
+  // followStep takes a moving target: the reveal's growth only moves the ease's goal.
+  test("while an ease runs, a revealing reply moves its goal instead of snapping; an inset change still snaps", () => {
+    expect(followResize(pinned, change({ revealing: true, easing: true, before: size(1000, 0, 30), after: size(1100, 0, 130) })).move).toBe("ease");
+    expect(followResize(pinned, change({ revealing: true, easing: true, before: size(1000, 0, 30), after: size(1100, 180, 310) })).move).toBe("snap");
+    expect(followResize(pinned, change({ revealing: true, easing: true, reduced: true })).move).toBe("snap");
   });
 
   // The popover appears whole at once, so an eased follow would leave the last item under it for a moment.
@@ -443,7 +548,9 @@ describe("followResize", () => {
   });
 
   test("scrolled away, an inset change alone is not new content: Jump to latest stays as it was", () => {
-    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1000, 180, 480) }))).toEqual({ state: away, move: "none", behind: null });
+    const out = followResize(away, change({ before: size(1000, 0, 300), after: size(1000, 180, 480) }));
+    expect(out.move).toBe("none");
+    expect(out.behind).toBeNull();
     expect(followResize(away, change({ before: size(1000, 180, 480), after: size(1000, 40, 340) })).behind).toBeNull();
   });
 
@@ -454,11 +561,11 @@ describe("followResize", () => {
 
   // The scroll height has the viewport as its floor, so it says nothing about the content once the thread stops overflowing.
   test("an inset shrinking until the thread no longer overflows is not new content", () => {
-    expect(followResize(away, change({ before: size(200, 400, 50), after: size(200, 40, 0) })).behind).toBeNull();
+    expect(followResize(away, change({ before: size(200, 400, 50), after: size(200, 40, 0) })).behind).toBe(false);
   });
 
   test("scrolled away, new content that comes with an inset change still shows Jump to latest", () => {
-    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1300, 180, 780) }))).toEqual({ state: away, move: "none", behind: true });
+    expect(followResize(away, change({ before: size(1000, 0, 300), after: size(1300, 180, 780) })).behind).toBe(true);
     // The inset shrank by more than the content grew: the content still grew.
     expect(followResize(away, change({ before: size(1000, 180, 480), after: size(1060, 40, 400) })).behind).toBe(true);
   });
