@@ -60,8 +60,8 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
 
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| check-scope | — | — | — | 대기 |
-| answer-popover | — | — | — | 대기 |
+| check-scope | Claude conductor `term_51e22458` · `~/orca/workspaces/doan-design/check-scope-orch` (`feat/check-scope`) | 2026-11-26 | — | 진행 중 |
+| answer-popover | Claude conductor `term_8f1ba90a` · `~/orca/workspaces/doan-design/answer-popover-orch` (`feat/answer-popover`) | 2026-11-26 | — | 진행 중 |
 
 ## 인계 기록
 
@@ -76,4 +76,4 @@ lead는 링크를 시작하기 전에 아래를 사용자와 한 번에 확인�
   - 로그인: 사용자가 실제 HOME의 Claude Code에 직접 다시 로그인한다. 토큰 복사는 쓰지 않는다('로그인').
   - Codex: 배치 워커에만 허가, Sol `high`까지, 워커를 띄우기 전 한도 확인('상시 권한'). 시작 시점 Codex 사용률 5h 2%, 7d 1%.
   - answer-popover T2 PoC 방식은 conductor가 design.md 기준으로 고르고 기록한다. 두 방식 모두 안 되면 멈추고 묻는다.
-  - 두 링크를 병렬 그룹으로 함께 시작한다.
+  - 두 링크를 병렬 그룹으로 함께 시작했다. 두 링크 모두 `7e8f22f75`에서 갈라졌다.
