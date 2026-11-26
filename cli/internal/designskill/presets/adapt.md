@@ -82,7 +82,7 @@ A canvas is one HTML document with one viewport, so viewport media queries respo
 - Reference token CSS variables for color and spacing; do not copy raw hex or rgb values.
 - When a layout, breakpoint, or component you draw is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report what breaks in each target context and the proposed changes without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list the contexts you adapted, what changed structurally in each, and what you left unchanged on purpose.
 
 ## Verify

@@ -80,7 +80,7 @@ Present the brief for explicit confirmation or one correction round, then stop. 
 - If the repository has no `.doan/config.json` and the user asked for a sketch, set Doan up as the Doan guide's Onboarding section describes.
 - State on the canvas that the sketched feature is not in code yet (Doan guide rule B).
 - If the user asked for a review of an existing plan only, report findings and proposals without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what you confirmed, what you assumed, what remains open, and any file or frame you wrote.
 
 ## Verify
@@ -89,7 +89,7 @@ Present the brief for explicit confirmation or one correction round, then stop. 
 - Every material state has an owner in the brief, including empty, error, and loading.
 - Scope boundaries and untouched areas are explicit.
 - No fact, claim, or visual direction was invented where the user had not decided it; assumptions are labelled.
-- A sketch, if drawn, passes `doan check` and keeps existing ids unchanged.
+- A sketch, if drawn, passes `doan check <edited canvas, CSS and config paths> --json` and keeps existing ids unchanged.
 
 Report anything you could not check, such as how a sketch renders at a width you could not view, as unverified.
 

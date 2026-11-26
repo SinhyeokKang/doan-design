@@ -82,7 +82,7 @@ When the delight is mainly authored motion (timing, easing, reduced-motion behav
 - A canvas is a still board. Draw the moment's states side by side or implement it in canvas CSS with a visible trigger, and annotate what a still drawing cannot show: trigger, duration, sound or haptic behavior, frequency limits, and the reduced-motion or muted alternative.
 - When new copy, illustration, sound, or interaction drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the opportunities and the proposed thesis without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed, the delight thesis, and what you left unchanged on purpose, especially serious moments you kept plain.
 
 ## Verify

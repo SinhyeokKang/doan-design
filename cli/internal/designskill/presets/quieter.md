@@ -100,7 +100,7 @@ Reading surfaces follow the type and consistency rules above; their prose measur
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When something on the canvas, such as a new muted token or a changed motion, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the intensity sources and proposed changes without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed and what you left unchanged on purpose, including token changes you proposed instead of making.
 
 ## Verify

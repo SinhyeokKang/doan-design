@@ -89,7 +89,7 @@ When inconsistency spans the product, propose a short terminology glossary inste
 - Change only the copy in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
 - When new copy on a canvas is not yet in code, say so on the canvas, as the Doan guide requires for anything drawn that is not in code.
 - If the user asked for a review only, report the findings and proposed wording without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed and what you left unchanged on purpose, such as factual or legal wording that needs the user's decision.
 
 ## Verify

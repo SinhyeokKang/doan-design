@@ -38,7 +38,7 @@ Strip the copy out of the planned target and study the bare structure. Does the 
 - Reference token CSS variables; do not copy raw hex or rgb values or introduce new ones.
 - When something you draw on the canvas, such as a new structural device or a new asset, is not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report why the target reads flat and the proposed moves without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed and what you left unchanged on purpose, including any system addition you proposed instead of making.
 
 ## Verify

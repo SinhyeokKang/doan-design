@@ -92,7 +92,7 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 - **Proposals, not code:** state on each alternative that it is a proposal not in code (Doan guide rule B), with one line on what it changes. Do not mark an alternative with `data-doan-implements`.
 - **No adoption:** do not pick an alternative for the user or apply one, and do not delete any. Draw no comparison or voting UI, create no branches, and run no live session. Applying a chosen one is a separate request.
 - If the user asked only for ideas or a plan, describe the alternatives without editing files. A request to review existing alternatives ends in a report, without editing files.
-- After editing, make `doan check` pass.
+- After editing, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list each alternative (canvas, frame id, axis or direction), the identity sentence you held fixed, and anything left for the user to decide.
 
 ## Verify
@@ -100,7 +100,7 @@ Contrast, states, overflow, and truth are checkable defects. The user's brief or
 - Each alternative matches the requested count, direction, and target, and the original is unchanged.
 - The identity holds across default-mode variants. In free exploration, each variant's primary axis is distinct; with a fixed direction, every variant stays in that dimension with a distinct sub-strategy and honors the request's constraints; departure variants differ in direction.
 - The quality floor above holds in each variant, and each variant draws the target's states or names on the canvas the ones it leaves out.
-- `doan check` passes and every new id is unique.
+- `doan check <edited canvas, CSS and config paths> --json` passes and every new id is unique.
 
 Report anything you could not check, such as rendered contrast or appearance at widths you could not view, as unverified.
 

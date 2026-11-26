@@ -108,7 +108,7 @@ States and contrast below are checkable defects. The other items are review defa
 - Use token CSS variables for colors and motion values; do not copy raw hex or rgb values.
 - When motion drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the findings and the proposed motion plan without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed, the motion thesis you used, and what you left unchanged on purpose.
 
 ## Verify

@@ -96,11 +96,11 @@ No numeric score is required. Explain why each issue matters and keep recommenda
 
 - The audit is review-only: do not edit canvases, code, or configuration.
 - If the user then asks for fixes, change only what they selected. Keep canvas, frame, and element ids unchanged; reference token CSS variables instead of raw colors; when something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule B). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`).
-- After editing a canvas, make `doan check` pass. List what changed and what you left unchanged on purpose.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass. List what changed and what you left unchanged on purpose.
 
 ## Verify
 
-Before reporting, confirm each finding in context and drop false positives you could not confirm. Check that every dimension in scope appears either as checked, with its evidence level, or as unchecked, with the reason. A passing `doan check` means the canvas follows Doan's conventions, not that it is accessible. Screen reader output, keyboard behavior as rendered, touch gestures, real devices, zoom reflow, and performance metrics are unverified unless you actually ran them.
+Before reporting, confirm each finding in context and drop false positives you could not confirm. Check that every dimension in scope appears either as checked, with its evidence level, or as unchecked, with the reason. A passing `doan check <edited canvas, CSS and config paths> --json` means the canvas follows Doan's conventions, not that it is accessible. Screen reader output, keyboard behavior as rendered, touch gestures, real devices, zoom reflow, and performance metrics are unverified unless you actually ran them.
 
 ---
 

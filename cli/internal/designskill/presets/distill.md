@@ -98,7 +98,7 @@ When the request covers the implementation, remove unused styles and components,
 - Reference token CSS variables; do not copy raw hex or rgb values.
 - When the simplified canvas no longer matches the code it implements, or shows something not in code yet, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the findings and the proposed cuts without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what you removed, hid, or merged and why, whether removed options need another access point, and what you left unchanged on purpose because it needs the user's decision.
 
 ## Verify

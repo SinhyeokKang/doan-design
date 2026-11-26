@@ -75,7 +75,7 @@ Variation is not a goal by itself. Repetition supports recognition; break it onl
 - A frame shows one width. Draw additional frames for other widths or states only when the request covers them; otherwise describe the intended adaptation in your answer.
 - When a structure drawn on the canvas is not in code yet, such as a new region, component, or breakpoint behavior, say so on the canvas, as the Doan guide requires.
 - If the user asked for a review only, report the assessment, the spatial thesis, and proposed changes without editing files.
-- After editing a canvas, make `doan check` pass.
+- After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
 - In your answer, list what changed and what you left unchanged on purpose, and any spacing token you proposed rather than added.
 
 ## Verify
