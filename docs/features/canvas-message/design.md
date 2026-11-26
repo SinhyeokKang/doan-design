@@ -102,7 +102,7 @@
 - `threadItems.ts`는 이미 위치와 상관없이 `origin`이 있는 모든 `user.message`를 받은 버블로 그린다. 바뀌는 것은 메타 문구와 아이콘, 그룹 이름을 `via`별로 나누는 일이다(`handoffView.ts`).
 - `summary.ts`의 `startedBy`는 첫 메시지만 본다. 대화 중간 `send`는 제목과 `startedBy`를 바꾸지 않는다.
 - canvas 카드(`canvasCardText.ts`): `send` 상태 문구와 아이콘, 연쇄 거절 문구, 대상 대화 제목과 그 대화가 지워진 경우. 기존 기록의 `not_new`와 `handoff_turn` 문구는 남긴다.
-- 큐 줄: 재시작 뒤 남아 저절로 나가지 않는 에이전트 행은 흐리게 하고 tooltip과 접근성 설명으로 이유를 말한다. 에이전트 행에 보낸 에이전트의 provider 로고(`providerLogo`, 보낸 대화의 provider)를 둔다. 출처 캔버스 이름은 화면에 쓰지 않고 접근성 이름에만 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
+- 큐 줄: 받는 턴의 실패·멈춤·한도 실패 뒤나 재시작 뒤 남아 저절로 나가지 않는 에이전트 행은 흐리게 하고 tooltip과 접근성 설명으로 이유를 말한다. 에이전트 행에 보낸 에이전트의 provider 로고(`providerLogo`, 보낸 대화의 provider)를 둔다. 출처 캔버스 이름은 화면에 쓰지 않고 접근성 이름에만 둔다. 접근성 이름은 "Message from <source>: <summary>"다. ×만 있고 Send now는 없다. 색 왼쪽 선은 쓰지 않는다.
 - Edit and resend: `origin`이 있는 메시지로 시작한 턴에는 없다. handoff 첫 턴의 규칙을 `origin` 전체로 넓힌다.
 - 알림 토스트: send 변형의 문구(드래프트).
 
@@ -177,3 +177,4 @@
 
 - 2026-11-26 사용자가 `.doan/canvases/canvas-message.html`(`d2b5c9ab8`)의 네 프레임을 확정했다. draft 헤더 'Proposals to confirm'의 문구(send 토스트 넷, Sent·Queued 카드의 Open 이름, 받은 버블의 그룹 설명)와 provider 로고 사용, 큐 행의 출처 이름 없음을 포함한다.
 - 2026-11-26 사용자가 재시작 뒤 남은 에이전트 행의 표시를 정했다: 상태 줄 대신 행을 흐리게(글 `--text-disabled`, 로고 반투명, ×는 그대로) 하고 tooltip "Sends after your next message here ends"를 단다. draft `queue` 3번 타일에 그렸다.
+- 2026-11-26 사용자가 같은 흐린 행과 tooltip을 받는 턴의 실패·멈춤 뒤에도 쓰기로 했다. 사용량 한도 실패 뒤도 같은 상태라 같이 쓴다.
