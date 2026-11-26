@@ -1183,7 +1183,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .card-head .cc-meta .sep { color: var(--text-disabled); }
 .conversation-thread .card-head .cc-meta .cc-folder { flex: 1 1 0; min-width: 1em; max-width: max-content; overflow: hidden; text-overflow: ellipsis; }
 .conversation-thread .card-head .cc-meta > span:has(> time) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.conversation-thread .card-head .cc-open { flex: none; color: var(--text-standard); }
+.conversation-thread .card-head .cc-open { flex: none; }
 .conversation-thread .bubble.from-agent { max-width: 100%; white-space: normal; gap: var(--space-2); }
 .conversation-thread .bubble.from-agent :not(pre) > code { background: var(--surface-panel); }
 /* Its smaller gap already is the space a paragraph keeps above a list. */

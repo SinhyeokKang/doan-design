@@ -172,7 +172,6 @@ export function useLocateNote(scroller?: () => EventTarget | null): [shown: bool
   }, [shown]);
   return [shown !== 0, () => setShown(n => n + 1)];
 }
-const COPIED_MS = 2000;
 
 // Codes without their own copy read as an unexpected stop. resend: false when the turn never began (body "" draws no second
 // line). resets: the live usage-limit reset, last turn only; it wins over the time Claude's detail names.
@@ -652,7 +651,7 @@ export function CanvasCard({ entry, context, project, provider, canvasListed, on
     <div className="card-head">
       <span className="cc-icon">{Icon ? <Icon aria-hidden="true" /> : <span className="doan-spinner" aria-hidden="true" />}</span>
       <span className="cc-text"><CardName name={view.name} /><span className="cc-status">{view.status}</span><CardMeta meta={meta} keep={drawing} /></span>
-      {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
+      {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="subtle" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
     </div>
   </div></div>;
 }
@@ -944,7 +943,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [jumpFits, setJumpFits] = useState(true);
   const setBehind = (value: boolean) => { if (behindNow.current !== value) { behindNow.current = value; setBehindState(value); } };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
   // From the hub at once: a thread remounted for another conversation draws its banners with the images already there.
   const [images, setImages] = useState<ReadonlyMap<string, ThumbnailState>>(() => props.thumbnails?.hub.items(props.thumbnails.root) ?? NO_IMAGES);
@@ -1067,7 +1065,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (control?.closest(".ap[data-cramped]")) control.scrollIntoView({ block: "nearest" });
     return !!control;
   };
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The stage after settle is derived while rendering, so the indicator shows from the render the message enters. It belongs to
   // one turn: a next turn starts from nothing even when no render showed the earlier one's end.
   const turnId = props.turn?.turnId ?? null;
@@ -1114,8 +1111,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (document.activeElement && document.activeElement !== document.body) return;
     handFocus(() => props.onFocusComposer?.());
   });
-
-  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
 
   // Messages this window sent enter once, in the render they first show; a remount starts with nothing entering.
   const prevItems = useRef<readonly ThreadItem[]>([]), entered = useRef<ReadonlyMap<string, number>>(new Map());
@@ -1379,9 +1374,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     void props.onCopy(text).catch(() => false).then(ok => {
       if (!ok) { setCopyFailed(reply); return; }
       setCopyFailed(null);
-      setCopied(true);
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
     });
   };
   const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: (text, reply) => actions.current.copy(text, reply), replyChip: link => actions.current.replyChip(link) }).current;
@@ -1513,7 +1505,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       onNext={() => { if (ask.kind === "question") moveStep(ask, { type: "next", questions: ask.questions }); }} onBack={() => { if (ask.kind === "question") moveStep(ask, { type: "back" }); }}
       onSend={() => { if (ask.kind === "question") sendQuestion(ask, "answer"); }} onSkip={() => { if (ask.kind === "question") sendQuestion(ask, "skip"); }} onStop={() => stop(ask.requestId)}
       onCollapse={() => collapse("bar")} onExpand={() => expand(ask.key)} onEscape={() => collapse("composer")} />}
-    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
+    <div className="sr-only" role="status">{phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
   </div></Motion.Provider></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 
