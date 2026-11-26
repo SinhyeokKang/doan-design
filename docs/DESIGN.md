@@ -270,7 +270,8 @@ Each screen's measured values, documented differences and Not verified list are 
 | Keep out of Git outside a Git repository | [design/project.md](design/project.md) |
 | Canvas row menu and export viewer | [design/canvas.md](design/canvas.md) |
 | Export viewer selection and play | [design/canvas.md](design/canvas.md) |
-| Agent question card | [design/conversation.md](design/conversation.md) |
+| Answer popover | [design/conversation.md](design/conversation.md) |
+| Permission request | [design/conversation.md](design/conversation.md) |
 | Canvas handoff | [design/conversation.md](design/conversation.md) |
 | Fast switch | [design/conversation.md](design/conversation.md) |
 | Sent bubble lists | [design/conversation.md](design/conversation.md) |
