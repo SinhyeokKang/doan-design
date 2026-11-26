@@ -1497,6 +1497,26 @@ describe("tool wiring", () => {
     expect(measure).not.toMatch(/addEventListener\("key(down|up)",[\s\S]*?\{ capture: true \}\s*\);/);
   });
 
+  // As the app's canvasScript.ts: ⇧Space never pans and never reaches the page, and the canvas takes its default
+  // (Firefox scrolls the board up on it), held repeats and a Shift let go mid-hold included.
+  test("the canvas takes ⇧Space's default and sends nothing for it", () => {
+    const keydowns: ((event: unknown) => void)[] = [];
+    const posted: unknown[] = [];
+    const document = { readyState: "loading", adoptedStyleSheets: [], addEventListener() {}, fonts: { addEventListener() {} } };
+    const context = {
+      document, parent: { postMessage: (message: unknown) => posted.push(message) }, history: { pushState() {}, replaceState() {} },
+      addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "keydown") keydowns.push(listener); },
+    };
+    runInNewContext(`(function () {\n${lib}\n${canvasInspectScripts}\n${measure}\n})();`, context);
+    const keydown = (over: Record<string, boolean>) => {
+      const event = { type: "keydown", code: "Space", key: " ", repeat: false, isComposing: false, keyCode: 32, defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false, shiftKey: true, target: null, ...over, preventDefault() { event.defaultPrevented = true; } };
+      for (const listener of keydowns) listener(event);
+      return event.defaultPrevented;
+    };
+    expect([keydown({}), keydown({ repeat: true }), keydown({ repeat: true, shiftKey: false })]).toEqual([true, true, true]);
+    expect(posted).toEqual([]);
+  });
+
   test("no comment still says the viewer has no tools or key forwarding", () => {
     for (const [name, source] of [["lib.js", lib], ["shell.js", shellJs], ["measure.js", measure]] as const) {
       expect(source, name).not.toMatch(/leaves out: tools|key forwarding|key channels do not exist/);
