@@ -1144,7 +1144,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // inertia or animation before following again. Growth is seen by a ResizeObserver, since a revealing reply grows
   // without new items.
   const bottomOf = (node: HTMLElement) => node.scrollHeight - node.clientHeight;
-  const bandOf = (node: HTMLElement) => followBand(node.clientHeight - inset.current);
+  const viewportHeight = (node: HTMLElement) => root.current?.clientHeight ?? node.clientHeight;
+  const bandOf = (node: HTMLElement) => followBand(viewportHeight(node) - inset.current);
   const write = (node: HTMLElement, top: number) => {
     const was = node.scrollTop;
     node.scrollTop = top;
@@ -1206,7 +1207,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (popover.current) holdChrome(popover.current);
     const insetNow = popover.current?.isConnected === false ? 0 : popover.current?.offsetHeight ?? 0;
     if (insetNow !== inset.current) root.current?.style.setProperty("--ap-inset", `${insetNow}px`);
-    const fits = insetNow === 0 || node.clientHeight - insetNow >= JUMP_ROOM;
+    const fits = insetNow === 0 || viewportHeight(node) - insetNow >= JUMP_ROOM;
     if (fits !== jumpFits) setJumpFits(fits);
     const before = { content: contentHeight.current, inset: inset.current, distance: distance.current };
     clampSeen(node);

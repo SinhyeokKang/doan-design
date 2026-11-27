@@ -8,7 +8,7 @@
     "dev": "electron-vite dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p ../eval",
-    "lint": "oxlint --type-aware --max-warnings 77 src runtime && npm run lint:eval",
+    "lint": "oxlint --type-aware --max-warnings 76 src runtime && npm run lint:eval",
     "lint:eval": "cd .. && OXLINT_TSGOLINT_PATH=app/node_modules/.bin/tsgolint app/node_modules/.bin/oxlint --type-aware -c app/.oxlintrc.json --ignore-pattern '**/*.test.ts' --max-warnings 0 eval",
     "package": "node scripts/package.mjs"
   },

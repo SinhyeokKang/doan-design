@@ -646,7 +646,7 @@ describe("the conversation button and panel", () => {
     expect(hide).toMatch(/^<button type="button" class="doan-icon-button doan-panel-hide"/);
     expect(hide).toContain('aria-expanded="true"');
     expect(hide).toContain('aria-controls="doan-conversation-panel"');
-    expect(html).toMatch(/<div class="doan-conv-head"><h2 class="phead rp-head" tabindex="-1"><span>Checkout<\/span><\/h2><button[^>]*aria-label="Hide conversation"/);
+    expect(html).toMatch(/<div class="doan-conv-head panel-fade-head"><h2 class="phead rp-head" tabindex="-1"><span>Checkout<\/span><\/h2><button[^>]*aria-label="Hide conversation"/);
     expect(html).toContain("lucide-panel-right-close");
   });
 

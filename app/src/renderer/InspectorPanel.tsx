@@ -75,7 +75,7 @@ export function InspectorPanel({ shown, onHide, selection, document: shownDocume
   const nodes = useElementTree(shown, view, tree);
   return <aside ref={panel} className="right ov-right doan-insp-panel" id={INSPECTOR_PANEL_ID} role="region" aria-label="Inspector"
     onFocus={event => { lastFocus.current = event.target; }} onBlur={event => { if (event.relatedTarget !== null) lastFocus.current = null; }}>
-    <div className="doan-conv-head doan-insp-head">
+    <div className="doan-conv-head doan-insp-head panel-fade-head">
       {view === null ? <span className="doan-insp-title">Inspector</span> : <ElementMenu view={view} nodes={nodes} tree={tree} shown={shown} onEscape={onEscape} />}
       <IconTip label="Hide inspector" onEscape={onEscape}><button type="button" className="doan-icon-button doan-panel-hide" aria-label="Hide inspector" aria-expanded={shown} aria-controls={INSPECTOR_PANEL_ID} onClick={onHide}><PanelRightClose aria-hidden="true" /></button></IconTip>
     </div>

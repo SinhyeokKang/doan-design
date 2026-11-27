@@ -63,7 +63,7 @@ function setup(list: ListView, current: string | null) {
 
 test("the header ends with a New conversation button", () => {
   const { html } = setup([summary], A);
-  const head = html.slice(html.indexOf('<header class="ov-head"'), html.indexOf("</header>"));
+  const head = html.slice(html.indexOf('<header class="ov-head panel-fade-head"'), html.indexOf("</header>"));
   expect(head).toMatch(/<button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation"[^>]*>(?:(?!<button).)*<\/button>$/);
 });
 

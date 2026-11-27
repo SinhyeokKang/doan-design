@@ -1243,6 +1243,30 @@ body:has(.shell-top) { background: transparent; }
 /* Tabular figures widen every "1", so these surfaces drop them; portalled menus are listed too. */
 .ov-main, .right.ov-right, .conv-menu, .wt-menu, .doan-insp-menu, .doan-insp-tip { font-variant-numeric: normal; }
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.panel-fade-head { position: relative; z-index: 1; flex: none; }
+.panel-fade-head::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface-panel) 90%, transparent) 0 calc(100% - var(--space-4)),
+    transparent 100%
+  );
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .panel-fade-head::before { background: var(--surface-panel); }
+}
+.ov-right.doan-scroll > .panel-fade-head { position: sticky; inset-block-start: 0; }
+:is(.ov-right.doan-scroll, .doan-insp-body, .thread-scroll) { scroll-padding-block-start: var(--size-chrome); }
+/* Extend the scroller alone so the answer popover still measures and sits in the original thread area.
+   Reserve the same space inside the scroller to keep the first item and scroll extent in place. */
+:is(.ov-head + .ov-scroll, .doan-conv-panel) .thread-scroll { margin-block-start: calc(-1 * var(--size-chrome)); }
+:is(.ov-head + .ov-scroll, .doan-conv-panel) .thread-scroll > .thread { margin-block-start: var(--size-chrome); }
+.ov-notice + .ov-scroll .thread-scroll { scroll-padding-block-start: 0; }
+.thread-scroll :is(.thread-item, :focus) { scroll-margin-block-start: var(--space-1); }
 /* A long folder name stops at 40% of the header, so New conversation stays in. */
 .ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
@@ -1482,6 +1506,8 @@ button.wt-chip.doan-chip[aria-expanded="true"] { background: var(--affordance-ba
 .doan-insp-head:has(.doan-insp-pick) { padding-left: 0; }
 .doan-insp-title { flex: 1; min-width: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-insp-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-2) var(--space-2) var(--space-6); }
+.doan-insp-body:has(.doan-insp-row) { margin-block-start: calc(-1 * var(--size-chrome)); }
+.doan-insp-body > .doan-insp-groups { margin-block-start: var(--size-chrome); }
 .doan-insp-groups { display: flex; flex-direction: column; gap: var(--space-3); }
 .doan-insp-group-title { margin: 0; padding: var(--space-3) var(--space-2) var(--space-1); color: var(--text-standard); font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
 /* Chip radius: the row radius would turn a 32px row into a capsule. */

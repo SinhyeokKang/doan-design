@@ -115,15 +115,16 @@ export function CanvasConversationList({ list, current, project, thumbnails, ope
   const observed = observedRows(rows);
   useEffect(() => {
     const root = scroller.current;
-    if (!root || observed === "") return;
+    const head = title.current;
+    if (!root || !head || observed === "") return;
     let visible = new Set<string>();
     const observer = new IntersectionObserver(changes => {
       const next = applyVisibility(visible, changes.map(change => ({ path: (change.target as HTMLElement).dataset.path ?? "", visible: change.isIntersecting })));
       if (next) { visible = next; report.current([...next]); }
-    }, { root });
+    }, { root, rootMargin: `-${head.offsetHeight}px 0px 0px` });
     for (const row of root.querySelectorAll<HTMLElement>(".cv-row[data-path]")) observer.observe(row);
     return () => { observer.disconnect(); report.current([]); };
-  }, [observed]);
+  }, [observed, scroller, title]);
 
   if (list === "loading") return <ListLoading />;
   // The panel is white, where a panel button has no fill of its own; subtle keeps one.

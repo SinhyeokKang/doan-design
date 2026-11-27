@@ -9,7 +9,7 @@ test("the panel header paints its fade behind the controls and turns opaque in e
 });
 
 test("the Conversations heading stays at the top of its existing scroller", () => {
-  expect(css).toMatch(/\.ov-right > \.panel-fade-head \{ position: sticky; inset-block-start: 0; \}/);
+  expect(css).toContain(".ov-right.doan-scroll > .panel-fade-head { position: sticky; inset-block-start: 0; }");
 });
 
 test("the three body scrollers reserve the chrome height for scroll-to-item and keyboard focus", () => {
