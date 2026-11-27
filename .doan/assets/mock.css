@@ -79,3 +79,10 @@
   --relay-phone-shadow: #0000008c;
   --relay-phone-ring: #00000014;
 }
+
+/* Checkout content inside the panel header fade preview. */
+:root {
+  --mock-checkout-ink: #242424;
+  --mock-checkout-paper: var(--mock-bg);
+  --mock-checkout-border: #dedede;
+}
