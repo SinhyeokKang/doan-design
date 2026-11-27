@@ -344,9 +344,9 @@ export class ConversationService {
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       // Every turn of a newDesign conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign";
-      // seenSeq 0: a new conversation's first end shows as unseen. The title leaves out fixed preset and skill lines, and a
-      // command names no conversation: the first message that is not one will.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: command ? "" : messageLine(requestTitleText(request.text), request.anchors),
+      const titleText = handoff ? (handoff.handoffText.split("\n", 1)[0] ?? "").trimEnd() : requestTitleText(request.text);
+      // seenSeq 0 makes the first turn's end unseen. A command defers the title to the next ordinary message.
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: command ? "" : messageLine(titleText, request.anchors),
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.

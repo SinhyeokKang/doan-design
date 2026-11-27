@@ -132,7 +132,7 @@ describe("a handoff request", () => {
 });
 
 describe("the end of a turn that asked", () => {
-  it("starts the next conversation at once when the canvas is listed, with the source's provider, choice and current mode", async () => {
+  it("starts the listed canvas with the source's choices, a first-line title and the full handoff message", async () => {
     const h = fixture(); const id = await h.start();
     const requestedIn = h.turnOf(id);
     const text = "The person wants a checkout flow.\nKeep {{1}} literal.";
@@ -142,7 +142,7 @@ describe("the end of a turn that asked", () => {
     h.service.receive(id, { type: "turn.done" });
     await h.settled();
     const target = h.on(b)!;
-    expect(target).toMatchObject({ root: "/repo", canvas: b, model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: "codex" }, title: "The person wants a checkout flow. Keep {{1}} literal." });
+    expect(target).toMatchObject({ root: "/repo", canvas: b, model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: "codex" }, title: "The person wants a checkout flow." });
     expect(h.open.mock.calls[1]![0]).toMatchObject({ model: "gpt-x", effort: "high", permissionMode: "bypass" });
     expect(h.store.read(target.conversationId).slice(0, 2)).toMatchObject([
       { type: "user.message", text, anchors: [], origin: { kind: "handoff", conversationId: id, canvas: a } }, { type: "turn.started" }]);
