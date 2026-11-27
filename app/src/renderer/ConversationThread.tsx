@@ -669,7 +669,7 @@ function textWidth(text: string, style: CSSStyleDeclaration): number {
   if (!measuring) return 0;
   measuring.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
   measuring.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
-  return Math.ceil(measuring.measureText(text).width);
+  return measuring.measureText(text).width;
 }
 // The most characters a middle cut of `name` keeps within `width`; null when the name fits whole (or nothing laid out).
 function fitKeep(name: string, width: number, measure: (text: string) => number): number | null {
@@ -693,7 +693,8 @@ function CardName({ name }: { name: string }) {
       const label = node.lastElementChild;
       if (!(label instanceof HTMLElement)) return;
       const style = getComputedStyle(label);
-      setKeep(fitKeep(name, Math.floor(node.getBoundingClientRect().right - label.getBoundingClientRect().left), text => textWidth(text, style)));
+      const width = node.getBoundingClientRect().right - label.getBoundingClientRect().left;
+      setKeep(fitKeep(name, width, text => textWidth(text, style)));
     };
     const observer = new ResizeObserver(fit);
     observer.observe(node);
@@ -723,7 +724,7 @@ function MetaName({ name, title }: { name: string; title: string | null }) {
     // A range over the whole copy's text reads its laid-out width; the copy's own box is clipped to the name's box.
     const style = getComputedStyle(shown), range = document.createRange();
     range.selectNodeContents(full);
-    const observer = new ResizeObserver(() => setKeep(metaNameKeep(name, box.getBoundingClientRect().width, range.getBoundingClientRect().width, text => textWidth(text, style))));
+    const observer = new ResizeObserver(() => setKeep(metaNameKeep(name, box.getBoundingClientRect().width, range.getBoundingClientRect().width, text => Math.ceil(textWidth(text, style)))));
     observer.observe(box);
     return () => observer.disconnect();
   }, [name]);
