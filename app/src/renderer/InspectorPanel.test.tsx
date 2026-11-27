@@ -94,7 +94,7 @@ describe("the head and the column", () => {
   test("without a selection the title is Inspector, then Hide inspector", () => {
     const markup = html(<InspectorPanel shown={true} onHide={vi.fn()} selection={null} document={null} inspect={vi.fn()} tree={tree} onNotice={vi.fn()} onEscape={vi.fn()} />);
     expect(markup).toContain(`<aside class="right ov-right doan-insp-panel" id="${INSPECTOR_PANEL_ID}" role="region" aria-label="Inspector">`);
-    expect(markup).toContain('<div class="doan-conv-head doan-insp-head"><span class="doan-insp-title">Inspector</span>');
+    expect(markup).toContain('<div class="doan-conv-head doan-insp-head panel-fade-head"><span class="doan-insp-title">Inspector</span>');
     expect(markup).toMatch(/<button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide inspector" aria-expanded="true" aria-controls="doan-inspector-panel"[^>]*><svg[^>]*lucide-panel-right-close/);
     expect(markup).toContain(INSPECTOR_EMPTY);
   });

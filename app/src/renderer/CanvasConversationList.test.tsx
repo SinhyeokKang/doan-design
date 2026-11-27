@@ -55,7 +55,7 @@ describe("canvas conversation list", () => {
     expect(html).toMatch(/^<ul class="rp-list" role="list">/);
     const panel = markup(<TooltipProvider><CanvasConversations list={rows} current={null} project="acme-web" thumbnails={thumbnails} open={noop} retry={noop} onVisible={noop} onDelete={noop} /></TooltipProvider>);
     expect(panel.match(/aria-label="Conversations"/g)).toHaveLength(1);
-    expect(panel).toContain('<aside class="right doan-scroll ov-right" role="region" aria-label="Conversations"><h2 class="phead rp-head" tabindex="-1">Conversations</h2><ul class="rp-list"');
+    expect(panel).toContain('<aside class="right doan-scroll ov-right" role="region" aria-label="Conversations"><h2 class="phead rp-head panel-fade-head" tabindex="-1">Conversations</h2><ul class="rp-list"');
   });
 
   // The head is the conversation's title, the caption line under it the canvas name.

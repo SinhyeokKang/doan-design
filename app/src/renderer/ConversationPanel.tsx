@@ -21,7 +21,7 @@ export function ConversationPanel({ open, width, bounds, onHide, onResize, previ
   return <div className="doan-conv-column" ref={columnRef} data-collapsed={open ? undefined : ""} inert={!open} onBlur={onBlur}>
     <ResizeHandle width={width} bounds={bounds} onResize={onResize} preview={preview} />
     <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
-      <div className="doan-conv-head">
+      <div className="doan-conv-head panel-fade-head">
         {title ?? <h2 className="phead rp-head" tabIndex={-1}>Conversation</h2>}
         <IconTip label="Hide conversation"><button type="button" className="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded={open} aria-controls={CONVERSATION_PANEL_ID} onClick={onHide}><PanelRightClose aria-hidden="true" /></button></IconTip>
       </div>

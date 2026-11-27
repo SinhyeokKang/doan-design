@@ -97,7 +97,7 @@ const scroller = {
 };
 // No rows to measure: the floor that keeps the head and buttons is the real DOM's (popoverFloor is tested on its own).
 const popover = { get offsetHeight() { return layout.inset; }, style: { minHeight: "", overflow: "" }, querySelector: () => null, querySelectorAll: () => [], closest: () => null, hasAttribute: () => false, toggleAttribute: () => false };
-const root = { style: { setProperty: (name: string, value: string) => { vars.set(name, value); } }, contains: () => false, querySelector: () => null };
+const root = { clientHeight: undefined as number | undefined, style: { setProperty: (name: string, value: string) => { vars.set(name, value); } }, contains: () => false, querySelector: () => null };
 
 function draw(items: ThreadItem[]): void {
   hooks.cursor = 0; hooks.effectCursor = 0; hooks.pending = [];
@@ -123,6 +123,7 @@ function resize(change: Partial<typeof layout>, items: ThreadItem[]): void {
 }
 
 beforeEach(() => {
+  root.clientHeight = undefined;
   hooks.slots = []; hooks.effects = [];
   vars.clear();
   on.clear(); onWindow.clear(); frames.clear(); frameId = 0; clock = 0; smooth = null; smoothStep = 150; echo = false; echoing = false;
@@ -176,6 +177,18 @@ test("Jump to latest stays away while the popover leaves it no room in the threa
   scroller.scrollTop = 200;
   (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
   resize({ inset: 360 }, [user, ask]);
+  resize({ content: 1300 }, [user, ask]);
+  expect(jump()).toBe(false);
+  resize({ inset: 120 }, [user, ask]);
+  expect(jump()).toBe(true);
+});
+
+test("Jump to latest reserves room below the header even when the scroller runs behind it", () => {
+  root.clientHeight = 344;
+  draw([user]);
+  scroller.scrollTop = 200;
+  (tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.onScroll as () => void)();
+  resize({ inset: 300 }, [user, ask]);
   resize({ content: 1300 }, [user, ask]);
   expect(jump()).toBe(false);
   resize({ inset: 120 }, [user, ask]);

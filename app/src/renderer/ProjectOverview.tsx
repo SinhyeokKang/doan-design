@@ -383,7 +383,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const placeholder = mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
   return <section className="ov ov-main" role="region" aria-label="Overview">
-    <header className="ov-head">
+    <header className="ov-head panel-fade-head">
       <span className="ov-project">
         <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
         <NameTip text={project}><span className="ov-project-name">{project}</span></NameTip>

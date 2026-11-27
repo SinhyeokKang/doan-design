@@ -13,9 +13,13 @@ export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined)
   return state ?? { kind: "pending" };
 }
 
-export function applyVisibility(current: ReadonlySet<string>, changes: readonly { path: string; visible: boolean }[]): Set<string> | null {
-  const next = new Set(current);
-  for (const change of changes) if (change.visible) next.add(change.path); else next.delete(change.path);
+export function applyVisibility(visibleRows: Map<string, string>, changes: readonly { key: string; path: string; visible: boolean }[]): Set<string> | null {
+  const current = new Set(visibleRows.values());
+  for (const change of changes) {
+    if (change.visible) visibleRows.set(change.key, change.path);
+    else visibleRows.delete(change.key);
+  }
+  const next = new Set(visibleRows.values());
   return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
 }
 
