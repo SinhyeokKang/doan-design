@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="panel-header-fade">
+<meta name="doan:width" content="1440">
+<title>Panel header fade</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/mock.css">
+<style>
+@font-face { font-family: Geist; src: url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+:root { --radix-popper-available-height: 384px; --radix-tooltip-content-transform-origin: center; }
+@layer base {
+  *, ::before, ::after { box-sizing: border-box; }
+  body, h1, h2, h3, p, ol, ul { margin: 0; }
+  ol, ul { list-style: none; padding: 0; }
+  button, textarea, input { font: inherit; }
+}
+body { width: 1440px; padding: var(--space-8); background: var(--surface-inset); color: var(--text-standard); font-family: var(--type-family); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); -webkit-font-smoothing: antialiased; }
+svg { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sprite { position: absolute; width: 0; height: 0; overflow: clip; }
+.intro { max-width: 760px; padding: var(--space-4) 0 var(--space-12); }
+.intro h1 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro p { margin-top: var(--space-3); color: var(--text-subtle); }
+.specimen { margin-bottom: var(--space-12); }
+.specimen > h2 { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); }
+.specimen > p { margin: var(--space-1) 0 var(--space-3); color: var(--text-subtle); }
+.demo { display: flex; flex-direction: column; width: min(100%, var(--demo-width)); height: var(--doan-viewport-height, var(--demo-height)); min-height: 0; background: var(--bg-app); overflow: clip; border-radius: var(--radius-container); }
+.chrome { display: flex; align-items: center; flex: none; height: var(--size-chrome); gap: var(--space-2); padding: 0 var(--space-4); }
+.chrome > .app-name { flex: 1; font-weight: var(--type-weight-medium); }
+.window-dots { display: flex; gap: var(--space-1h); align-items: center; margin-right: var(--space-4); }
+.window-dots i { width: var(--space-3); height: var(--space-3); border-radius: var(--radius-pill); background: var(--border-standard); }
+.review { display: flex; align-items: center; gap: var(--space-1); }
+.review-note { margin-right: var(--space-2); color: var(--text-metadata); }
+.review-note, .meta, .file-name, .overline { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.review > button[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); }
+.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); margin: 0 var(--space-2) var(--space-2); }
+.workspace.overview { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+.sidebar { min-width: 0; padding: 0 var(--space-2); color: var(--text-subtle); }
+.sidebar .search { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control); padding: 0 var(--space-3); background: var(--affordance-backdrop-hover); border-radius: var(--radius-control); color: var(--text-metadata); }
+.sidebar .nav { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control-sm); padding: 0 var(--space-3); margin-top: var(--space-1); border-radius: var(--radius-row); }
+.sidebar .nav.current { background: var(--surface-navigation-selected); color: var(--text-standard); }
+.sidebar .overline { margin: var(--space-4) 0 var(--space-1) var(--space-3); color: var(--text-metadata); }
+.sidebar .sub { padding-left: var(--space-8); }
+.project-icon { display: inline-grid; place-items: center; flex: none; width: var(--size-icon); height: var(--size-icon); border-radius: var(--radius-thumbnail); background: var(--affordance-prominent); color: var(--text-on-prominent); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; isolation: isolate; overflow: clip; background: var(--surface-panel); }
+.first { border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.last { border-radius: 0 var(--radius-container) var(--radius-container) 0; }
+.joined { border-inline-start: 1px solid var(--border-standard); }
+.panel-head { position: absolute; z-index: 2; inset: 0 0 auto; display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-chrome); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); isolation: isolate; }
+.panel-head::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, var(--surface-panel) 0 calc(100% - var(--space-6)), transparent 100%); }
+.opaque .panel-head::before { background: var(--surface-panel); }
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .panel-head::before { background: var(--surface-panel); }
+}
+.head-title, .crumb { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.head-title { flex: 1; }
+.head-title > span, .crumb > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.head-title > svg, .crumb > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.head-tools { display: flex; align-items: center; gap: var(--space-1); margin-left: auto; }
+.crumb { flex: none; }
+.crumb-divider { color: var(--text-metadata); }
+.scroller { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block-start: var(--size-chrome); }
+.head-clear { padding-top: var(--size-chrome); }
+.thread { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); max-width: 720px; margin-inline: auto; padding: var(--space-2) var(--space-4) var(--space-8); }
+.overview .thread { gap: var(--space-6); padding-inline: var(--space-6); }
+.message { max-width: 92%; padding: var(--space-3) var(--space-4); background: var(--surface-inset); border-radius: var(--radius-container); justify-self: end; }
+.reply { padding: var(--space-1) var(--space-2); }
+.reply h3 { font-weight: var(--type-weight-medium); margin-bottom: var(--space-2); }
+.reply p + p { margin-top: var(--space-2); }
+.reply ol { list-style: decimal; margin: var(--space-2) 0 0 var(--space-5); }
+.reply li + li { margin-top: var(--space-1); }
+.file-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-standard); border-radius: var(--radius-chip); color: var(--text-subtle); }
+.file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row .change { margin-left: auto; white-space: nowrap; color: var(--text-metadata); }
+.composer { position: relative; z-index: 1; margin: 0 var(--space-4) var(--space-4); min-height: var(--size-control); padding: var(--space-2); display: flex; align-items: center; gap: var(--space-2); border: 1px solid var(--border-standard); border-radius: var(--radius-capsule); background: var(--surface-panel); }
+.overview .composer { margin-inline: auto; width: calc(100% - 2 * var(--space-6)); max-width: 720px; }
+.composer input { width: 100%; min-width: 0; border: 0; padding: 0; color: var(--text-standard); background: transparent; outline-offset: var(--space-half); }
+.composer input::placeholder { color: var(--text-metadata); }
+.composer .doan-icon-button { flex: none; }
+.list { padding: var(--space-1) var(--space-2) var(--space-2); }
+.list > li + li { border-top: 1px solid var(--border-standard); }
+.list-row { width: 100%; display: flex; align-items: flex-start; gap: var(--space-2); min-height: var(--size-row); padding: var(--space-3) var(--space-2); border: 0; text-align: left; border-radius: var(--radius-row); background: transparent; color: var(--text-standard); }
+.list-row:hover { background: var(--affordance-subtle-hover); }
+.list-row[aria-current="true"] { background: var(--affordance-backdrop-pressed); }
+.list-row:focus-visible, .list-row[data-highlight] { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.list-row .row-copy { flex: 1; min-width: 0; }
+.list-row strong, .list-row small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.list-row strong { font-weight: var(--type-weight-medium); }
+.list-row small, .meta { color: var(--text-metadata); }
+.thumb { display: grid; place-items: center; flex: none; width: var(--space-12); aspect-ratio: 1; border-radius: var(--radius-chip); background: var(--surface-inset); border: 1px solid var(--border-standard); }
+.thumb i { display: block; width: var(--space-5); height: var(--space-8); border: 1px solid var(--border-standard); border-radius: var(--radius-inline); background: var(--surface-panel); }
+.empty { display: grid; justify-items: center; gap: var(--space-1); margin: var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); }
+.empty strong { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.short-content { display: none; }
+.demo[data-content="short"] .long-content { display: none; }
+.demo[data-content="short"] .short-content { display: grid; }
+.workspace.canvas-side { grid-template-columns: minmax(0, 1fr) 280px 280px; }
+.canvas-side .sidebar { display: none; }
+.demo[data-sidebar="shown"] .canvas-side { grid-template-columns: 220px minmax(0, 1fr) 280px; }
+.demo[data-sidebar="shown"] .canvas-side .sidebar { display: block; }
+.demo[data-sidebar="shown"] .canvas-side .inspector { display: none; }
+.canvas-side .board-panel .panel-head { background: var(--surface-panel); }
+.properties { display: grid; gap: var(--space-3); padding: var(--space-2) var(--space-2) var(--space-6); }
+.properties h3 { padding: var(--space-3) var(--space-2) var(--space-1); font-weight: var(--type-weight-medium); }
+.properties .property { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); width: 100%; min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-2); text-align: left; color: var(--text-standard); background: transparent; border: 0; border-radius: var(--radius-chip); }
+.property span:first-child { color: var(--text-subtle); }
+.property:hover { background: var(--affordance-subtle-hover); }
+.property:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.property code { font-family: var(--type-family-mono); font-size: var(--type-caption-size); }
+.board-panel { background: var(--surface-inset); }
+.board-panel.single { border-radius: var(--radius-container); }
+.board-field { flex: 1; min-height: 0; padding: var(--size-chrome) var(--space-8) var(--space-8); background: var(--surface-inset); }
+.board-field .mock-grid { display: grid; row-gap: var(--space-6); column-gap: var(--space-6); grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 816px; margin-inline: auto; }
+.board-field .mock-grid.single-col { grid-template-columns: minmax(0, 1fr); }
+.mock-frame { min-width: 0; }
+.mock-frame h3 { margin-bottom: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-medium); }
+.mock-screen { min-height: 344px; padding: var(--space-8); display: grid; align-content: start; gap: var(--space-4); background: var(--mock-bg); color: var(--mock-ink); }
+.mock-screen.dark { background: var(--mock-dark-bg); color: var(--mock-dark-ink); }
+.mock-screen h3 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); color: inherit; }
+.mock-screen p { max-width: 29ch; }
+.mock-screen .overline { color: inherit; }
+.mock-screen .mock-card { padding: var(--space-4); border-radius: var(--radius-control); background: var(--mock-fill); }
+.mock-screen.dark .mock-card { background: var(--mock-dark-fill); }
+.mock-card p + p { margin-top: var(--space-2); }
+.mock-screen .total { font-weight: var(--type-weight-semibold); }
+.board-tools { position: absolute; z-index: 1; inset: auto auto var(--space-5) 50%; transform: translateX(-50%); display: flex; gap: var(--space-half); align-items: center; padding: var(--space-1); }
+.workspace.player { grid-template-columns: minmax(0, 1fr) 347px; grid-template-rows: minmax(0, 1fr); gap: var(--space-2); }
+.player .conversation { border-radius: var(--radius-container); }
+.play-area { display: grid; place-items: center; min-width: 0; overflow: clip; background: var(--surface-panel); border-radius: var(--radius-container); }
+.play-area .mock-screen { width: 280px; max-width: 100%; min-height: 0; box-shadow: var(--shadow-panel); border-radius: var(--radius-control); }
+.demo[data-compact="true"] .workspace.player { max-height: calc(360px - var(--size-chrome) - var(--space-2)); grid-template-columns: minmax(0, 1fr) 280px; }
+.demo[data-compact="true"] .play-area .mock-screen { transform: scale(.76); }
+.answer { display: none; position: absolute; z-index: 3; inset: 0 0 calc(var(--size-control) + var(--space-4)); margin: var(--space-1) var(--space-2) 0; flex-direction: column; }
+.demo[data-compact="true"][data-answer="open"] .answer { display: flex; }
+.answer-head { display: flex; gap: var(--space-2); align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-2) 0 var(--space-4); font-weight: var(--type-weight-medium); }
+.answer-body { min-height: 0; overflow: auto; padding: var(--space-2) var(--space-4) var(--space-3); }
+.answer-body label { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; }
+.answer-body .doan-button { margin-top: var(--space-2); }
+.workspace.player .flat-crumb { padding: 0; background: transparent; min-width: 0; }
+.mock-screen .rule { border-top: 1px solid var(--mock-line); }
+.mock-screen.dark .rule { border-color: var(--mock-dark-fill); }
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.7.9l1.2 1.7a2 2 0 0 0 1.7.9H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2Z"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+  <symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="pane" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol>
+  <symbol id="close-pane" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18m-7-12 3 3-3 3"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7m-5-8 4 4M9 15l1-4L19 2l3 3-9 9z"/></symbol>
+  <symbol id="branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10m0-3a12 12 0 0 1 12-7"/></symbol>
+  <symbol id="cursor" viewBox="0 0 24 24"><path d="m4 4 15 7-6 2-2 6z"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v5c0 5-3 8-7 8a7 7 0 0 1-6-3l-3-4a1.5 1.5 0 0 1 2-2z"/></symbol>
+  <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></symbol>
+  <symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 0v6h6"/></symbol>
+  <symbol id="back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7m-7 7h14"/></symbol>
+  <symbol id="forward" viewBox="0 0 24 24"><path d="m12 5 7 7-7 7m7-7H5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="m7 4 14 8-14 8z"/></symbol>
+  <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+</svg>
+<header class="intro">
+  <h1>Panel header fade</h1>
+  <p>Play any frame, then scroll the panels. The title and controls stay in place while content fades beneath them. Five frames cover the six headers.</p>
+  <p>New appearance, not yet in code. The reference is the screenshot shared on November 27, 2026, read in the conversation. Surrounding controls follow Doan’s Overview, canvas, inspector and prototype conversation drafts. The board is a visual prototype for review before the iframe proof of concept.</p>
+</header>
+
+<section class="specimen">
+  <h2>Overview conversation</h2>
+  <p>Compare the first message, a message passing beneath the title, and a short conversation.</p>
+  <section class="demo" style="--demo-width: 1238px; --demo-height: 780px;" data-doan-frame="overview-thread" data-doan-title="Overview conversation" data-doan-prototype="1238x780" data-doan-implements="app/src/renderer/ProjectOverview.tsx">
+    <header class="chrome">
+  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span class="app-name">Doan</span>
+  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="short" data-ui-variant="trigger">Short content</button></div>
+</header><div class="workspace overview"><aside class="sidebar" aria-label="Projects">
+  <div class="search"><svg aria-hidden="true"><use href="#search"/></svg>Search</div>
+  <div class="nav"><svg aria-hidden="true"><use href="#home"/></svg>Home</div>
+  <div class="overline">Projects</div>
+  <div class="nav current"><span class="project-icon">S</span>Studio</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Checkout</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Payment details</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Order confirmation</div>
+</aside><section class="panel conversation first" aria-label="Conversation">
+  <header class="panel-head" data-doan-id="overview-thread-header">
+  <span class="crumb"><span class="project-icon">S</span><span>Studio</span><svg aria-hidden="true"><use href="#branch"/></svg><span>main</span></span><span class="crumb-divider" aria-hidden="true">/</span><div class="head-title"><span>Checkout layout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="New conversation"><svg aria-hidden="true"><use href="#edit"/></svg></button></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="overview-thread-scroll" data-scroller data-scroll-target="90" tabindex="0" aria-label="Conversation history">
+    <div class="head-clear">
+      <div class="thread long-content">
+        <div class="message"><p>Make the order total easier to scan. Keep the payment details where they are, and leave room for gift cards.</p></div>
+        <div class="reply"><p>I’ll keep the payment section in place and bring the total into the same reading order as the subtotal and shipping. The existing labels can stay.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">checkout.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Use the same spacing on the narrow layout. The total should still read first when the order has several discounts.</p></div>
+        <div class="reply"><p>The total stays grouped with the price breakdown. I’ll check the narrow layout with a discount and another payment method so both fit without crowding the action.</p></div>
+        <div class="message"><p>Show me how the shipping estimate reads for a delivery address we haven’t confirmed yet.</p></div>
+        <div class="reply"><p>I’ll show the estimate beside shipping and keep the address unchanged until it’s confirmed. That keeps the total legible while the form is still being edited.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">payment-details.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Can we keep the order summary expanded until payment is complete?</p></div>
+        <div class="reply"><p>Yes. I’ll carry that state through the receipt and keep the confirmation focused on the order number and delivery estimate.</p></div>
+        <div class="message"><p>Please check the receipt with a long delivery address and a promotional code.</p></div>
+        <div class="reply"><p>The receipt keeps the address in two lines. The promotional code stays with the order summary rather than the delivery details.</p></div>
+      </div>
+      <div class="thread short-content"><div class="message"><p>Make the order total easier to scan.</p></div><div class="reply"><p>I’ll start with the price breakdown.</p></div></div>
+    </div>
+  </div>
+  <div class="composer">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Attach"><svg aria-hidden="true"><use href="#plus"/></svg></button>
+  <input aria-label="Message" placeholder="Message Claude Code…">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#up"/></svg></button>
+</div>
+</section><aside class="panel joined last" aria-label="Conversations">
+  <header class="panel-head" data-doan-id="overview-thread-list-header">
+  <div class="head-title"><span>Conversations</span></div><div class="head-tools"></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="overview-thread-list-scroll" data-scroller data-scroll-target="87" tabindex="0" aria-label="Conversation list">
+    <div class="head-clear">
+      <ul class="list long-content">
+        <li><button type="button" class="list-row" aria-current="true"><span class="row-copy"><strong>Checkout layout</strong><small>Keep the total next to the price breakdown.</small></span><span class="meta">Now</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Payment details</strong><small>Check the gift card line on mobile.</small></span><span class="meta">4m</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Order confirmation</strong><small>The summary keeps the delivery address.</small></span><span class="meta">12m</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Shipping estimate</strong><small>Compare standard and expedited delivery.</small></span><span class="meta">28m</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Cart empty state</strong><small>Tighten the copy and keep Continue shopping.</small></span><span class="meta">1h</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Address form</strong><small>Leave the optional second line in place.</small></span><span class="meta">2h</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Promo code</strong><small>Test the expired-code state.</small></span><span class="meta">3h</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Payment review</strong><small>Use consistent card and wallet labels.</small></span><span class="meta">Yesterday</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Order history</strong><small>Show the delivery estimate in the row.</small></span><span class="meta">Yesterday</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Billing settings</strong><small>Check long organization names.</small></span><span class="meta">Monday</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Quantity controls</strong><small>Align the stepper and unit price.</small></span><span class="meta">Monday</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Saved addresses</strong><small>Keep the selected address in view.</small></span><span class="meta">Monday</span></button></li>
+      </ul>
+      <div class="empty short-content"><strong>No conversations yet.</strong><p>Conversations you start in the Overview or on a canvas show here.</p></div>
+    </div>
+  </div>
+</aside></div>
+  </section>
+</section>
+<section class="specimen">
+  <h2>Overview conversation list</h2>
+  <p>Scroll the right column or tab through its rows. The Conversations heading stays put.</p>
+  <section class="demo" style="--demo-width: 960px; --demo-height: 600px;" data-doan-frame="overview-list" data-doan-title="Overview conversation list" data-doan-prototype="960x600" data-doan-implements="app/src/renderer/RightPanel.tsx">
+    <header class="chrome">
+  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span class="app-name">Doan</span>
+  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="focus-row" data-ui-variant="trigger">Focus row</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="short" data-ui-variant="trigger">Empty list</button></div>
+</header><div class="workspace overview"><aside class="sidebar" aria-label="Projects">
+  <div class="search"><svg aria-hidden="true"><use href="#search"/></svg>Search</div>
+  <div class="nav"><svg aria-hidden="true"><use href="#home"/></svg>Home</div>
+  <div class="overline">Projects</div>
+  <div class="nav current"><span class="project-icon">S</span>Studio</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Checkout</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Payment details</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Order confirmation</div>
+</aside><section class="panel conversation first" aria-label="Conversation">
+  <header class="panel-head" data-doan-id="overview-list-thread-header">
+  <span class="crumb"><span class="project-icon">S</span><span>Studio</span><svg aria-hidden="true"><use href="#branch"/></svg><span>main</span></span><span class="crumb-divider" aria-hidden="true">/</span><div class="head-title"><span>Checkout layout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="New conversation"><svg aria-hidden="true"><use href="#edit"/></svg></button></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="overview-list-thread-scroll" data-scroller data-scroll-target="90" tabindex="0" aria-label="Conversation history">
+    <div class="head-clear">
+      <div class="thread long-content">
+        <div class="message"><p>Make the order total easier to scan. Keep the payment details where they are, and leave room for gift cards.</p></div>
+        <div class="reply"><p>I’ll keep the payment section in place and bring the total into the same reading order as the subtotal and shipping. The existing labels can stay.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">checkout.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Use the same spacing on the narrow layout. The total should still read first when the order has several discounts.</p></div>
+        <div class="reply"><p>The total stays grouped with the price breakdown. I’ll check the narrow layout with a discount and another payment method so both fit without crowding the action.</p></div>
+        <div class="message"><p>Show me how the shipping estimate reads for a delivery address we haven’t confirmed yet.</p></div>
+        <div class="reply"><p>I’ll show the estimate beside shipping and keep the address unchanged until it’s confirmed. That keeps the total legible while the form is still being edited.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">payment-details.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Can we keep the order summary expanded until payment is complete?</p></div>
+        <div class="reply"><p>Yes. I’ll carry that state through the receipt and keep the confirmation focused on the order number and delivery estimate.</p></div>
+        <div class="message"><p>Please check the receipt with a long delivery address and a promotional code.</p></div>
+        <div class="reply"><p>The receipt keeps the address in two lines. The promotional code stays with the order summary rather than the delivery details.</p></div>
+      </div>
+      <div class="thread short-content"><div class="message"><p>Make the order total easier to scan.</p></div><div class="reply"><p>I’ll start with the price breakdown.</p></div></div>
+    </div>
+  </div>
+  <div class="composer">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Attach"><svg aria-hidden="true"><use href="#plus"/></svg></button>
+  <input aria-label="Message" placeholder="Message Claude Code…">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#up"/></svg></button>
+</div>
+</section><aside class="panel joined last" aria-label="Conversations">
+  <header class="panel-head" data-doan-id="overview-list-header">
+  <div class="head-title"><span>Conversations</span></div><div class="head-tools"></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="overview-list-scroll" data-scroller data-scroll-target="87" tabindex="0" aria-label="Conversation list">
+    <div class="head-clear">
+      <ul class="list long-content">
+        <li><button type="button" class="list-row" aria-current="true"><span class="row-copy"><strong>Checkout layout</strong><small>Keep the total next to the price breakdown.</small></span><span class="meta">Now</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Payment details</strong><small>Check the gift card line on mobile.</small></span><span class="meta">4m</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Order confirmation</strong><small>The summary keeps the delivery address.</small></span><span class="meta">12m</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Shipping estimate</strong><small>Compare standard and expedited delivery.</small></span><span class="meta">28m</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Cart empty state</strong><small>Tighten the copy and keep Continue shopping.</small></span><span class="meta">1h</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Address form</strong><small>Leave the optional second line in place.</small></span><span class="meta">2h</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Promo code</strong><small>Test the expired-code state.</small></span><span class="meta">3h</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Payment review</strong><small>Use consistent card and wallet labels.</small></span><span class="meta">Yesterday</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Order history</strong><small>Show the delivery estimate in the row.</small></span><span class="meta">Yesterday</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Billing settings</strong><small>Check long organization names.</small></span><span class="meta">Monday</span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Quantity controls</strong><small>Align the stepper and unit price.</small></span><span class="meta">Monday</span><span class="thumb" aria-hidden="true"><i></i></span></button></li>
+        <li><button type="button" class="list-row"><span class="row-copy"><strong>Saved addresses</strong><small>Keep the selected address in view.</small></span><span class="meta">Monday</span></button></li>
+      </ul>
+      <div class="empty short-content"><strong>No conversations yet.</strong><p>Conversations you start in the Overview or on a canvas show here.</p></div>
+    </div>
+  </div>
+</aside></div>
+  </section>
+</section>
+<section class="specimen">
+  <h2>Canvas inspector and conversation</h2>
+  <p>Scroll either side panel. Show the sidebar to see the inspector yield in a narrow window.</p>
+  <section class="demo" style="--demo-width: 960px; --demo-height: 600px;" data-doan-frame="canvas-side-panels" data-doan-title="Canvas inspector and conversation" data-doan-prototype="960x600" data-doan-implements="app/src/renderer/InspectorPanel.tsx">
+    <header class="chrome">
+  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span class="app-name">Doan</span>
+  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="short" data-ui-variant="trigger">Short content</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="sidebar" data-ui-variant="trigger">Show sidebar</button></div>
+</header><div class="workspace canvas-side"><aside class="sidebar" aria-label="Projects">
+  <div class="search"><svg aria-hidden="true"><use href="#search"/></svg>Search</div>
+  <div class="nav"><svg aria-hidden="true"><use href="#home"/></svg>Home</div>
+  <div class="overline">Projects</div>
+  <div class="nav current"><span class="project-icon">S</span>Studio</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Checkout</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Payment details</div>
+  <div class="nav sub"><svg aria-hidden="true"><use href="#pane"/></svg>Order confirmation</div>
+</aside><section class="panel board-panel first" aria-label="Canvas">
+  <header class="panel-head" data-doan-id="side-board-header">
+  <div class="head-title"><span>Checkout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Frame drawer"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show inspector"><svg aria-hidden="true"><use href="#pane"/></svg></button></div>
+</header>
+  <div class="board-field scroller doan-scroll" data-doan-id="side-board-scroll" data-scroller data-scroll-target="128" tabindex="0" aria-label="Canvas preview">
+    <div class="mock-grid single-col"><article class="mock-frame"><h3>Checkout</h3><div class="mock-screen dark">
+  <p class="overline">Studio Store</p>
+  <h3>Checkout</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article><article class="mock-frame"><h3>Payment details</h3><div class="mock-screen">
+  <p class="overline">Studio Store</p>
+  <h3>Payment details</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article><article class="mock-frame"><h3>Order confirmation</h3><div class="mock-screen">
+  <p class="overline">Studio Store</p>
+  <h3>Order confirmation</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article></div>
+  </div>
+  <div class="board-tools doan-floating" role="group" aria-label="Canvas tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Select"><svg aria-hidden="true"><use href="#cursor"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hand"><svg aria-hidden="true"><use href="#hand"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Picker"><svg aria-hidden="true"><use href="#target"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Play prototype"><svg aria-hidden="true"><use href="#play"/></svg></button></div>
+</section><aside class="panel inspector joined" aria-label="Inspector">
+  <header class="panel-head" data-doan-id="canvas-inspector-header">
+  <div class="head-title"><span>Order summary</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hide inspector"><svg aria-hidden="true"><use href="#close-pane"/></svg></button></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="canvas-inspector-scroll" data-scroller data-scroll-target="132" tabindex="0" aria-label="Inspector properties">
+    <div class="head-clear">
+      <div class="properties long-content">
+        <div>
+          <h3>Typography</h3>
+          <button type="button" class="property"><span>Font</span><code>Geist</code></button>
+          <button type="button" class="property"><span>Size</span><code>20px</code></button>
+          <button type="button" class="property"><span>Line height</span><code>28px</code></button>
+          <button type="button" class="property"><span>Weight</span><code>500</code></button>
+          <button type="button" class="property"><span>Color</span><code>text-standard</code></button>
+        </div>
+        <div>
+          <h3>Layout</h3>
+          <button type="button" class="property"><span>Display</span><code>flex</code></button>
+          <button type="button" class="property"><span>Direction</span><code>column</code></button>
+          <button type="button" class="property"><span>Align</span><code>start</code></button>
+          <button type="button" class="property"><span>Gap</span><code>space-3</code></button>
+          <button type="button" class="property"><span>Width</span><code>320px</code></button>
+          <button type="button" class="property"><span>Height</span><code>Auto</code></button>
+        </div>
+        <div>
+          <h3>Spacing</h3>
+          <button type="button" class="property"><span>Top</span><code>space-4</code></button>
+          <button type="button" class="property"><span>Right</span><code>space-4</code></button>
+          <button type="button" class="property"><span>Bottom</span><code>space-4</code></button>
+          <button type="button" class="property"><span>Left</span><code>space-4</code></button>
+        </div>
+        <div>
+          <h3>Appearance</h3>
+          <button type="button" class="property"><span>Fill</span><code>surface-panel</code></button>
+          <button type="button" class="property"><span>Border</span><code>border-standard</code></button>
+          <button type="button" class="property"><span>Radius</span><code>radius-control</code></button>
+          <button type="button" class="property"><span>Opacity</span><code>100%</code></button>
+        </div>
+      </div>
+      <div class="empty short-content"><p>No styles to show for this selection.</p></div>
+    </div>
+  </div>
+</aside><section class="panel conversation joined last" aria-label="Conversation">
+  <header class="panel-head" data-doan-id="canvas-conversation-header">
+  <div class="head-title"><span>Checkout layout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="New conversation"><svg aria-hidden="true"><use href="#edit"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hide conversation"><svg aria-hidden="true"><use href="#close-pane"/></svg></button></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="canvas-conversation-scroll" data-scroller data-scroll-target="90" tabindex="0" aria-label="Conversation history">
+    <div class="head-clear">
+      <div class="thread long-content">
+        <div class="message"><p>Make the order total easier to scan. Keep the payment details where they are, and leave room for gift cards.</p></div>
+        <div class="reply"><p>I’ll keep the payment section in place and bring the total into the same reading order as the subtotal and shipping. The existing labels can stay.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">checkout.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Use the same spacing on the narrow layout. The total should still read first when the order has several discounts.</p></div>
+        <div class="reply"><p>The total stays grouped with the price breakdown. I’ll check the narrow layout with a discount and another payment method so both fit without crowding the action.</p></div>
+        <div class="message"><p>Show me how the shipping estimate reads for a delivery address we haven’t confirmed yet.</p></div>
+        <div class="reply"><p>I’ll show the estimate beside shipping and keep the address unchanged until it’s confirmed. That keeps the total legible while the form is still being edited.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">payment-details.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Can we keep the order summary expanded until payment is complete?</p></div>
+        <div class="reply"><p>Yes. I’ll carry that state through the receipt and keep the confirmation focused on the order number and delivery estimate.</p></div>
+        <div class="message"><p>Please check the receipt with a long delivery address and a promotional code.</p></div>
+        <div class="reply"><p>The receipt keeps the address in two lines. The promotional code stays with the order summary rather than the delivery details.</p></div>
+      </div>
+      <div class="thread short-content"><div class="message"><p>Make the order total easier to scan.</p></div><div class="reply"><p>I’ll start with the price breakdown.</p></div></div>
+    </div>
+  </div>
+  <div class="composer">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Attach"><svg aria-hidden="true"><use href="#plus"/></svg></button>
+  <input aria-label="Message" placeholder="Message Claude Code…">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#up"/></svg></button>
+</div>
+</section></div>
+  </section>
+</section>
+<section class="specimen">
+  <h2>Prototype conversation</h2>
+  <p>Scroll the conversation beside the playing design. Small window shows how an answer request covers the header.</p>
+  <section class="demo" style="--demo-width: 960px; --demo-height: 600px;" data-doan-frame="prototype-conversation" data-doan-title="Prototype conversation" data-doan-prototype="960x600" data-doan-implements="app/src/renderer/prototype/PrototypeWindow.tsx">
+    <header class="chrome">
+  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span class="app-name">Prototype</span>
+  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="compact" data-ui-variant="trigger">Small window</button></div>
+</header><div class="workspace player"><div class="play-area"><div class="mock-screen">
+  <p class="overline">Studio Store</p>
+  <h3>Checkout</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></div><section class="panel conversation joined last" aria-label="Conversation">
+  <header class="panel-head" data-doan-id="prototype-conversation-header">
+  <div class="head-title"><span>Checkout layout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="New conversation"><svg aria-hidden="true"><use href="#edit"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hide conversation"><svg aria-hidden="true"><use href="#close-pane"/></svg></button></div>
+</header>
+  <div class="scroller doan-scroll" data-doan-id="prototype-conversation-scroll" data-scroller data-scroll-target="90" tabindex="0" aria-label="Conversation history">
+    <div class="head-clear">
+      <div class="thread long-content">
+        <div class="message"><p>Make the order total easier to scan. Keep the payment details where they are, and leave room for gift cards.</p></div>
+        <div class="reply"><p>I’ll keep the payment section in place and bring the total into the same reading order as the subtotal and shipping. The existing labels can stay.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">checkout.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Use the same spacing on the narrow layout. The total should still read first when the order has several discounts.</p></div>
+        <div class="reply"><p>The total stays grouped with the price breakdown. I’ll check the narrow layout with a discount and another payment method so both fit without crowding the action.</p></div>
+        <div class="message"><p>Show me how the shipping estimate reads for a delivery address we haven’t confirmed yet.</p></div>
+        <div class="reply"><p>I’ll show the estimate beside shipping and keep the address unchanged until it’s confirmed. That keeps the total legible while the form is still being edited.</p></div>
+        <div class="file-row"><svg aria-hidden="true"><use href="#file"/></svg><span class="file-name">payment-details.html</span><span class="change">Edited · +12 −4</span></div>
+        <div class="message"><p>Can we keep the order summary expanded until payment is complete?</p></div>
+        <div class="reply"><p>Yes. I’ll carry that state through the receipt and keep the confirmation focused on the order number and delivery estimate.</p></div>
+        <div class="message"><p>Please check the receipt with a long delivery address and a promotional code.</p></div>
+        <div class="reply"><p>The receipt keeps the address in two lines. The promotional code stays with the order summary rather than the delivery details.</p></div>
+      </div>
+      <div class="thread short-content"><div class="message"><p>Make the order total easier to scan.</p></div><div class="reply"><p>I’ll start with the price breakdown.</p></div></div>
+    </div>
+  </div>
+  <div class="composer">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Attach"><svg aria-hidden="true"><use href="#plus"/></svg></button>
+  <input aria-label="Message" placeholder="Message Claude Code…">
+  <button class="doan-icon-button" type="button" data-ui-size="sm" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#up"/></svg></button>
+</div><div class="answer doan-floating" role="region" aria-label="Claude Code needs your answer">
+  <div class="answer-head"><span>Claude Code needs your answer</span><button class="doan-icon-button" type="button" data-ui-size="sm" data-preview="collapse-answer" aria-label="Collapse"><svg aria-hidden="true"><use href="#chevron"/></svg></button></div>
+  <div class="answer-body"><p>Which order summary should stay visible while you review the payment form?</p>
+    <label><input type="radio" name="preview-answer"> Keep the full price breakdown</label>
+    <label><input type="radio" name="preview-answer"> Show the total and delivery estimate</label>
+    <label><input type="radio" name="preview-answer"> Keep only the total for narrow frames</label>
+    <button class="doan-button" type="button" data-ui-size="sm" data-ui-variant="prominent">Send</button>
+  </div>
+</div>
+</section></div>
+  </section>
+</section>
+<section class="specimen">
+  <h2>Canvas board</h2>
+  <p>Scroll a high-contrast frame below the header. The real board’s iframe, input and capture will be checked in the separate proof of concept.</p>
+  <section class="demo" style="--demo-width: 1238px; --demo-height: 780px;" data-doan-frame="canvas-board" data-doan-title="Canvas board" data-doan-prototype="1238x780" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+    <header class="chrome">
+  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span class="app-name">Doan</span>
+  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="opaque" data-ui-variant="trigger">Opaque header</button></div>
+</header><div class="workspace"><section class="panel board-panel single" aria-label="Canvas">
+  <header class="panel-head" data-doan-id="canvas-board-header">
+  <div class="head-title"><span>Checkout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Frame drawer"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Fit</button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show inspector"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show conversation"><svg aria-hidden="true"><use href="#close-pane"/></svg></button></div>
+</header>
+  <div class="board-field scroller doan-scroll" data-doan-id="canvas-board-scroll" data-scroller data-scroll-target="128" tabindex="0" aria-label="Canvas preview">
+    <div class="mock-grid"><article class="mock-frame"><h3>Checkout</h3><div class="mock-screen dark">
+  <p class="overline">Studio Store</p>
+  <h3>Checkout</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article><article class="mock-frame"><h3>Payment details</h3><div class="mock-screen">
+  <p class="overline">Studio Store</p>
+  <h3>Payment details</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article><article class="mock-frame"><h3>Order confirmation</h3><div class="mock-screen">
+  <p class="overline">Studio Store</p>
+  <h3>Order confirmation</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article><article class="mock-frame"><h3>Receipt</h3><div class="mock-screen dark">
+  <p class="overline">Studio Store</p>
+  <h3>Receipt</h3>
+  <p>Review the details before placing your order.</p>
+  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
+  <div class="rule"></div>
+  <p class="total">Total &nbsp; $72.00</p>
+</div></article></div>
+  </div>
+  <div class="board-tools doan-floating" role="group" aria-label="Canvas tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Select"><svg aria-hidden="true"><use href="#cursor"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hand"><svg aria-hidden="true"><use href="#hand"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Picker"><svg aria-hidden="true"><use href="#target"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Play prototype"><svg aria-hidden="true"><use href="#play"/></svg></button></div>
+</section></div>
+  </section>
+</section>
+<script>
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-preview]");
+  const frame = button?.closest(".demo");
+  if (!frame) return;
+  const scroll = offset => {
+    frame.querySelectorAll("[data-scroller]").forEach(container => {
+      container.scrollTop = offset ? Number(container.dataset.scrollTarget) : 0;
+    });
+  };
+  const toggle = (key, enabled) => {
+    frame.dataset[key] = enabled ? "true" : "false";
+    button.setAttribute("aria-pressed", String(enabled));
+  };
+  switch (button.dataset.preview) {
+    case "top":
+    case "scroll":
+      frame.dataset.content = "long";
+      frame.querySelector("[data-preview='short']")?.setAttribute("aria-pressed", "false");
+      scroll(button.dataset.preview === "scroll");
+      break;
+    case "short": {
+      const short = frame.dataset.content !== "short";
+      frame.dataset.content = short ? "short" : "long";
+      button.setAttribute("aria-pressed", String(short));
+      scroll(false);
+      break;
+    }
+    case "sidebar": {
+      const shown = frame.dataset.sidebar !== "shown";
+      frame.dataset.sidebar = shown ? "shown" : "hidden";
+      const preview = frame.querySelector(".review [data-preview='sidebar']");
+      preview.textContent = shown ? "Hide sidebar" : "Show sidebar";
+      preview.setAttribute("aria-pressed", String(shown));
+      frame.querySelector(".board-panel [aria-label='Show inspector']").setAttribute("aria-disabled", String(shown));
+      break;
+    }
+    case "focus-row": {
+      frame.dataset.content = "long";
+      const row = frame.querySelectorAll(".list-row")[4];
+      frame.querySelector("[data-highlight]")?.removeAttribute("data-highlight");
+      row.dataset.highlight = "";
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: "start" });
+      break;
+    }
+    case "compact":
+      toggle("compact", frame.dataset.compact !== "true");
+      frame.dataset.answer = frame.dataset.compact === "true" ? "open" : "closed";
+      break;
+    case "collapse-answer":
+      frame.dataset.answer = "closed";
+      frame.querySelector(".conversation .scroller").focus({ preventScroll: true });
+      break;
+    case "opaque":
+      frame.classList.toggle("opaque");
+      button.setAttribute("aria-pressed", String(frame.classList.contains("opaque")));
+      break;
+  }
+});
+</script>
+</body>
+</html>
