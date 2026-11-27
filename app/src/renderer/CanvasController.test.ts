@@ -5533,7 +5533,11 @@ describe("working-frame marker", () => {
     expect(css).not.toMatch(/\.mark\.jump-highlight\.working \{[^}]*transition/);
     expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; \} \}/);
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working \{[^}]*border-width: 4px;[^}]*margin: -4px;[^}]*box-shadow: 0 0 16px 2px color-mix\(in srgb, var\(--affordance-accent\) 45%, transparent\);/);
+    expect(css).toMatch(/\.mark\.jump-highlight\.working::before \{[^}]*inset: -4px;[^}]*padding: 4px;/);
+    expect(css).toMatch(/@keyframes doan-work-glow \{ 0%, 100% \{ box-shadow: 0 0 16px 2px color-mix\(in srgb, var\(--affordance-accent\) 45%, transparent\); \} 50% \{ box-shadow: 0 0 16px 2px color-mix\(in srgb, var\(--affordance-accent\) 25%, transparent\); \} \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: none; \} \}/);
+    expect(css).toMatch(/@media \(forced-colors: active\) \{ \.mark\.jump-highlight\.working \{ border-width: 3px; margin: -3px; box-shadow: none; \} \}/);
   });
 });
 
