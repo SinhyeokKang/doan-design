@@ -2,10 +2,10 @@
 
 ## 선행 검증과 드래프트
 
-1. `/feature-review` 뒤 보드 PoC를 먼저 진행한다. 실제 iframe을 헤더 뒤로 보이게 하면서 논리 뷰포트, 클릭 영역, 캡처 및 `overflow: clip`을 보존하는지 본다. 임시 코드는 `.scratch/`에 둔다.
-   - 확인: `npm --prefix app run build`로 빌드한 앱을 `app/runtime/` 격리 지원으로 띄워, 같은 입력에서 Fit과 선택 좌표, 헤더 클릭, 캡처가 기존과 일치하고 큰 보드가 잘리지 않는지 확인한다.
+1. `/feature-review` 뒤 보드 PoC를 먼저 진행한다. 같은 iframe의 표시, 논리 뷰포트, 입력, 캡처, 클립이 모두 통과해야 보드의 드래프트와 구현을 진행한다. 계약을 지킬 수 없으면 보드 작업을 보류하고 결과를 사용자에게 보여 준다. 임시 코드는 `.scratch/`에 둔다.
+   - 확인: `npm --prefix app run build`로 빌드한 앱을 `app/runtime/` 지원으로 격리 실행한다. `design.md`의 동일 입력·좌표, 헤더 경계 입력과 Tab, 실제 첨부 PNG, DPR 2의 대형 보드와 패널 접기 전후를 대조한다. 모든 비교에서 기존 조작 및 캡처와 일치하고 의도한 보드 픽셀이 헤더 아래에 보이면 통과다.
 2. `/design-draft panel-header-fade`에서 `design.md`의 다섯 프레임을 그리고 사용자가 앱에서 확인한 페이드 길이·농도·범위를 기록한다.
-   - 확인: `doan check --json --repo .`에 새 오류가 없고 `doan ls --json --repo .`에 지정된 캔버스와 프레임 5개가 잡힌다.
+   - 확인: `doan check --json --repo .`에서 기준 실행 대비 새 오류가 없고 새 캔버스의 오류는 0건이다. 새 경고는 `.doan/assets/mock.css`의 `hardcoded_color`만 허용한다. `doan ls --json --repo .`에서 캔버스 id `panel-header-fade`, 너비 1440, `design.md`의 프레임 id 다섯 개가 정확히 일치한다.
    - 커밋 경계: `docs(design): panel-header-fade draft`.
 
 ## 구현 1 — 대화·목록·인스펙터 헤더
@@ -16,8 +16,12 @@
 4. 오버뷰 대화·목록, 캔버스 인스펙터·대화, 프로토타입 대화의 헤더 5곳에 적용한다. 오버뷰 목록 헤더는 고정하고 대화 패널 두 창은 기존 공용 구조를 쓴다.
    - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`를 통과한다.
    - 커밋 경계: `feat:`.
-5. `/design-sync`와 `/runtime-test`로 헤더 높이, 페이드 경계와 접근성을 확인한다. 격리 앱에서 맨 위·중간·짧은 상태, 키보드 탐색, 실제 메뉴 열기, 스트리밍 중 따라가기, 답변 팝오버, 패널 접기와 크기 조절을 확인한다.
-   - 확인: `node .scratch/design-sync/panel-header-fade/measure.mjs`에서 구현 1의 네 프레임이 드래프트와 맞고, 격리 앱의 스크린샷과 로그에 확인한 상태가 남는다.
+5. `/design-sync`와 `/runtime-test`로 스크롤 헤더 5곳을 확인한다.
+   - 맨 위와 짧은 본문에서 첫 항목은 온전히 보이고, 중간에서는 본문이 헤더 뒤로 페이드한다. 빈 상태·첫 읽기·읽기 실패의 안내와 Retry를 확인한다. 항목이나 대화가 사라질 때는 기존 위치와 포커스 복구를 확인한다.
+   - 오버뷰 목록에서 키보드로 이동한 행은 페이드 아래에 온전히 보인다. 행 삭제 후 다음·이전 행 또는 제목으로 포커스가 돌아오고, 가려진 행이 화면에 보이는 행보다 썸네일 우선순위를 앞서지 않는다. 좁은 캔버스 인스펙터가 공간 부족으로 숨겨졌다가 나타날 때 Show inspector와 Hide inspector 사이의 포커스 이동을 확인한다.
+   - 각 대화 패널에서 받은 핸드오프를 열면 헤더 아래에 메타 줄과 포커스가 드러난다. 스트리밍 중 위로 스크롤하면 읽던 위치와 Jump to latest가 유지되며, 버튼을 누르면 최신 위치에서 따라가기가 재개된다. 사람이 스크롤하지 않은 상태로 답변이 펼쳐지던 중 권한 요청이 도착하면 따라가기가 유지된다.
+   - 가장 작은 프로토타입 창에서 답변 팝오버가 헤더를 덮으면 Jump to latest가 숨고, Tab으로 선택지에 접근할 수 있다. 팝오버를 접거나 닫으면 헤더가 다시 보인다. 메뉴를 실제로 열고 조작하며, 패널 접기와 크기 조절 후 제목·포커스 표시가 보이는지 확인한다.
+   - 확인: `node .scratch/design-sync/panel-header-fade/measure.mjs`에서 구현 1의 네 프레임이 드래프트와 맞는다. 격리 앱의 스크린샷과 로그에 상태별 결과 및 투명도 줄이기·강제 색상 각각에서 불투명 헤더와 포커스가 보인 결과가 있다. 실제 macOS 설정과 미디어 에뮬레이션 결과를 구별한다.
    - 커밋 경계: 측정값과 드래프트 차이 기록.
 
 ## 구현 2 — 캔버스 보드 헤더
@@ -28,14 +32,14 @@
 7. 캔버스 보드 헤더에 적용하고 보드와 맞닿는 헤더의 페이드를 그린다. 프레임 표시, overlay와 agent notice, 캡처의 영역을 보존한다.
    - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`를 통과한다.
    - 커밋 경계: `feat:`.
-8. `/design-sync`와 `/runtime-test`로 `canvas-board`를 비교한다. 헤더 아래를 지나는 보드, Fit·100%에서 이동과 확대, Select·Hand·Pick, Tab, 메뉴, 작업 표시, 캡처, 패널 접기·펼치기, 투명도 줄이기와 강제 색상을 확인한다. 큰 캔버스의 클립은 보드 PoC에서 확보한 근거를 재사용하고 바뀐 경우만 다시 확인한다.
-   - 확인: `node .scratch/design-sync/panel-header-fade/measure.mjs`에서 보드의 헤더 높이·페이드 경계가 드래프트와 맞고, 격리 앱의 캡처와 입력 결과가 변경 전 계약과 일치한다.
+8. `/design-sync`와 `/runtime-test`로 `canvas-board`를 비교한다. 헤더 아래를 지나는 보드, Fit·100%에서 이동과 확대, Select·Hand·Pick, Tab, 메뉴, 작업 표시, 패널 접기·펼치기, 투명도 줄이기와 강제 색상을 확인한다. 최종 iframe 조상, 모서리, 클립과 레이어가 PoC와 같으면 해당 근거를 재사용한다.
+   - 확인: `node .scratch/design-sync/panel-header-fade/measure.mjs`에서 보드의 헤더 높이·페이드 경계가 드래프트와 맞는다. 격리 앱에서 논리 좌표와 헤더 경계의 입력 결과, 실제 첨부 PNG가 변경 전 계약과 일치한다. 접근성 상태에 쓴 실제 설정과 에뮬레이션을 기록한다.
    - 커밋 경계: 측정값과 드래프트 차이 기록.
 
 ## 통합
 
-9. 각 구현 묶음은 `/deliver`에서 리뷰와 최종 게이트를 거친다. 같은 파일을 수정할 수 있으므로 구현 1을 먼저 통합하고 구현 2에 반영한다.
-   - 확인: 각 PR의 `node .agents/skills/verify/scripts/verify.mjs`와 GitHub `gate`가 통과한다.
-10. 살아 있는 규칙을 영어로 옮긴다. `PRODUCT.md` §5에는 적용 표면, 헤더 아래 표시와 불투명 대안을 기록한다. `ARCHITECTURE.md` §3·§7에는 새로 생긴 비자명한 페인트·논리 뷰포트 경계와 재사용 규칙을 기록한다. `docs/design/project.md`, `canvas.md`, `prototype.md`에 실측을, 공통 토큰을 추가했다면 `docs/DESIGN.md`에 그 역할을 기록한다. `docs/features/panel-header-fade/`를 지운다.
-   - 확인: `node .agents/skills/verify/scripts/verify.mjs`를 통과하고, 실측 문서에 여섯 헤더의 확인 범위가 있으며 지운 기능 문서를 가리키는 링크가 없다.
+9. 각 구현 묶음은 `/deliver`에서 5·8단계의 실측과 런타임 확인, 코드 리뷰, 최종 게이트, PR 순으로 진행한다. 구현 2는 구현 1이 병합된 `origin/develop`에서 시작한다. 구현 2는 최종 게이트와 푸시 전에 10단계를 마친다.
+   - 확인: 각 PR의 `node .agents/skills/verify/scripts/verify.mjs`와 GitHub `gate`가 통과하고, 두 PR의 병합 순서와 런타임 확인 범위가 기록된다.
+10. 구현한 규칙을 영어로 옮긴다. `docs/PRODUCT.md` §5에는 적용 표면, 헤더 아래 표시와 불투명 대안을 기록한다. `docs/ARCHITECTURE.md` §3·§7에는 새로 생긴 비자명한 페인트·논리 뷰포트 경계와 재사용 규칙을 기록한다. `docs/design/project.md`, `docs/design/canvas.md`, `docs/design/prototype.md`에 실측을, 공통 토큰을 추가했다면 `docs/DESIGN.md`에 그 역할을 기록한다. `docs/features/panel-header-fade/`를 지운다.
+   - 확인: 푸시할 커밋에서 `node .agents/skills/verify/scripts/verify.mjs`를 통과한다. 실측 문서에 여섯 헤더의 확인 범위가 있고 지운 기능 문서를 가리키는 링크가 없어야 한다. 병합한 커밋에서 실측 근거가 여전히 적용되는지 확인하고, PR에서 남긴 미확인 항목을 검증한다.
    - 커밋 경계: 제품·구조·실측 문서를 업데이트하고 기능 문서를 정리한다.
