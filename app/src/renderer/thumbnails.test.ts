@@ -24,11 +24,23 @@ test("thumbnail view: missing width beats capture state; missing id does not", (
 });
 
 test("visibility changes report a new set only when it changed", () => {
-  const visible = applyVisibility(new Set(), [{ path: "a", visible: true }, { path: "b", visible: true }]);
+  const visibleRows = new Map<string, string>();
+  const a = { key: "1", path: "a", visible: true };
+  const b = { key: "2", path: "b", visible: true };
+  const visible = applyVisibility(visibleRows, [a, b]);
   expect(visible && [...visible]).toEqual(["a", "b"]);
-  expect(applyVisibility(new Set(["a", "b"]), [{ path: "a", visible: true }, { path: "c", visible: false }])).toBeNull();
-  const after = applyVisibility(new Set(["a", "b"]), [{ path: "a", visible: false }]);
+  expect(applyVisibility(visibleRows, [a, { key: "3", path: "c", visible: false }])).toBeNull();
+  const after = applyVisibility(visibleRows, [{ ...a, visible: false }]);
   expect(after && [...after]).toEqual(["b"]);
+});
+
+test("a canvas keeps priority while any of its conversation rows is visible", () => {
+  const visibleRows = new Map<string, string>();
+  const first = { key: "conversation-1", path: "checkout", visible: true };
+  const second = { key: "conversation-2", path: "checkout", visible: true };
+  expect(applyVisibility(visibleRows, [first, second])).toEqual(new Set(["checkout"]));
+  expect(applyVisibility(visibleRows, [{ ...first, visible: false }])).toBeNull();
+  expect(applyVisibility(visibleRows, [{ ...second, visible: false }])).toEqual(new Set());
 });
 
 // Each request waits until the test answers it, so replies can arrive late.

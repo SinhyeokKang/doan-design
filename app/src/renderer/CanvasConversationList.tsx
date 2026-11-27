@@ -117,10 +117,14 @@ export function CanvasConversationList({ list, current, project, thumbnails, ope
     const root = scroller.current;
     const head = title.current;
     if (!root || !head || observed === "") return;
-    let visible = new Set<string>();
+    const visibleRows = new Map<string, string>();
     const observer = new IntersectionObserver(changes => {
-      const next = applyVisibility(visible, changes.map(change => ({ path: (change.target as HTMLElement).dataset.path ?? "", visible: change.isIntersecting })));
-      if (next) { visible = next; report.current([...next]); }
+      const next = applyVisibility(visibleRows, changes.map(change => ({
+        key: change.target.getAttribute("data-key") ?? "",
+        path: change.target.getAttribute("data-path") ?? "",
+        visible: change.isIntersecting,
+      })));
+      if (next) report.current([...next]);
     }, { root, rootMargin: `-${head.offsetHeight}px 0px 0px` });
     for (const row of root.querySelectorAll<HTMLElement>(".cv-row[data-path]")) observer.observe(row);
     return () => { observer.disconnect(); report.current([]); };
