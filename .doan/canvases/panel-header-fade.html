@@ -49,8 +49,7 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
 .last { border-radius: 0 var(--radius-container) var(--radius-container) 0; }
 .joined { border-inline-start: 1px solid var(--border-standard); }
 .panel-head { position: absolute; z-index: 2; inset: 0 0 auto; display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-chrome); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); isolation: isolate; }
-.panel-head::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, var(--surface-panel) 0 calc(100% - var(--space-6)), transparent 100%); }
-.opaque .panel-head::before { background: var(--surface-panel); }
+.panel-head::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, color-mix(in srgb, var(--surface-panel) 90%, transparent) 0 calc(100% - var(--space-4)), transparent 100%); }
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
   .panel-head::before { background: var(--surface-panel); }
 }
@@ -101,7 +100,8 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
 .demo[data-sidebar="shown"] .canvas-side { grid-template-columns: 220px minmax(0, 1fr) 280px; }
 .demo[data-sidebar="shown"] .canvas-side .sidebar { display: block; }
 .demo[data-sidebar="shown"] .canvas-side .inspector { display: none; }
-.canvas-side .board-panel .panel-head { background: var(--surface-panel); }
+.board-panel .panel-head { background: var(--surface-panel); }
+.board-panel .panel-head::before { content: none; }
 .properties { display: grid; gap: var(--space-3); padding: var(--space-2) var(--space-2) var(--space-6); }
 .properties h3 { padding: var(--space-3) var(--space-2) var(--space-1); font-weight: var(--type-weight-medium); }
 .properties .property { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); width: 100%; min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-2); text-align: left; color: var(--text-standard); background: transparent; border: 0; border-radius: var(--radius-chip); }
@@ -110,10 +110,8 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
 .property:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .property code { font-family: var(--type-family-mono); font-size: var(--type-caption-size); }
 .board-panel { background: var(--surface-inset); }
-.board-panel.single { border-radius: var(--radius-container); }
 .board-field { flex: 1; min-height: 0; padding: var(--size-chrome) var(--space-8) var(--space-8); background: var(--surface-inset); }
-.board-field .mock-grid { display: grid; row-gap: var(--space-6); column-gap: var(--space-6); grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 816px; margin-inline: auto; }
-.board-field .mock-grid.single-col { grid-template-columns: minmax(0, 1fr); }
+.board-field .mock-grid { display: grid; gap: var(--space-6); grid-template-columns: minmax(0, 1fr); }
 .mock-frame { min-width: 0; }
 .mock-frame h3 { margin-bottom: var(--space-2); color: var(--text-subtle); font-weight: var(--type-weight-medium); }
 .mock-screen { min-height: 344px; padding: var(--space-8); display: grid; align-content: start; gap: var(--space-4); background: var(--mock-bg); color: var(--mock-ink); }
@@ -166,8 +164,8 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
 </svg>
 <header class="intro">
   <h1>Panel header fade</h1>
-  <p>Play any frame, then scroll the panels. The title and controls stay in place while content fades beneath them. Five frames cover the six headers.</p>
-  <p>New appearance, not yet in code. The reference is the screenshot shared on November 27, 2026, read in the conversation. Surrounding controls follow Doan’s Overview, canvas, inspector and prototype conversation drafts. The board is a visual prototype for review before the iframe proof of concept.</p>
+  <p>Play any frame, then scroll the panels. The title and controls stay in place while content fades beneath them. Four frames cover the five headers.</p>
+  <p>New appearance, not yet in code. The reference is the screenshot shared on November 27, 2026, read in the conversation. Surrounding controls follow Doan’s Overview, canvas, inspector and prototype conversation drafts.</p>
 </header>
 
 <section class="specimen">
@@ -330,8 +328,8 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
   <header class="panel-head" data-doan-id="side-board-header">
   <div class="head-title"><span>Checkout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Frame drawer"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show inspector"><svg aria-hidden="true"><use href="#pane"/></svg></button></div>
 </header>
-  <div class="board-field scroller doan-scroll" data-doan-id="side-board-scroll" data-scroller data-scroll-target="128" tabindex="0" aria-label="Canvas preview">
-    <div class="mock-grid single-col"><article class="mock-frame"><h3>Checkout</h3><div class="mock-screen dark">
+  <div class="board-field scroller doan-scroll" tabindex="0" aria-label="Canvas preview">
+    <div class="mock-grid"><article class="mock-frame"><h3>Checkout</h3><div class="mock-screen dark">
   <p class="overline">Studio Store</p>
   <h3>Checkout</h3>
   <p>Review the details before placing your order.</p>
@@ -482,53 +480,6 @@ svg { display: block; flex: none; width: var(--size-icon); height: var(--size-ic
 </section></div>
   </section>
 </section>
-<section class="specimen">
-  <h2>Canvas board</h2>
-  <p>Scroll a high-contrast frame below the header. The real board’s iframe, input and capture will be checked in the separate proof of concept.</p>
-  <section class="demo" style="--demo-width: 1238px; --demo-height: 780px;" data-doan-frame="canvas-board" data-doan-title="Canvas board" data-doan-prototype="1238x780" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
-    <header class="chrome">
-  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-  <span class="app-name">Doan</span>
-  <div class="review" role="group" aria-label="Preview controls"><span class="review-note">Preview</span><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Top</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="scroll" data-ui-variant="trigger">Scrolled</button><button class="doan-button" type="button" data-ui-size="sm" data-preview="opaque" data-ui-variant="trigger">Opaque header</button></div>
-</header><div class="workspace"><section class="panel board-panel single" aria-label="Canvas">
-  <header class="panel-head" data-doan-id="canvas-board-header">
-  <div class="head-title"><span>Checkout</span><svg aria-hidden="true"><use href="#chevron"/></svg></div><div class="head-tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Frame drawer"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-button" type="button" data-ui-size="sm" data-preview="top" data-ui-variant="trigger">Fit</button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show inspector"><svg aria-hidden="true"><use href="#pane"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Show conversation"><svg aria-hidden="true"><use href="#close-pane"/></svg></button></div>
-</header>
-  <div class="board-field scroller doan-scroll" data-doan-id="canvas-board-scroll" data-scroller data-scroll-target="128" tabindex="0" aria-label="Canvas preview">
-    <div class="mock-grid"><article class="mock-frame"><h3>Checkout</h3><div class="mock-screen dark">
-  <p class="overline">Studio Store</p>
-  <h3>Checkout</h3>
-  <p>Review the details before placing your order.</p>
-  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
-  <div class="rule"></div>
-  <p class="total">Total &nbsp; $72.00</p>
-</div></article><article class="mock-frame"><h3>Payment details</h3><div class="mock-screen">
-  <p class="overline">Studio Store</p>
-  <h3>Payment details</h3>
-  <p>Review the details before placing your order.</p>
-  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
-  <div class="rule"></div>
-  <p class="total">Total &nbsp; $72.00</p>
-</div></article><article class="mock-frame"><h3>Order confirmation</h3><div class="mock-screen">
-  <p class="overline">Studio Store</p>
-  <h3>Order confirmation</h3>
-  <p>Review the details before placing your order.</p>
-  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
-  <div class="rule"></div>
-  <p class="total">Total &nbsp; $72.00</p>
-</div></article><article class="mock-frame"><h3>Receipt</h3><div class="mock-screen dark">
-  <p class="overline">Studio Store</p>
-  <h3>Receipt</h3>
-  <p>Review the details before placing your order.</p>
-  <div class="mock-card"><p>Order summary</p><p>Subtotal &nbsp; $64.00</p><p>Delivery &nbsp; $8.00</p></div>
-  <div class="rule"></div>
-  <p class="total">Total &nbsp; $72.00</p>
-</div></article></div>
-  </div>
-  <div class="board-tools doan-floating" role="group" aria-label="Canvas tools"><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Select"><svg aria-hidden="true"><use href="#cursor"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Hand"><svg aria-hidden="true"><use href="#hand"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Picker"><svg aria-hidden="true"><use href="#target"/></svg></button><button class="doan-icon-button" type="button" data-ui-size="sm" aria-label="Play prototype"><svg aria-hidden="true"><use href="#play"/></svg></button></div>
-</section></div>
-  </section>
-</section>
 <script>
 document.addEventListener("click", event => {
   const button = event.target.closest("[data-preview]");
@@ -582,10 +533,6 @@ document.addEventListener("click", event => {
     case "collapse-answer":
       frame.dataset.answer = "closed";
       frame.querySelector(".conversation .scroller").focus({ preventScroll: true });
-      break;
-    case "opaque":
-      frame.classList.toggle("opaque");
-      button.setAttribute("aria-pressed", String(frame.classList.contains("opaque")));
       break;
   }
 });
