@@ -2,11 +2,11 @@
 
 ## 선행 검증과 드래프트
 
-1. `/feature-review` 뒤 보드 PoC를 먼저 진행한다. 같은 iframe의 표시, 논리 뷰포트, 입력, 캡처, 클립이 모두 통과해야 보드의 드래프트와 구현을 진행한다. 계약을 지킬 수 없으면 보드 작업을 보류하고 결과를 사용자에게 보여 준다. 임시 코드는 `.scratch/`에 둔다.
-   - 확인: `npm --prefix app run build`로 빌드한 앱을 `app/runtime/` 지원으로 격리 실행한다. `design.md`의 동일 입력·좌표, 헤더 경계 입력과 Tab, 실제 첨부 PNG, DPR 2의 대형 보드와 패널 접기 전후를 대조한다. 모든 비교에서 기존 조작 및 캡처와 일치하고 의도한 보드 픽셀이 헤더 아래에 보이면 통과다.
-2. `/design-draft panel-header-fade`에서 `design.md`의 다섯 프레임을 그리고 사용자가 앱에서 확인한 페이드 길이·농도·범위를 기록한다.
-   - 확인: `doan check --json --repo .`에서 기준 실행 대비 새 오류가 없고 새 캔버스의 오류는 0건이다. 새 경고는 `.doan/assets/mock.css`의 `hardcoded_color`만 허용한다. `doan ls --json --repo .`에서 캔버스 id `panel-header-fade`, 너비 1440, `design.md`의 프레임 id 다섯 개가 정확히 일치한다.
+1. `/design-draft panel-header-fade`에서 `design.md`의 다섯 프레임을 프로토타입으로 그리고, 보드는 PoC 전 시각 예시로 표시한다. 사용자가 앱에서 확인한 페이드 길이·농도·범위를 기록한다.
+   - 확인: `doan check --json --repo .`에서 기준 실행 대비 새 오류가 없고 새 캔버스의 오류는 0건이다. 새 경고는 `.doan/assets/mock.css`의 `hardcoded_color`만 허용한다. `doan ls --json --repo .`에서 캔버스 id `panel-header-fade`, 너비 1440, `design.md`의 프레임 id 다섯 개가 일치한다. `doan open --prototype`으로 각 프레임을 열어 마커에 지정한 크기와 본문 스크롤을 확인한다.
    - 커밋 경계: `docs(design): panel-header-fade draft`.
+2. 보드 PoC를 별도로 진행하고 결과를 드래프트에 반영한다. 같은 iframe의 표시, 논리 뷰포트, 입력, 캡처, 클립을 모두 보존할 때 보드 구현을 진행한다. 계약을 지킬 수 없으면 보드 작업을 보류하고 결과를 사용자에게 보여 준다. 임시 코드는 `.scratch/`에 둔다.
+   - 확인: `npm --prefix app run build`로 빌드한 앱을 `app/runtime/` 지원으로 격리 실행한다. `design.md`의 동일 입력·좌표, 헤더 경계 입력과 Tab, 실제 첨부 PNG, DPR 2의 대형 보드와 패널 접기 전후를 대조한다. 모든 비교에서 기존 조작 및 캡처와 일치하고 의도한 보드 픽셀이 헤더 아래에 보이면 통과다.
 
 ## 구현 1 — 대화·목록·인스펙터 헤더
 
