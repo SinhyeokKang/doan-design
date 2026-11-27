@@ -65,6 +65,7 @@ const violetAllowed = [
   ".badge-bubble",
   ".mark.jump-highlight",
   ".mark.jump-highlight::before",
+  ".mark.jump-highlight.working",
   ".mark.jump-highlight.working::before",
   "@keyframes doan-work-glow",
   ".text-range > .text-rect",
