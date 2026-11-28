@@ -1,0 +1,10 @@
+{
+  "id": "W15",
+  "title": "Show a card expanding when its button is pressed, in an existing canvas",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null,
+  "timeoutSec": 1200
+}
