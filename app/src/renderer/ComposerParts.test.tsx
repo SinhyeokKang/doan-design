@@ -587,6 +587,7 @@ function drawerButton(skills: typeof drawerSkills | [] = drawerSkills, suggested
 
 test("choosing another tab scrolls the list back to the top", () => {
   hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("requestAnimationFrame", () => 0);
   try {
     const draw = drawerButton();
     (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
@@ -600,13 +601,13 @@ test("choosing another tab scrolls the list back to the top", () => {
     list.scrollTop = 120;
     (tree.find(item => item.props["data-group"] === "presets")!.props.onKeyDown as (event: unknown) => void)({ key: "ArrowRight", preventDefault: () => {}, currentTarget: { parentElement: null } });
     expect(list.scrollTop).toBe(0);
-  } finally { hooks.on = false; }
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
 });
 
 test("the drawer has one class whatever the tabs, and only its search field drops the sm size", () => {
   hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
   try {
-    for (const skills of [drawerSkills, []] as const) {
+    for (const skills of [drawerSkills, [] as []]) {
       const draw = drawerButton(skills);
       (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
       const tree = draw();
@@ -623,7 +624,7 @@ test("the drawer has one class whatever the tabs, and only its search field drop
 
 test("a tab row that vanishes with the content focus was in hands focus to the search box", () => {
   hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
-  const input = { focus: vi.fn() }, tab = { focus: vi.fn() };
+  const input = { focus: vi.fn() };
   vi.stubGlobal("HTMLElement", class {});
   vi.stubGlobal("document", { activeElement: null, body: null });
   try {
@@ -634,12 +635,11 @@ test("a tab row that vanishes with the content focus was in hands focus to the s
     (tree.find(item => item.props["data-group"] === "project")!.props.onClick as () => void)();
     tree = draw();
     const content = tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props;
-    (content.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === "input" ? input : selector.includes('role="tab"') ? tab : null };
+    (content.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === "input" ? input : null };
     (content.onFocusCapture as (event: unknown) => void)({ target: { isConnected: false, closest: () => ({}) } });
     skills = [];
     draw(); hooks.effects.forEach(effect => effect());
     expect(input.focus).toHaveBeenCalledTimes(1);
-    expect(tab.focus).not.toHaveBeenCalled();
   } finally { hooks.on = false; vi.unstubAllGlobals(); }
 });
 

@@ -1,7 +1,7 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Info, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, Terminal, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
+import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Info, LibraryBig, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, Terminal, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -26,7 +26,7 @@ import type { CommandCard, CommandCardTarget } from "./commandView";
 
 // Each primitive keeps Home's markup, so Home's computed styles and DOM order stay.
 
-const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles, terminal: Terminal };
+const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlash, compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles, terminal: Terminal, "library-big": LibraryBig };
 // A suggested prompt's sentence with its project and canvas names highlighted; the text itself is unchanged, so the
 // button's accessible name stays the whole sentence.
 export function SuggestionLabel({ parts }: { parts: readonly SuggestionPart[] }) {
@@ -323,7 +323,7 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
   return <>
     {view.notice && presetBody(view.notice, slash, options)}
     {view.emptyText && <div className="popover-state" role="status">{view.emptyText}</div>}
-    {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Preset groups">{view.tabs.map(item => <button key={item.key} type="button" role="tab" data-group={item.key} className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}
+    {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Categories">{view.tabs.map(item => <button key={item.key} type="button" role="tab" data-group={item.key} className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}
       onClick={() => options.onTab?.(item.key)} onKeyDown={event => {
         const next = tabKey(view.tabs.map(t => t.key), item.key, event.key);
         if (!next) return;
@@ -332,14 +332,20 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
         const list = event.currentTarget.parentElement;
         requestAnimationFrame(() => list?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
       }}>
-      <GroupIcon name={item.icon} />{item.label}</button>)}</div>}
-    <div className="popover-list doan-scroll" role="listbox" id={slash ? `${options.listId}-slash` : undefined} aria-label={view.summary ?? view.sections[0]?.title ?? "Design presets"}>
-      {view.sections.map(section => <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{section.rows.map(row => <PresetOption key={row.key} row={row} index={index++} slash={slash} options={{ ...options, rows }} />)}</Fragment>)}
+      <GroupIcon name={item.icon} /><span className="tab-label">{item.label}</span></button>)}</div>}
+    <div className="popover-list doan-scroll" role="listbox" id={slash ? `${options.listId}-slash` : undefined} aria-label={view.summary ?? view.label ?? view.sections[0]?.title ?? "Design presets"}>
+      {view.sections.map((section, at) => {
+        const drawn = section.rows.map(row => <PresetOption key={row.key} row={row} index={index++} slash={slash} options={{ ...options, rows }} />);
+        if (section.icon === undefined || slash) return <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{drawn}</Fragment>;
+        const headId = `${options.listId}-g-${at}`;
+        return <div key={section.title ?? at} className="preset-section" role="group" aria-labelledby={headId}><div className="doan-menu-head preset-section-head" id={headId}><GroupIcon name={section.icon} />{section.title}</div>{drawn}</div>;
+      })}
     </div>
   </>;
 }
+// The drawer's field is the default doan-input size; the `/` list keeps sm.
 function SearchField({ value, slash, listId, onChange, label = "Search presets" }: { label?: string; value: string; slash: boolean; listId: string; onChange?(value: string): void }) {
-  return <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size="sm" placeholder={label} aria-label={label} value={value}
+  return <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size={slash ? "sm" : undefined} placeholder={label} aria-label={label} value={value}
     readOnly={slash} tabIndex={slash ? -1 : undefined} aria-hidden={slash || undefined}
     onChange={slash ? undefined : event => onChange?.(event.target.value)}
     onKeyDown={slash ? undefined : event => { if (event.key === "ArrowDown") { event.preventDefault(); document.getElementById(`${listId}-p-0`)?.focus(); } }} /></label>;
@@ -377,7 +383,8 @@ export function PresetsButton(props: {
     return canvasPress(() => { pressed.current = true; flushSync(() => setOpen(false)); });
   }, [open, canvasPress]);
   const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab, skills: props.skills ?? [] });
-  const selected = view.kind === "list" ? view.tabs.find(item => item.selected)?.key : undefined;
+  // Without a tab row the list is the Doan presets tab.
+  const selected = view.kind === "list" ? view.tabs.find(item => item.selected)?.key ?? (view.label !== undefined ? "presets" : undefined) : undefined;
   useLayoutEffect(() => {
     if (open && tab !== null && query === "" && selected && selected !== tab) {
       setTab(selected);
@@ -385,9 +392,11 @@ export function PresetsButton(props: {
       const lost = lastFocused.current;
       const restore = lost && !lost.isConnected && active === document.body;
       const inList = active instanceof HTMLElement && content.current?.contains(active) && !!active.closest('[role="listbox"]');
-      if (restore || inList) content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+      if (restore || inList) (content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? content.current?.querySelector<HTMLElement>("input"))?.focus();
     }
   }, [open, tab, query, selected]);
+  // Set before the new tab is drawn into the same list element.
+  const chooseTab = (key: string) => { const list = content.current?.querySelector<HTMLElement>('[role="listbox"]'); if (list) list.scrollTop = 0; setTab(key); };
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   // A read that answers with the list takes the line and its Retry away; focus that was on the Retry goes to the search
   // box, the popover's first control, instead of falling to <body>.
@@ -397,13 +406,13 @@ export function PresetsButton(props: {
   }), pressed);
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${(props.skills ?? []).some(r => r.kind !== "command") ? " has-skills" : ""}${(props.skills ?? []).some(r => r.kind === "command") ? " has-commands" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className="doan-floating preset-popover" aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
       }}>
       <SearchField label={drawerSearchLabel(props.skills ?? [])} value={query} slash={false} listId={props.listId} onChange={setQuery} />
-      {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, retry: props.retry, onRetry: readAgain, onTab: setTab })}
+      {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, retry: props.retry, onRetry: readAgain, onTab: chooseTab })}
     </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }

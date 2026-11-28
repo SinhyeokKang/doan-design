@@ -590,7 +590,7 @@ test("a group tab's ←/→ selects the next tab and focuses it once drawn, with
   expect(frames).toHaveLength(1);
   frames[0]!();
   expect(event.preventDefault).toHaveBeenCalled();
-  expect(render().find(props => props.role === "tab" && props["aria-selected"])?.children).toContain("Doan presets");
+  expect(render().find(props => props.role === "tab" && props["aria-selected"])?.["data-group"]).toBe("presets");
   expect(list.querySelector).toHaveBeenCalledWith('[aria-selected="true"]');
   expect(focus).toHaveBeenCalled();
 });
