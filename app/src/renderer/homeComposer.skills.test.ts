@@ -51,10 +51,10 @@ test("searches every token with existing scores, preset ties first, and exact na
   expect(searchDrawer([preset], skills, "review dep").map(r => r.key)).toEqual(["skill:audit"]);
   expect(searchDrawer([], [{ kind: "skill", name: "x", description: "predeploy" }, { kind: "skill", name: "y", description: "a deploy" }, { kind: "skill", name: "z", description: "deploy" }], "deploy").map(r => r.id)).toEqual(["z", "y", "x"]);
 });
-test("Project follows preset tabs and sorts skills by name with row icons", () => {
+test("Project follows Doan presets and sorts skills by name with row icons", () => {
   const view = presetListView(reply, { ...opts, tab: "project" });
   if (view.kind !== "list") throw new Error("list");
-  expect(view.tabs.map(t => t.key)).toEqual(["suggested", "review", "project"]);
+  expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets", "project"]);
   expect(view.tabs.at(-1)).toEqual({ key: "project", label: "Project", icon: "square-slash", selected: true });
   expect(view.sections[0]?.rows.map(r => [r.kind, r.id, r.icon, r.title])).toEqual([
     ["skill", "audit", "square-slash", "/audit"], ["skill", "deploy", "square-slash", "/deploy"],
@@ -84,12 +84,12 @@ test("shows skills below the independent loading, error, and older CLI notice", 
     expect(view.sections[0]?.rows).toHaveLength(2);
   }
 });
-test("ungrouped CLI and slash list retain preset order then Project skills", () => {
+test("ungrouped CLI keeps the tabs with one headless Doan presets list, and the slash list retains preset order then Project skills", () => {
   const old: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: [{ id: "audit", title: "Audit", description: "", scope: "" }] } };
-  const view = presetListView(old, opts);
+  const view = presetListView(old, { ...opts, tab: "presets" });
   if (view.kind !== "list") throw new Error("list");
-  expect(view.tabs).toEqual([]);
-  expect(view.sections.map(s => s.title)).toEqual(["Suggested for p", "All presets", "Project"]);
+  expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets", "project"]);
+  expect(view.sections.map(s => [s.title, s.rows.map(r => r.id)])).toEqual([[null, ["audit"]]]);
   const slash = presetListView(reply, { ...opts, slash: true });
   if (slash.kind !== "list") throw new Error("list");
   expect(slash.tabs).toEqual([]);
