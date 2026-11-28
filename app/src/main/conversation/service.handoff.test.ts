@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
-import { HANDOFF_GUIDANCE } from "./prompt";
+import { HANDOFF_GUIDANCE, RECEIVED_GUIDANCE } from "./prompt";
 import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare, type QueueFiles, type QueueOptions, type Runner, type StartRequest } from "./service";
 import { foldConversation } from "./state";
 import { DraftStore } from "./drafts";
@@ -36,6 +36,8 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const key = (runner: number) => open.mock.calls[runner]![0].env.DOAN_HANDOFF;
   const ask = (handoff: string | undefined, path: string, root = "/repo", text = "The person wants a checkout flow; the cart is next.") =>
     service.requestHandoff({ root, handoff: handoff ?? "", path, text });
+  const send = (handoff: string | undefined, path: string, text = "Use the new price on the summary.", root = "/repo") =>
+    service.requestSend({ root, handoff: handoff ?? "", path, text });
   const prompt = (runner: number, call = 0) => vi.mocked(runners[runner]!.send).mock.calls[call]![0];
   const entry = (id: string) => store.list().find(m => m.conversationId === id)!;
   const on = (canvas: Canvas) => store.list().find(m => m.canvas?.id === canvas.id);
@@ -55,7 +57,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const edit = (id: string, path: string) => service.receive(id, { type: "activity", kind: "edit", path, summary: "Edit" });
   // Lets a released start run to its end: its prepare, then the checks and the refusal after it.
   const drained = async (call: number) => { await prepare.mock.results[call]!.value; for (let i = 0; i < 5; i++) await new Promise<void>(resolve => setImmediate(resolve)); };
-  return { dir, drained, service, store, runners, open, prepare, listed, drafts, notices, published, key, ask, prompt, entry, on, all, last, turnOf, start, settled, resolutions, missed, texts, edit };
+  return { dir, drained, service, store, runners, open, prepare, listed, drafts, notices, published, key, ask, send, prompt, entry, on, all, last, turnOf, start, settled, resolutions, missed, texts, edit };
 }
 
 describe("the handoff key", () => {
@@ -1288,5 +1290,270 @@ describe("effort", () => {
     const target = await handOff(h, []);
     expect(target).toMatchObject({ model: "gpt-x", effort: "high" });
     expect(h.open.mock.calls[1]![0]).toMatchObject({ effort: "high" });
+  });
+});
+
+// `doan send`: the message goes to the canvas's latest conversation once the asking turn ended done, at once when that
+// conversation rests and queued behind its turn otherwise (ARCHITECTURE §7 'Handoff').
+describe("a send", () => {
+  const d = { path: ".doan/canvases/d.html", id: "d" };
+  const agentRows = (h: ReturnType<typeof fixture>, id: string) => h.drafts.queued(id).filter(item => item.origin);
+  const userMessages = (h: ReturnType<typeof fixture>, id: string) => h.store.read(id).flatMap(e => e.type === "user.message" ? [e] : []);
+  // x: the receiving conversation on b (runner 0), resting unless busy; s: the sender on a (runner 1).
+  async function pair(options: { busy?: boolean; provider?: "claude" | "codex"; draftsDir?: string } = {}) {
+    const h = fixture({ listed: [a, b, c], ...options });
+    const x = await h.start({ canvas: b, text: "mine" });
+    if (!options.busy) h.service.receive(x, { type: "turn.done" });
+    const s = await h.start();
+    return { h, x, s };
+  }
+  it("is taken as a request with its via, and counts with handoffs for the same canvas", async () => {
+    const { h, s } = await pair();
+    expect(h.send(h.key(1), b.path)).toBeNull();
+    expect(h.last(s)).toMatchObject({ type: "handoff.requested", canvas: { path: b.path }, text: "Use the new price on the summary.", via: "send", turnId: h.turnOf(s) });
+    expect(h.ask(h.key(1), b.path)).toBe("already_requested");
+    expect(h.send(h.key(1), b.path)).toBe("already_requested");
+    expect(h.send(h.key(1), a.path)).toBe("same_canvas");
+    expect(h.send(h.key(1), c.path)).toBeNull();
+  });
+  it("starts a turn on a resting conversation with its own choices, an origin message and the send's prompt, and keeps its title", async () => {
+    const { h, x, s } = await pair();
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    expect(h.last(s)).toMatchObject({ type: "handoff.resolved", canvas: { path: b.path }, via: "send", outcome: "sent", target: { conversationId: x, canvas: b }, queued: false });
+    expect(userMessages(h, x).at(-1)).toMatchObject({ text: "Use the new price on the summary.", anchors: [], origin: { kind: "handoff", conversationId: s, canvas: a, via: "send", chain: [s], provider: "codex" } });
+    const prompt = h.prompt(0, 1), sections = prompt.split("\n\n");
+    expect(JSON.parse(sections[1]!)).toEqual({ context: { root: "/repo", canvas: b, from: a }, handoffText: "Use the new price on the summary." });
+    expect(sections[0]).toContain("sent it to this conversation");
+    expect(sections).toContain(RECEIVED_GUIDANCE);
+    expect(prompt).not.toContain(HANDOFF_GUIDANCE);
+    expect(h.entry(x).title).toBe("mine");
+    expect(h.store.list().filter(m => m.canvas?.id === "b")).toHaveLength(1);
+    expect(h.notices).toEqual([{ kind: "message", root: "/repo", source: { conversationId: s, canvas: a }, targets: [{ conversationId: x, canvas: b, via: "send" }] }]);
+  });
+  // A message's leading command name is the agent's text: it is never run as a command (POSTMORTEM 2026-11-18).
+  it("sends text that starts with a command name or holds markers as the agent's message", async () => {
+    const { h, x, s } = await pair();
+    h.send(h.key(1), b.path, "/compact {{1}} then go on");
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toMatchObject([{ outcome: "sent" }]));
+    expect(userMessages(h, x).at(-1)).toMatchObject({ text: "/compact {{1}} then go on", anchors: [] });
+    expect(JSON.parse(h.prompt(0, 1).split("\n\n")[1]!).handoffText).toBe("/compact {{1}} then go on");
+  });
+  it("queues behind a running turn, and behind one waiting for an answer, then goes alone after its done end", async () => {
+    for (const waiting of [false, true]) {
+      const { h, x, s } = await pair({ busy: true });
+      if (waiting) h.service.receive(x, { type: "permission.request", requestId: "r", tool: "Bash", summary: "ls", options: [{ id: "y", label: "Allow", kind: "allow" }] });
+      h.send(h.key(1), b.path);
+      h.service.receive(s, { type: "turn.done" });
+      await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+      expect(h.last(s)).toMatchObject({ outcome: "sent", target: { conversationId: x, canvas: b }, queued: true });
+      expect(userMessages(h, x)).toHaveLength(1);
+      expect(agentRows(h, x)).toMatchObject([{ text: "Use the new price on the summary.", anchors: [], attachments: [], origin: { conversationId: s, via: "send" } }]);
+      expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toEqual([{ itemId: agentRows(h, x)[0]!.itemId, provider: "codex", source: { conversationId: s, canvas: a }, line: "Use the new price on the summary.", held: false }]);
+      if (waiting) h.service.receive(x, { type: "permission.resolved", requestId: "r", optionId: "y" });
+      h.service.receive(x, { type: "turn.done" });
+      await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(2));
+      expect(userMessages(h, x)[1]).toMatchObject({ origin: { conversationId: s } });
+      expect(agentRows(h, x)).toEqual([]);
+    }
+  });
+  it("sends the person's rows and an agent's row as separate turns, in queue order", async () => {
+    const { h, x, s } = await pair({ busy: true });
+    h.service.queue(x, { text: "first of mine", anchors: [] });
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    h.service.queue(x, { text: "second of mine", anchors: [] });
+    h.service.queue(x, { text: "third of mine", anchors: [] });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(2));
+    expect(userMessages(h, x)[1]).toMatchObject({ text: "first of mine" });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(3));
+    expect(userMessages(h, x)[2]).toMatchObject({ text: "Use the new price on the summary.", origin: { conversationId: s } });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(4));
+    expect(userMessages(h, x)[3]).toMatchObject({ text: "second of mine\n\nthird of mine" });
+  });
+  it("keeps an agent's row queued and held through a failed or stopped turn, never as a draft, until a done turn of the person's", async () => {
+    for (const end of [{ type: "turn.failed", code: "process_exited" }, { type: "interrupted", reason: "user" }] as EventPayload[]) {
+      const { h, x, s } = await pair({ busy: true });
+      h.service.queue(x, { text: "mine too", anchors: [] });
+      h.send(h.key(1), b.path);
+      h.service.receive(s, { type: "turn.done" });
+      await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+      h.service.receive(x, end);
+      expect(h.drafts.returned(x)).toMatchObject({ text: "mine too" });
+      expect(agentRows(h, x)).toHaveLength(1);
+      expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toMatchObject([{ held: true }]);
+      expect(userMessages(h, x)).toHaveLength(1);
+      await h.service.send(x, "go on", []);
+      expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toMatchObject([{ held: false }]);
+      h.service.receive(x, { type: "turn.done" });
+      await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(3));
+      expect(userMessages(h, x)[2]).toMatchObject({ origin: { conversationId: s } });
+    }
+  });
+  it("refuses Send now for an agent's row, and removes it with ×", async () => {
+    const { h, x, s } = await pair({ busy: true });
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    const [row] = agentRows(h, x);
+    await expect(h.service.sendNow(x, row!.itemId)).rejects.toThrow("bad_request");
+    expect(agentRows(h, x)).toHaveLength(1);
+    h.service.removeQueued(x, row!.itemId);
+    expect(agentRows(h, x)).toEqual([]);
+    h.service.receive(x, { type: "turn.done" });
+    await h.drained(h.prepare.mock.calls.length - 1);
+    expect(userMessages(h, x)).toHaveLength(1);
+  });
+  it("starts the first of two sends that reach one resting conversation in the same moment and queues the other", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    const s1 = await h.start(), s2 = await h.start({ canvas: c });
+    h.send(h.key(1), b.path, "from a"); h.send(h.key(2), b.path, "from c");
+    h.service.receive(s1, { type: "turn.done" }); h.service.receive(s2, { type: "turn.done" });
+    await vi.waitFor(() => expect([...h.resolutions(s1), ...h.resolutions(s2)]).toHaveLength(2));
+    expect(h.resolutions(s1)).toMatchObject([{ outcome: "sent", target: { conversationId: x }, queued: false }]);
+    expect(h.resolutions(s2)).toMatchObject([{ outcome: "sent", target: { conversationId: x }, queued: true }]);
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x).map(m => m.text)).toEqual(["mine", "from a", "from c"]));
+  });
+  it("starts a conversation on a canvas with none it can reach, a send still, and two such sends start one each", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const s1 = await h.start(), s2 = await h.start({ canvas: c });
+    h.send(h.key(0), b.path, "from a\nsecond line"); h.send(h.key(1), b.path, "from c");
+    h.service.receive(s1, { type: "turn.done" }); h.service.receive(s2, { type: "turn.done" });
+    await vi.waitFor(() => expect([...h.resolutions(s1), ...h.resolutions(s2)]).toHaveLength(2));
+    expect(h.all(b)).toHaveLength(2);
+    const first = h.resolutions(s1)[0]!, started = first.type === "handoff.resolved" && first.outcome === "sent" ? first.target.conversationId : "";
+    expect(first).toMatchObject({ via: "send", outcome: "sent", target: { canvas: b }, queued: false });
+    expect(h.entry(started).title).toBe("from a");
+    expect(userMessages(h, started)).toMatchObject([{ text: "from a\nsecond line", origin: { conversationId: s1, via: "send", chain: [s1] } }]);
+    expect(h.store.read(started).some(e => e.type === "turn.started")).toBe(true);
+  });
+  it("skips a legacy external conversation, even a later one", async () => {
+    const h = fixture({ listed: [a, b] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: b, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s-legacy", configDir: "/c", cwd: "/repo" } }]);
+    h.store.append("legacy", "t", { type: "user.message", text: "later", anchors: [] });
+    const s = await h.start();
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    expect(h.last(s)).toMatchObject({ outcome: "sent", target: { conversationId: x } });
+    expect(h.store.read("legacy")).toHaveLength(1);
+  });
+  it("refuses a send back into the chain, and a second request of a turn a message started", async () => {
+    const { h, x, s } = await pair();
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    expect(h.send(h.key(0), a.path, "back to you")).toBeNull();
+    expect(h.send(h.key(0), c.path)).toBe("chain_one");
+    expect(h.ask(h.key(0), c.path)).toBe("chain_one");
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(1));
+    expect(h.last(x)).toMatchObject({ type: "handoff.resolved", via: "send", outcome: "refused", reason: "chain_return" });
+    expect(userMessages(h, s)).toHaveLength(1);
+  });
+  it("writes no missed line for a turn a message started, whatever new canvas it edited", async () => {
+    const h = fixture({ listed: [a, b] });
+    const s = await h.start(); h.send(h.key(0), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    const target = h.on(b)!.conversationId;
+    h.edit(target, "/repo/.doan/canvases/d.html"); h.listed.push(d);
+    h.service.receive(target, { type: "turn.done" });
+    h.service.refreshed("/repo");
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.missed(target)).toEqual([]);
+    expect(h.prompt(1)).toContain(RECEIVED_GUIDANCE);
+  });
+  it("refuses a send whose conversation was deleted between the judgement and the delivery", async () => {
+    const { h, x, s } = await pair();
+    h.ask(h.key(1), c.path); h.send(h.key(1), b.path);
+    let release = () => {};
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { release = resolve; }); return prepared(...args); });
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(3));
+    h.service.delete(x);
+    release();
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(2));
+    expect(h.resolutions(s)).toMatchObject([{ canvas: { path: c.path }, outcome: "started" }, { canvas: { path: b.path }, via: "send", outcome: "refused", reason: "not_found" }]);
+  });
+  it("drops a queued agent's row with its conversation's deletion, leaving the drafts readable", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-send-drafts-")); paths.push(dir);
+    const { h, x, s } = await pair({ busy: true, draftsDir: dir });
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    h.service.receive(x, { type: "interrupted", reason: "user" });
+    h.service.delete(x);
+    expect(h.drafts.queued(x)).toEqual([]);
+    expect(new DraftStore(dir).queued(x)).toEqual([]);
+    expect(h.last(s)).toMatchObject({ outcome: "sent", queued: true });
+  });
+  it("keeps an agent's row queued and held after a restart, returns the person's rows as a draft, and sends it after the person's next done turn", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-send-drafts-")); paths.push(dir);
+    const { h, x, s } = await pair({ busy: true, draftsDir: dir });
+    h.service.queue(x, { text: "mine queued", anchors: [] });
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    await h.service.quit();
+    const again = new ConversationService(h.store, h.prepare, h.open, () => {}, undefined, 10_000, () => h.listed, () => {}, { drafts: new DraftStore(dir) });
+    const row = () => again.list("/repo").find(r => r.conversationId === x)!;
+    expect(row()).toMatchObject({ returnedDraft: true, agentQueue: [{ source: { conversationId: s, canvas: a }, held: true }] });
+    expect(again.takeDraft(x)).toMatchObject({ text: "mine queued" });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(userMessages(h, x)).toHaveLength(1);
+    await again.send(x, "carry on", []);
+    again.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x).map(m => m.text)).toEqual(["mine", "carry on", "Use the new price on the summary."]));
+  });
+  it("leaves an agent's row with its conversation when that conversation hands off and its queue moves", async () => {
+    const { h, x, s } = await pair({ busy: true });
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    expect(h.ask(h.key(0), c.path)).toBeNull();
+    h.service.queue(x, { text: "mine for c", anchors: [] });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(1));
+    const onC = h.on(c)!.conversationId;
+    expect(h.drafts.queued(onC).map(item => item.text)).toEqual(["mine for c"]);
+    await vi.waitFor(() => expect(userMessages(h, x).at(-1)).toMatchObject({ origin: { conversationId: s } }));
+    expect(agentRows(h, x)).toEqual([]);
+  });
+  it("sends from a project conversation with an origin that names no canvas", async () => {
+    const h = fixture({ listed: [a, b] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    const p = await h.start({ mode: "newDesign" }, ["canvas"]);
+    expect(h.send(h.key(1), b.path)).toBeNull();
+    h.service.receive(p, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(p)).toHaveLength(1));
+    expect(userMessages(h, x).at(-1)).toMatchObject({ origin: { kind: "handoff", conversationId: p, via: "send", chain: [p], provider: "codex" } });
+    expect(userMessages(h, x).at(-1)!.origin).not.toHaveProperty("canvas");
+    expect(h.notices).toEqual([{ kind: "message", root: "/repo", source: { conversationId: p }, targets: [{ conversationId: x, canvas: b, via: "send" }] }]);
+  });
+  it("keeps the source's queue on the source after a send, and refuses the source's Delete while the send waits", async () => {
+    const { h, x, s } = await pair({ busy: true });
+    h.send(h.key(1), b.path);
+    h.service.queue(s, { text: "after the send", anchors: [] });
+    let release = () => {};
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementation(async (...args) => { await new Promise<void>(resolve => { release = resolve; }); return prepared(...args); });
+    h.service.receive(x, { type: "turn.done" });
+    h.service.receive(s, { type: "turn.done" });
+    expect(() => h.service.delete(s)).toThrow("busy");
+    h.prepare.mockImplementation(prepared);
+    release();
+    await vi.waitFor(() => expect(userMessages(h, s).map(m => m.text)).toEqual(["Make a checkout page", "after the send"]));
+    expect(h.resolutions(s)).toMatchObject([{ outcome: "sent" }]);
   });
 });

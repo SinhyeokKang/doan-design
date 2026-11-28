@@ -228,6 +228,17 @@ describe("prototypeReceives", () => {
     expect(receives({ channel: "conversation:handoff", value: { ...multi, targets: [multi.targets[0]!] } })).toBe(false);
   });
 
+  // A send, or a handoff of a turn at step 1 or later, moves no screen; the prototype window gets it by the same rule.
+  test("a send notice goes when it starts from or reaches the playing canvas in the playing root", () => {
+    const message = (root: string, from: string, to: string) => ({ kind: "message" as const, root, source: { conversationId: "s", canvas: { id: from, path: `.doan/canvases/${from}.html` } },
+      targets: [{ conversationId: "t", canvas: { id: to, path: `.doan/canvases/${to}.html` }, via: "send" as const }] });
+    expect(receives({ channel: "conversation:handoff", value: message("/r", "proto", "other") })).toBe(true);
+    expect(receives({ channel: "conversation:handoff", value: message("/r", "other", "proto") })).toBe(true);
+    expect(receives({ channel: "conversation:handoff", value: message("/r", "other", "x") })).toBe(false);
+    expect(receives({ channel: "conversation:handoff", value: message("/r-wt", "proto", "other") })).toBe(false);
+    expect(receives({ channel: "conversation:handoff", value: { ...message("/r", "other", "x"), source: { conversationId: "c-project" } } })).toBe(false);
+  });
+
   test("nothing goes while nothing plays", () => {
     expect(receives({ channel: "conversation:event", value: ev("c-proto") }, null)).toBe(false);
     expect(receives({ channel: "conversation:listChanged", value: { root: "/r" } }, null)).toBe(false);
