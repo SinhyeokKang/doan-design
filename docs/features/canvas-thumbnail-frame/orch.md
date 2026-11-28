@@ -17,19 +17,20 @@
   - 스크롤한 뒤 측정이 실패하면 맨 위로 되돌리고(`instant` + rAF 두 번, 남은 제한 시간 안) 첫 화면을 찍는다. spec이 "실패하면 첫 화면"이라서다. 되돌리기마저 제한에 걸리면 그대로 찍는다. 그 캔버스 자기 썸네일만 영향을 받는다.
   - 배율 함수는 넣지 않는다. 312 CSS px보다 좁은 프레임이 늘어나 보이는 것과 fixed·sticky 겹침은 ARCHITECTURE 한계로 적는다.
   - renderer를 멈추는 캔버스가 세션의 뒤 캡처를 모두 흰 화면으로 만드는 문제는 이 기능 전부터 있던 결함이라 T5에서 BACKLOG에 적는다.
+- B 결과의 폭 상한 예외 — 컨덕터 판단: 넓은 canvas card(480 px 이상)의 160 px 배너 칸은 상태 글이 약 7줄 넘게 줄바꿈되면 1:1보다 세로로 길어진다. 그때 상한을 건 이미지는 양옆이 잘린다. 드문 경우라 상한을 두고 ARCHITECTURE 한계로 적는다.
 
 ## Codex 사용
 
 - chain 상시 권한(링크 2의 모든 작업). 시작 때 Codex 주간 사용량 16%(rollout `window_minutes: 10080`).
-- 실제로 쓴 범위: (진행하며 적는다)
+- 실제로 쓴 범위: R 리뷰 워커 Codex `gpt-6.2-astra` medium(models_cache의 최신 Astra).
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1 PoC | `.scratch/canvas-thumbnail-frame/`, `design.md` 'PoC 결과' | — | Claude Opus high: Electron OOPIF·CSP·숨은 창 페인트 판단, 틀리면 설계가 무너진다 | probe 결과가 `.scratch/`에 있고 design.md에 고른 방법과 이유 | 완료 339d68a1c(워커 브랜치) |
-| B | T2 순수 함수, T3 캡처 | `app/src/main/thumbnailWindow.ts`(+test), 필요하면 `thumbnails.ts`·`thumbnailCache.ts`(+test), 새 순수 함수 파일 | A 검토 | 같은 워커(Opus high): 캔버스가 만든 값을 main이 검사하는 신뢰 경계 | `npm --prefix app test`(red→green), `typecheck`, `lint` | 진행 |
-| R | B 리뷰 | 보고만 | B | Codex Astra medium: 다른 계열의 독립 리뷰, 신뢰 경계 판단 | `/code-review` 보고 | 대기 |
+| B | T2 순수 함수, T3 캡처 | `app/src/main/thumbnailWindow.ts`(+test), 필요하면 `thumbnails.ts`·`thumbnailCache.ts`(+test), 새 순수 함수 파일 | A 검토 | 같은 워커(Opus high): 캔버스가 만든 값을 main이 검사하는 신뢰 경계 | `npm --prefix app test`(red→green), `typecheck`, `lint` | 완료 11431b2bb..fdb58e1cb, verify PASS(워커) |
+| R | B 리뷰 | 보고만 | B | Codex Astra medium: 다른 계열의 독립 리뷰, 신뢰 경계 판단 | `/code-review` 보고 | 진행 |
 | C | T4 실기 확인 | `.scratch/canvas-thumbnail-frame/` | R 🔴 0 | 같은 워커 | 항목별 기대값·스크린샷 | 대기 |
 | D | T5 승격과 정리 | ARCHITECTURE, PRODUCT, BACKLOG, `docs/design/*.md`, 기능 디렉터리 | C | 컨덕터 | 문서 확인, 통합 HEAD `/verify` | 대기 |
 
