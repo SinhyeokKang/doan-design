@@ -22,6 +22,8 @@ export interface CanvasChipRow { root: string; canvas: CanvasRow; entries: reado
 
 function basename(path: string): string { return path.split("/").filter(Boolean).at(-1) ?? path; }
 
+// A root that is no list and has no lastCommon is a card of its own, so another worktree of its project reads as
+// another project; its composer refuses sends in that state anyway.
 function projectOf(entries: readonly FolderEntry[], root: string): { key: string; name: string } {
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
     .find(each => each.rows.some(row => row.path === root));
