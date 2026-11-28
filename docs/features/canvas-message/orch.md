@@ -12,6 +12,7 @@
 - `turnPrompt`로 다시 만드는 기존 eval 프롬프트 fixture에 R13을 더한다(tasks 5의 R8d, R9b, R10, R11, R12와 함께). — 컨덕터 판단: R13도 `handoff: true`로 `turnPrompt`를 부른다.
 - 받는 대화가 사용량 한도 예약 상태(`scheduling(id)`)일 때의 `send`: 턴을 돌리지 않고 실패한 턴도 쓰지 않는다. 메시지는 받는 대화의 큐에 에이전트 행으로 들어가고(흐린 상태), 보낸 쪽 카드는 Queued in이다. 리셋에 맞춰 예약하지 않는다. — 컨덕터 판단(B 질문): design '앱 main'의 "한도 실패로 끝낸다"와 "큐 행으로 남는다"가 충돌해, spec '큐에 든 에이전트 메시지'(한도 실패 뒤 흐린 행)와 Out of scope 4의 한도 예외를 넓히지 않는다는 결정에 맞는 쪽을 골랐다. PRODUCT 승격 때 적는다.
 - 에이전트 큐 행은 `ConversationSummary.agentQueue`로 렌더러에 간다(목록 변경마다 전달, 흐린 상태 포함, ×는 기존 `removeQueued`). — 컨덕터 판단(B 질문): 새 ipc 채널보다 기존 요약 전달에 얹는 쪽이 단순하다.
+- eval 판정(D 리뷰의 제품 질문): R14·R15에서 틀린 명령은 fail이다. 새 캔버스 시나리오(R10–R12)의 `doan send`는 틀린 명령으로 개수 검사 하나만 실패한다. R17은 아무것도 보내지 않아야 pass이고, 요청받은 한 번 전달 경로는 시나리오를 더하지 않고 단위 테스트로 본다. `no_handoff`는 id를 그대로 두고 `send`도 센다. — 컨덕터 판단: spec의 "사람이 한 말대로 고른다", 새 캔버스에는 `handoff`를 쓰는 가이드, 완료 조건의 범위.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -42,3 +43,4 @@
 ## 진행 기록
 - 2026-11-28 Orca run `run_cde5124c4283`. 1차 병렬 시작: A `ctx_5a4af9e2d35d`(Sonnet high, worktree `cm-a-cli`), B `ctx_c291797803ee`(Opus high, `cm-b-main`), D `ctx_ee4f782308c8`(Sonnet high, `cm-d-eval`). 모두 `ea851c5c8`에서 갈라졌다.
 - D 끝(`worker_done`): 커밋 `bdc59d14d`·`aae5d9878`·`6d06d719c`·`f5d848d92`. A의 v8 스키마·`doan send` 없이는 gate가 통과하지 않아 A 통합 뒤 cherry-pick한다. R14–R17 `prompt.*`는 지연. 리뷰 워커 `ctx_13212fca8c7b`(Sonnet high) 시작.
+- D 리뷰(`ctx_13212fca8c7b`): 🔴 0, 🟡 2, 🟢 5. 🟡 둘과 🟢 1·3·5를 고치는 1회차를 D에 보냈다(`ctx_2d3a226c2b97`). 🟢 2·4는 둔다.
