@@ -46,3 +46,4 @@
 - D 리뷰(`ctx_13212fca8c7b`): 🔴 0, 🟡 2, 🟢 5. 🟡 둘과 🟢 1·3·5를 고치는 1회차를 D에 보냈다(`ctx_2d3a226c2b97`). 🟢 2·4는 둔다.
 - A 끝(`worker_done`): 5커밋을 `147d4523c`..`ca193dafc`로 통합했다. `go vet ./...`, `go test ./...` 통과. `npm --prefix app run typecheck`는 `runtime.ts` `HANDOFF_MESSAGES`의 두 코드 때문에 B의 지연 항목 전까지 실패한다. 리뷰 워커 `ctx_d0460af75ab0`(Sonnet high) 시작.
   - A가 남긴 것: `app/src/brand/candidates.ts` `SUBCOMMANDS`와 Go 거울(`brand_test.go`)에 `send`가 없다. A 리뷰 수정 회차에 넣는다. 가이드(`skill.md`)는 ARCHITECTURE §7대로 handoff·send를 가르치지 않아 바꾸지 않았다(tasks 5의 `skill.md`는 변경 없음으로 끝).
+- D 1회차 끝: 6커밋을 `372067696`..`f18976ea1`로 통합했다. `node --test 'eval/**/*.test.ts'`에서 1건 실패: `transcript.test.ts`의 run.go 플래그 표 읽기가 A의 `case "handoff", "send":`에서 첫 이름만 읽는다. D에 2회차로 보냈다(`ctx_acdf4b003369`). `R8d/checks.test.ts`가 전체 실행에서 한 번 65초 뒤 "Promise resolution is still pending"으로 실패했고 혼자서는 34초에 통과했다. 부하로 보고 verify에서 다시 본다.
