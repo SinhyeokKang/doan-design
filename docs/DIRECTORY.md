@@ -19,7 +19,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## CLI (Go)
 
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
-- `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `remove`, `onboarding`) and shell check session records.
+- `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `send`, `remove`, `onboarding`) and shell check session records.
 - `cli/internal/designskill/`: the embedded design presets — `catalog.json`, `presets/`, `notices/` — and their loader; `SOURCES.md` maps upstream sources to presets and is not embedded.
 - `cli/internal/repo/`: repo discovery, config, storage mode, path resolution, canvas listing, the serving scope, read-only Git metadata, and the `git init` (with rollback) that `--git-init` runs.
 - `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner. Its `testdata/` directory holds the CSS scanner golden fixture.

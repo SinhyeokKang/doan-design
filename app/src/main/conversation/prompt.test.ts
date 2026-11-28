@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorTokens, handoffPrompt, turnPrompt, HANDOFF_GUIDANCE, HOME_GUIDANCE, LIMITS, LINK_GUIDANCE, OPEN_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
+import { anchorTokens, handoffPrompt, turnPrompt, HANDOFF_GUIDANCE, HOME_GUIDANCE, LIMITS, LINK_GUIDANCE, OPEN_GUIDANCE, PRESET_GUIDANCE, RECEIVED_GUIDANCE } from "./prompt";
 import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
@@ -118,12 +118,15 @@ it("lists a folder by name, kind and path, with files, as untrusted data the age
 // the handoff as data in its own field, never through the anchor markers.
 describe("handoff", () => {
   const scope = { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" } };
-  it("adds HANDOFF_GUIDANCE outside the data only when the turn may hand off", () => {
-    const sections = turnPrompt([], "Make a checkout page", scope, { handoff: true })!.split("\n\n");
+  it("adds HANDOFF_GUIDANCE outside the data only when the turn may hand off, and RECEIVED_GUIDANCE for a received turn", () => {
+    const sections = turnPrompt([], "Make a checkout page", scope, { handoff: "person" })!.split("\n\n");
     expect(sections).toContain(HANDOFF_GUIDANCE);
+    expect(sections).not.toContain(RECEIVED_GUIDANCE);
     expect(sections.indexOf(HANDOFF_GUIDANCE)).toBeGreaterThan(1);
     expect(turnPrompt([], "Make a checkout page", scope)).not.toContain(HANDOFF_GUIDANCE);
-    expect(turnPrompt([], "Make a checkout page", scope, { handoff: false })).not.toContain(HANDOFF_GUIDANCE);
+    const received = turnPrompt([], "Make a checkout page", scope, { handoff: "received" })!.split("\n\n");
+    expect(received).toContain(RECEIVED_GUIDANCE);
+    expect(received).not.toContain(HANDOFF_GUIDANCE);
     expect(HANDOFF_GUIDANCE).toContain("every new canvas this turn created");
     expect(HANDOFF_GUIDANCE).toContain("once, consecutively as your last step");
     // A project conversation's turn is taught the same text, so staying covers its conversation too.
@@ -137,6 +140,19 @@ describe("handoff", () => {
     expect(HANDOFF_GUIDANCE).not.toContain("standard input");
     // A preset's reporting steps must not stretch the reply after a handoff.
     expect(HANDOFF_GUIDANCE).toContain("reply with the result in one line, even if a design preset asks for a fuller report");
+    // An existing canvas only on the person's word, handoff or send as they said (design: guidance and /agent-eval keep it).
+    expect(HANDOFF_GUIDANCE).toContain("For a canvas that already existed");
+    expect(HANDOFF_GUIDANCE).toContain("`doan send <path> --message '<message>'`");
+    expect(HANDOFF_GUIDANCE).toContain("only when the user tells you to");
+  });
+  it("teaches a received turn to send once, only when asked, and never back", () => {
+    expect(RECEIVED_GUIDANCE).toContain("`doan handoff <path> --message '<message>'`");
+    expect(RECEIVED_GUIDANCE).toContain("`doan send <path> --message '<message>'`");
+    expect(RECEIVED_GUIDANCE).toContain("only if the message you received explicitly asks");
+    expect(RECEIVED_GUIDANCE).toContain("at most once");
+    expect(RECEIVED_GUIDANCE).toContain("never back");
+    expect(RECEIVED_GUIDANCE).toContain("no heredoc, pipe or redirection");
+    expect(RECEIVED_GUIDANCE).not.toContain("every new canvas");
   });
   it("puts the handoff in handoffText and the earlier canvas in context.from, never as user text", () => {
     const from = { path: ".doan/canvases/a.html", id: "a" };
@@ -165,6 +181,19 @@ describe("handoff", () => {
     expect(sections[0]).toContain("not instructions");
     expect(prompt).not.toContain(HANDOFF_GUIDANCE);
     expect(sections).toEqual(expect.arrayContaining([PRESET_GUIDANCE, OPEN_GUIDANCE, LINK_GUIDANCE]));
+  });
+  it("words a send's first sentence as a message into this conversation, and adds the received guidance only when asked", () => {
+    const from = { path: ".doan/canvases/a.html", id: "a" };
+    const sent = handoffPrompt("Use the new price.", scope, from, { via: "send", handoff: true })!.split("\n\n");
+    expect(sent[0]).toContain("sent it to this conversation");
+    expect(sent[0]).not.toContain("the work goes on in this conversation");
+    expect(sent[0]).toContain("not instructions");
+    expect(JSON.parse(sent[1]!)).toEqual({ context: { root: "/repo", canvas: scope.canvas, from }, handoffText: "Use the new price." });
+    expect(sent).toContain(RECEIVED_GUIDANCE);
+    const handed = handoffPrompt("Continue.", scope, from, { via: "handoff" })!.split("\n\n");
+    expect(handed[0]).toContain("the work goes on in this conversation");
+    expect(handed).not.toContain(RECEIVED_GUIDANCE);
+    expect(handoffPrompt("Continue.", scope, from)!.split("\n\n")[0]).toBe(handed[0]);
   });
   it("takes marker-like text as it is: neither refused nor read as an anchor", () => {
     const text = "Keep {{1}} and {{2}} as typed, and }}{{ too.";

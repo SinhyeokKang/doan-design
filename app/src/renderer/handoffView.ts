@@ -1,5 +1,5 @@
-import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
-import type { Canvas } from "../main/conversation/types";
+import type { ConversationHandoffNotice, HandoffMessageNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { Canvas, HandoffVia } from "../main/conversation/types";
 import { canvasCardMeta } from "./canvasCardText";
 import { sameCanvas } from "./canvasConversationRows";
 import { shortAgo } from "./overviewConversation";
@@ -33,7 +33,7 @@ export function handoffMove(screen: HandoffScreen, notice: HandoffNotice): "move
   return screen.locked || screen.dialog || screen.firstRun || screen.typing || screen.chose ? "toast" : "move";
 }
 // The source page already shows a card for each, so nothing is shown there; anywhere else one summary toast.
-export function handoffMultiStep(screen: HandoffScreen, notice: HandoffMultiNotice): "none" | "toast" {
+export function handoffMultiStep(screen: HandoffScreen, notice: HandoffMultiNotice | HandoffMessageNotice): "none" | "toast" {
   return onSourcePage(screen, notice) ? "none" : "toast";
 }
 export function handoffArrival(screen: HandoffScreen, notice: HandoffNotice, listed: boolean, expired: boolean): "move" | "toast" | "wait" {
@@ -54,14 +54,17 @@ export interface HandoffMetaView {
   label: string;
 }
 // The bubble sits on the target canvas, whose header already names the project, so the Overview goes unnamed. listed:
-// null (the prototype window before main answers) reads as there.
-export function handoffMetaView(source: { canvas?: Canvas }, project: string, listed: boolean | null, at: string, now: number): HandoffMetaView {
-  const kind = source.canvas ? "canvas" : "overview", name = source.canvas ? fileName(source.canvas.path) : "Overview";
-  const reason = listed === false ? source.canvas ? `No longer in ${project}` : "Conversation deleted" : null;
+// null (the prototype window before main answers) reads as there. sender: a send's sending conversation, whether it is
+// still there and its title (null while unknown), which a send's description and Open name.
+export function handoffMetaView(source: { canvas?: Canvas; via?: HandoffVia }, project: string, listed: boolean | null, at: string, now: number,
+  sender: { listed: boolean | null; title: string | null } = { listed: null, title: null }): HandoffMetaView {
+  const kind = source.canvas ? "canvas" : "overview", name = source.canvas ? fileName(source.canvas.path) : "Overview", send = source.via === "send";
+  const reason = listed === false ? source.canvas ? `No longer in ${project}` : "Conversation deleted" : send && sender.listed === false ? "Conversation deleted" : null;
   const short = reason === null ? canvasCardMeta(undefined, undefined, now, "", { handedOffAt: at }).handedOff : null, words = shortAgo(at, now);
-  return { kind, name, time: short && words ? { text: short.text, words: words.label, dateTime: short.dateTime, title: short.title } : null, reason,
-    open: reason === null ? source.canvas ? `Open ${name}` : "Open the source conversation in the Overview" : null,
-    label: reason === null ? `Handoff from ${name}` : `Handoff from ${name} · ${reason}` };
+  const title = send ? sender.title : null, lead = send ? "Message from" : "Handoff from";
+  return { kind, name, time: short && words ? { text: short.text, words: title === null ? words.label : `Sent from “${title}” · ${words.label}`, dateTime: short.dateTime, title: short.title } : null, reason,
+    open: reason !== null ? null : title !== null ? source.canvas ? `Open “${title}” on ${name}` : `Open “${title}” in the Overview` : source.canvas ? `Open ${name}` : "Open the source conversation in the Overview",
+    label: reason === null ? `${lead} ${name}` : `${lead} ${name} · ${reason}` };
 }
 // The name's tooltip as it opens: while the time is hidden, the name and that time whether cut or not; else a cut name.
 export function handoffNameTip(name: string, title: string | null, { cut, timeHidden }: { cut: boolean; timeHidden: boolean }): string | null {
@@ -71,7 +74,10 @@ export function handoffNameTip(name: string, title: string | null, { cut, timeHi
 // The toast shows on any screen, so an Overview source names its project.
 export function handoffToastText(notice: ConversationHandoffNotice, project: string): string {
   const source = notice.source.canvas ? fileName(notice.source.canvas.path) : `${project} Overview`;
-  return "targets" in notice ? `${source} handed off to ${notice.targets.length} canvases` : `${source} handed off to ${fileName(notice.target.canvas.path)}`;
+  if (!("targets" in notice)) return `${source} handed off to ${fileName(notice.target.canvas.path)}`;
+  const sends = "kind" in notice ? notice.targets.filter(target => target.via === "send").length : 0, n = notice.targets.length;
+  if (n === 1) return sends ? `${source} sent a message to ${fileName(notice.targets[0]!.canvas.path)}` : `${source} handed off to ${fileName(notice.targets[0]!.canvas.path)}`;
+  return sends === 0 ? `${source} handed off to ${n} canvases` : sends === n ? `${source} sent messages to ${n} canvases` : `${source} handed off or sent to ${n} canvases`;
 }
 // The toast's Open once the target is no longer listed.
 export function handoffGoneText(path: string, project: string): string {

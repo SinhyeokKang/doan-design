@@ -1038,6 +1038,7 @@ async function start(): Promise<void> {
     open: request => openCanvasRequests.open(request),
     // Before the conversation service exists no conversation holds a key.
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
+    send: request => conversations ? conversations.requestSend(request) : "not_app_conversation",
     playPrototype,
     // Main judges and removes without asking the renderer; the window learns which roots went afterwards and tidies its
     // own state for them. The window does not come forward.

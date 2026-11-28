@@ -1,5 +1,5 @@
 import type { Question, QuestionOutcome, StoredAnswer } from "../main/conversation/question";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EditLines, FailureCode, FastUnusedReason, HandoffOrigin, PermissionOption } from "../main/conversation/types";
+import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EditLines, FailureCode, FastUnusedReason, HandoffOrigin, HandoffVia, PermissionOption } from "../main/conversation/types";
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { boundaryLabel, type ThreadCommands } from "./commandView";
 import { PRESETS } from "../main/mcpConnectors/presets";
@@ -39,7 +39,9 @@ export type ThreadItem =
   // After a /compact or /clear turn that ran.
   | { kind: "boundary"; key: string; label: string };
 
-export type CardHandoff = { outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string };
+// via: the request's record; absent in an earlier build's, which handed off only to new canvases.
+export type CardHandoff = ({ outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } }
+  | { outcome: "sent"; target: { conversationId: string; canvas: Canvas; title?: string }; queued: boolean } | { outcome: "refused"; reason: string }) & { via?: HandoffVia };
 type CanvasCard = Extract<ThreadItem, { kind: "canvasCard" }>;
 
 export type SentFile = AttachmentRecord;
@@ -222,7 +224,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         const asked = (turnCards.get(event.turnId) ?? []).filter(item => item.handoff);
         const item = event.canvas ? cards.get(`${event.turnId}:${event.canvas.path}`) : asked.length === 1 ? asked[0] : undefined;
         if (item?.handoff?.outcome !== "pending") continue;
-        item.handoff = event.outcome === "started" ? { outcome: "started", target: event.target } : event.outcome === "refused" ? { outcome: "refused", reason: event.reason } : { outcome: event.outcome };
+        const via = item.handoff.via ?? event.via, send = via ? { via } : {};
+        item.handoff = event.outcome === "started" ? { outcome: "started", target: event.target, ...send } : event.outcome === "sent" ? { outcome: "sent", target: event.target, queued: event.queued, ...send }
+          : event.outcome === "refused" ? { outcome: "refused", reason: event.reason, ...send } : { outcome: event.outcome, ...send };
         continue;
       }
       case "handoff.missed": {
@@ -304,7 +308,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "handoff.requested": {
         const item = card(event.turnId, { path: event.canvas.path });
-        if (!item.handoff) item.handoff = { outcome: "pending" };
+        if (!item.handoff) item.handoff = { outcome: "pending", ...(event.via ? { via: event.via } : {}) };
         break;
       }
       case "fast.unused":
@@ -331,7 +335,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   for (const [turnId, list] of turnCards) for (const item of list) {
     item.drawing = turnId === turn && !ended.has(turnId);
     // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
-    if (!live && item.handoff?.outcome === "pending") item.handoff = { outcome: "cancelled" };
+    if (!live && item.handoff?.outcome === "pending") item.handoff = { outcome: "cancelled", ...(item.handoff.via ? { via: item.handoff.via } : {}) };
   }
   // The turn indicator says whether the last row runs (turnStatus activityRun): an activity marks a tool's start or
   // end, never both.

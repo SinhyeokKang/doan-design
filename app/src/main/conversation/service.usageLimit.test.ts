@@ -570,3 +570,109 @@ it("waits while the canvas conversation works when its schedule comes due", asyn
   expect(h.texts(id)).toEqual(["hello", "working", "scheduled"]);
   expect(h.service.scheduled(id)).toEqual([]);
 });
+
+// An agent's send never waits for a reset: to a conversation whose limit holds it joins the queue as an agent row, runs
+// no turn and arms no schedule, and goes only after a later done turn there.
+describe("a send to a conversation whose usage limit holds", () => {
+  it("queues as a held agent row, schedules nothing, and stays past the reset", async () => {
+    const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.limit(RESET);
+    await h.limited(target, true);
+    expect(h.service.scheduling(target)).toBe(true);
+    const key = h.open.mock.calls[0]![0].env.DOAN_HANDOFF!;
+    expect(h.service.requestSend({ root: "/repo", handoff: key, path: ".doan/canvases/b.html", text: "Use the new price." })).toBeNull();
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    expect(h.store.read(source).filter(e => e.type === "handoff.resolved")).toMatchObject([{ via: "send", outcome: "sent", target: { conversationId: target }, queued: true }]);
+    expect(h.texts(target)).toEqual(["hello"]);
+    expect(h.drafts.queued(target)).toMatchObject([{ text: "Use the new price.", origin: { via: "send" } }]);
+    expect(h.summary(target)).toMatchObject({ agentQueue: [{ held: true }] });
+    expect(h.summary(target).scheduledAt).toBeUndefined();
+    expect(h.service.scheduled(target)).toEqual([]);
+    h.noLimit();
+    h.clock.advance(2 * HOUR);
+    await drain();
+    expect(h.texts(target)).toEqual(["hello"]);
+    expect(h.drafts.queued(target)).toHaveLength(1);
+  });
+  it("leaves an agent row queued behind a person's scheduled message, which goes alone at the reset", async () => {
+    const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.limit(RESET);
+    await h.limited(target, true);
+    h.service.schedule(target, { text: "mine at the reset", anchors: [] });
+    const key = h.open.mock.calls[0]![0].env.DOAN_HANDOFF!;
+    h.service.requestSend({ root: "/repo", handoff: key, path: ".doan/canvases/b.html", text: "Use the new price." });
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    expect(h.service.scheduled(target).map(item => item.text)).toEqual(["mine at the reset"]);
+    h.noLimit();
+    h.clock.advance(HOUR + 2 * MIN);
+    await drain();
+    expect(h.texts(target)).toEqual(["hello", "mine at the reset"]);
+    expect(h.drafts.queued(target)).toMatchObject([{ origin: { via: "send" } }]);
+    h.runs.at(-1)!.emit({ type: "turn.done" });
+    await drain();
+    expect(h.texts(target)).toEqual(["hello", "mine at the reset", "Use the new price."]);
+  });
+});
+
+// Spec '완료 조건': a received turn the usage limit stops fails as that turn's limit failure and never goes again by itself.
+describe("a send's turn the usage limit stops", () => {
+  it("is neither queued again nor scheduled, whether or not the agent did anything", async () => {
+    for (const activity of [false, true]) {
+      const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
+      const target = await h.start(".doan/canvases/b.html");
+      h.runs[0]!.emit({ type: "turn.done" }); await drain();
+      const source = await h.start();
+      const key = h.open.mock.calls[1]![0].env.DOAN_HANDOFF!;
+      h.service.requestSend({ root: "/repo", handoff: key, path: ".doan/canvases/b.html", text: "Use the new price." });
+      h.service.receive(source, { type: "turn.done" });
+      await drain();
+      expect(h.texts(target)).toEqual(["hello", "Use the new price."]);
+      h.limit(RESET);
+      await h.limited(target, activity);
+      expect(h.drafts.queued(target)).toEqual([]);
+      expect(h.summary(target).scheduledAt).toBeUndefined();
+      h.noLimit(); h.clock.advance(2 * HOUR); await drain();
+      expect(h.texts(target)).toEqual(["hello", "Use the new price."]);
+    }
+  });
+});
+
+// The reset sends every person's row first as one turn (flush of the person's rows only); an agent row goes after it.
+describe("an agent row's place while a reset is scheduled", () => {
+  const listed = [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }];
+  it("follows the last person's row, wherever it sits in the queue", async () => {
+    const h = fixture({ listed });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.limit(RESET);
+    await h.limited(target, true);
+    const { itemId: q1 } = h.service.schedule(target, { text: "q1", anchors: [] });
+    h.service.requestSend({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "agent" });
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q1]);
+    const { itemId: q2 } = h.service.schedule(target, { text: "q2", anchors: [] });
+    expect(h.drafts.queued(target).map(item => item.text)).toEqual(["q1", "agent", "q2"]);
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q2]);
+  });
+  it("follows the last person's row after a stopped turn's own message was queued again in front", async () => {
+    const h = fixture({ listed });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.service.requestSend({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "agent" });
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    const { itemId: q2 } = h.service.queue(target, { text: "q2", anchors: [] });
+    h.limit(RESET);
+    await h.limited(target, false);
+    expect(h.drafts.queued(target).map(item => item.text)).toEqual(["hello", "agent", "q2"]);
+    expect(h.summary(target).scheduledAt).toBeDefined();
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q2]);
+  });
+});

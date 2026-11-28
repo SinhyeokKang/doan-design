@@ -423,6 +423,20 @@ test("seen only while the panel is open with the window focused and the conversa
   expect(h.host.markSeen).toHaveBeenCalledTimes(1);
 });
 
+// A received send's turn is seen by the same end-of-turn rule as any turn: nothing here is specific to an origin, it
+// only guards that rule for such a history (POSTMORTEM 2026-11-18).
+test("a received send's turn that ends while the conversation shows is seen at its end", async () => {
+  const h = harness();
+  const origin = { kind: "handoff" as const, conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" }, via: "send" as const, chain: ["c0"], provider: "codex" as const };
+  const received = [...ended(A), event(A, { type: "user.message", text: "/compact the layout", anchors: [], origin }, "t2"), event(A, { type: "turn.started" }, "t2"), event(A, { type: "turn.done" }, "t2")];
+  histories.set(A, received);
+  h.run.show(checkout);
+  h.run.panel(true);
+  h.answer([summary(A, { unseen: true })]);
+  await flush();
+  expect(h.host.markSeen).toHaveBeenCalledExactlyOnceWith(A, received.at(-1)!.seq);
+});
+
 // The memory is written only under PRODUCT's Seen condition, never for what a folded panel or an unfocused window holds.
 test("the conversation last seen on the canvas is remembered only while it is seen", async () => {
   const h = harness();

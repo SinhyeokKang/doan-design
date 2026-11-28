@@ -18,9 +18,9 @@ test("handoffsForCanvases accepts each new canvas after its final write, in eith
 });
 test("handoffsForCanvases rejects missing, duplicate, extra and wrong targets", () => {
   const count = ["handoff_each_canvas_once"];
-  // With nothing accepted there is nothing to judge per request, and the unknown target has no canvas to compare.
+  // With nothing accepted there is nothing to judge per request: the count check alone reports it.
   for (const [log, ids] of [
-    [[], [...count, "canvases_written_before_requests", "handoff_messages_not_empty"]],
+    [[], count],
     [[request(paths[0]!)], count],
     [[request(paths[0]!), request(paths[0]!)], count],
     [[...paths.map(path => request(path)), request(paths[0]!)], count],
@@ -28,6 +28,7 @@ test("handoffsForCanvases rejects missing, duplicate, extra and wrong targets", 
   ] as [HandoffExchange[], string[]][]) assert.deepEqual(failed(log), ids);
 });
 test("handoffsForCanvases reports a missing request only as a count failure", () => {
+  assert.deepEqual(failed([]), ["handoff_each_canvas_once"]);
   for (const path of paths) assert.deepEqual(failed([request(path)]), ["handoff_each_canvas_once"]);
 });
 test("handoffsForCanvases counts accepted requests, never refused attempts or their messages", () => {

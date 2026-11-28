@@ -117,6 +117,8 @@ export interface CanvasConversationProps {
   // Whether a conversation of this root still exists, for a handoff card from the Overview; without it the source counts
   // as there (the prototype window lists only the canvas's conversations), as it does while the list is read or failed.
   conversationListed?(conversationId: string): boolean;
+  // A conversation of this root's title, for a send card and a received send; null while unknown.
+  conversationTitle?(conversationId: string): string | null;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
@@ -561,7 +563,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})} {...(props.onOpenOverview ? { onOpenOverview: props.onOpenOverview } : {})}
-        {...(props.conversationListed ? { conversationListed: props.conversationListed } : {})}
+        {...(props.conversationListed ? { conversationListed: props.conversationListed } : {})} {...(props.conversationTitle ? { conversationTitle: props.conversationTitle } : {})}
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={async text => { const ok = copyText(text); if (ok) props.onNotice("Copied code"); return ok; }}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
@@ -599,6 +601,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
+        agentQueue={summary?.agentQueue}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
         sendNow={!!conversationId && !!provider && !summary?.scheduledAt && !commandRuns && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}

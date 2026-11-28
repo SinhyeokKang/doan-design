@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net"
 	"path/filepath"
 	"reflect"
@@ -22,7 +23,10 @@ type handoffApp struct {
 	replies chan string
 }
 
-func startHandoffApp(t *testing.T) *handoffApp {
+func startHandoffApp(t *testing.T) *handoffApp { return startAppAnswering(t, 5) }
+
+// startAppAnswering answers every connection without a queued reply with the ok reply of that protocol version.
+func startAppAnswering(t *testing.T, version int) *handoffApp {
 	t.Helper()
 	dir := shortTempDir(t)
 	socket := filepath.Join(dir, "app.sock")
@@ -44,7 +48,7 @@ func startHandoffApp(t *testing.T) *handoffApp {
 			case r := <-app.replies:
 				c.Write([]byte(r + "\n"))
 			default:
-				c.Write([]byte(`{"v":5,"ok":true,"requested":true}` + "\n"))
+				c.Write([]byte(fmt.Sprintf(`{"v":%d,"ok":true,"requested":true}`, version) + "\n"))
 			}
 			c.Close()
 		}

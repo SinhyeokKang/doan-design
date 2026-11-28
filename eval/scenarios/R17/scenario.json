@@ -1,0 +1,9 @@
+{
+  "id": "R17",
+  "title": "In a turn started by a received message, do the asked work and send nothing back to where it came from",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": ".doan/canvases/invoices.html", "received": { "chain": ["account-conversation"] } }
+}

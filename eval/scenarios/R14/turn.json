@@ -1,0 +1,15 @@
+{
+  "text": "Rename the Save button in {{1}} to “Save changes”. Leave this canvas otherwise as it is. Then hand the work over to our existing `invoices` canvas, as a new conversation there: next I want its Download PDF button reworded in the same way. Do not change `invoices` in this turn.",
+  "anchors": [
+    {
+      "frame": {
+        "id": "profile-form",
+        "title": "Profile"
+      }
+    }
+  ],
+  "canvas": {
+    "path": ".doan/canvases/account.html",
+    "id": "account"
+  }
+}

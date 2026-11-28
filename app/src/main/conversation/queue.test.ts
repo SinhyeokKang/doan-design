@@ -27,4 +27,13 @@ describe("nextQueued", () => {
   it("sends nothing from an empty queue", () => {
     expect(nextQueued([], isCommand)).toEqual([]);
   });
+  // The service's predicate: a command or an agent's message (a row with an origin) goes alone.
+  it("sends an agent's message alone, never joined with the person's rows before or after it", () => {
+    type Row = { text: string; origin?: { kind: "handoff"; conversationId: string } };
+    const alone = (row: Row) => !!row.origin || row.text.startsWith("/");
+    const agent: Row = { text: "From drafts: use the new price", origin: { kind: "handoff", conversationId: "s" } };
+    expect(nextQueued<Row>([{ text: "a" }, agent, { text: "b" }], alone)).toEqual([{ text: "a" }]);
+    expect(nextQueued<Row>([agent, { text: "b" }], alone)).toEqual([agent]);
+    expect(nextQueued<Row>([agent, agent], alone)).toEqual([agent]);
+  });
 });

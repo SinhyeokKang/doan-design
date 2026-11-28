@@ -71,6 +71,20 @@ test("handoff is null, or the canvas the conversation works on, or null for a Ho
     assert.throws(() => parseScenarioJson({ ...value, handoff }, "R10"), Error, JSON.stringify(handoff));
 });
 
+test("handoff may add received: the chain of conversation ids a message-started turn belongs to, one to five", () => {
+  const value = { id: "R17", title: "t", focus: "write", init: null, selection: null };
+  const canvas = ".doan/canvases/invoices.html";
+  assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas, received: { chain: ["conv-a"] } } }, "R17").handoff, { canvas, received: { chain: ["conv-a"] } });
+  assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas, received: { chain: ["a", "b", "c", "d", "e"] } } }, "R17").handoff, { canvas, received: { chain: ["a", "b", "c", "d", "e"] } });
+  for (const received of [[], {}, { chain: [] }, { chain: "a" }, { chain: [1] }, { chain: [""] }, { chain: ["a", "b", "c", "d", "e", "f"] }, { chain: ["a"], step: 1 }, { chain: ["a", "a"] }, "a"])
+    assert.throws(() => parseScenarioJson({ ...value, handoff: { canvas, received } }, "R17"), Error, JSON.stringify(received));
+});
+
+test("handoff.received is refused for a project conversation, which receives nothing", () => {
+  const value = { id: "R17", title: "t", focus: "write", init: null, selection: null };
+  assert.throws(() => parseScenarioJson({ ...value, handoff: { canvas: null, received: { chain: ["conv-a"] } } }, "R17"), /project conversation/);
+});
+
 test("workOthers is null or the others array the fake app reports in v3 answers", () => {
   const value = { id: "W9", title: "t", focus: "write", init: null, selection: null };
   const other = { kind: "conversation", provider: "codex", frame: "hero", note: "Rewriting the headline" };

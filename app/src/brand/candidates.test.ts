@@ -19,6 +19,6 @@ describe("shared brand fixtures", () => {
 });
 
 // Every subcommand reads as the command; brand_test.go holds the same cases.
-test.each(["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "version", "work"])("doan %s is the command", sub => {
+test.each(["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "send", "skill", "version", "work"])("doan %s is the command", sub => {
   expect(brandCandidates(`Run doan ${sub} here.`)).toEqual([{ index: 4, form: "doan", kind: "command" }]);
 });

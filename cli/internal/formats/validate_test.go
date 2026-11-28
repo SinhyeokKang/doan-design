@@ -1,6 +1,7 @@
 package formats
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/url"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"testing"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func fixtureFiles(t *testing.T, name, validity string) []string {
@@ -63,6 +66,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket-v6/response", ValidatePrototypeResponse},
 		{"app-socket-v7/request", ValidateRemoveRequest},
 		{"app-socket-v7/response", ValidateRemoveResponse},
+		{"app-socket-v8/request", ValidateSendRequest},
+		{"app-socket-v8/response", ValidateSendResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -218,6 +223,120 @@ func TestHandoffSocketStaysApart(t *testing.T) {
 				t.Errorf("v5 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
 		}
+	}
+}
+
+func TestSendSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"request", "v3", "app-socket-v3/request", ValidateWorkRequest},
+		{"request", "v4", "app-socket-v4/request", ValidateOpenRequest},
+		{"request", "v5", "app-socket-v5/request", ValidateHandoffRequest},
+		{"request", "v6", "app-socket-v6/request", ValidatePrototypeRequest},
+		{"request", "v7", "app-socket-v7/request", ValidateRemoveRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+		{"response", "v3", "app-socket-v3/response", ValidateWorkResponse},
+		{"response", "v4", "app-socket-v4/response", ValidateOpenResponse},
+		{"response", "v5", "app-socket-v5/response", ValidateHandoffResponse},
+		{"response", "v6", "app-socket-v6/response", ValidatePrototypeResponse},
+		{"response", "v7", "app-socket-v7/response", ValidateRemoveResponse},
+	}
+	for _, other := range others {
+		v8 := ValidateSendRequest
+		if other.kind == "response" {
+			v8 = ValidateSendResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v8(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v8", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v8/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v8 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
+			}
+		}
+	}
+}
+
+// A CLI from before chain_one and chain_limit reads them as a schema failure (internal_error, exit 1): the v5
+// enum it compiled lacks them. This pins that the current v5 differs from that enum only by the two codes.
+func TestEarlierHandoffSchemaRejectsChainRefusals(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "app-socket.v5.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	codes := document["$defs"].(map[string]any)["errorCode"].(map[string]any)["enum"].([]any)
+	var earlier []any
+	for _, code := range codes {
+		if code != "chain_one" && code != "chain_limit" {
+			earlier = append(earlier, code)
+		}
+	}
+	if len(earlier) != len(codes)-2 || len(earlier) != 11 {
+		t.Fatalf("v5 enum without the chain codes has %d codes; want the 11 of the earlier schema", len(earlier))
+	}
+	document["$defs"].(map[string]any)["errorCode"].(map[string]any)["enum"] = earlier
+	earlierSchema, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.UseLoader(refusingLoader{})
+	parsed, err := jsonschema.UnmarshalJSON(bytes.NewReader(earlierSchema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const url = schemaBase + "earlier-app-socket.v5.schema.json"
+	if err := compiler.AddResource(url, parsed); err != nil {
+		t.Fatal(err)
+	}
+	earlierResponse, err := compiler.Compile(url + "#/$defs/response")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"error-chain-one.json", "error-chain-limit.json"} {
+		reply := readJSON(t, filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v5", "response", "valid", name))
+		if earlierResponse.Validate(reply) == nil {
+			t.Errorf("the earlier v5 schema accepts %s", name)
+		}
+		if err := ValidateHandoffResponse(reply); err != nil {
+			t.Errorf("the current v5 schema refuses %s: %v", name, err)
+		}
+	}
+}
+
+// v8 repeats v5's refusal codes by value; the schemas share nothing, so a code added to one must be added to the other.
+func TestSendRefusalCodesAreHandoffs(t *testing.T) {
+	codes := func(file string) []string {
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var document struct {
+			Defs struct {
+				ErrorCode struct {
+					Enum []string `json:"enum"`
+				} `json:"errorCode"`
+			} `json:"$defs"`
+		}
+		if err := json.Unmarshal(data, &document); err != nil {
+			t.Fatal(err)
+		}
+		return document.Defs.ErrorCode.Enum
+	}
+	v5, v8 := codes("app-socket.v5.schema.json"), codes("app-socket.v8.schema.json")
+	if len(v5) == 0 || !reflect.DeepEqual(v5, v8) {
+		t.Errorf("v8 errorCode = %v; want v5's %v", v8, v5)
 	}
 }
 

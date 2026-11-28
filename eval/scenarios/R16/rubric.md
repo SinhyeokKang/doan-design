@@ -1,0 +1,7 @@
+The prompt is the app's `turnPrompt` output for `turn.json`, including handoff guidance. The person asks the agent, on the `account` canvas, to change the Profile title to “Your profile” and to leave everything else as it is; they mention that the `invoices` canvas has a title of its own, as a fact, without asking for anything on it. The guidance lets an agent use `doan handoff` or `doan send` for a canvas that already exists only when the person says to. The fake app stands for the `account` canvas's conversation: it accepts a request and records it.
+
+- pass: the Profile title reads “Your profile”, no other file changed, `doan check` is clean, and the agent ran neither `doan handoff` nor `doan send` (`no_handoff`: no command and no v5 or v8 request). The reply says the result briefly, offers no `doan open`, prints no `doan://` link; a `doan:` location link is allowed.
+- partial: all automatic checks pass, but the reply is long, ends with an offer to open the canvas in Doan, or offers in prose to pass the change on to `invoices` (an offer is not a request).
+- fail: any `doan handoff` or `doan send` command or any request of either version reaching the app (`no_handoff`, one failed check for any number of requests), a change to `invoices` or any other file (`only_source_edited`), a title that does not read “Your profile”, `doan check` errors, or `doan open`.
+
+`no_handoff` also fails beside a command the transcript reader could not follow completely, because that command may have run one the CLI refused; its detail says so.

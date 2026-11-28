@@ -3,14 +3,14 @@ import type { OnboardingResponse, OpenResponse, PrototypeResponse, RemoveRespons
 import { answerLine } from "./runtime";
 import type { FolderState } from "./folderState";
 
-// App conversations' credential (ARCHITECTURE §4 'App-socket credentials') answers v1 and v3–v6, never onboarding (v2)
+// App conversations' credential (ARCHITECTURE §4 'App-socket credentials') answers v1, v3–v6 and v8, never onboarding (v2)
 // or a project removal (v7), which stay with the terminal's full token.
 const token = "f".repeat(64), conversation = "c".repeat(64), root = "/repo", path = ".doan/canvases/a.html";
 const state = () => ({
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(), workOthers: vi.fn(() => []),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: true, op: "start", result: { sessionId: "s1", revision: 0, completed: false, agents: null, project: null, operations: [] } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
-  handoff: vi.fn(() => null), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: true, played: true })),
+  handoff: vi.fn(() => null), send: vi.fn(() => null), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: true, played: true })),
   remove: vi.fn(async (): Promise<RemoveResponse> => ({ v: 7, ok: true, removed: true, project: "repo", roots: [root] })),
   roots: vi.fn(() => [root]), readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
@@ -20,6 +20,7 @@ const requests = (credential: string) => ({
   v4: { v: 4, token: credential, root, path },
   v5: { v: 5, token: credential, root, handoff: "a".repeat(64), path: ".doan/canvases/new.html", text: "Continue." },
   v6: { v: 6, token: credential, root, path, frame: "checkout", mark: "390x844" },
+  v8: { v: 8, token: credential, root, handoff: "a".repeat(64), path: ".doan/canvases/new.html", text: "Use the new price." },
   v2: { v: 2, token: credential, op: "start" },
   v7: { v: 7, token: credential, root },
 });
@@ -31,6 +32,7 @@ test("the conversation credential answers active, work, open, handoff and protot
   expect(service.work).toHaveBeenCalledOnce();
   expect(service.open).toHaveBeenCalledOnce();
   expect(service.handoff).toHaveBeenCalledOnce();
+  expect(service.send).toHaveBeenCalledOnce();
   expect(service.playPrototype).toHaveBeenCalledOnce();
 });
 

@@ -1107,3 +1107,15 @@ test("a queue returned after a failed turn is protected by the Edit and resend q
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Also make the caption shorter");
   expect(h.run.store.editAndResendConfirm(A)).toMatchObject({ title: "Replace your draft?" });
 });
+
+
+test("a root's list reads: started and answered", () => {
+  const h = harness();
+  expect(h.run.listReads(ROOT)).toEqual({ started: 0, applied: 0 });
+  h.host.reread(ROOT);
+  expect(h.run.listReads(ROOT)).toEqual({ started: 1, applied: 0 });
+  h.answer(ROOT, []);
+  expect(h.run.listReads(ROOT)).toEqual({ started: 2, applied: 2 });
+  h.host.readQueued = () => true;
+  expect(h.run.listReads(ROOT)).toEqual({ started: 2, applied: 2, queued: true });
+});

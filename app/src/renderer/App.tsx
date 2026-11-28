@@ -28,7 +28,7 @@ import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from 
 import { focusFieldEnd } from "./chipField";
 import { draftKey, EMPTY_DRAFT, hasDraft } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
-import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice, HandoffMessageNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
 import { CANVAS_RETRY_IDLE, canvasFailedShown, canvasRetryPressed, canvasRetrySettled } from "./canvasRetry";
@@ -74,6 +74,7 @@ import { overlayOpen } from "./canvasTool";
 import { keptColumns, toggleUi, uiHidden, type UiColumns } from "./hideUi";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
+import { ListedGrace, listedTitle } from "./canvasCardText";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
 import { bubbleItems } from "./bubbleItems";
 import { BubbleAdd } from "./BubbleAdd";
@@ -503,6 +504,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     list: root => homeRun.current.listState(root),
     readsStarted: root => homeRun.current.readsStarted(root),
     readsApplied: root => homeRun.current.readsApplied(root),
+    readQueued: root => homeRun.current.readQueued(root),
     reread: root => homeRun.current.retryList(root),
     remembered: () => memoryRead.current ? conversationByRoot.current : null,
     remember: (root, id) => {
@@ -1923,6 +1925,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function conversationHandoff(notice: ConversationHandoffNotice) {
     const earlier = handoffWait.current;
     if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice, earlier.notice.target, earlier.entry); }
+    // A send, or a handoff from a turn at step 1 or later, never moves the screen: one target toasts anywhere.
+    if ("kind" in notice && notice.targets.length === 1) {
+      const target = notice.targets[0]!;
+      handoffToast(notice, target, listedRow(notice.root, target.canvas).entry);
+      return;
+    }
     if ("targets" in notice) {
       if (handoffMultiStep(handoffScreen(notice, false), notice) !== "toast") return;
       const source = notice.source;
@@ -1989,7 +1997,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }
   // Several handoffs from the Overview: Open shows the source conversation in its root's Overview, and a source deleted
   // meanwhile leaves the toast without Open, as its card has none (PRODUCT §5 item 2 'Handoff').
-  function overviewToast(notice: HandoffMultiNotice) {
+  function overviewToast(notice: HandoffMultiNotice | HandoffMessageNotice) {
     const { root } = notice, { conversationId } = notice.source, text = handoffToastText(notice, live.current.projectLabel(root));
     const list = homeRun.current.listState(root);
     if (Array.isArray(list) && !list.some(c => c.conversationId === conversationId)) { live.current.toast.show(text); return; }
@@ -2141,6 +2149,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Keyed by the canvas, not the target object: a render that reads the same canvas does not show it again.
   useLayoutEffect(() => { canvasRun.current!.show(panelTargetRef.current); }, [panelKey]);
   useEffect(() => { canvasRun.current!.panel(rightPanel.open && panelKey !== null); }, [rightPanel.open, panelKey]);
+  const listedGrace = useRef<ListedGrace | null>(null);
+  listedGrace.current ??= new ListedGrace();
   const panelList = panelTarget ? homeRun.current.listState(panelTarget.root) : "loading";
   const panelCanvasName = panelCanvas ? canvasLabel(panelCanvas.row) : "";
   const panelTitle = canvasConversationTitle(canvasRun.current!, panelList);
@@ -2866,7 +2876,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => !Array.isArray(panelList) || panelList.some(c => c.conversationId === id)} work={work} thumbnailHub={thumbnailHub} />}
+          conversationListed={id => listedGrace.current!.listed(panelTarget.root, panelList, id, overviewRun.current!.listReads(panelTarget.root))} conversationTitle={id => listedTitle(panelList, id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

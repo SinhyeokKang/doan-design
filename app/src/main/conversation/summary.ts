@@ -41,13 +41,20 @@ export interface ConversationSummary {
   // ISO: the queued messages wait for the usage limit's reset at this time and go out shortly after; the conversation is
   // then not working. The items come from the conversation `scheduled` method.
   scheduledAt?: string;
+  // Messages other conversations' agents sent that wait in this queue, in queue order; queued counts only the person's.
+  agentQueue?: AgentQueueRow[];
 }
+// An agent's queued message. provider: the sender's, for its logo (absent in an earlier record). source: the sending
+// conversation and its canvas, named only to assistive technology. line: the message's one-line form, never read for
+// {{n}} markers. held: it goes only after a done turn a person's message starts in this conversation, else after the
+// next done turn. after: the person's waiting row it follows in send order (absent: before them all).
+export interface AgentQueueRow { itemId: string; provider?: Provider; source: { conversationId: string; canvas?: Canvas }; line: string; held: boolean; after?: string }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
 const COMMAND = "Running a command";
 // live: this run holds the conversation, so an unfinished turn is still running rather than crashed. returned: a draft in
 // drafts.ts waits. suggestion, background, stopping, limitResetsAt, scheduledAt: memory-only (service.ts list).
-export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; projectTurnId?: string; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
+export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; projectTurnId?: string; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string; agentQueue?: AgentQueueRow[] }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
@@ -57,6 +64,7 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
     ...(live.returned ? { returnedDraft: true as const } : {}),
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
     ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),
+    ...(live.agentQueue?.length ? { agentQueue: live.agentQueue } : {}),
   };
   // A canvas conversation whose session began as a project one (newDesign) got its canvas by an earlier build's
   // promotion: a newDesign start has no canvas, and this build never gives it one.

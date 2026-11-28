@@ -1,0 +1,11 @@
+[
+  [
+    "send",
+    ".doan/canvases/invoices.html",
+    "--message",
+    "The note on the account canvas now says “Invoices are sent on the 5th of each month.” (it used to say the first). The invoices canvas shows the same note; please update its copy to match and change nothing else there.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

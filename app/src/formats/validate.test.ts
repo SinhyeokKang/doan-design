@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import appSocketV2Schema from "../../../schema/app-socket.v2.schema.json";
 import appSocketV5Schema from "../../../schema/app-socket.v5.schema.json";
+import appSocketV8Schema from "../../../schema/app-socket.v8.schema.json";
 import {
   validateConfig,
   validateEnvelope,
@@ -16,6 +17,8 @@ import {
   validateRemoveRequest,
   validateRemoveResponse,
   validateRuntimeFile,
+  validateSendRequest,
+  validateSendResponse,
   validateSessionRecord,
   validateSelection,
   validateSocketRequest,
@@ -52,6 +55,8 @@ const groups: { name: string; validate: Validate }[] = [
   { name: "app-socket-v6/response", validate: validatePrototypeResponse },
   { name: "app-socket-v7/request", validate: validateRemoveRequest },
   { name: "app-socket-v7/response", validate: validateRemoveResponse },
+  { name: "app-socket-v8/request", validate: validateSendRequest },
+  { name: "app-socket-v8/response", validate: validateSendResponse },
 ];
 
 for (const { name, validate } of groups) {
@@ -176,6 +181,51 @@ describe("app-socket v7 stays apart from v1 to v6", () => {
       test(`v7 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v7/${kind}`, "valid"))))).toBe(false));
     }
   }
+});
+
+describe("app-socket v8 stays apart from v1 to v7", () => {
+  const others: { kind: string; label: string; dir: string; validate: Validate }[] = [
+    { kind: "request", label: "v1", dir: "app-socket/request", validate: validateSocketRequest },
+    { kind: "request", label: "v2", dir: "app-socket-v2/request", validate: validateOnboardingRequest },
+    { kind: "request", label: "v3", dir: "app-socket-v3/request", validate: validateWorkRequest },
+    { kind: "request", label: "v4", dir: "app-socket-v4/request", validate: validateOpenRequest },
+    { kind: "request", label: "v5", dir: "app-socket-v5/request", validate: validateHandoffRequest },
+    { kind: "request", label: "v6", dir: "app-socket-v6/request", validate: validatePrototypeRequest },
+    { kind: "request", label: "v7", dir: "app-socket-v7/request", validate: validateRemoveRequest },
+    { kind: "response", label: "v1", dir: "app-socket/response", validate: validateSocketResponse },
+    { kind: "response", label: "v2", dir: "app-socket-v2/response", validate: validateOnboardingResponse },
+    { kind: "response", label: "v3", dir: "app-socket-v3/response", validate: validateWorkResponse },
+    { kind: "response", label: "v4", dir: "app-socket-v4/response", validate: validateOpenResponse },
+    { kind: "response", label: "v5", dir: "app-socket-v5/response", validate: validateHandoffResponse },
+    { kind: "response", label: "v6", dir: "app-socket-v6/response", validate: validatePrototypeResponse },
+    { kind: "response", label: "v7", dir: "app-socket-v7/response", validate: validateRemoveResponse },
+  ];
+  for (const { kind, label, dir, validate } of others) {
+    const v8 = kind === "request" ? validateSendRequest : validateSendResponse;
+    for (const file of fixtureFiles(dir, "valid")) {
+      test(`${label} ${kind} ${file} is not v8`, () => expect(v8(readJson(new URL(file, fixtureDirectory(dir, "valid"))))).toBe(false));
+    }
+    for (const file of fixtureFiles(`app-socket-v8/${kind}`, "valid")) {
+      test(`v8 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v8/${kind}`, "valid"))))).toBe(false));
+    }
+  }
+});
+
+// An earlier app answers a v8 request on its v1 path, so the reply is a v1 bad_request that no v8 reader accepts.
+describe("app-socket v8 earlier-app reply", () => {
+  test("is a v1 bad_request that is not a v8 response", () => {
+    const reply = readJson(new URL("v1-bad-request.json", fixtureDirectory("app-socket-v8/response", "invalid")));
+    expect(reply).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+    expect(validateSendResponse(reply)).toBe(false);
+  });
+});
+
+// v8 repeats v5's refusal codes by value, since the schemas share nothing.
+describe("app-socket v8 refusal codes", () => {
+  test("equal v5's", () => {
+    const codes = (schema: { $defs: { errorCode: { enum: string[] } } }) => schema.$defs.errorCode.enum;
+    expect(codes(appSocketV8Schema)).toEqual(codes(appSocketV5Schema));
+  });
 });
 
 // The schema counts a frame id in code points, while the app and the injected prototype script count UTF-16 units,

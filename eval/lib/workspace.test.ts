@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { connect } from "node:net";
 import { after, before, test } from "node:test";
 import { CODEX_RULE, codexRuleText, evalCodexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
@@ -104,6 +105,26 @@ test("a handoff scenario gives the agent the conversation key the fake app accep
     if (saved === undefined) delete process.env.DOAN_HANDOFF;
     else process.env.DOAN_HANDOFF = saved;
   }
+});
+
+// The fake app refuses with chain_one at step 1, and answers v8 for the conversation key.
+test("a scenario's handoff.received reaches the fake app: a second request of a message-started turn is refused", async () => {
+  const scenario = { ...seeded(), handoff: { canvas: ".doan/canvases/account.html", received: { chain: ["earlier"] } } };
+  const ws = await prepareWorkspace({ scenario, agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const runtime = JSON.parse(readFileSync(ws.app!.runtimePath, "utf8"));
+    const ask = (v: number, path: string) => new Promise<any>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+      socket.end(JSON.stringify({ v, token: runtime.token, root: ws.repo, handoff: ws.env.DOAN_HANDOFF, path, text: "x" }) + "\n");
+    });
+    assert.equal((await ask(8, ".doan/canvases/a.html")).ok, true);
+    assert.equal((await ask(8, ".doan/canvases/b.html")).error.code, "chain_one");
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, handoffLog: ws.handoffLog });
+    assert.deepEqual(ctx.handoff(), []);
+    assert.equal(ctx.send().length, 2);
+  } finally { await ws.dispose(); }
 });
 
 test("without worktree the agent works in the instruction's root", async () => {
@@ -404,7 +425,7 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
 test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
   assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
   const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
-  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "work"]);
+  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "send", "skill", "work"]);
   assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
   assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });

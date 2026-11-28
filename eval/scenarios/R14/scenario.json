@@ -1,0 +1,9 @@
+{
+  "id": "R14",
+  "title": "Hand the work over to an existing canvas the person names with doan handoff",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": ".doan/canvases/account.html" }
+}

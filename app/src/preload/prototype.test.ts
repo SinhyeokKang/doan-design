@@ -265,6 +265,16 @@ test("the list goes to the main window's channel and names the canvas it is for"
   expect(mocks.invoke.mock.calls).toEqual([["conversation:list", { root: "/r", canvas }]]);
 });
 
+// The window takes a send's notice as it takes a handoff's, and does nothing with either.
+test("a send's handoff notice arrives as main sent it", () => {
+  const notice = { kind: "message", root: "/r", source: { conversationId: "s" }, targets: [{ conversationId: "t", canvas: { path: ".doan/canvases/p.html", id: "p" }, via: "send" }] };
+  const seen = vi.fn();
+  const stop = api.onConversationHandoff(seen);
+  emitter.emit("conversation:handoff", {}, notice);
+  stop();
+  expect(seen.mock.calls).toEqual([[notice]]);
+});
+
 test("the shared conversation events arrive on the main window's channels until unsubscribed", () => {
   for (const [name, channel] of SHARED_EVENTS) {
     const seen = vi.fn();

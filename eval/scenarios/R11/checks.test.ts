@@ -36,6 +36,13 @@ test("R11 passes two accepted handoffs and fails the one-handoff fixture", () =>
   assert.deepEqual(failed(ctx), []);
   assert.ok(failed(ctx, [request(ctx, paths[0]!)]).includes("handoff_each_canvas_once"));
 });
+// A doan send in place of the handoffs leaves no v5 request: one missing handoff is one failed check (postmortem 2026-11-13).
+test("R11 reports no accepted handoff, with or without doan send requests, as one failed check", () => {
+  const ctx = setup();
+  assert.deepEqual(failed(ctx, []), ["handoff_each_canvas_once"]);
+  const sends = paths.map(path => ({ ...request(ctx, path), request: { ...request(ctx, path).request, v: 8 }, response: { v: 8, ok: true, requested: true } }));
+  assert.deepEqual(checks({ ...ctx, handoff: () => [], send: () => sends } as typeof ctx).filter(c => !c.pass).map(c => c.id), ["handoff_each_canvas_once"]);
+});
 test("R11 rejects source edits and unrelated additions", () => {
   for (const path of ["notes.txt", ".doan/canvases/account.html", ".doan/canvases/extra.html"]) {
     const ctx = setup();

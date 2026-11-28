@@ -1,0 +1,11 @@
+[
+  [
+    "send",
+    ".doan/canvases/invoices.html",
+    "--message",
+    "The account canvas's Profile title is now “Your profile”; invoices has a title of its own, so you may want to match it.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

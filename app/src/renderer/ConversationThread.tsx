@@ -2,7 +2,7 @@ import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId
 import { flushSync } from "react-dom";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, LayoutGrid, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, SwatchBook, Terminal, Zap } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, LayoutGrid, MapPin, PanelsTopLeft, Pencil, PencilSparkles, Send, SquareMousePointer, SwatchBook, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas, EditLines } from "../main/conversation/types";
 import { editHeadName, editLinesLabel } from "./editLinesLabel";
@@ -84,8 +84,10 @@ export interface ConversationThreadProps {
   // A received handoff from the Overview (a project conversation's handoff): Open shows its source conversation in the
   // root's Overview. Without it that handoff offers no Open.
   onOpenOverview?(conversationId: string): void;
-  // Whether the source conversation of a received handoff from the Overview still exists; absent, it counts as there.
+  // Whether a conversation still exists (a received message's sender, a send card's target); absent, it counts as there.
   conversationListed?(conversationId: string): boolean;
+  // A conversation's title for a send card and a received send; null while unknown.
+  conversationTitle?(conversationId: string): string | null;
   // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
@@ -630,7 +632,7 @@ export function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[
   })}</ul>;
 }
 
-const CARD_ICONS = { check: Check, forward: Forward, ban: Ban } as const;
+const CARD_ICONS = { check: Check, forward: Forward, ban: Ban, send: Send } as const;
 // What a thread hands each card: the root's rows, its images by path, and the time, which the thread moves once a minute.
 export interface CardContext { rows: readonly CanvasRow[]; thumbnails: ReadonlyMap<string, ThumbnailState>; now: number; root: string }
 // A card's canvas row, found as the hosts' canvasListed finds it (sameCanvas, so a renamed canvas keeps it); none once
@@ -661,9 +663,11 @@ function CardMeta({ meta, keep }: { meta: CanvasCardMeta; keep: boolean }) {
 }
 // A canvas of a turn. The status changes in place (the card's key holds), so focus on Open stays. No live region: the
 // thread's status line says the new canvases once the turn ends.
-export function CanvasCard({ entry, context, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; context: CardContext; project: string; provider: Provider;
-  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
-  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, context.rows) }, { project, provider, listed: canvasListed }), open = view.open;
+export function CanvasCard({ entry, context, project, provider, canvasListed, conversationListed, conversationTitle, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; context: CardContext; project: string; provider: Provider;
+  canvasListed(canvas: Canvas): boolean; conversationListed?: ((conversationId: string) => boolean) | undefined; conversationTitle?: ((conversationId: string) => string | null) | undefined;
+  onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
+  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, context.rows) }, { project, provider, listed: canvasListed,
+    ...(conversationListed ? { conversationListed } : {}), ...(conversationTitle ? { conversationTitle } : {}) }), open = view.open;
   const Icon = view.icon === "spinner" ? null : CARD_ICONS[view.icon];
   // entry.drawing is the turn running, true for an existing canvas's request too; only a spinning card draws.
   const drawing = view.icon === "spinner";
@@ -763,16 +767,18 @@ function MetaName({ name, title }: { name: string; title: string | null }) {
 // The received handoff: the person's bubble with a meta line naming the source, then the earlier agent's text as Markdown.
 // It takes focus after a move, so it is a labelled group; the time is its description, hidden on screen so it is read once.
 // timeId: the description's id, unique in the thread.
-export function HandoffBubble({ entry, project, now, timeId, canvasListed, conversationListed, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; project: string; now: number;
+export function HandoffBubble({ entry, project, now, timeId, canvasListed, conversationListed, conversationTitle, onOpen, onOpenOverview }: { entry: Extract<ThreadItem, { kind: "handoffCard" }>; project: string; now: number;
   timeId: string; canvasListed(canvas: Canvas): boolean; conversationListed?: ((conversationId: string) => boolean) | undefined;
+  conversationTitle?: ((conversationId: string) => string | null) | undefined;
   onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined; onOpenOverview?: ((conversationId: string) => void) | undefined }) {
-  const source = entry.origin.canvas, conversationId = entry.origin.conversationId;
-  const view = handoffMetaView(entry.origin, project, source ? canvasListed(source) : conversationListed?.(conversationId) ?? null, entry.at, now);
+  const source = entry.origin.canvas, conversationId = entry.origin.conversationId, logo = entry.origin.via === "send" ? entry.origin.provider : undefined;
+  const view = handoffMetaView(entry.origin, project, source ? canvasListed(source) : conversationListed?.(conversationId) ?? null, entry.at, now,
+    { listed: conversationListed?.(conversationId) ?? null, title: conversationTitle?.(conversationId) ?? null });
   const open = view.open === null ? null : source ? onOpen && (() => onOpen(source, conversationId)) : onOpenOverview && (() => onOpenOverview(conversationId));
   const Kind = view.kind === "canvas" ? PanelsTopLeft : LayoutGrid, time = view.time;
   return <div className="msg-user" role="group" aria-label={view.label} aria-describedby={time ? timeId : undefined} tabIndex={-1} data-entry="">
     <AgentMessage text={entry.text} streaming={false} className="bubble md from-agent">
-      <div className="ho-meta"><Forward aria-hidden="true" /><Kind aria-hidden="true" /><MetaName name={view.name} title={time?.title ?? null} />
+      <div className="ho-meta">{logo ? <img className="logo" src={providerLogo(logo)} alt="" /> : <Forward aria-hidden="true" />}<Kind aria-hidden="true" /><MetaName name={view.name} title={time?.title ?? null} />
         <span className="sep" aria-hidden="true">·</span>
         {time ? <Tooltip><TooltipTrigger asChild><time dateTime={time.dateTime} aria-hidden="true">{time.text}</time></TooltipTrigger><TooltipContent>{time.title}</TooltipContent></Tooltip>
           : <span className="ho-gone">{view.reason}</span>}
@@ -1466,6 +1472,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const openHandoff = (canvas: Canvas, conversationId?: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
   const openOverview = (conversationId: string) => latest.current.onOpenOverview?.(conversationId);
   const conversationListed = (conversationId: string) => latest.current.conversationListed?.(conversationId) ?? true;
+  const conversationTitle = (conversationId: string) => latest.current.conversationTitle?.(conversationId) ?? null;
   // The cards' times move once a minute, not with each tick of the host's clock.
   const minute = Math.floor(props.now / 60_000) * 60_000;
   const rows = props.canvasRows ?? NO_ROWS;
@@ -1483,11 +1490,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
       case "canvasCard": {
         const canvas = cardCanvas(entry, rows);
-        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff, ...metaDeps(canvas)];
+        const target = entry.handoff?.outcome === "sent" ? entry.handoff.target.conversationId : null;
+        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff, ...metaDeps(canvas),
+          target === null ? null : props.conversationListed?.(target) ?? null, target === null ? null : props.conversationTitle?.(target) ?? null];
       }
       case "handoffCard": {
-        const source = entry.origin.canvas;
-        return [props.project, source ? props.canvasListed(source) : props.conversationListed?.(entry.origin.conversationId) ?? null, source ? !!props.onOpenHandoff : !!props.onOpenOverview, minute];
+        const source = entry.origin.canvas, id = entry.origin.conversationId, send = entry.origin.via === "send";
+        return [props.project, source ? props.canvasListed(source) : props.conversationListed?.(id) ?? null, source ? !!props.onOpenHandoff : !!props.onOpenOverview, minute,
+          send ? props.conversationListed?.(id) ?? null : null, send ? props.conversationTitle?.(id) ?? null : null];
       }
       case "marker": return [props.project, props.canvasListed(entry.canvas), openCanvasId, props.openCanvasPath];
       default: return [];
@@ -1534,9 +1544,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           </span>}
         </div>;
       }
-      case "canvasCard": return <CanvasCard entry={entry} context={cardContext} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "canvasCard": return <CanvasCard entry={entry} context={cardContext} project={props.project} provider={provider} canvasListed={listed} conversationListed={conversationListed}
+        conversationTitle={conversationTitle} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffBubble entry={entry} project={props.project} now={minute} timeId={`${base}-${entry.key}-time`} canvasListed={listed}
-        conversationListed={props.conversationListed && conversationListed} onOpen={props.onOpenHandoff && openHandoff} onOpenOverview={props.onOpenOverview && openOverview} />;
+        conversationListed={props.conversationListed && conversationListed} conversationTitle={conversationTitle} onOpen={props.onOpenHandoff && openHandoff} onOpenOverview={props.onOpenOverview && openOverview} />;
       case "boundary": return <div className="context-boundary" role="separator" aria-label={entry.label}><span>{entry.label}</span></div>;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvasStem(canvas.path);

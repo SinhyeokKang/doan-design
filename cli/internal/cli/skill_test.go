@@ -101,6 +101,15 @@ func TestSkillGuideHandoff(t *testing.T) {
 	}
 }
 
+// Only the app's prompt teaches doan handoff and doan send: terminal agents cannot use them (ARCHITECTURE §7).
+func TestSkillGuideDoesNotTeachSend(t *testing.T) {
+	for _, word := range []string{"doan send", "doan handoff"} {
+		if strings.Contains(skillBody, word) {
+			t.Errorf("guide teaches `%s`", word)
+		}
+	}
+}
+
 // `doan init --json` never prompts, so the guide must make the agent ask first when the user names it.
 // The onboarding fallback runs it without asking, and it never registers the project in the app.
 func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {

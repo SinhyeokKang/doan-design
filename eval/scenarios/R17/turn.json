@@ -1,0 +1,12 @@
+{
+  "text": "The Billing note on the account canvas now says invoices are sent on the 5th of each month. Please change the note on this canvas (the Invoices note) to say “Invoices are sent on the 5th of each month.” and leave everything else as it is. Reply with what you changed when you are done.",
+  "canvas": {
+    "path": ".doan/canvases/invoices.html",
+    "id": "invoices"
+  },
+  "from": {
+    "path": ".doan/canvases/account.html",
+    "id": "account"
+  },
+  "via": "send"
+}

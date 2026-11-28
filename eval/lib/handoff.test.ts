@@ -3,12 +3,12 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
-import { handoffCommands, noHandoff } from "./handoff.ts";
+import { acceptedRequests, handoffCommands, noHandoff, requestSummary, sendCommands } from "./handoff.ts";
 import { openCalls } from "./open.ts";
-import { startFakeApp, validHandoffRequest, validHandoffResponse } from "./socket.ts";
+import { startFakeApp, validHandoffRequest, validHandoffResponse, validSendRequest, validSendResponse } from "./socket.ts";
 import { toolCalls } from "./transcript.ts";
 import { contentHash } from "./work.ts";
-import type { CheckContext, HandoffExchange } from "./types.ts";
+import type { CheckContext, HandoffExchange, SendExchange } from "./types.ts";
 
 const path = ".doan/canvases/next.html";
 const key = "ab".repeat(32);
@@ -21,6 +21,13 @@ test("v5 validators decide all shared schema fixtures", () => {
         assert.equal(valid(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/fixtures/app-socket-v5", kind, verdict, name), "utf8"))), verdict === "valid", `${kind}/${verdict}/${name}`);
 });
 
+test("v8 validators decide all shared schema fixtures", () => {
+  for (const [kind, valid] of [["request", validSendRequest], ["response", validSendResponse]] as const)
+    for (const verdict of ["valid", "invalid"])
+      for (const name of readdirSync(join(import.meta.dirname, "../../schema/fixtures/app-socket-v8", kind, verdict)))
+        assert.equal(valid(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/fixtures/app-socket-v8", kind, verdict, name), "utf8"))), verdict === "valid", `${kind}/${verdict}/${name}`);
+});
+
 test("handoffCommands reads doan handoff only, whatever the flags around it", () => {
   const calls = shell(
     `doan handoff ${path} --message - <<'EOF'\nhello\nEOF`,
@@ -29,6 +36,17 @@ test("handoffCommands reads doan handoff only, whatever the flags around it", ()
     "doan ls --json",
   );
   assert.equal(handoffCommands({ calls }).length, 2);
+});
+
+test("sendCommands reads doan send only, and handoffCommands does not count it", () => {
+  const calls = shell(
+    `doan send ${path} --message - <<'EOF'\nhello\nEOF`,
+    `/tmp/bin/doan send --repo /r ${path} --message "x" --json`,
+    `doan handoff ${path} --message x`,
+    "echo 'doan send x.html'",
+  );
+  assert.equal(sendCommands({ calls }).length, 2);
+  assert.equal(handoffCommands({ calls }).length, 1);
 });
 
 test("a heredoc body is message text, not commands: a line starting with doan open or doan handoff in it counts for neither", () => {
@@ -48,14 +66,23 @@ test("a heredoc body is message text, not commands: a line starting with doan op
 
 test("noHandoff fails on a command or on a request the app received, and passes on neither", () => {
   const sent: HandoffExchange = { request: { v: 5, root: "/r", handoff: key, path, text: "x" }, response: { v: 5, ok: true, requested: true }, at: "", hashes: {} };
-  const ctx = (commands: string[], log: HandoffExchange[]) => ({ calls: shell(...commands), handoff: () => log }) as unknown as CheckContext;
+  const ctx = (commands: string[], log: HandoffExchange[]) => ({ calls: shell(...commands), handoff: () => log, send: () => [] }) as unknown as CheckContext;
   assert.equal(noHandoff(ctx([], [])).pass, true);
   assert.equal(noHandoff(ctx([`doan handoff ${path} --message x`], [])).pass, false);
   assert.equal(noHandoff(ctx([], [sent])).pass, false);
 });
 
+test("noHandoff counts doan send and a v8 request as well, so a send without an instruction fails it once", () => {
+  const sent: SendExchange = { request: { v: 8, root: "/r", handoff: key, path, text: "x" }, response: { v: 8, ok: true, requested: true }, at: "", hashes: {} };
+  const ctx = (commands: string[], log: SendExchange[]) => ({ calls: shell(...commands), handoff: () => [], send: () => log }) as unknown as CheckContext;
+  assert.equal(noHandoff(ctx([], [])).pass, true);
+  assert.equal(noHandoff(ctx([`doan send ${path} --message x`], [])).pass, false);
+  assert.equal(noHandoff(ctx([], [sent])).pass, false);
+  assert.match(noHandoff(ctx([`doan send ${path} --message x`], [sent])).detail, /doan send commands/);
+});
+
 test("noHandoff fails beside a command the reader could not follow, which may have run doan handoff", () => {
-  const ctx = (commands: string[]) => ({ calls: shell(...commands), handoff: () => [] }) as unknown as CheckContext;
+  const ctx = (commands: string[]) => ({ calls: shell(...commands), handoff: () => [], send: () => [] }) as unknown as CheckContext;
   const check = noHandoff(ctx([`if [ -f ${path} ]; then doan handoff ${path} --message x; fi`]));
   assert.equal(check.pass, false);
   assert.match(check.detail, /could not be read completely/);
@@ -143,4 +170,105 @@ test("without a handoff conversation the fake app is an older app that does not 
     });
     assert.deepEqual(reply, { v: 1, ok: false, error: { code: "bad_request", message: "The request is not an app-socket v1 request." } });
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// The v8 and v5 requests of one turn share the turn's request set, and each version's lines stay in its own list.
+test("the fake app answers v8 like v5, shares a canvas path with v5, and keeps the two versions' exchanges apart", async () => {
+  const dir = mkdtempSync("/tmp/doan-handoff-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  const other = ".doan/canvases/other.html";
+  writeFileSync(join(root, path), "<p>next</p>\n");
+  writeFileSync(join(root, other), "<p>other</p>\n");
+  const source = ".doan/canvases/account.html";
+  const app = await startFakeApp({ dir, root, selection: null, handoff: { key, canvas: source } });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const ask = (v: number, args: Record<string, unknown>) => new Promise<any>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+      socket.end(JSON.stringify({ v, token: runtime.token, root, handoff: key, path, text: "Pass this on.", ...args }) + "\n");
+    });
+    const code = (reply: any) => reply.ok ? "ok" : reply.error.code;
+    assert.equal(code(await ask(8, { text: " " })), "bad_request");
+    assert.equal(code(await ask(8, { token: "wrong" })), "bad_token");
+    assert.equal(code(await ask(8, { root: "/elsewhere" })), "project_not_open");
+    assert.equal(code(await ask(8, { handoff: "cd".repeat(32) })), "not_app_conversation");
+    assert.equal(code(await ask(8, { path: source })), "same_canvas");
+    assert.deepEqual(await ask(8, {}), { v: 8, ok: true, requested: true });
+    assert.equal(code(await ask(8, {})), "already_requested");
+    // handoff and send count together for one canvas in one turn.
+    assert.equal(code(await ask(5, {})), "already_requested");
+    assert.deepEqual(await ask(5, { path: other }), { v: 5, ok: true, requested: true });
+    assert.equal(code(await ask(8, { path: other })), "already_requested");
+    const lines: any[] = readFileSync(app.handoffLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(lines.map(line => line.request.v), [8, 8, 8, 8, 8, 8, 8, 5, 5, 8]);
+    assert.equal(lines[5].hashes[path], contentHash(readFileSync(join(root, path))));
+    assert.ok(!readFileSync(app.handoffLog, "utf8").includes(runtime.token));
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// The app judges these after the schema, token, project, key and the turn's own state; a request the app refused here
+// reserves nothing and does not count as a request received.
+test("a turn started by a received message gets chain_one for a second accepted request and chain_limit at five steps", async () => {
+  const dir = mkdtempSync("/tmp/doan-handoff-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  const [a, b] = [".doan/canvases/a.html", ".doan/canvases/b.html"];
+  for (const file of [a, b]) writeFileSync(join(root, file), "<p>x</p>\n");
+  const run = async (chain: string[], body: (ask: (v: number, args: Record<string, unknown>) => Promise<any>) => Promise<void>) => {
+    const sub = mkdtempSync(join(dir, "app-"));
+    const app = await startFakeApp({ dir: sub, root, selection: null, handoff: { key, canvas: ".doan/canvases/account.html", received: { chain } } });
+    try {
+      const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+      await body((v, args) => new Promise<any>((resolve, reject) => {
+        const socket = connect(runtime.socket);
+        let reply = "";
+        socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+        socket.end(JSON.stringify({ v, token: runtime.token, root, handoff: key, path: a, text: "Pass this on.", ...args }) + "\n");
+      }));
+    } finally { await app.close(); }
+  };
+  try {
+    const code = (reply: any) => reply.ok ? "ok" : reply.error.code;
+    await run(["c1"], async ask => {
+      assert.equal(code(await ask(8, {})), "ok");
+      // The second request is refused whatever the version or canvas; a repeat of the first path is already_requested.
+      assert.equal(code(await ask(8, { path: b })), "chain_one");
+      assert.equal(code(await ask(5, { path: b })), "chain_one");
+      assert.equal(code(await ask(8, {})), "already_requested");
+    });
+    await run(["c1"], async ask => {
+      // A request refused earlier in the order is not received, so it does not use the turn's one request.
+      assert.equal(code(await ask(8, { path: ".doan/canvases/account.html" })), "same_canvas");
+      assert.equal(code(await ask(5, {})), "ok");
+    });
+    await run(["c1", "c2", "c3", "c4", "c5"], async ask => {
+      assert.equal(code(await ask(8, {})), "chain_limit");
+      assert.equal(code(await ask(5, {})), "chain_limit");
+    });
+    await run(["c1", "c2", "c3", "c4"], async ask => {
+      assert.equal(code(await ask(8, {})), "ok");
+      assert.equal(code(await ask(8, { path: b })), "chain_one");
+    });
+    // Step 0 (no received message) allows several requests, as before.
+    await run([], async ask => {
+      assert.equal(code(await ask(8, {})), "ok");
+      assert.equal(code(await ask(8, { path: b })), "ok");
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("acceptedRequests and requestSummary list the v5 and v8 requests in the order they arrived", () => {
+  const at = (n: number) => new Date(Date.UTC(2026, 10, 28, 0, 0, n)).toISOString();
+  const refused: SendExchange = { request: { v: 8, root: "/r", handoff: key, path, text: "x" }, response: { v: 8, ok: false, error: { code: "chain_one", message: "m" } }, at: at(1), hashes: {} };
+  const handoff: HandoffExchange = { request: { v: 5, root: "/r", handoff: key, path, text: "x" }, response: { v: 5, ok: true, requested: true }, at: at(2), hashes: {} };
+  const sent: SendExchange = { ...refused, response: { v: 8, ok: true, requested: true }, at: at(3) };
+  const ctx = { handoff: () => [handoff], send: () => [refused, sent] };
+  assert.deepEqual(acceptedRequests(ctx), [handoff, sent]);
+  assert.deepEqual(JSON.parse(requestSummary(ctx)), [{ v: 8, path, ok: false, error: "chain_one" }, { v: 5, path, ok: true }, { v: 8, path, ok: true }]);
+  // Equal timestamps keep each list's own order.
+  const same = { handoff: () => [{ ...handoff, at: at(1) }], send: () => [{ ...refused, at: at(1) }, { ...sent, at: at(1) }] };
+  assert.deepEqual(JSON.parse(requestSummary(same)).map((e: { v: number }) => e.v), [5, 8, 8]);
 });

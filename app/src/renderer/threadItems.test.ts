@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
+import { canvasCardText } from "./canvasCardText";
 import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "../main/conversation/attachmentRecords.fixture";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
 import { parseConnectorUrl } from "../main/mcpConnectors/names";
@@ -627,6 +628,60 @@ describe("threadItems canvas cards", () => {
     const items = threadItems([...turn("t1", text, { origin }), ev("t1", { type: "turn.done" }), ...turn("t2", "Use {{1}}")], ROOT, true);
     expect(items[0]).toEqual({ kind: "handoffCard", key: "u1", seq: 1, origin, text, at: "2026-11-01T00:00:00Z" });
     expect(items.at(-1)).toMatchObject({ kind: "user" });
+  });
+
+  test("a send's card carries via from its request through waiting, sent, queued, refused and cancelled", () => {
+    const send = (turnId: string, path: string) => ev(turnId, { type: "handoff.requested", canvas: { path }, text: "Use it.", via: "send" });
+    const target = { conversationId: "c9", canvas: { path: CHECKOUT, id: "checkout" } };
+    seq = 0;
+    const waiting = [...turn("t1"), send("t1", CHECKOUT), ev("t1", { type: "turn.done" })];
+    expect(cards(threadItems(waiting, ROOT, true))[0]).toMatchObject({ drawn: false, handoff: { outcome: "pending", via: "send" } });
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "sent", target, queued: false })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "sent", target, queued: false, via: "send" });
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "sent", target, queued: true })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "sent", target, queued: true, via: "send" });
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "refused", reason: "chain_return" })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "refused", reason: "chain_return", via: "send" });
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "cancelled" })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "cancelled", via: "send" });
+    const titled = { ...target, title: "Payment states" };
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "sent", target: titled, queued: false })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "sent", target: titled, queued: false, via: "send" });
+    // A restart cancels a send still waiting, and it stays a send.
+    expect(cards(threadItems(waiting, ROOT, false))[0]!.handoff).toEqual({ outcome: "cancelled", via: "send" });
+  });
+
+  test("a handoff's card carries its record's via; an earlier build's request has none", () => {
+    seq = 0;
+    const target = { conversationId: "c9", canvas: { path: CHECKOUT } };
+    const events = [...turn("t1"), ev("t1", { type: "handoff.requested", canvas: { path: CHECKOUT }, text: "Go.", via: "handoff" }), ask("t1", PAYMENT), ev("t1", { type: "turn.done" }),
+      resolve("t1", { canvas: { path: CHECKOUT }, via: "handoff", outcome: "started", target }), resolve("t1", { canvas: { path: PAYMENT }, outcome: "refused", reason: "not_listed" })];
+    expect(cards(threadItems(events, ROOT, true)).map(card => card.handoff)).toEqual([{ outcome: "started", target, via: "handoff" }, { outcome: "refused", reason: "not_listed" }]);
+  });
+
+  // main writes a chain refusal as a request and its refused resolution while the asking turn still runs.
+  test("a chain refusal written while the turn runs is a refused card from the start, worded for its request", () => {
+    for (const via of ["handoff", "send"] as const) for (const reason of ["chain_one", "chain_limit"] as const) {
+      seq = 0;
+      const events = [...turn("t1"), ev("t1", { type: "handoff.requested", canvas: { path: CHECKOUT }, text: "Go.", via }),
+        resolve("t1", { canvas: { path: CHECKOUT }, via, outcome: "refused", reason }), reply("t1")];
+      const running = cards(threadItems(events, ROOT, true));
+      expect(running[0]!.handoff).toEqual({ outcome: "refused", reason, via });
+      const status = canvasCardText(running[0]!, { project: "acme-web", provider: "claude", listed: () => true }).status;
+      const lead = via === "send" ? "Didn’t send." : "Didn’t hand off.";
+      expect(status).toBe(`${lead} ${reason === "chain_one" ? "A turn started by a message can send only once." : "This chain reached 5 steps."}`);
+      const ended = cards(threadItems([...events, ev("t1", { type: "turn.done" })], ROOT, false));
+      expect(ended[0]!.handoff).toEqual({ outcome: "refused", reason, via });
+    }
+  });
+
+  test("a send that arrives mid-conversation is the received bubble, its text never read for markers or a preset", () => {
+    seq = 0;
+    const origin = { kind: "handoff", conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" }, via: "send", chain: ["c0"], provider: "codex" };
+    const text = "/compact the layout and keep {{1}}";
+    const items = threadItems([...turn("t1"), ev("t1", { type: "turn.done" }), ...turn("t2", text, { origin }), ev("t2", { type: "turn.done" })], ROOT, true);
+    expect(items.map(item => item.kind)).toEqual(["user", "noReply", "handoffCard", "noReply"]);
+    expect(items[2]).toEqual({ kind: "handoffCard", key: "u4", seq: 4, origin, text, at: "2026-11-01T00:00:00Z" });
   });
 });
 

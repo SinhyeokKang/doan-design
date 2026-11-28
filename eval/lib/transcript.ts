@@ -13,7 +13,7 @@ export const DOAN_BOOLEAN_FLAGS: readonly string[] = ["json", "clear-token-css",
 
 // The commands run.go dispatches (compared both ways by transcript.test.ts). A check that looks for a command names one
 // of these, so a renamed command fails that test instead of leaving an absence check that can never fail.
-export const DOAN_COMMANDS: readonly string[] = ["init", "config", "ls", "skill", "design-skill", "check", "work", "active", "onboarding", "open", "handoff", "remove", "export"];
+export const DOAN_COMMANDS: readonly string[] = ["init", "config", "ls", "skill", "design-skill", "check", "work", "active", "onboarding", "open", "handoff", "send", "remove", "export"];
 
 // The flags each command takes besides json and repo (run.go's table, compared by transcript.test.ts); work takes its
 // flags only as `work update`, and onboarding takes json and its own flags, not repo.
@@ -22,6 +22,7 @@ export const DOAN_COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   init: ["storage", "git-init", "token-css"],
   open: ["frame", "prototype"],
   handoff: ["message"],
+  send: ["message"],
   "work update": ["frame", "note"],
   export: ["o", "force", "frame", "prototype"],
   onboarding: ["session", "operation", "provider", "request", "path", "url", "destination", "inspection", "storage", "spend-copilot-request", "initialize"],

@@ -56,6 +56,7 @@ import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { dropAttachment } from "./conversationStore";
 import { NameTip } from "./NameTip";
+import { ListedGrace, listedTitle } from "./canvasCardText";
 
 // The project conversation screen. OverviewRun decides which conversation shows; this component draws it and makes the calls to
 // main the thread and composer ask for.
@@ -123,6 +124,8 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 
 export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
+  const listedGrace = useRef<ListedGrace | null>(null);
+  listedGrace.current ??= new ListedGrace();
   const listRetry = props.listRetry ?? LIST_RETRY_IDLE;
   // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
   const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
@@ -433,6 +436,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice?.(failed); return failed === null; })} canvasListed={canvasListed}
+        conversationListed={id => listedGrace.current!.listed(root, props.list, id, run.listReads(root))} conversationTitle={id => listedTitle(props.list, id)}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}
@@ -474,6 +478,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} asks={conversationId ? waitingAsk(thread?.events ?? null) : null} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: false }}
         queued={conversationId ? run.queue(conversationId) : []}
+        agentQueue={summary?.agentQueue}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
         sendNow={!!conversationId && !!provider && !summary?.scheduledAt && !commandRuns && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}

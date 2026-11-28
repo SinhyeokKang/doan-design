@@ -1,0 +1,11 @@
+[
+  [
+    "send",
+    ".doan/canvases/account.html",
+    "--message",
+    "Done: the Invoices note now says “Invoices are sent on the 5th of each month.”",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

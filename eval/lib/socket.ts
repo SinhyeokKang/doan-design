@@ -75,7 +75,7 @@ const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.js
 // which do not change what validates.
 const ajv = new ajvFromApp.default({ logger: false });
 // Add every file before the first getSchema: v3's frame $refs v4's frameId by its absolute $id.
-for (const version of ["v2", "v3", "v4", "v5", "v6"]) ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, `../../schema/app-socket.${version}.schema.json`), "utf8")));
+for (const version of ["v2", "v3", "v4", "v5", "v6", "v8"]) ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, `../../schema/app-socket.${version}.schema.json`), "utf8")));
 const V2 = "https://doan.design/schema/app-socket.v2.schema.json";
 const requestSchema = ajv.getSchema(`${V2}#/$defs/request`);
 const responseSchema = ajv.getSchema(`${V2}#/$defs/response`);
@@ -105,6 +105,12 @@ const prototypeRequestSchema = ajv.getSchema(`${V6}#/$defs/request`);
 const prototypeResponseSchema = ajv.getSchema(`${V6}#/$defs/response`);
 export const validPrototypeRequest = (v: unknown): boolean => prototypeRequestSchema(v);
 export const validPrototypeResponse = (v: unknown): boolean => prototypeResponseSchema(v);
+
+const V8 = "https://doan.design/schema/app-socket.v8.schema.json";
+const sendRequestSchema = ajv.getSchema(`${V8}#/$defs/request`);
+const sendResponseSchema = ajv.getSchema(`${V8}#/$defs/response`);
+export const validSendRequest = (v: unknown): boolean => sendRequestSchema(v);
+export const validSendResponse = (v: unknown): boolean => sendResponseSchema(v);
 
 // The fake is deterministic (session `s_eval`, `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead;
 // real agents still have to read them from replies.
@@ -385,10 +391,12 @@ function listedFrames(cli: string, root: string, runtime: string, path: string):
 }
 
 export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; errorLog: string; close(): Promise<void> }
-// Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5.
-// handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas.
+// Without workOthers the fake is an older app with no `others`; without handoff, one that does not know v5 or v8.
+// handoff.key is DOAN_HANDOFF; canvas null is a project conversation, which never meets same_canvas. received.chain
+// is the conversation ids of the message-started turn this conversation runs (one to five): its step is the chain's
+// length, and a turn without it is at step 0.
 // cli: the doan whose canvas list the fake reads frames from, as the app does; a v4 request with a frame needs it.
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null; cli?: string; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null } | null }
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; cli?: string; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string | null; received?: { chain: string[] } } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
 export const APP_WRITES = "app-writes.json";
@@ -483,23 +491,28 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       appendFileSync(prototypeLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
       return response;
     }
-    if (isObj(parsed) && parsed.v === 5 && o.handoff) {
-      const fail = (code: string, message: string) => ({ v: 5, ok: false, error: { code, message } });
-      // The app's order for the checks this fake can reach: shape, token, project, key, then the asking turn's own state.
-      // A refused request does not reserve its canvas path.
-      const response = !validHandoffRequest(parsed) ? fail("bad_request", "The request is not an app-socket v5 request.")
+    if (isObj(parsed) && (parsed.v === 5 || parsed.v === 8) && o.handoff) {
+      const v = parsed.v;
+      const valid = v === 5 ? validHandoffRequest : validSendRequest, validReply = v === 5 ? validHandoffResponse : validSendResponse;
+      const fail = (code: string, message: string) => ({ v, ok: false, error: { code, message } });
+      const step = o.handoff.received?.chain.length ?? 0;
+      // The app's order for the checks this fake can reach: shape, token, project, key, the asking turn's own state,
+      // then the chain. A refused request does not reserve its canvas path and does not count as received.
+      const response = !valid(parsed) ? fail("bad_request", `The request is not an app-socket v${v} request.`)
         : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
         : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
         : parsed.handoff !== o.handoff.key ? fail("not_app_conversation", "This is not a Doan app conversation.")
         : typeof parsed.path === "string" && handoffTaken.has(parsed.path) ? fail("already_requested", "This turn already handed off to this canvas.")
         : o.handoff.canvas !== null && parsed.path === o.handoff.canvas ? fail("same_canvas", "The target is the canvas this conversation works on.")
-        : { v: 5, ok: true, requested: true };
+        : step >= 5 ? fail("chain_limit", "This chain reached 5 steps.")
+        : step >= 1 && handoffTaken.size > 0 ? fail("chain_one", "A turn started by a message can send only once.")
+        : { v, ok: true, requested: true };
       if (response.ok && typeof parsed.path === "string") handoffTaken.add(parsed.path);
       // The target's hash when the request arrived, so a check can tell a canvas written before the request from one
       // still being edited.
       const hashes: Record<string, string | null> = {};
       if (response.ok && typeof parsed.path === "string") hashes[parsed.path] = snapshot(parsed.path);
-      if (!validHandoffResponse(response)) throw new Error(`the eval fake app built an invalid v5 reply: ${JSON.stringify(response)}`);
+      if (!validReply(response)) throw new Error(`the eval fake app built an invalid v${v} reply: ${JSON.stringify(response)}`);
       const { token: _token, ...request } = parsed;
       appendFileSync(handoffLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
       return response;

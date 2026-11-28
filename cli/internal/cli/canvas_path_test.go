@@ -21,6 +21,7 @@ func TestCanvasPathPatternsMatchSchemas(t *testing.T) {
 		{4, workCanvasPath},
 		{5, handoffCanvasPath},
 		{6, workCanvasPath},
+		{8, handoffCanvasPath},
 	} {
 		t.Run(fmt.Sprintf("v%d", tt.version), func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", fmt.Sprintf("app-socket.v%d.schema.json", tt.version)))

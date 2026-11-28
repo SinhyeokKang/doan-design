@@ -9,6 +9,7 @@ import { sameCanvas } from "./canvasConversationRows";
 import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, metaNameKeep, openReplyLink, pressChip, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
 import type { ThumbnailState } from "./thumbnails";
 import { threadItems, type ThreadItem } from "./threadItems";
+import { threadCommands } from "./commandView";
 import type { ConversationEvent } from "../main/conversation/types";
 import { TooltipProvider } from "./components/ui/tooltip";
 
@@ -747,6 +748,17 @@ describe("canvas cards and the received handoff", () => {
     expect(html([card({ handoff: { outcome: "missed" } })])).toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. The agent didn’t ask to.", svg("ban"), OPEN("Open checkout-flow.html")));
   });
 
+  test("a send's states: the send icon, the receiving conversation's title from the host, Open to it unless it was deleted", () => {
+    const sent = (queued: boolean) => card({ drawn: false, handoff: { outcome: "sent", target: { conversationId: "c2", canvas: CHECKOUT }, queued, via: "send" } });
+    const titles = (id: string) => id === "c2" ? "Payment states" : null;
+    expect(html([card({ drawn: false, handoff: { outcome: "pending", via: "send" } })])).toMatch(cardMarkup("checkout-flow.html", "Sends when this turn ends", svg("send"), OPEN("Open checkout-flow.html")));
+    expect(html([sent(false)], { conversationTitle: titles })).toMatch(cardMarkup("checkout-flow.html", "Sent to “Payment states”", svg("send"), OPEN("Open “Payment states” on checkout-flow.html")));
+    expect(html([sent(true)], { conversationTitle: titles })).toMatch(cardMarkup("checkout-flow.html", "Queued in “Payment states”", svg("send"), OPEN("Open “Payment states” on checkout-flow.html")));
+    expect(html([sent(false)], { conversationListed: () => false })).toMatch(cardMarkup("checkout-flow.html", "Sent to a conversation · Conversation deleted", svg("send")));
+    expect(html([card({ drawn: false, handoff: { outcome: "refused", reason: "chain_return", via: "send" } })]))
+      .toMatch(cardMarkup("checkout-flow.html", "Didn’t send. That conversation is earlier in this chain.", svg("send"), OPEN("Open checkout-flow.html")));
+  });
+
   test("a canvas gone since: the status gains the tail, Open goes, and neither a cached image nor meta shows", () => {
     const gone = canvasCard(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } }), context([[CHECKOUT.path, { kind: "ready", url: "blob:old" }]]), false);
     expect(gone).toMatch(cardMarkup("checkout-flow.html", "Handed off · No longer in doan-design", svg("forward")));
@@ -941,6 +953,69 @@ describe("canvas cards and the received handoff", () => {
     const overviewEl = HandoffBubble({ entry: handoff({ origin: { kind: "handoff", conversationId: "c0" } }), project: "p", now: NOW, timeId: "t", canvasListed: () => false, conversationListed: () => true, onOpenOverview: id => shown.push(id) });
     (findButton(overviewEl)!.props as { onClick(): void }).onClick();
     expect(shown).toEqual(["c0"]);
+  });
+
+  // A message another conversation's agent sent (via send): the same bubble, with the sender's provider logo first in the
+  // meta, "Message from" as its name, and the sending conversation's title in its description and Open.
+  describe("a received send", () => {
+    const sent = (patch: Partial<Handoff["origin"]> = {}) => handoff({ origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS, via: "send", chain: ["c0"], provider: "codex", ...patch } });
+    const titles = (id: string) => id === "c0" ? "Checkout flow on drafts" : null;
+    const LOGO = '<img class="logo" src="provider-logos/[^"]+" alt=""/>';
+    const sendMeta = (after: string, open = "", first = LOGO) =>
+      `<div class="bubble md from-agent"><div class="ho-meta">${first}<svg[^>]*lucide-panels-top-left[^>]*aria-hidden="true"[^>]*>.*?</svg>${NAME("drafts.html")}${SEP}${after}${open}</div>`;
+
+    test("mid-conversation: the provider logo, Message from, the sending conversation's title in the description and Open", () => {
+      const user: ThreadItem = { kind: "user", key: "u0", seq: 0, anchors: [], preset: null, parts: [{ text: "Draw the declined card" }], attachments: [] };
+      const out = html([user, agent("Drew it."), sent()], { canvasRows: ROWS, now: NOW, conversationTitle: titles });
+      expect(out).toMatch(new RegExp(`${group("Message from drafts.html", true).replace('"t"', '"([^"]+)"')}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open “Checkout flow on drafts” on drafts.html"))}`));
+      expect(out).toMatch(/<span id="[^"]+" hidden="">Sent from “Checkout flow on drafts” · 5 minutes ago<\/span>/);
+      expect(out).toContain('src="provider-logos/codex');
+    });
+
+    test("the title not known yet: the time alone describes it and Open names the canvas", () => {
+      const out = bubble(sent());
+      expect(out).toMatch(new RegExp(`${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open drafts.html"))}`));
+      expect(out).toContain('<span id="t" hidden="">5 minutes ago</span>');
+    });
+
+    test("an earlier record without the sender's provider keeps the forward icon", () => {
+      expect(bubble(handoff({ origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS, via: "send", chain: ["c0"] } }), true, { conversationTitle: titles })).toMatch(new RegExp(`${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open “Checkout flow on drafts” on drafts.html"), svg("forward"))}`));
+    });
+
+    test("the sending conversation deleted: its reason in place of the time and Open", () => {
+      const out = bubble(sent(), true, { conversationListed: () => false, conversationTitle: () => null });
+      expect(out).toMatch(new RegExp(`${group("Message from drafts.html · Conversation deleted", false)}${sendMeta(GONE("Conversation deleted"))}`));
+      expect(out).not.toMatch(/<time|<button|hidden=""/);
+      // The sending canvas gone says that first, as for a handoff.
+      expect(bubble(sent(), false, { conversationListed: () => false })).toContain(GONE("No longer in doan-design"));
+    });
+
+    test("Open goes to the sending conversation on its canvas", () => {
+      const opened: unknown[] = [];
+      const element = HandoffBubble({ entry: sent(), project: "p", now: NOW, timeId: "t", canvasListed: () => true, conversationTitle: titles, onOpen: (canvas, id) => opened.push([canvas, id]) });
+      (findButton(element)!.props as { onClick(): void }).onClick();
+      expect(opened).toEqual([[DRAFTS, "c0"]]);
+    });
+
+    test("its turn failing or stopped offers no Edit and resend", () => {
+      for (const end of [{ kind: "failed", code: "process_exited" }, { kind: "interrupted", reason: "user" }] as const) {
+        const out = html([agent("Drew it."), sent(), { kind: "end", key: "e3", seq: 3, end }]);
+        expect(out).toContain("thread-notice");
+        expect(out).not.toContain("Edit and resend");
+      }
+    });
+
+    test("a send whose text starts with a command name is no command turn", () => {
+      const ev = (seq: number, turnId: string, payload: Record<string, unknown>) => ({ v: 1, conversationId: "c1", seq, turnId, at: at(-1).toISOString(), ...payload }) as ConversationEvent;
+      const origin = { kind: "handoff", conversationId: "c0", canvas: DRAFTS, via: "send", chain: ["c0"], provider: "claude" };
+      const events = [ev(1, "t1", { type: "user.message", text: "Draw", anchors: [] }), ev(2, "t1", { type: "turn.started" }), ev(3, "t1", { type: "turn.done" }),
+        ev(4, "t2", { type: "user.message", text: "/compact the layout", anchors: [], origin }), ev(5, "t2", { type: "turn.started" }), ev(6, "t2", { type: "turn.done" })];
+      const commands = threadCommands("claude", events, new Map([["t2", "compacted" as const]]));
+      expect(commands.turns.has("t2")).toBe(false);
+      const out = html(threadItems(events, "/w", false, commands), { now: NOW });
+      expect(out).not.toContain("context-boundary");
+      expect(out).toContain("/compact the layout");
+    });
   });
 
   test("a person's message after it is a plain bubble: only the meta line tells them apart", () => {

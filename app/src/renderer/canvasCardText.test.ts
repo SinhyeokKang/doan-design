@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText } from "./canvasCardText";
+import { canvasCardMeta, canvasCardText, ListedGrace, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
@@ -9,7 +9,7 @@ type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
 const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, HOME = { path: ".doan/canvases/home.html", id: "home" };
 const card = (patch: Partial<Card> = {}): Card => ({ kind: "canvasCard", key: `ct1:${CHECKOUT.path}`, canvas: CHECKOUT, drawing: false, drawn: true, ...patch });
 const ctx = { project: "acme-web", provider: "claude" as const, listed: (_canvas: Canvas) => true };
-const view = (item: Card, over: Partial<typeof ctx> = {}) => canvasCardText(item, { ...ctx, ...over });
+const view = (item: Card, over: Partial<Parameters<typeof canvasCardText>[1]> = {}) => canvasCardText(item, { ...ctx, ...over });
 const OPEN = { canvas: CHECKOUT, label: "Open checkout-flow.html" };
 
 describe("canvasCardText", () => {
@@ -91,9 +91,80 @@ describe("canvasCardText", () => {
     expect(asked).toEqual([target.canvas]);
   });
 
+  test("an earlier build's handoff_turn refusal keeps the shipped start refusal wording", () => {
+    expect(view(card({ handoff: { outcome: "refused", reason: "handoff_turn" } })).status).toBe(`Didn’t hand off. ${startErrorView("handoff_turn", "claude", "acme-web").text}`);
+  });
+
+  test.each([
+    ["chain_return", "That conversation is earlier in this chain."],
+    ["chain_one", "A turn started by a message can send only once."],
+    ["chain_limit", "This chain reached 5 steps."],
+  ])("chain refusal %s: the handoff's ban and the send's icon, each with its lead, Open on that canvas", (reason, sentence) => {
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason } }))).toEqual({ icon: "ban", name: "checkout-flow.html", status: `Didn’t hand off. ${sentence}`, label: `checkout-flow.html, Didn’t hand off. ${sentence}`, open: OPEN });
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason, via: "send" } }))).toEqual({ icon: "send", name: "checkout-flow.html", status: `Didn’t send. ${sentence}`, label: `checkout-flow.html, Didn’t send. ${sentence}`, open: OPEN });
+  });
+
   test("a pending request for a path not listed hides Open without a tail: it may not exist yet", () => {
     expect(view(card({ drawing: true, drawn: false, canvas: { path: CHECKOUT.path }, handoff: { outcome: "pending" } }), { listed: () => false }))
       .toMatchObject({ status: "Hands off when this turn ends", open: null });
+  });
+});
+
+describe("canvasCardText for a send", () => {
+  const target = { conversationId: "c9", canvas: CHECKOUT };
+  const titles = (id: string) => id === "c9" ? "Payment states" : null;
+  const sent = (queued: boolean): Card => card({ drawn: false, handoff: { outcome: "sent", target, queued, via: "send" } });
+
+  test("waits: the send icon and when it sends, Open on that canvas, even on a canvas this turn drew", () => {
+    expect(view(card({ drawn: false, handoff: { outcome: "pending", via: "send" } }))).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sends when this turn ends", label: "checkout-flow.html, Sends when this turn ends", open: OPEN });
+    expect(view(card({ drawing: true, handoff: { outcome: "pending", via: "send" } }))).toMatchObject({ icon: "send", status: "Sends when this turn ends" });
+  });
+
+  test("sent or queued: names the receiving conversation, Open goes to it", () => {
+    expect(view(sent(false), { conversationTitle: titles })).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sent to “Payment states”", label: "checkout-flow.html, Sent to “Payment states”",
+      open: { canvas: CHECKOUT, conversationId: "c9", label: "Open “Payment states” on checkout-flow.html" } });
+    expect(view(sent(true), { conversationTitle: titles })).toMatchObject({ icon: "send", status: "Queued in “Payment states”", open: { conversationId: "c9", label: "Open “Payment states” on checkout-flow.html" } });
+  });
+
+  test("a receiving conversation whose title is not known yet reads as a conversation", () => {
+    expect(view(sent(false))).toMatchObject({ status: "Sent to a conversation", open: { conversationId: "c9", label: "Open the conversation on checkout-flow.html" } });
+    expect(view(sent(true), { conversationTitle: () => null })).toMatchObject({ status: "Queued in a conversation" });
+  });
+
+  test("the title kept at delivery names the conversation when the list does not; the live title wins", () => {
+    const kept = card({ drawn: false, handoff: { outcome: "sent", target: { ...target, title: "Old name" }, queued: false, via: "send" } });
+    expect(view(kept)).toMatchObject({ status: "Sent to “Old name”", open: { conversationId: "c9", label: "Open “Old name” on checkout-flow.html" } });
+    expect(view(kept, { conversationTitle: titles })).toMatchObject({ status: "Sent to “Payment states”" });
+    expect(view(kept, { conversationListed: () => false, conversationTitle: () => null })).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sent to “Old name” · Conversation deleted",
+      label: "checkout-flow.html, Sent to “Old name” · Conversation deleted", open: null });
+  });
+
+  test("the receiving conversation deleted since: no Open, the status says so", () => {
+    expect(view(sent(false), { conversationListed: () => false })).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sent to a conversation · Conversation deleted", label: "checkout-flow.html, Sent to a conversation · Conversation deleted", open: null });
+  });
+
+  test("the receiving canvas gone since: the shipped tail, no Open", () => {
+    expect(view(sent(true), { conversationTitle: titles, listed: () => false })).toMatchObject({ icon: "send", status: "Queued in “Payment states” · No longer in acme-web", open: null });
+  });
+
+  test("a send refused because its conversation was deleted before delivery says so, Open on the canvas", () => {
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_found", via: "send" } })))
+      .toEqual({ icon: "send", name: "checkout-flow.html", status: "Didn’t send. That conversation was deleted.", label: "checkout-flow.html, Didn’t send. That conversation was deleted.", open: OPEN });
+  });
+
+  test("any other refusal of a send reads as one neutral line that names no agent and gives no start advice", () => {
+    for (const code of ["not_logged_in", "busy", "cli_missing", "runtime_unsupported", "bad_request", "unknown"]) {
+      expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: code, via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. That conversation couldn’t take the message.", open: OPEN });
+    }
+    // A handoff keeps the start wording.
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_logged_in" } })).status).toBe(`Didn’t hand off. ${startErrorView("not_logged_in", "claude", "acme-web").text}`);
+  });
+
+  test("refused, cancelled and any other start refusal lead with Didn’t send", () => {
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_listed", via: "send" } }), { listed: () => false }))
+      .toMatchObject({ icon: "send", status: "Didn’t send. It isn’t a single canvas in acme-web.", open: null });
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "same_canvas", via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. It’s this conversation’s own canvas.", open: null });
+    expect(view(card({ drawn: false, handoff: { outcome: "cancelled", via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. The turn didn’t finish.", open: OPEN });
   });
 });
 
@@ -207,6 +278,15 @@ describe("middleCut", () => {
 });
 
 describe("newCanvasesText", () => {
+  test("a started handoff counts as a new canvas only when drawn, or when its record predates handoffs to existing canvases", () => {
+    const target = { conversationId: "c2", canvas: { path: "a.html" } };
+    const started = (path: string, patch: Partial<Card>) => card({ key: `ct1:${path}`, canvas: { path }, drawn: false, ...patch });
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "started", target, via: "handoff" } })])).toBe("");
+    expect(newCanvasesText([started("a.html", { drawn: true, handoff: { outcome: "started", target, via: "handoff" } })])).toBe("1 new canvas");
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "started", target } })])).toBe("1 new canvas");
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "sent", target, queued: false, via: "send" } })])).toBe("");
+  });
+
   const drawn = (path: string, patch: Partial<Card> = {}): ThreadItem => card({ key: `ct1:${path}`, canvas: { path }, ...patch });
   const end: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "interrupted", reason: "user" } };
   test("counts the new canvases among the thread's trailing cards", () => {
@@ -226,5 +306,52 @@ describe("newCanvasesText", () => {
     const bound: ThreadItem = { kind: "marker", key: "k9", seq: 9, marker: "bound", canvas: { path: "a.html", id: "a" } };
     expect(newCanvasesText([end, drawn("a.html"), bound])).toBe("1 new canvas");
     expect(newCanvasesText([end, bound])).toBe("");
+  });
+});
+
+describe("listedTitle", () => {
+  test("the listed title on one line; nothing while the list is not read, for an unlisted or an untitled conversation", () => {
+    const list = [{ conversationId: "c1", title: "Payment\n states " }, { conversationId: "c2", title: "  " }];
+    expect(listedTitle(list, "c1")).toBe("Payment states");
+    expect(listedTitle(list, "c2")).toBeNull();
+    expect(listedTitle(list, "c3")).toBeNull();
+    expect(listedTitle("loading", "c1")).toBeNull();
+    expect(listedTitle("error", "c1")).toBeNull();
+  });
+});
+
+describe("ListedGrace", () => {
+  const list = [{ conversationId: "c1", title: "A" }];
+  test("an id the settled list names, or a list not read, counts as there", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "c1", { started: 1, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", "loading", "c2", { started: 1, applied: 0 })).toBe(true);
+    expect(grace.listed("/r", "error", "c2", { started: 1, applied: 1 })).toBe(true);
+  });
+  test("an id first asked about while a read is under way (a conversation main just made) counts as there until that read answers", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 2 })).toBe(false);
+  });
+  // main's listChanged for the new conversation joined a read already under way: that read's answer may predate it, so
+  // the grace lasts through the follow-up read.
+  test("a follow-up read queued behind the one under way extends the grace to it", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 1, queued: true })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 2 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 3 })).toBe(false);
+  });
+
+  test("an id a settled list already lacked stays gone through every later read", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "gone", { started: 1, applied: 1 })).toBe(false);
+    expect(grace.listed("/r", list, "gone", { started: 2, applied: 1 })).toBe(false);
+    expect(grace.listed("/r", list, "gone", { started: 5, applied: 4 })).toBe(false);
+  });
+  test("roots keep their own ids", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/a", list, "x", { started: 1, applied: 1 })).toBe(false);
+    expect(grace.listed("/b", list, "x", { started: 2, applied: 1 })).toBe(true);
   });
 });
