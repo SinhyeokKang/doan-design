@@ -25,8 +25,8 @@
 |---|---|---|---|---|---|---|
 | P | T1 | `.scratch/canvas-chip/`, design.md 'PoC 결과' | 없음 | Opus medium — Electron 끌기 동작을 관찰하고 방식을 골라야 한다 | tasks T1 검증 | 통합 `08e73c4dc`. 확인하지 못한 것: 막 없이 iframe이 놓기를 받는지, 드래그 이미지 모습, 포커스된 창의 caret(T7로 넘긴다) |
 | A | T3 | `main/conversation/{types,prompt,store,messageText}.ts`, `renderer/{anchorField,chipField}.ts`의 거울 부분, 그 테스트 | 없음 | Opus medium — 모든 batch가 기대는 형식이다. 범위는 좁다 | tasks T3 검증(`verify.mjs --eval` 포함) | 통합 `c2feb0f49`, `f44aad8c4`. 리뷰 1회. 테스트 보강(⚪1·2)을 후속 Task로 보냈다 |
-| B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 구현 끝, 리뷰 중 |
-| C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 대기 |
+| B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 통합 `585544720`–`bd8ad9004`. 리뷰 1회, 수정 1회(conductor가 수정 diff를 직접 확인했다) |
+| C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 진행 중 |
 | D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 대기 |
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 대기 |
 | F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 대기 |
