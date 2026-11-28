@@ -16,13 +16,13 @@
   - `cut` 프레임, id가 같은 프레임 둘(이름표 둘, 각자 자기 index로 `pick-frame`), 빈 id와 빈 제목("<번호>. (no id)", Picker 칩 없음), 공백뿐인 제목(id로), 번호가 drawer와 같음(중첩 프레임 사이에서 건너뜀), 말줄임에서 번호 유지
   - 줌 0.05·0.25·1·2에서 같은 높이와 프레임을 따라가는 자리, 프레임 화면 폭으로 줄어드는 최대 폭, 최소 폭 아래 숨김, 화면 왼쪽이나 위로 일부 나간 프레임, 모든 프레임 0 × 0(재지 않음)
   - Select → `pick-frame {index, id}`, Picker → `{frame: {id, title}}`(MAX_STRING으로 자른 프레임 pick 응답과 같음)
-  - 선택 상태: 프레임 자체 선택, 그 안의 요소 선택, 중첩 프레임 선택. hover 상태: 이름표 위, 프레임 안
+  - 선택 상태: 프레임 자체 선택, 그 안의 요소 선택, 중첩 프레임 선택. hover 상태: 이름표 위, 프레임 안. 마커 상태: working-frame 마커, jump highlight, 선택과 함께일 때
   - 끌기: 4 px 이하는 누르기, 넘으면 칩 끌기. 받기 판정: 같은 캔버스의 대화 패널 composer는 받고, 다른 캔버스·Overview·Home·프로토타입 창은 받지 않으며, IME·읽기 전용·pick 중·보내는 중·32곳 한도는 이유 줄
 - `[commit]` `test:` → `feat:`
 
 ## T3. 앱 overlay와 누르기
 
-- `CanvasController.ts`의 이름표 층, 팬·줌 동기 갱신, `pick-frame` 경로(화면 이동 없음)와 reload 중 대기, 포커스, hover rect 덮어쓰기, 누르기 부수 효과, 수식키, 겹침 순서, `styles.css`(forced-colors 규칙 포함).
+- `CanvasController.ts`의 이름표 층, jump highlight를 working-frame 마커 모습으로 통일(`styles.css`, 타이밍은 그대로), 이름표 마커 상태, 팬·줌 동기 갱신, `pick-frame` 경로(화면 이동 없음)와 reload 중 대기, 포커스, hover rect 덮어쓰기, 누르기 부수 효과, 수식키, 겹침 순서, `styles.css`(forced-colors 규칙 포함).
 - 검증:
   - `CanvasController.test.ts`(또는 새 테스트):
     - 누르기가 그 프레임의 `pick-frame`을 보내고 화면을 옮기지 않는다. id가 겹치는 두 번째 프레임과 `cut` 프레임이 자기 프레임으로 선택된다.
