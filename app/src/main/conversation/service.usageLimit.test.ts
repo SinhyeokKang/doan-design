@@ -619,3 +619,26 @@ describe("a send to a conversation whose usage limit holds", () => {
     expect(h.texts(target)).toEqual(["hello", "mine at the reset", "Use the new price."]);
   });
 });
+
+// Spec '완료 조건': a received turn the usage limit stops fails as that turn's limit failure and never goes again by itself.
+describe("a send's turn the usage limit stops", () => {
+  it("is neither queued again nor scheduled, whether or not the agent did anything", async () => {
+    for (const activity of [false, true]) {
+      const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
+      const target = await h.start(".doan/canvases/b.html");
+      h.runs[0]!.emit({ type: "turn.done" }); await drain();
+      const source = await h.start();
+      const key = h.open.mock.calls[1]![0].env.DOAN_HANDOFF!;
+      h.service.requestSend({ root: "/repo", handoff: key, path: ".doan/canvases/b.html", text: "Use the new price." });
+      h.service.receive(source, { type: "turn.done" });
+      await drain();
+      expect(h.texts(target)).toEqual(["hello", "Use the new price."]);
+      h.limit(RESET);
+      await h.limited(target, activity);
+      expect(h.drafts.queued(target)).toEqual([]);
+      expect(h.summary(target).scheduledAt).toBeUndefined();
+      h.noLimit(); h.clock.advance(2 * HOUR); await drain();
+      expect(h.texts(target)).toEqual(["hello", "Use the new price."]);
+    }
+  });
+});

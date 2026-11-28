@@ -15,7 +15,7 @@ const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
 type Steering = Runner & { steer: NonNullable<Runner["steer"]> };
-function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"]; draftsDir?: string; limitWindows?: QueueOptions["limitWindows"] } = {}) {
+function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"]; draftsDir?: string; limitWindows?: QueueOptions["limitWindows"]; exitWaitMs?: number } = {}) {
   const provider = options.provider ?? "codex";
   const dir = mkdtempSync(join(tmpdir(), "doan-handoff-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Steering[] = []; let session = 0;
@@ -31,7 +31,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const notices: ConversationHandoffNotice[] = [];
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}), ...(options.defaultEffort ? { defaultEffort: options.defaultEffort } : {}), ...(options.limitWindows ? { limitWindows: options.limitWindows } : {}) }, undefined, undefined, notice => notices.push(notice));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, options.exitWaitMs ?? 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}), ...(options.defaultEffort ? { defaultEffort: options.defaultEffort } : {}), ...(options.limitWindows ? { limitWindows: options.limitWindows } : {}) }, undefined, undefined, notice => notices.push(notice));
   const sourceRequest: StartRequest = { root: "/repo", mode: "new", runtime: provider, canvas: a, text: "Make a checkout page", anchors: [], model: "gpt-x", effort: "high", permissionMode: "acceptEdits" };
   const key = (runner: number) => open.mock.calls[runner]![0].env.DOAN_HANDOFF;
   const ask = (handoff: string | undefined, path: string, root = "/repo", text = "The person wants a checkout flow; the cart is next.") =>
@@ -1635,5 +1635,115 @@ describe("a chain refusal's record", () => {
     expect(h.send(h.key(0), a.path)).toBe("same_canvas");
     expect(h.ask(h.key(0), b.path, "/other")).toBe("root_mismatch");
     expect(h.store.read(s)).toHaveLength(before);
+  });
+});
+
+// Review fixes: a direct send runs as a queued row would, a wait for the previous process never strands it, and a held
+// row goes only after a turn the person's message started (spec '큐에 든 에이전트 메시지').
+describe("a send's delivery", () => {
+  const agentRows = (h: ReturnType<typeof fixture>, id: string) => h.drafts.queued(id).filter(item => item.origin);
+  const userMessages = (h: ReturnType<typeof fixture>, id: string) => h.store.read(id).flatMap(e => e.type === "user.message" ? [e] : []);
+  const row = (h: ReturnType<typeof fixture>, id: string) => h.service.list("/repo").find(r => r.conversationId === id)!;
+  it("runs a direct send on the receiving conversation's Fast and its model's default effort", async () => {
+    const h = fixture({ listed: [a, b], fast: () => true, defaultEffort: () => "medium" });
+    const x = await h.start({ canvas: b, text: "mine", fast: true }, ["effort"]);
+    h.service.receive(x, { type: "turn.done" });
+    const s = await h.start();
+    h.send(h.key(1), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toMatchObject([{ outcome: "sent", queued: false }]));
+    expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toMatchObject({ model: "gpt-x", effort: "medium", fast: true });
+  });
+  // POSTMORTEM 2026-10-28: a send issued before the previous process's exit callback.
+  it("waits for the receiving conversation's previous process and starts the turn once it exits", async () => {
+    const h = fixture({ provider: "claude", listed: [a, b] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    const s = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(userMessages(h, x)).toHaveLength(1);
+    h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.resolutions(s)).toMatchObject([{ outcome: "sent", target: { conversationId: x }, queued: false }]));
+    expect(userMessages(h, x)).toHaveLength(2);
+  });
+  it("queues a send whose wait for the previous process timed out, and sends it once that process exits", async () => {
+    const h = fixture({ provider: "claude", listed: [a, b], exitWaitMs: 20 });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    const s = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toMatchObject([{ outcome: "sent", target: { conversationId: x }, queued: true }]));
+    expect(row(h, x).agentQueue).toMatchObject([{ held: false }]);
+    expect(userMessages(h, x)).toHaveLength(1);
+    h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(2));
+    expect(userMessages(h, x)[1]).toMatchObject({ origin: { conversationId: s } });
+    expect(agentRows(h, x)).toEqual([]);
+  });
+  it("keeps a send the person's Stop refused during its wait as a held row, which the exit does not send", async () => {
+    const h = fixture({ provider: "claude", listed: [a, b] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    const s = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(row(h, x).working).toBe(true));
+    await h.service.interrupt(x);
+    await vi.waitFor(() => expect(h.resolutions(s)).toMatchObject([{ outcome: "sent", queued: true }]));
+    expect(row(h, x).agentQueue).toMatchObject([{ held: true }]);
+    h.open.mock.calls[0]![2]();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(userMessages(h, x)).toHaveLength(1);
+  });
+  it("puts a send behind the held rows of a resting conversation, and sends them only after a turn the person's message started", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const x = await h.start({ canvas: b, text: "mine" });
+    const s1 = await h.start(), s2 = await h.start({ canvas: c });
+    h.send(h.key(1), b.path, "first"); h.service.receive(s1, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s1)).toMatchObject([{ queued: true }]));
+    h.service.receive(x, { type: "interrupted", reason: "user" });
+    expect(row(h, x).agentQueue).toMatchObject([{ held: true }]);
+    h.send(h.key(2), b.path, "second"); h.service.receive(s2, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s2)).toMatchObject([{ outcome: "sent", target: { conversationId: x }, queued: true }]));
+    expect(userMessages(h, x)).toHaveLength(1);
+    expect(row(h, x).agentQueue?.map(r => r.line)).toEqual(["first", "second"]);
+    expect(row(h, x).agentQueue?.every(r => r.held)).toBe(true);
+    await h.service.send(x, "go on", []);
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(3));
+    expect(userMessages(h, x)[2]).toMatchObject({ text: "first", origin: { conversationId: s1 } });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x).map(m => m.text)).toEqual(["mine", "go on", "first", "second"]));
+  });
+  it("keeps queue order: a held row goes before a row queued behind the person's turn", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-send-drafts-")); paths.push(dir);
+    const h = fixture({ listed: [a, b, c], draftsDir: dir });
+    const x = await h.start({ canvas: b, text: "mine" });
+    const s1 = await h.start();
+    h.send(h.key(1), b.path, "held"); h.service.receive(s1, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s1)).toHaveLength(1));
+    // The held row waits; a later send queues behind the person's running turn, after it.
+    h.service.receive(x, { type: "turn.failed", code: "process_exited" });
+    const step1 = await h.start({ canvas: c });
+    h.send(h.key(2), b.path, "armed");
+    await h.service.send(x, "go on", []);
+    h.service.receive(step1, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(step1)).toMatchObject([{ queued: true }]));
+    expect(row(h, x).agentQueue).toMatchObject([{ line: "held", held: true }, { line: "armed", held: false }]);
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x).map(m => m.text)).toEqual(["mine", "go on", "held"]));
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x).map(m => m.text)).toEqual(["mine", "go on", "held", "armed"]));
+  });
+  it("re-reads a person's canvas chip as it goes out after an agent's row", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const x = await h.start({ canvas: b, text: "mine" });
+    const s = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    h.service.queue(x, { text: "look at {{1}}", anchors: [{ canvas: { path: c.path, id: "c" } }] });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(2));
+    h.listed.splice(h.listed.indexOf(c), 1, { path: ".doan/canvases/c-renamed.html", id: "c" });
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(3));
+    expect(userMessages(h, x)[2]).toMatchObject({ text: "look at {{1}}", anchors: [{ canvas: { path: ".doan/canvases/c-renamed.html", id: "c" } }] });
   });
 });
