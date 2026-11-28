@@ -189,7 +189,8 @@ interface LimitLookup { turnId: string; provider: Provider; connectionId: string
 // A Doan-connected conversation's current turn for handoffs, in memory only. state: judging after a done end until a
 // canvas may be listed, starting while decided ones start, resolved once all are written. source: the origin canvas.
 // chain: the origin chain of the message that started the turn, empty for the person's (its length is the turn's step).
-interface HandoffTurn { root: string; turnId: string; snapshot: Canvas[]; chain: string[]; requests: HandoffRequest[]; guided: boolean; edits: Set<string>; source?: Canvas; state?: "judging" | "starting" | "resolved"; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
+// chainRefused: the paths whose request this turn's chain refused (recordChainRefusal).
+interface HandoffTurn { root: string; turnId: string; snapshot: Canvas[]; chain: string[]; chainRefused?: Set<string>; requests: HandoffRequest[]; guided: boolean; edits: Set<string>; source?: Canvas; state?: "judging" | "starting" | "resolved"; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // via: a handoff or a send. taken while its turn runs, judging once the turn ended done, starting once every request of the turn is decided,
 // resolved once its handoff.resolved is written (or would be, after a quit). decision: its judgement, other than wait.
 interface HandoffRequest { path: string; text: string; via: HandoffVia; state: "taken" | "judging" | "starting" | "resolved"; decision?: HandoffDecision; resolution?: HandoffResolution }
@@ -611,6 +612,7 @@ export class ConversationService {
       !live.closed && !live.failedPersistence && !this.quitting;
     const refused = handoffEligibility(request, { root: m.root, ...(m.canvas ? { canvas: m.canvas } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}),
       running, step: turn?.chain.length ?? 0, requested: turn?.requests.map(r => r.path) ?? [] });
+    if (refused === "chain_one" || refused === "chain_limit") this.recordChainRefusal(id, live!.turnId, turn!, request, via, refused);
     if (refused) return refused;
     const text = request.text.trim(); if (!text) throw new Error("bad_request");
     this.append(id, live!.turnId, { type: "handoff.requested", canvas: { path: request.path }, text, via });
@@ -1384,6 +1386,18 @@ export class ConversationService {
     // A cancel meanwhile resolved it already, and a quit dropped the turn.
     if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
     this.resolveHandoff(id, turn, request, resolution);
+  }
+  // A chain refusal is also written as the request and its refused resolution, so the source's canvas card says why as it
+  // does for chain_return. Not a taken request: nothing judges, holds or counts it. Once per path in a turn; a failed
+  // write leaves only the socket's refusal.
+  private recordChainRefusal(id: string, turnId: string, turn: HandoffTurn, request: { path: string; text: string }, via: HandoffVia, reason: "chain_one" | "chain_limit"): void {
+    const text = request.text.trim();
+    if (!text || turn.chainRefused?.has(request.path)) return;
+    (turn.chainRefused ??= new Set()).add(request.path);
+    try {
+      this.append(id, turnId, { type: "handoff.requested", canvas: { path: request.path }, text, via });
+      this.append(id, turnId, { type: "handoff.resolved", canvas: { path: request.path }, via, outcome: "refused", reason });
+    } catch (error) { console.error("doan: a chain refusal could not be saved", error); }
   }
   // A send to the canvas's latest conversation, judged at the turn's end: it runs on that conversation's own choices,
   // starts a turn there when it rests and waits in its queue otherwise. A conversation deleted since refuses it.

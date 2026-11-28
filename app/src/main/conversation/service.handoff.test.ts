@@ -433,7 +433,7 @@ describe("the conversation a handoff started", () => {
     await sent;
     expect(h.ask(h.key(1), a.path)).toBe("chain_one");
     h.service.receive(target, { type: "turn.done" });
-    await vi.waitFor(() => expect(h.resolutions(target)).toHaveLength(1));
+    await vi.waitFor(() => expect(h.on(c)).toBeDefined());
     const onC = h.on(c)!.conversationId;
     expect(h.store.read(onC)[0]).toMatchObject({ type: "user.message", origin: { kind: "handoff", conversationId: target, canvas: b, via: "handoff", chain: [id, target], provider: "codex" } });
     await h.service.send(target, "Now make the cart", []);
@@ -1456,8 +1456,9 @@ describe("a send", () => {
     expect(h.send(h.key(0), c.path)).toBe("chain_one");
     expect(h.ask(h.key(0), c.path)).toBe("chain_one");
     h.service.receive(x, { type: "turn.done" });
-    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(1));
-    expect(h.last(x)).toMatchObject({ type: "handoff.resolved", via: "send", outcome: "refused", reason: "chain_return" });
+    // The chain_one requests are written at once (recordChainRefusal); the taken one is judged at the turn's end.
+    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(2));
+    expect(h.resolutions(x)).toMatchObject([{ canvas: { path: c.path }, via: "send", outcome: "refused", reason: "chain_one" }, { canvas: { path: a.path }, via: "send", outcome: "refused", reason: "chain_return" }]);
     expect(userMessages(h, s)).toHaveLength(1);
   });
   it("writes no missed line for a turn a message started, whatever new canvas it edited", async () => {

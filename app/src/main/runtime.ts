@@ -4,8 +4,8 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, RemoveRequest, RemoveResponse, WorkOther, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateHandoffRequest, validateOpenRequest, validatePrototypeRequest, validateRemoveRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import type { HandoffErrorCode, HandoffRequest, HandoffResponse, SendRequest, SendResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, RemoveRequest, RemoveResponse, WorkOther, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateHandoffRequest, validateSendRequest, validateOpenRequest, validatePrototypeRequest, validateRemoveRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
 import { CANVAS_PATH } from "./deepLinks";
 import type { ConversationUpdate } from "./conversationWork";
@@ -42,6 +42,8 @@ export interface RuntimeState extends ActiveState {
   // Called only with a schema-valid v5 request whose token matched and whose root is registered: the conversation
   // service's checks from the key on (ConversationService.requestHandoff), null when it took the request.
   handoff(request: HandoffRequest): HandoffRefusalCode | null;
+  // The same for a schema-valid v8 request (ConversationService.requestSend).
+  send(request: SendRequest): HandoffRefusalCode | null;
   // `doan open --prototype` (app-socket v6) once its schema, token and registered root passed. Answers at once: the
   // play starts, or the window comes forward, before the reply.
   playPrototype(request: PrototypeRequest): PrototypeResponse;
@@ -136,9 +138,14 @@ const HANDOFF_MESSAGES: Record<HandoffErrorCode, string> = {
   handoff_turn: "A turn started by a handoff cannot hand off.",
   already_requested: "This turn already handed off to this canvas.",
   same_canvas: "The canvas is the conversation's own.",
+  chain_limit: "This chain reached 5 steps.",
+  chain_one: "A turn started by a message can send only once.",
 };
 function handoffError(code: HandoffErrorCode, message = HANDOFF_MESSAGES[code]): HandoffResponse {
   return { v: 5, ok: false, error: { code, message } };
+}
+function sendError(code: HandoffErrorCode, message = HANDOFF_MESSAGES[code]): SendResponse {
+  return { v: 8, ok: false, error: { code, message } };
 }
 
 function prototypeError(code: "bad_request" | "bad_token" | "project_not_open", message: string): PrototypeResponse {
@@ -210,13 +217,20 @@ function workApplied(state: RuntimeState, request: WorkRequest): WorkResponse {
 }
 
 // Unknown versions keep the v1 refusal. No version exposes state before its token matched. conversation: the app
-// conversations' credential, accepted for v1 and v3–v6 only; onboarding and removal take the full token.
-type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse | RemoveResponse;
+// conversations' credential, accepted for v1, v3–v6 and v8; onboarding and removal take the full token.
+type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse | RemoveResponse | SendResponse;
 export async function answerLine(line: string, token: string, state: RuntimeState, conversation?: string): Promise<Answer> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
   const scoped = (given: string) => tokenMatches(given, token) || (conversation !== undefined && tokenMatches(given, conversation));
   // No auto-registration here, unlike v3: an unregistered worktree of a listed group is not open.
+  if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 8) {
+    if (!validateSendRequest(value)) return sendError("bad_request", "The request is not an app-socket v8 request.");
+    if (!scoped(value.token)) return sendError("bad_token");
+    if (!state.isOpen(value.root)) return sendError("project_not_open");
+    try { const refused = state.send(value); return refused ? sendError(refused) : { v: 8, ok: true, requested: true }; }
+    catch (error) { console.error("doan: send request failed", error); return sendError("bad_request"); }
+  }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 7) {
     if (!validateRemoveRequest(value)) return removeError("bad_request", "The request is not an app-socket v7 request.");
     if (!tokenMatches(value.token, token)) return removeError("bad_token", "The token does not match this app.");
