@@ -24,7 +24,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T2, T3, T4 `/design-sync` | `app/src/renderer/homeComposer.ts`, `ComposerParts.tsx`, `styles.css`(프리셋 드로어 구역), `ds/surfaces.css`, 관련 테스트, `drawnTarget.test-support.ts`, `ds/checks.test.ts`, `docs/design/conversation.md`, `docs/DESIGN.md` | 없음 | Claude Opus high — sticky·role=group·키보드·hover 선택자 등 여러 화면에 걸친 판단, 틀리면 Quick Open·`/` 목록 회귀 | `npm --prefix app test`, `typecheck`, `lint`, design-sync 측정 | 대기 |
-| B | T5 README Presets 프레임 | `.doan/canvases/readme-features.html`(Presets 프레임), `docs/assets/readme/presets.png` | 없음 | Codex Sol medium — 확정 드래프트를 옮겨 그리는 기계적 작업, 판단이 적다 | `doan check`, 이미지 500 KB 이하 | 대기 |
+| B | T5 README Presets 프레임 | `.doan/canvases/readme-features.html`(Presets 프레임), `docs/assets/readme/presets.png` | 없음 | Codex Sol medium — 확정 드래프트를 옮겨 그리는 기계적 작업, 판단이 적다 | `doan check`, 이미지 500 KB 이하 | 완료(2a8f22e07, 0f27e6f0a), 리뷰 대기 |
 | R | A·B 리뷰 | 없음(보고만) | A, B | Codex Astra medium — 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | 컨덕터 | T4 `/runtime-test`, `/verify`, T5 PRODUCT·BACKLOG 승격과 기능 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/BACKLOG.md`, 이 디렉터리 | A, B, R | — | `verify.mjs`, 실기 probe | 대기 |
 
@@ -40,3 +40,7 @@
 
 ## 진행
 
+- Orca run `run_f406066db68e`. A: dispatch `ctx_de92796bad81`, worktree `pdl-a`(브랜치 `SinhyeokKang/pdl-a`), claude-opus-5-5 high. B: dispatch `ctx_7df66d2b6911`, worktree `pdl-b`(브랜치 `SinhyeokKang/pdl-b`), codex gpt-6.2-sol medium(`models_cache.json`의 최신 Sol). 둘 다 4d420c4bc에서 시작했다.
+- 링크 2 컨덕터 터미널(lead 메일): subagent-progress `term_a5aad700-…`, board-motion-guide `term_dab6eb10-…`, canvas-thumbnail-frame `term_4e90d3c8-…`. 실기 probe는 시작 전에 알린다. board-motion-guide가 `/agent-eval`을 도는 동안 격리하지 않은 Doan.app을 띄우지 않는다(격리 Playwright는 괜찮다).
+
+- B 완료: `doan check` 오류 0, frame id 9개 그대로, PNG 1900 × 1226 RGB 373,526 B. `doan export --frame`은 `--prototype`(HTML)만 받아, Playwright Chromium 1.25배 요소 캡처 + oxipng로 내보냈다. 컨덕터가 PNG를 직접 봤다.
