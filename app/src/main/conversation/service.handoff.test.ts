@@ -1748,3 +1748,46 @@ describe("a send's delivery", () => {
     expect(userMessages(h, x)[2]).toMatchObject({ text: "look at {{1}}", anchors: [{ canvas: { path: ".doan/canvases/c-renamed.html", id: "c" } }] });
   });
 });
+
+// For batch C: a sent card names its conversation after that conversation is gone, and the queue interleaves agent rows
+// with the person's rows in their send order.
+describe("what a send leaves for the renderer", () => {
+  const userMessages = (h: ReturnType<typeof fixture>, id: string) => h.store.read(id).flatMap(e => e.type === "user.message" ? [e] : []);
+  it("puts the receiving conversation's title on the sent resolution, sent at once, queued or started", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const x = await h.start({ canvas: b, text: "Checkout flow\nmore" }); h.service.receive(x, { type: "turn.done" });
+    const s1 = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s1, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s1)).toHaveLength(1));
+    expect(h.resolutions(s1)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, canvas: b, title: "Checkout flow" }, queued: false });
+    const s2 = await h.start();
+    h.send(h.key(2), b.path); h.service.receive(s2, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s2)).toHaveLength(1));
+    expect(h.resolutions(s2)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, title: "Checkout flow" }, queued: true });
+    const s3 = await h.start();
+    h.send(h.key(3), c.path, "Summary page\nwith totals"); h.service.receive(s3, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s3)).toHaveLength(1));
+    expect(h.resolutions(s3)[0]).toMatchObject({ outcome: "sent", target: { canvas: c, title: "Summary page" }, queued: false });
+  });
+  it("names for each agent row the person's row it follows in the queue, or none when it comes first", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const x = await h.start({ canvas: b, text: "mine" });
+    const s1 = await h.start(), s2 = await h.start({ canvas: c });
+    h.send(h.key(1), b.path, "first agent"); h.service.receive(s1, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s1)).toHaveLength(1));
+    const { itemId: p1 } = h.service.queue(x, { text: "p1", anchors: [] });
+    const { itemId: p2 } = h.service.queue(x, { text: "p2", anchors: [] });
+    h.send(h.key(2), b.path, "second agent"); h.service.receive(s2, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s2)).toHaveLength(1));
+    const s3 = await h.start();
+    h.send(h.key(3), b.path, "third agent"); h.service.receive(s3, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s3)).toHaveLength(1));
+    const row = () => h.service.list("/repo").find(r => r.conversationId === x)!;
+    expect(row().agentQueue?.map(r => [r.line, r.after])).toEqual([["first agent", null], ["second agent", p2], ["third agent", p2]]);
+    expect(p1).not.toBe(p2);
+    // The first agent row goes out alone; the rest keep their place behind p2.
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(2));
+    expect(row().agentQueue?.map(r => [r.line, r.after])).toEqual([["second agent", p2], ["third agent", p2]]);
+  });
+});

@@ -503,6 +503,7 @@ describe("handoff events in event v1", () => {
       store.append("c", "t", { type: "user.message", text: "Use {{1}}", anchors: [], origin: linked }),
       store.append("c", "t", { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "x", via: "send" }),
       store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/b.html" }, via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } }, queued: true }),
+      store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/c.html" }, via: "send", outcome: "sent", target: { conversationId: "d", canvas: { path: ".doan/canvases/c.html" }, title: "Checkout flow" }, queued: false }),
     ];
     expect(new ConversationStore(f.root).read("c")).toEqual(saved);
     const five = ["1", "2", "3", "4", "s"];
@@ -521,6 +522,9 @@ describe("handoff events in event v1", () => {
       { type: "handoff.resolved", via: "send", outcome: "sent", target: { canvas: { path: ".doan/canvases/b.html" } }, queued: false },
       { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: "b.html" } }, queued: false },
       { type: "handoff.resolved", via: "post", outcome: "cancelled" },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" }, title: "" }, queued: false },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" }, title: "x".repeat(513) }, queued: false },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" }, title: 1 }, queued: false },
     ];
     for (const body of bad) {
       const g = seed({ "c.jsonl": line(body) });
