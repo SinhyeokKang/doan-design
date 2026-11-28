@@ -37,9 +37,10 @@
 
 ## Codex 사용 범위
 
-- RA, RB(리뷰). 실제로 쓴 범위는 끝날 때 갱신한다.
+- RA, RB(리뷰, gpt-6.2-astra medium). 실제로 쓴 범위는 끝날 때 갱신한다.
 
 ## 진행 기록
 - Run `run_637f9610c7ca`. A `ctx_59d645b798ef`(bmg-A, Opus high), B `ctx_f94aee5df671`(bmg-B, Opus high), C `ctx_043b4ad33a1a`(bmg-C, Sonnet medium)를 시작했다.
 - `/agent-eval` 범위(사용자 지시, lead 전달): "이번 board motion guide도 전체 eval 말고 필요한 부분만", 이어서 "대신 시나리오 범위를 넉넉하게 잡으라고 전달". 전체 회차는 돌리지 않는다. tasks의 범위(W15 baseline, 그 뒤 W15·W13·D5·W7·W8·W11·W12)를 모두 지키고, 바뀐 guide 문장이나 animate·delight preset을 읽을 수 있는 시나리오, 모션이나 프로토타입을 그리는 시나리오를 E가 찾아 더한다. 애매한 시나리오는 빼지 않는다. 고른 범위와 이유를 회차 기록과 PR 본문에 적는다.
 - C 완료(T1b): 격리된 실제 앱에서 Playwright 포인터 이동으로 확인했다. Select에서는 `:hover`가 동작한다(`rgb(200,200,200)` → `rgb(255,0,0)`, 포인터 아래 대상은 캔버스 iframe). Hand에서는 동작하지 않는다(대상이 `drag-layer`). 반복 `@keyframes`는 두 도구에서 모두 돈다. 컨덕터가 `select-during.png`를 열어 빨간 상태를 확인했다. 따라서 "Select 도구에서 `:hover`" 안내를 그대로 쓴다. 덤 관측: Select에서 포인터가 캔버스 밖으로 나가도 hover가 풀리지 않았다(Playwright 이동의 한계일 수 있어 확인하지 않았다). 증거는 컨덕터 checkout의 `.scratch/runtime-test/board-hover/`, `.scratch/handoff-C.md`. worker를 release했고 worktree `bmg-C`를 지웠다(브랜치 `SinhyeokKang/bmg-C`는 28b65ac7b에 남아 있다).
+- B 완료(T2): 커밋 4439aea81·4d1de550f·169b2a258·f622c0d53(bmg-B). 보드 규칙을 rule F에 합쳤고, 10개 문장을 줄여 `--json` 21,985 B(여유 15 B), plain 21,796 B다. 줄인 문장은 `TestSkillGuideShortenedLinesKeepConditions`가 고정한다. 열기 제안은 guide 표기에 맞춰 `doan open <canvas path> --frame <id> --prototype`로 썼다(컨덕터 판단으로 받아들임 — guide와 같은 표기). RB(Codex gpt-6.2-astra medium, `ctx_f894c72494a4`)가 bmg-B에서 리뷰한다.
