@@ -28,7 +28,7 @@
 | D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 대기 |
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 대기 |
 | F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 대기 |
-| G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 진행 중 |
+| G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 리뷰 1회, 수정 중. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과 |
 | H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 대기 |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
@@ -48,3 +48,7 @@
 - RA(Sonnet high): 🔴 0 / 🟡 1 / ⚪ 6. 리뷰어가 약 2.6만 경로로 `validAnchor`가 `validCanvas`보다 약하지 않음을 확인했다.
   - 🟡 1(보내기 전 이름 따라가기의 자리가 없다): 결정 8로 B·C·E에 나눴다.
   - ⚪ 1·2(테스트 보강): A에 후속 Task로 보냈다. ⚪ 3(클립보드에서 `canvasKind` 거르기)과 "보낼 때 앵커 path를 믿지 않는다" 테스트는 B에 넣었다. ⚪ 4·5(보낸 칩의 `ds/` 아이콘, 프로토타입 `chip` 분기)는 E에, ⚪ 6(`chipField.ts` 주석)은 C에 넘긴다. 클립보드 JSON에 `root`를 더할 때 `v`를 올릴지는 E가 정한다.
+- RG(Sonnet high): 🔴 0 / 🟡 1 / ⚪ 5, 결정 항목 2.
+  - 🟡 1: `anchor_path_read`가 낱말을 글자 그대로 비교해서, 스크립트 안의 경로로 읽으면 fail로 센다. R13이 아직 머지 전이므로 부분 문자열 비교로 넓히고, glob 읽기의 한계는 rubric에 적는다(conductor 판단 — 넓히면 거짓 fail만 줄고 기록한 회차는 그대로 유효하다).
+  - ⚪ 1·2·5는 G에 보냈다. ⚪ 3·4는 그대로 둔다(판정은 맞고 T6 범위 밖이다).
+  - 결정 항목 1(decoy 범위): 지금 설계를 유지한다(conductor 판단 — 순서를 자동으로 재면 정상 탐색을 벌한다. judge가 transcript를 본다).
