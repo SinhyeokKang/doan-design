@@ -29,7 +29,7 @@ const entries: FolderEntry[] = [
   { path: SHOP, kind: "list", servedRev: 0, canvases: [] },
 ];
 const drag = (root = WEB): CanvasDrag => ({ root, path: checkout.path, id: "checkout", judge: composer => canvasChipTarget({ root, canvas: checkout, entries }, "canvas", composer) });
-const composer = (root: string, reason: string | null = null): ChipComposer => ({ root, canTake: () => reason, insert: vi.fn(() => "inserted" as const) });
+const composer = (root: string, reason: string | null = null): ChipComposer => ({ root, canTake: () => reason, insert: vi.fn(() => "inserted" as const), focus: vi.fn() });
 
 afterEach(() => endCanvasDrag());
 

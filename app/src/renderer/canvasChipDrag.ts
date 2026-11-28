@@ -11,7 +11,8 @@ export const CANVAS_DRAG_TYPE = "application/x-doan-canvas-row";
 // judge: App's canvasChipTarget for this row against a composer, so a drop and the row menu give the same reason.
 export interface CanvasDrag { root: string; path: string; id: string; judge(composer: CanvasChipComposer): string | null }
 export type ChipComposerPlace = "canvas" | "overview" | "home";
-export interface ChipComposer extends CanvasChipComposer { insert(anchor: Anchor): ChipInsert }
+// focus: the row menu's, once the menu has closed (a modal menu takes back focus moved while it is open).
+export interface ChipComposer extends CanvasChipComposer { insert(anchor: Anchor): ChipInsert; focus(): void }
 
 let current: CanvasDrag | null = null;
 const listeners = new Set<() => void>();
@@ -119,6 +120,7 @@ export function useCanvasChipDrop(input: {
       else if (result === "limit") latest.current.onLimit();
       return result;
     },
+    focus: () => latest.current.field.current?.focus(),
   }));
   const { place, root } = input;
   useEffect(() => place && root ? registerChipComposer(place, composer) : undefined, [place, root, composer]);

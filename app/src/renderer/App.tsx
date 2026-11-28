@@ -2741,10 +2741,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The screen's composer and a canvas row are judged as the row menu judges them: a row it could not add does not drag.
   const chipScreen: CanvasChipScreen = screen === "home" ? "home" : screen !== "workspace" ? "noComposer" : overview ? "overview" : state.open ? "canvas" : "noComposer";
   const chipTarget = (root: string, row: CanvasRow, composer: CanvasChipComposer | null = chipScreen === "noComposer" ? null : chipComposer(chipScreen)) => canvasChipTarget({ root, canvas: row, entries }, chipScreen, composer);
+  // The row menu's Add to message, judged again at the press; a folded canvas panel keeps its composer and unfolds.
+  const addCanvasChip = (root: string, row: CanvasRow): (() => void) | null => {
+    const composer = chipScreen === "noComposer" ? null : chipComposer(chipScreen);
+    if (!composer || !row.id || chipTarget(root, row, composer) !== null) return null;
+    composer.insert({ canvas: { path: row.path, id: row.id } });
+    if (chipScreen === "canvas" && !rightPanelRef.current.open) foldPanel(true, "content");
+    return () => composer.focus();
+  };
   const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={removeProject}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
-    chipDrag={{ reason: (root, row) => chipTarget(root, row), judge: chipTarget }}
+    chipDrag={{ reason: (root, row) => chipTarget(root, row), judge: chipTarget, add: addCanvasChip }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} lockReason={lockReason} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }}
     conversations={{ list: root => run.listState(root), shown: canvasRun.current!.showing()?.conversationId ?? null, seen: run.seenPending(), now: clock, folded: conversationsFolded,
