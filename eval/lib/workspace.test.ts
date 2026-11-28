@@ -404,7 +404,7 @@ test("a Codex run's own sessions are kept in the run directory when its rollout 
 test("the eval's Codex rule is agent setup's rule plus allow rules for every other command", () => {
   assert.ok(evalCodexRuleText().startsWith(codexRuleText()));
   const allowed = [...evalCodexRuleText().matchAll(/^prefix_rule\(pattern=\["doan", "([a-z-]+)"\], decision="allow"\)$/gm)].map(([, command]) => command).sort();
-  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "skill", "work"]);
+  assert.deepEqual(allowed, ["active", "check", "config", "design-skill", "export", "handoff", "help", "init", "ls", "onboarding", "open", "remove", "send", "skill", "work"]);
   assert.doesNotMatch(evalCodexRuleText(), /decision="(prompt|forbidden)"/);
   assert.doesNotMatch(evalCodexRuleText(), /^prefix_rule\(pattern=\["doan"\]/m);
 });
