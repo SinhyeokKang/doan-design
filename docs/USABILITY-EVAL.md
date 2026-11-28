@@ -69,6 +69,11 @@ Layers: `guide` (the `doan skill` body or the stub), `output` (CLI results, erro
 
 Corrections to earlier rounds, by the date they were made; the round records themselves stay unchanged.
 
+### 2026-11-29
+
+- The `board-motion-baseline-261128` row (W15, 2026-11-28) says both partials were for "no frame to Play, no `--prototype` offer". That holds for Codex only. Claude's answer did name the frame to Play ("the frame can now be played on its own at 1280×800"), and its judge marked it partial only because the open offer lacked `--prototype`; Codex's answer named no frame to Play and offered a plain open. The round's write-up ("Why partial") already states this correctly.
+- After the W15 checker fixes of 2026-11-29 (click registrations judged by receiver, CSS states by matched element, frame text compared as text, templates skipped, `@import` followed), the saved final canvases of `board-motion-baseline-261128` (W15) and `board-motion-baseline-w16-261128` (W16), both agents, were scored again: every automatic result is unchanged.
+
 ### 2026-11-15
 
 - The project-settings guide round (2026-11-03) did not run H5; its statement that guide rule 7 had no scenario is incorrect. H5 already covered out-of-scope CSS, configuration restraint and final-answer disclosure at the measured commit `3e13d1ed`, but that round did not re-measure it.
