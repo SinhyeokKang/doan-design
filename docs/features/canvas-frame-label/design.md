@@ -26,7 +26,7 @@
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 - `topFrames(frames)`: `parent`가 없는 프레임만, 문서 순서와 index를 지닌 채로. `cut` 프레임도 이름표가 있다(이름은 잘린 id).
-- `labelText(frame)`: `frameName`(제목, 공백뿐이면 id), id도 제목도 없으면 프레임 drawer와 같은 "(no id)".
+- `labelText(frame, index)`: 프레임 drawer 버튼과 같은 "<index + 1>. <이름>"(`frameDrawer.ts`의 번호와 이름 규칙을 공유한다. 번호는 전체 프레임의 문서 순서). 이름은 `frameName`(제목, 공백뿐이면 id), 둘 다 없으면 "(no id)". 말줄임은 이름에만 걸고 번호는 남긴다.
 - `labelPlacement(frame, view, metrics)`: 보드 좌표의 프레임 사각형과 view에서 이름표의 화면 위치(프레임 왼쪽 위 바깥, 위쪽 가장자리 바로 위)와 최대 폭(프레임의 화면 폭). 최소 폭보다 좁으면 숨김. view는 앱의 transform(x, y, scale)과 viewer의 stage 위치 + scale을 모두 받는 모양이다.
 - `labelPress(label, mode)`: Select → `pick-frame {index, id}`(화면 이동 없음), Picker → 프레임 칩 anchor `{frame: {id, title}}`(layout의 id·title을 MAX_STRING으로 잘라 `endPick({kind: "picked", …})`, 프레임 pick 응답과 같은 칩), id가 빈 프레임은 Picker에서 칩을 만들지 않는다(main이 빈 id를 거절한다).
 - `labelState(label, selection, hover)`: 선택 상태는 그 최상위 프레임 자체가 선택됐을 때만(`element === undefined`이고 `frameIndex`와 `frame.id`가 같을 때, `canvasMessage.ts`; viewer는 `frameOf`의 `kind: "frame"`과 index). hover 상태는 hover 대상이 그 프레임일 때(이름표 위든 프레임 안이든).
@@ -90,3 +90,4 @@
 - 기본: 보드 위에서는 `--text-subtle` 글자가 `--surface-inset` 채움 위에 있어 맨 글자처럼 보이고, 캔버스 내용 위에서는 회색 pill로 보인다. hover: 글자만 `--text-standard`, 프레임에 점선 hover 표시. 프레임 위로 6 px(`--space-1h`) 띄운다. 높이 16 px, 좌우 padding 4 px, `--radius-inline`. 누름·hover 영역은 아래 간격 6 px까지 넓힌다(위로는 넓히지 않는다).
 - forced colors: 기본과 hover는 시스템 색(Canvas, CanvasText), 선택만 `forced-color-adjust: none`으로 `Highlight`/`HighlightText`.
 - 구현 메모: 겹침 순서를 위해 `.dims`에 `z-index: 1`이 필요하고 `.measure`는 그 위로 유지한다.
+- 번호: 이름표는 프레임 drawer와 같은 "<번호>. <이름>"이다. 번호는 중첩 프레임까지 센 문서 순서라 최상위 이름표끼리 건너뛸 수 있다.
