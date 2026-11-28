@@ -50,11 +50,11 @@
 
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| canvas-message | 컨덕터 Claude · `canvas-message-orch`(`feat/canvas-message`) | 2026-11-28, 0ef551850 | — | 진행 |
-| subagent-progress | — | — | — | 대기 |
-| board-motion-guide (링크 2 병렬) | — | — | — | 대기 |
-| canvas-thumbnail-frame (링크 2 병렬) | — | — | — | 대기 |
-| preset-drawer-layout (링크 2 병렬) | — | — | — | 대기 |
+| canvas-message | 컨덕터 Claude · `canvas-message-orch`(`feat/canvas-message`, 지움) | 2026-11-28, 0ef551850 | PR #430, 7ffe758fa | 머지 |
+| subagent-progress | 컨덕터 Claude · `subagent-progress-orch`(`feat/subagent-progress`) | 2026-11-28, 7ffe758fa | — | 진행 |
+| board-motion-guide (링크 2 병렬) | 컨덕터 Claude · `board-motion-guide-orch`(`feat/board-motion-guide`) | 2026-11-28, 7ffe758fa | — | 진행 |
+| canvas-thumbnail-frame (링크 2 병렬) | 컨덕터 Claude · `canvas-thumbnail-frame-orch`(`feat/canvas-thumbnail-frame`) | 2026-11-28, 7ffe758fa | — | 진행 |
+| preset-drawer-layout (링크 2 병렬) | 컨덕터 Claude · `preset-drawer-layout-orch`(`feat/preset-drawer-layout`) | 2026-11-28, 7ffe758fa | — | 진행 |
 
 ## 인계 기록
 
@@ -62,3 +62,4 @@
 - 2026-11-28 lead: canvas-chip이 PR #428로 머지됐다(0ef551850). 미검증 표면은 BACKLOG 'Canvas chips'에 있고, lead가 develop에서 확인한다. 링크 1(canvas-message) 컨덕터를 시작했고, 브리프에 canvas-chip이 바꾼 `conversation/` 큐·전송 경로(`canvasAnchors.ts`)를 적었다.
 - 2026-11-28 lead: 사용자가 board-motion-guide, canvas-thumbnail-frame, preset-drawer-layout을 링크 2의 병렬 그룹으로 넣었다("A를 지금 체인의 링크 2 병렬로 띄우자"). canvas-frame-label → canvas-text-edge-pan은 이 chain이 끝난 뒤 lead가 사용자에게 다시 보고한다.
 - 2026-11-28 lead: 사용자가 링크 2의 모든 작업에 Codex 사용을 허락했다("링크 2의 모든 작업은 Codex 사용 허가.").
+- 2026-11-28 lead: canvas-message가 PR #430으로 머지됐다(7ffe758fa). 미검증 항목은 PR 본문 'Not verified'와 BACKLOG에 있고, subagent-progress가 알아야 할 것은 PR 본문 'For the next link'에 있다(브리프에 가리켰다). 링크 2의 컨덕터 넷을 함께 시작했다. 겹침은 `styles.css`뿐이라 GUI probe는 컨덕터끼리 메일로 조율하게 했다.
