@@ -374,7 +374,7 @@ test.each([
   const window = only();
   expect(scripts(window.outer)).toEqual([READ_FRAME, SCROLL_TO_FRAME, SCROLL_BACK]);
   expect(window.webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
-  expect(window.outer!.executeJavaScript.mock.invocationCallOrder.at(-1)).toBeLessThan(window.webContents.capturePage.mock.invocationCallOrder[0]);
+  expect(window.outer!.executeJavaScript.mock.invocationCallOrder.at(-1)).toBeLessThan(window.webContents.capturePage.mock.invocationCallOrder[0] ?? 0);
 });
 
 test("a scroll past the measurement limit sends the scroll back and captures the first screen", async () => {
@@ -470,4 +470,14 @@ test("an outer failure while the frame is read rejects the PNG", async () => {
     return BELOW;
   });
   expect(await createWindowCapturer().capture(URL_A, 960)).toBeNull();
+});
+
+test("a host page whose frames cannot be listed gives the first screen", async () => {
+  mocks.Window.frame = async () => {
+    Object.defineProperty(only().mainFrame, "frames", { get: () => { throw new Error("Render frame was disposed"); } });
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
 });
