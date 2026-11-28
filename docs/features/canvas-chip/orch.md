@@ -19,6 +19,7 @@
 10. 캔버스 앵커는 큐에 넣을 때와 usage limit로 미뤄 둘 때 바꾸지 않고, 실제로 나갈 때(start, 즉시 send, flush, Send now)만 지금 경로나 이름으로 바꾼다. design '보낼 때'의 "큐와 Send now는 실제로 나갈 때 같은 처리를 거친다"를 따른 것이다(conductor 판단 — 큐에 넣는 때는 에이전트가 그 캔버스를 고치는 때라, 그때 바꾸면 칩을 잃는다). 승격 때 ARCHITECTURE에 이 규칙으로 적는다.
 11. 보내는 중인 composer는 캔버스 칩(놓기와 행 메뉴)을 받지 않는다. 이유 문구는 "Wait for the message to send."이다(사람, AskUserQuestion). 받으면 보낸 글이 칩과 함께 필드에 남아 다시 보낼 위험이 있다. 드래프트 `copy` 프레임에도 더한다(H).
 12. 드래프트의 `.drop-caret` margin을 구현의 순 너비 0 값으로 고친다(conductor 판단 — 드래프트 문구 "Nothing moves until the drop"이 이미 그 결정이다. 'Draft follows decisions'). H가 design-sync 때 한다.
+13. 행 메뉴의 꺼진 이유는 확정 드래프트대로 항목 라벨 아래 줄과 접근성 설명으로 보인다. spec 완료 조건 2와 tasks T5b의 "tooltip"은 이 결정으로 대신한다(conductor 판단 — 사용자가 확정한 드래프트가 모습의 기준이고(spec 완료 조건 10), 같은 문장을 tooltip으로 한 번 더 띄울 이유가 없다). 승격 때 PRODUCT에 이 방식으로 적는다.
 7. T6의 실제 eval 회차는 개발용 실제 로그인을 복사본으로 쓴다(AGENTS 'Real agent sign-ins').
 
 ## batch
@@ -29,7 +30,7 @@
 | A | T3 | `main/conversation/{types,prompt,store,messageText}.ts`, `renderer/{anchorField,chipField}.ts`의 거울 부분, 그 테스트 | 없음 | Opus medium — 모든 batch가 기대는 형식이다. 범위는 좁다 | tasks T3 검증(`verify.mjs --eval` 포함) | 통합 `c2feb0f49`, `f44aad8c4`. 리뷰 1회. 테스트 보강(⚪1·2)을 후속 Task로 보냈다 |
 | B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 통합 `585544720`–`bd8ad9004`. 리뷰 1회, 수정 1회(conductor가 수정 diff를 직접 확인했다) |
 | C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 통합 `804af5a01`–`c0cacf25f`. 리뷰 1회, 수정 1회(conductor가 끌기 끝 경로 diff를 확인했다). postmortem `7384a4632`. T7에서 볼 것: 실제 마우스 끌기 중에 move가 오지 않는지 |
-| D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 진행 중 |
+| D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 구현 끝, 리뷰 1회, 수정 중 |
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 대기 |
 | F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 대기 |
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
@@ -62,3 +63,4 @@
   - ⚪ 1(이름 가장자리 중괄호)·4(빠진 테스트 둘)는 B에 보냈다. ⚪ 2·3·5는 한계로 두고 그 자리에 주석을 남긴다. ⚪ 6(composer가 등록되지 않은 화면의 문구)은 C·D·F 브리프에 넣는다: 접힌 캔버스 패널도 composer를 등록해야 한다.
 - C: 기존 버그를 고쳤다. `insertChip`이 줄 중간과 필드 끝에서 caret을 칩 앞에 두었다(칩으로 시작하는 slice가 줄 시작 filler를 함께 가져오고, filler 정리 전에 caret을 계산했다). postmortem은 conductor가 통합 때 쓴다. 확인하지 못한 것: 드래그 이미지 모습, 실제 앱의 이유 줄(넣을 수 없는 행은 끌리지 않는다). T7로 넘긴다.
 - RC(Opus high): 🔴 0 / 🟡 0 / ⚪ 8, 결정 항목 2. 결정 11·12로 정했다. ⚪ 1(이름 갱신이 필드를 다시 만든다)·2(원천 행이 사라지면 막이 남는다)·3(`gone` 알림 중에도 받는다고 답한다)을 C에 보냈다. ⚪ 5는 T7, ⚪ 6은 그대로, ⚪ 7·8(문서, postmortem)은 conductor가 한다.
+- RD(Sonnet high): 🔴 0 / 🟡 1 / ⚪ 5, 결정 항목 2. U1(이유 표시 방식)은 결정 13. 🟡 1(누르는 순간 재판정이 거절하면 메뉴가 말없이 닫힌다)과 ⚪ 3(테스트가 순서로 항목을 고른다)은 D에 보냈다. ⚪ 1(접혀 있고 한 번도 포커스를 받지 않은 필드의 caret)은 T7 probe에 넣는다. ⚪ 5(Home에서 composer 없는 화면 문구)는 F가 Home을 등록하면 사라진다.
