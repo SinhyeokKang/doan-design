@@ -43,9 +43,8 @@ export function frameScript(url: string): string {
 })`;
 }
 
-// The only scripts main runs in a canvas: in the job's outer canvas frame, in the canvas's main world, so canvas
-// scripts can fake their answers; main checks them (thumbnailRect.ts). Scrolling waits two frames, or a hidden
-// window can capture the paint from before the scroll.
+// Run in the job's outer canvas frame's main world, where canvas scripts can fake the answers (checked in
+// thumbnailRect.ts). Two frames after a scroll, or the hidden window can capture the paint from before it.
 export const READ_FRAME = `(() => { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
   const r = frame.getBoundingClientRect(); return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }; })()`;
 export const SCROLL_TO_FRAME = `new Promise((resolve) => { const frame = document.querySelector("[data-doan-frame]"); if (!frame) { resolve(null); return; }

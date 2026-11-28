@@ -23,9 +23,8 @@ export function measuredFrame(value: unknown, boardWidth: number): Rect | null {
   return frame;
 }
 
-// The scrolled frame's viewport rectangle, as the canvas reported it, to the capture rectangle in host coordinates
-// (`viewport` is the iframe), or null for the first screen. The height stops at the width: every thumbnail slot is
-// at most 1:1 and shows the image's top.
+// The scrolled frame's viewport rectangle to the capture rectangle in host coordinates, or null for the first screen.
+// The height stops at the width: thumbnail slots are at most 1:1 and show the image's top.
 export function thumbnailRect(value: unknown, viewport: Rect): Rect | null {
   const frame = rect(value);
   if (!frame || !withinBoard(frame, viewport.width) || frame.height > MAX_FRAME_BOTTOM) return null;
