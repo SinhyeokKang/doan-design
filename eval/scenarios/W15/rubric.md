@@ -1,0 +1,25 @@
+# W15 — Show a card expanding when its button is pressed, in an existing canvas
+
+Pass when the agent builds the requested click interaction (pressing "Show details" expands the Atlas redesign card to reveal the description and the team) inside a frame marked with `data-doan-prototype`, leaves no click-driven control on the board, keeps the other frame byte for byte, and tells the person which frame to Play. The prompt names neither prototypes, Play nor the board, so the agent has to know that on the board an ordinary click selects instead of reaching the canvas (PRODUCT §5 item 4), and that a click interaction belongs in a prototype frame (guide conventions 14 and 15, rule F).
+
+The trap: the natural build is a working button on the board, a click handler, a "Replay" control or a `:focus`/`:checked` toggle on the "Project list" frame. In the app that button does not react, because a board click selects the element. The expected build marks the "Project list" frame (`project-list`) itself as a prototype (for example `data-doan-prototype="1280x800"`, the frame's drawn size) and builds the interaction inside it, instead of drawing the content twice.
+
+The automatic checks:
+
+- `no_board_click_trigger`: nothing outside an element carrying `data-doan-prototype` reacts to a click. It looks at `onclick`, `onpointerdown`, `onmousedown`, `onpointerup` and `onmouseup` attributes, `popovertarget`, `<details>`, scripts that call `addEventListener` with `click`, `pointerdown`, `mousedown`, `pointerup` or `mouseup` or assign `.onclick` (and the other four), and CSS selectors with `:focus`, `:focus-within`, `:active`, `:checked`, `:target` or `:target-within`, in the canvas and the local stylesheets and scripts it links. A script inside a marked element belongs to it. A page-level script or a selector belongs to the marked elements when it names `data-doan-prototype` or an `id`, `data-doan-id`, `data-doan-frame` or class used only inside them, and no such name used only outside them. `:hover`, `:focus-visible` and repeating animations are allowed on the board.
+- `prototype_marked`: the `project-list` frame, or a frame the agent added, carries `data-doan-prototype`.
+- `other_frames_unchanged`: the "No projects" frame (`project-empty`) is byte-identical to the seed. Shared styles in `<head>` and the target frame may change.
+- `doan_check_clean`: `doan check` reports no error.
+
+Judge the work and the answer:
+
+- The interaction must be built: in the marked frame, pressing "Show details" expands the card smoothly and reveals the description and the team. Report partial when the agent only drew the collapsed and expanded states side by side, or marked the frame without wiring the button (rule F: build the interactions the request names). Report fail when the button is wired to something other than the card.
+- What the checks cannot read statically stays with you: a script that attaches clicks to board elements through a name it builds at runtime, an event type held in a variable, or a script inside the marked frame that reaches elements outside it. Report fail when the transcript or the canvas shows a click-driven control that works only on the board.
+- Marking the `project-list` frame is expected. Adding a separate prototype frame that copies the list is a partial (the content is drawn twice). Changing the canvas id, frame ids or the existing element ids is a fail.
+- Motion on the board that runs without a click (a repeating animation, a `:hover` effect) is fine, provided the board still shows the default state.
+- The final answer, in the person's language, must say which frame to Play to try the interaction, and offer to open it with `doan open .doan/canvases/projects.html --frame <id> --prototype`. Report partial when it does not name the frame to Play, tells the person to click the button on the board, or offers only to open the canvas without `--prototype`. Opening was not requested.
+- Report fail when the answer claims `doan check` is clean while an error remains.
+
+Classify a board click trigger or a missing mark after the guide was read as guide; an agent that never reads the guide is guide. A missing Play instruction or `--prototype` offer after the agent read the `animate` or `delight` preset is guide too. A reasonable canvas rejected by the checks (for example a page-level script that names only the marked frame's elements through a name that also appears, by chance, outside it) is a scenario defect.
+
+Never infer success from guide text or a printed command alone.
