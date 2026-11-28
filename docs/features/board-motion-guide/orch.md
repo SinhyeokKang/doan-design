@@ -23,7 +23,7 @@
 |---|---|---|---|---|---|---|
 | A | T1, T1a | `eval/scenarios/W15/**`, W15를 등록하는 데 필요한 `eval/` 파일, `docs/usability-eval/rounds-2026-11.md`(baseline 회차) | 없음 | Claude Opus high — 프로토타입 표시 없는 영역을 정적으로 가리는 check가 판단을 많이 요하고, 실제 에이전트 baseline 회차를 돌린다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W15`, baseline 회차 기록 | 진행 |
 | B | T2 | `cli/internal/cli/skill.md`, `skill_test.go`, `cli/internal/designskill/presets/animate.md`, `delight.md`, `designskill_test.go` | 없음(C 결과에 따라 `:hover` 문장 조정) | Claude Opus high — 4 B 여유에서 문장을 줄이며 조건·예외를 지켜야 한다(postmortem 2026-10-29) | `go test ./...`, `go vet ./...`, `rg -n -i 'replay control\|visible trigger' cli/internal/designskill/presets` 비어 있음 | 진행 |
-| C | T1b | `.scratch/`만 | 없음 | Claude Sonnet medium — 짧은 실기 probe, 판단 적음 | Select·Hand의 `:hover` computed style 관측값이 `.scratch/`에 있다 | 진행 |
+| C | T1b | `.scratch/`만 | 없음 | Claude Sonnet medium — 짧은 실기 probe, 판단 적음 | Select·Hand의 `:hover` computed style 관측값이 `.scratch/`에 있다 | 완료, worktree 정리 |
 | RA | A 리뷰 | 없음(보고만) | A | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 대기 |
 | RB | B 리뷰 | 없음(보고만) | B | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 대기 |
 | E | T3 | `docs/usability-eval/rounds-2026-11.md`(회차) | A·B 통합 | Claude Opus medium — eval 회차 실행과 판정 기록 | W15 양쪽 통과, 회귀 없음, 회차 기록 | 대기 |
@@ -42,3 +42,4 @@
 ## 진행 기록
 - Run `run_637f9610c7ca`. A `ctx_59d645b798ef`(bmg-A, Opus high), B `ctx_f94aee5df671`(bmg-B, Opus high), C `ctx_043b4ad33a1a`(bmg-C, Sonnet medium)를 시작했다.
 - `/agent-eval` 범위(사용자 지시, lead 전달): "이번 board motion guide도 전체 eval 말고 필요한 부분만", 이어서 "대신 시나리오 범위를 넉넉하게 잡으라고 전달". 전체 회차는 돌리지 않는다. tasks의 범위(W15 baseline, 그 뒤 W15·W13·D5·W7·W8·W11·W12)를 모두 지키고, 바뀐 guide 문장이나 animate·delight preset을 읽을 수 있는 시나리오, 모션이나 프로토타입을 그리는 시나리오를 E가 찾아 더한다. 애매한 시나리오는 빼지 않는다. 고른 범위와 이유를 회차 기록과 PR 본문에 적는다.
+- C 완료(T1b): 격리된 실제 앱에서 Playwright 포인터 이동으로 확인했다. Select에서는 `:hover`가 동작한다(`rgb(200,200,200)` → `rgb(255,0,0)`, 포인터 아래 대상은 캔버스 iframe). Hand에서는 동작하지 않는다(대상이 `drag-layer`). 반복 `@keyframes`는 두 도구에서 모두 돈다. 컨덕터가 `select-during.png`를 열어 빨간 상태를 확인했다. 따라서 "Select 도구에서 `:hover`" 안내를 그대로 쓴다. 덤 관측: Select에서 포인터가 캔버스 밖으로 나가도 hover가 풀리지 않았다(Playwright 이동의 한계일 수 있어 확인하지 않았다). 증거는 컨덕터 checkout의 `.scratch/runtime-test/board-hover/`, `.scratch/handoff-C.md`. worker를 release했고 worktree `bmg-C`를 지웠다(브랜치 `SinhyeokKang/bmg-C`는 28b65ac7b에 남아 있다).
