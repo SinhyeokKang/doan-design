@@ -791,6 +791,8 @@ body:has(.shell-top) { background: transparent; }
 /* The drawer stays 500 whatever its tabs (the `/` list keeps 600); a short window caps it at Radix's room and the list
    gives up height first. */
 .preset-popover:not(.slash-popover) { display: flex; flex-direction: column; width: 500px; max-height: var(--radix-popover-content-available-height); }
+/* Only the list gives up height: a notice or the search field that shrank would clip its own text. */
+.preset-popover:not(.slash-popover) > :not([role="listbox"]) { flex-shrink: 0; }
 /* The scroll padding is a section head's 28 visible px, so a row focused from the keyboard lands just under a stuck head. */
 .preset-popover:not(.slash-popover) .popover-list { min-height: 0; max-height: 336px; scroll-padding-block-start: calc(var(--space-2) + var(--type-caption-line-height) + var(--space-1)); }
 /* Opaque, as the 90% glass would show the rows under it. It sticks 1px above the list's edge with that pixel added on
@@ -802,6 +804,7 @@ body:has(.shell-top) { background: transparent; }
 .preset-popover .group-tabs.shell-modes { width: auto; }
 .preset-popover .group-tabs.shell-modes button { flex: 1 1 auto; justify-content: center; min-width: 0; }
 .preset-popover .group-tabs .tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-popover .group-tabs.shell-modes svg { flex: none; }
 .preset-item { gap: var(--space-3); }
 .preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
 .preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }

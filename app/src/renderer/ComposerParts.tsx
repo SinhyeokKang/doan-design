@@ -292,7 +292,8 @@ function pointerFocus(event: PointerEvent<HTMLElement>) {
   if (active !== row && row.closest('[role="listbox"]')?.contains(active)) row.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
 }
 function PresetOption({ row, index, slash, options }: { row: PresetRow; index: number; slash: boolean; options: PresetBodyOptions & { rows: number } }) {
-  const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
+  // focus() would centre a row partly under a stuck head; nearest stops at the list's scroll padding.
+  const focusRow = (at: number) => { const next = document.getElementById(`${options.listId}-p-${at}`); next?.focus({ preventScroll: true }); next?.scrollIntoView({ block: "nearest" }); };
   // The preset's whole description and scope are information only the tooltip carries: shown on every hover.
   return <Tooltip><TooltipTrigger asChild><div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} data-highlighted={slash && index === options.highlight ? "" : undefined}
