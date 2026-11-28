@@ -201,11 +201,12 @@ function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
   const exportReason = canvasExportReason(row, menu.exporting(root, row.path), false);
   const trashReason = menu.blocked(root, row) ? "An agent is working on this canvas." : null;
-  const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => void) =>
+  // pressJudged: the reason shown may be stale, so the press goes to `act`, which returns false to keep the menu open.
+  const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => boolean | void, pressJudged = false) =>
     <DropdownMenu.Item className={`doan-menu-item${reason ? " shell-menu-reasoned" : ""}`} aria-label={reason ? label : undefined} aria-disabled={reason ? true : undefined} aria-describedby={reason ? id : undefined} onSelect={event => {
-      if (reason) { event.preventDefault(); return; }
+      if (reason && !pressJudged) { event.preventDefault(); return; }
       const current = args.current();
-      if (current) act(current);
+      if (current && act(current) === false) event.preventDefault();
     }}><Icon aria-hidden="true" />{reason ? <span className="shell-menu-text"><span>{label}</span><small id={id} className="shell-menu-reason">{reason}</small></span> : label}</DropdownMenu.Item>;
   return <DropdownMenu.Root open={args.open} onOpenChange={open => { if (!open || !locked) args.setOpen(open); }}>
     {/* The unavailable state sits on Radix's trigger, the tooltip trigger's direct child, so the tooltip keeps the
@@ -222,7 +223,13 @@ function canvasRowMenu(args: RowMenu): ReactElement {
       if (document.querySelector('[role="dialog"], dialog[open], .ob-overlay') || (active instanceof HTMLElement && active !== document.body && !active.closest(".shell-canvas-menu, .shell-more"))) event.preventDefault();
       else if (!args.rowNode()) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-canvas-menu")) args.lostFocus(); }
     }}>
-      {args.chip && item("Add to message", MessageSquarePlus, args.chip.reason, `${args.reasonId}-add`, current => { args.afterClose.current = args.chip?.add(current) ?? null; })}
+      {/* App judges the press again; a refusal keeps the menu open and draws it again with the reason now. */}
+      {args.chip && item("Add to message", MessageSquarePlus, args.chip.reason, `${args.reasonId}-add`, current => {
+        args.afterClose.current = args.chip?.add(current) ?? null;
+        if (args.afterClose.current) return;
+        args.setOpen(true);
+        return false;
+      }, true)}
       {item("Export…", Download, exportReason, `${args.reasonId}-export`, current => menu.exportCanvas(root, current))}
       {item("Move to Trash", Trash2, trashReason, `${args.reasonId}-trash`, current => menu.trash(root, current, args.rowNode()?.querySelector<HTMLElement>(".shell-more") ?? null))}
     </DropdownMenu.Content></DropdownMenu.Portal>
