@@ -19,6 +19,7 @@
 - 흐린 에이전트 행은 사람 메시지로 시작한 턴(0단계)이 done으로 끝난 뒤에만 나간다. 대화 큐에 에이전트 행이 있으면 새 `send`도 큐 끝에 들어가 앞지르지 않는다. — 컨덕터 판단(B 리뷰 🟡 3): spec '큐에 든 에이전트 메시지'의 문장 그대로다.
 - 대화 없는 캔버스로 거의 동시에 온 `send` 둘은 새 대화 둘을 시작할 수 있다. 한계로 PRODUCT에 적는다. — 컨덕터 판단: 겹치는 창이 시작 준비 몇 초다.
 - 판정과 전달 사이에 대상 대화가 지워지면 `not_found`로 거절하고, 카드 문구는 C가 정한다. 삭제 대화상자는 에이전트 행을 세지 않는다. — 컨덕터 판단: spec "그 뒤의 운명은 추적하지 않는다".
+- 받는 대화의 제목은 `sent` 기록의 target에 스냅숏으로 싣고, 렌더러는 목록의 지금 제목을 먼저 쓴다. 에이전트 큐 행은 사람 행 사이의 자리를 받아 실제 보내는 순서로 그린다. — 컨덕터 판단(C의 needs): spec이 대화가 지워진 뒤에도 `Sent to “<title>” · Conversation deleted`를 요구하고, 드래프트 queue 2번 타일이 섞인 순서를 그린다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -63,3 +64,4 @@
 - D prompt Task 끝: `316991c39`를 통합했다. 컨덕터 checkout에서 R14–R17과 `eval/lib` 테스트 299 통과, `node eval/run.ts --self-test --scenarios R14,R15,R16,R17` PASS(exit 0). D 배치의 남은 일은 없다. R8d Electron 테스트의 부하 시간 초과는 최종 verify에서 본다.
 - A 1회차 끝: 3커밋을 통합했다. `go vet ./...`, `go test ./...`, `vitest src/formats src/brand`(2232) 통과. A 배치는 남은 일이 없다.
 - B runtime Task 끝: 2커밋을 통합했다(`e90b7c36b`까지). typecheck가 깨끗해졌다. 연쇄 거절 기록 모양은 `handoff.requested` + 거절 `handoff.resolved`(reason `chain_one`·`chain_limit`)이고, 턴이 도는 동안 쓰여 카드가 처음부터 거절로 보인다. B 수정 1회차를 보냈다.
+- C 끝: 3커밋을 통합했다(`3a5eb6002`·`b3871697b`·`dee2b2c39`의 cherry-pick). 통합 HEAD에서 typecheck 깨끗, 관련 테스트 6파일 247 통과. C 리뷰 워커 `ctx_ff4cd598de36`(Sonnet high) 시작. C의 main 요구 둘(제목 스냅숏, 에이전트 행 자리)은 B 1회차 뒤 2회차로 보낸다.
