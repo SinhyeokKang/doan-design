@@ -528,7 +528,6 @@ test("the / list never runs past the composer's right edge", () => {
   expect(css.indexOf(".slash-popover {")).toBeGreaterThan(css.indexOf(".preset-popover {"));
 });
 
-// The Presets drawer: four tabs at most, the Doan presets tab as sections under sticky heads, one width.
 const DRAWER_PRESETS: PresetSummary[] = [["context", "start"], ["shape", "start"], ["critique", "review"], ["polish", "refine"], ["bolder", "refine"], ["distill", "content"], ["adapt", "explore"]]
   .map(([id, group]) => ({ id: id!, title: id!, description: `About ${id}.`, scope: "s", group: group! }));
 const drawerReply: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: DRAWER_PRESETS } };
@@ -553,6 +552,16 @@ test("the Doan presets tab names its listbox Doan presets and draws each group a
   expect(new Set(groups.map(m => m[1])).size).toBe(5);
   // Row ids run on across sections, so ↑/↓ pass the heads.
   expect([...html.matchAll(/id="(l-p-\d+)"/g)].map(m => m[1])).toEqual(DRAWER_PRESETS.map((_, i) => `l-p-${i}`));
+});
+
+test("a known group and an unknown group drawn with the same name keep apart", () => {
+  const presets = [...DRAWER_PRESETS, { id: "x", title: "x", description: "", scope: "s", group: "Start" }];
+  const view = presetListView({ v: 1, ok: true, result: { version: "1", presets } }, { project: "p", suggested: [], query: "", tab: null, skills: [] });
+  const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {} }) as ReactElement<{ children: ReactNode }>;
+  const listbox = propsOf(list).find(item => item.props.role === "listbox")!;
+  const keys = (listbox.props.children as ReactElement[]).map(section => section.key);
+  expect(keys).toHaveLength(6);
+  expect(new Set(keys).size).toBe(6);
 });
 
 test("Suggested, Project and Commands keep one plain head with no group", () => {
@@ -647,6 +656,49 @@ test("a tab row that vanishes with the content focus was in hands focus to the s
     skills = [];
     draw(); hooks.effects.forEach(effect => effect());
     expect(input.focus).toHaveBeenCalledTimes(1);
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+// No Suggested and one skill: Doan presets and Project are the only tabs, so losing the skill removes the tab row.
+function vanishingTabRow(pressProject: boolean) {
+  const input = { focus: vi.fn() }, list = { scrollTop: 0 };
+  let skills: typeof drawerSkills | [] = [drawerSkills[0]!] as typeof drawerSkills;
+  const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return propsOf(PresetsButton({ reply: drawerReply, skills, project: "p", suggested: [], listId: "l", disabled: false, retry: IDLE_RETRY, onOpen: () => {}, onChoose: () => {}, onRetry: async () => false, onPicked: () => {} })); };
+  (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
+  let tree = draw();
+  const content = tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props;
+  (content.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === "input" ? input : selector === '[role="listbox"]' ? list : null };
+  if (pressProject) { (tree.find(item => item.props["data-group"] === "project")!.props.onClick as () => void)(); tree = draw(); }
+  return { input, list, tree, content: () => tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props, lose: () => { skills = []; draw(); hooks.effects.forEach(effect => effect()); } };
+}
+
+test("focus on a Doan presets tab that goes with the tab row moves to the search box", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("document", { activeElement: null, body: null });
+  try {
+    const drawer = vanishingTabRow(false);
+    (drawer.content().onFocusCapture as (event: unknown) => void)({ target: { isConnected: false, closest: () => ({}) } });
+    drawer.lose();
+    expect(drawer.input.focus).toHaveBeenCalledTimes(1);
+    // Focus kept on a row that stays is left there.
+    const kept = vanishingTabRow(false);
+    (kept.content().onFocusCapture as (event: unknown) => void)({ target: { isConnected: true, closest: () => ({}) } });
+    vi.stubGlobal("document", { activeElement: {}, body: null });
+    kept.lose();
+    expect(kept.input.focus).not.toHaveBeenCalled();
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+test("a re-read that changes the chosen tab scrolls the list back to the top", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("document", { activeElement: {}, body: null });
+  try {
+    const drawer = vanishingTabRow(true);
+    drawer.list.scrollTop = 300;
+    drawer.lose();
+    expect(drawer.list.scrollTop).toBe(0);
   } finally { hooks.on = false; vi.unstubAllGlobals(); }
 });
 
