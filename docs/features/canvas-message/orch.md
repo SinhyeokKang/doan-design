@@ -41,3 +41,4 @@
 
 ## 진행 기록
 - 2026-11-28 Orca run `run_cde5124c4283`. 1차 병렬 시작: A `ctx_5a4af9e2d35d`(Sonnet high, worktree `cm-a-cli`), B `ctx_c291797803ee`(Opus high, `cm-b-main`), D `ctx_ee4f782308c8`(Sonnet high, `cm-d-eval`). 모두 `ea851c5c8`에서 갈라졌다.
+- D 끝(`worker_done`): 커밋 `bdc59d14d`·`aae5d9878`·`6d06d719c`·`f5d848d92`. A의 v8 스키마·`doan send` 없이는 gate가 통과하지 않아 A 통합 뒤 cherry-pick한다. R14–R17 `prompt.*`는 지연. 리뷰 워커 `ctx_13212fca8c7b`(Sonnet high) 시작.
