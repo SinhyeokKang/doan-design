@@ -34,7 +34,8 @@
 
 - lead는 각 링크의 PR을 리뷰와 gate 통과 뒤 링크 순서대로 develop에 머지하고 다음 링크를 시작한다.
 - lead는 canvas-chip이 머지되면 링크 1을, 링크 1이 머지되면 링크 2의 병렬 그룹 넷을 함께 사용자에게 다시 묻지 않고 시작한다. 링크 2의 PR은 들어온 순서대로 리뷰와 gate 뒤 머지한다.
-- 컨덕터 runtime은 Claude Code다(lead와 같은 계열). 모델 계열을 넘는 허락은 없다.
+- 컨덕터 runtime은 Claude Code다(lead와 같은 계열).
+- 모델 계열 넘기(사용자 허락, 범위: 링크 2의 모든 작업): 링크 2의 네 컨덕터(subagent-progress, board-motion-guide, canvas-thumbnail-frame, preset-drawer-layout)는 워커와 리뷰 워커에 Codex 모델을 섞어 쓸 수 있다(Astra·Sol, effort 상한 `high`, `/orchestrate` §0). 컨덕터는 링크 시작과 배치를 나눌 때 Codex의 남은 사용량을 확인하고, 각 링크의 `orch.md`에 실제로 쓴 범위를 적는다. 링크 1에는 이 허락이 없다.
 
 ## 진행 규칙
 
@@ -60,3 +61,4 @@
 - 2026-11-28 lead: chain 파일을 썼다. 사용자가 "chain으로 지금 묶어놓고, 시작할 차례되면 알아서 띄워줘"라고 해서, 시작 조건이 차면 각 링크를 따로 묻지 않고 시작한다.
 - 2026-11-28 lead: canvas-chip이 PR #428로 머지됐다(0ef551850). 미검증 표면은 BACKLOG 'Canvas chips'에 있고, lead가 develop에서 확인한다. 링크 1(canvas-message) 컨덕터를 시작했고, 브리프에 canvas-chip이 바꾼 `conversation/` 큐·전송 경로(`canvasAnchors.ts`)를 적었다.
 - 2026-11-28 lead: 사용자가 board-motion-guide, canvas-thumbnail-frame, preset-drawer-layout을 링크 2의 병렬 그룹으로 넣었다("A를 지금 체인의 링크 2 병렬로 띄우자"). canvas-frame-label → canvas-text-edge-pan은 이 chain이 끝난 뒤 lead가 사용자에게 다시 보고한다.
+- 2026-11-28 lead: 사용자가 링크 2의 모든 작업에 Codex 사용을 허락했다("링크 2의 모든 작업은 Codex 사용 허가.").
