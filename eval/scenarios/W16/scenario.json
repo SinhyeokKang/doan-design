@@ -1,0 +1,10 @@
+{
+  "id": "W16",
+  "title": "Show a card expanding with motion in an existing canvas, without naming a trigger",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null,
+  "timeoutSec": 1200
+}

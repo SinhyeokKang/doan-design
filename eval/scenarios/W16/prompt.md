@@ -1,0 +1,1 @@
+In this repository, on the Projects canvas (`.doan/canvases/projects.html`), show the Atlas redesign card in the "Project list" frame expanding with a smooth motion that reveals the description and the team. Keep the other frames as they are. Make it ready for review.
