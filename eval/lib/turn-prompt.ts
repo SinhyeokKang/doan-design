@@ -18,4 +18,4 @@ registerHooks({
 // not part of any test's output.
 const { warn, log } = console;
 console.warn = console.log = () => {};
-export const { turnPrompt } = await import("../../app/src/main/conversation/prompt.ts").finally(() => { console.warn = warn; console.log = log; });
+export const { turnPrompt, handoffPrompt } = await import("../../app/src/main/conversation/prompt.ts").finally(() => { console.warn = warn; console.log = log; });

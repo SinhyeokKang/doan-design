@@ -1,5 +1,5 @@
 {
-  "text": "From the person, in the conversation on the account canvas: the Billing note there now says invoices go out on the 5th of each month. Please change the note on this canvas (the Invoices note) to say “Invoices are sent on the 5th of each month.” and leave everything else as it is. Tell me what you changed when you are done.",
+  "text": "The Billing note on the account canvas now says invoices are sent on the 5th of each month. Please change the note on this canvas (the Invoices note) to say “Invoices are sent on the 5th of each month.” and leave everything else as it is. Reply with what you changed when you are done.",
   "canvas": {
     "path": ".doan/canvases/invoices.html",
     "id": "invoices"
