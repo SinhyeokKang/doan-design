@@ -310,7 +310,7 @@ test("the actions stack under the text once they would push the title off its li
   expect(strip(draw(ASK)).className).toBe("convo-strip doan-notice stacked");
 });
 
-// At 960 wide the Stopped strip kept Edit on Home and Dismiss beside its short title and cut its body.
+// The actions stack when the body would be cut beside them, even while the title fits.
 test("the actions stack under the text once they would cut the body, though the title fits", () => {
   vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
   const box = (width: number) => ({ getBoundingClientRect: () => ({ width }) });

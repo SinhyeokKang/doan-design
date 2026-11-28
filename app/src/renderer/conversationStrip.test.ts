@@ -185,7 +185,7 @@ test("the strip stacks its actions only when the icon, the wider text line and t
   expect(stripStacks({ ...fits, actions: 633 })).toBe(true);
 });
 
-// "Stopped" fits beside Edit on Home and Dismiss at 960 wide, but "You stopped the agent." was cut to "You stopped the age…".
+// A short title that fits beside the actions does not keep them there when the body beside them would be cut.
 test("a body wider than its title stacks the actions when it would be cut beside them", () => {
   const stopped = { content: 380, icon: 16, gap: 6, title: 60, body: 160, actions: 208 };
   expect(stripStacks(stopped)).toBe(true);
