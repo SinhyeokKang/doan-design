@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { mergeCanvasMemory, mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
+import { textSegments } from "./anchorField";
 import { parseUiState } from "../restore/uiState";
 
 // App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
@@ -36,8 +37,8 @@ test("removing a project asks first; with a running Home conversation the confir
 });
 
 test("Edit on Home asks before replacing a different draft", () => {
-  const last: LastRequest = { root: "/code/doan", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
-  expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
+  const last: LastRequest = { root: "/code/doan", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  expect(restoreRequest({ segments: textSegments("Another idea"), preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
 });
 
 // The startup ui-state read merges under what the run wrote, deletions included.

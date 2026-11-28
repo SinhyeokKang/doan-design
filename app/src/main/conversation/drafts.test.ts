@@ -356,6 +356,17 @@ describe("DraftStore held messages", () => {
     expect(next.takeStart("/other")).toBeNull();
     expect(next.takeStart("/repo")).toMatchObject({ text: "root" });
   });
+  // Home's start carries canvas anchors; one written before it did (anchors: []) still reads.
+  it("keeps a Home start's canvas anchors through a restart, and reads a Home start from before them", () => {
+    const dir = directory(), first = new DraftStore(dir);
+    const canvas = { canvas: { path: ".doan/canvases/flows/checkout.html", id: "checkout" } };
+    first.hold(C, { root: "/repo", text: "Follow {{1}} for the layout.", anchors: [canvas], attachments: [] });
+    const next = new DraftStore(dir);
+    expect(next.takeStart("/repo")).toEqual({ text: "Follow {{1}} for the layout.", anchors: [canvas], attachments: [], reason: "restarted" });
+    const older = directory();
+    writeFileSync(join(older, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: {}, starts: { [D]: { root: "/repo", text: "Draw a pricing page.", anchors: [], attachments: [] } } }));
+    expect(new DraftStore(older).takeStart("/repo")).toEqual({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  });
   it("drops unreadable held or returned start entries and reads the rest", () => {
     const dir = directory();
     vi.spyOn(console, "error").mockImplementation(() => {});

@@ -5,6 +5,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import * as Parts from "./ComposerParts";
+import { textSegments } from "./anchorField";
 import { emptyComposer, HeroComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 
@@ -93,12 +94,12 @@ test("a command starts the conversation alone: no preset line, and the files sta
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const file = { key: "k", id: "f", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const, size: 5, path: "/Users/ada/notes.md" };
-  const { box, render, start } = setup({ text: "/compact", preset: PRESETS[4]!, attachments: [file] });
+  const { box, render, start } = setup({ segments: textSegments("/compact"), preset: PRESETS[4]!, attachments: [file] });
   render(); runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/compact" });
   expect(start.mock.calls[0]?.[0]).not.toHaveProperty("attachments");
-  expect(box.current.text).toBe("");
+  expect(box.current.segments).toEqual(textSegments(""));
   expect(box.current.preset?.id).toBe("polish");
   expect(box.current.attachments).toEqual([file]);
 });
@@ -106,18 +107,18 @@ test("a command starts the conversation alone: no preset line, and the files sta
 test("a built-in Doan does not run starts nothing: its card shows under the composer, the text stays, and Dismiss closes it", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
-  const { box, render, start, props } = setup({ text: "/model opus" });
+  const { box, render, start, props } = setup({ segments: textSegments("/model opus") });
   render(); runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start).not.toHaveBeenCalled();
-  expect(box.current.text).toBe("/model opus");
+  expect(box.current.segments).toEqual(textSegments("/model opus"));
   let tree = render();
   expect(tree.some(p => p.children === "/model doesn’t run in Doan")).toBe(true);
   expect(said(tree)).toBe("/model doesn’t run in Doan. Choose the model from the model picker.");
   const card = find(tree, p => typeof p.className === "string" && p.className.includes("command-card"));
   expect(card.className).toBe("doan-notice thread-notice command-card");
   // Settings > Agents for the account commands.
-  box.current = { ...box.current, card: null, text: "/logout" };
+  box.current = { ...box.current, card: null, segments: textSegments("/logout") };
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   tree = render();
   (find(tree, p => p.children === "Open Agents settings").onClick as () => void)();
@@ -130,7 +131,7 @@ test("a built-in Doan does not run starts nothing: its card shows under the comp
 test("while the field starts with a command the preset chip leaves for the notice; the field highlights the command", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
-  const { render } = setup({ text: "/compact ", preset: PRESETS[4]! });
+  const { render } = setup({ segments: textSegments("/compact "), preset: PRESETS[4]! });
   render(); runEffects(); await flush();
   const tree = render();
   expect(tree.some(p => p.children === "Presets don’t apply to commands")).toBe(true);
@@ -144,14 +145,14 @@ test("while the field starts with a command the preset chip leaves for the notic
 test("Codex's first /review on Home shows the stale-mode card and keeps the text", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ kind: "command", name: "compact", description: "" }, { kind: "command", name: "review", description: "" }] });
-  const { box, render, start } = setup({ text: "/review", provider: "codex", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } });
+  const { box, render, start } = setup({ segments: textSegments("/review"), provider: "codex", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } });
   start.mockImplementation(async () => ({ error: "command_mode_stale" }) as never);
   render(); runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ runtime: "codex", text: "/review" });
   expect(box.current.card?.title).toBe("/review can’t use the new permission mode yet");
   expect(box.current.notice).toBeNull();
-  expect(box.current.text).toBe("/review");
+  expect(box.current.segments).toEqual(textSegments("/review"));
   const tree = render();
   expect(tree.some(p => p.children === "/review can’t use the new permission mode yet")).toBe(true);
   expect(said(tree)).toBe("/review can’t use the new permission mode yet. Send a message first so Codex picks up the permission mode, then run /review again.");
@@ -162,11 +163,11 @@ test("a missing attachment does not hold a command on Home; a message keeps the 
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue(COMMANDS);
   const missing = { key: "m", id: "fm", name: "notes.md", kind: "file" as const, pasted: false, status: "missing" as const, size: 5, path: "/Users/ada/notes.md" };
-  const { render, start } = setup({ text: "/compact", attachments: [missing] });
+  const { render, start } = setup({ segments: textSegments("/compact"), attachments: [missing] });
   render(); runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/compact" });
-  const message = setup({ text: "Use this file", attachments: [missing] });
+  const message = setup({ segments: textSegments("Use this file"), attachments: [missing] });
   message.render(); runEffects(); await flush();
   call(field(message.render()), "onKeyDown", key("Enter")); await flush();
   expect(message.start).not.toHaveBeenCalled();
