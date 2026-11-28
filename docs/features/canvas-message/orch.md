@@ -34,7 +34,7 @@
 | C renderer | 6 | `app/src/renderer/`(`handoffView.ts`, `threadItems.ts`, `canvasCardText.ts`, 큐 줄, `ConversationThread.tsx`, 토스트, `styles.css`)와 그 테스트 | B 통합(`types.ts`, `handoff.ts`의 새 모양) | Opus medium: 드래프트 문구·상태를 기존 부품에 맞추는 일이라 판단이 들지만 동시성은 없다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` | 대기 |
 | E design-sync | 7 | `docs/design/conversation.md`, `.scratch/design-sync/canvas-message-*`, 차이를 고치는 renderer 파일 | C 통합 | Opus medium: 실제 앱 측정과 드래프트 대조 | measure 스크립트 두 개의 결과가 드래프트와 맞음 | 대기 |
 | F eval-round | 9c | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | A·B·C·D 통합, `npm --prefix app run package` | Sonnet medium: 정해진 회차 실행과 기록 | R14–R17, R10–R12가 두 에이전트에서 pass, 회차 기록 | 대기 |
-| 컨덕터 | 8 `/runtime-test`, 10 `/verify --eval`, 11 문서 승격과 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, README, `orch.md` | 모든 배치 통합 | — | tasks 8·10·11의 확인 | 대기 |
+| 컨덕터 | 8 `/runtime-test`, 10 `/verify --eval`, 11 디렉터리 삭제와 승격 검토(승격 초안은 문서 워커 `cm-docs`, Opus high: 큰 문서 두 개를 읽고 결정 30여 개를 옮기는 일이라 컨덕터 문맥 대신 맡긴다) | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, README, `orch.md` | 모든 배치 통합 | — | tasks 8·10·11의 확인 | 대기 |
 
 - tasks 1(드래프트)은 끝났다.
 - tasks 3(`/tdd`)은 배치마다 자기 파일의 테스트로 나눈다. 각 워커가 `/deliver`의 tdd 단계에서 red를 본다.
@@ -73,3 +73,4 @@
 - B 2회차 끝: 2커밋을 통합했다(`sent` target.title, `agentQueue[].after`). typecheck 깨끗. C 2회차를 보냈다.
 - C 2회차 끝: 2커밋을 통합했다(제목 스냅숏 사용, 보내는 순서대로 그리는 큐). typecheck 깨끗, feat 푸시. B 재리뷰 `ctx_9900518b2700`(Opus high) 진행 중. E(design-sync)를 C 워커에 새 Task로 보냈다(`ctx_34897d12e0e6`, `cm-c-renderer`). lead에 GUI probe 시작을 메일로 알렸다.
 - B 재리뷰(`ctx_9900518b2700`): 🔴 0, 🟡 1(한도 예약 중 `after`가 실제 순서와 다름), 🟢 6. 3회차를 B에 보냈다.
+- 문서 승격 워커 `ctx_5eb59000c7c9`(Opus high, `cm-docs`) 시작: PRODUCT·ARCHITECTURE·BACKLOG·README. `docs/design/`은 design-sync 몫이라 제외.
