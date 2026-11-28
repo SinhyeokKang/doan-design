@@ -16,6 +16,9 @@
 - Codex 대화의 `doan send`는 승인 규칙(`doan-handoff.rules`)에 넣지 않고 대화의 permission mode를 따른다. — 사용자 결정(A 리뷰의 질문). PRODUCT §5 'Resume and permissions' 승격 때 적는다.
 - CLI의 `chain_one`·`chain_limit` 안내는 spec 카드 문구에 맞추고, 이 턴에 다시 보내지 말라는 단계를 붙인다. — 컨덕터 판단(A 리뷰).
 - `chain_one`·`chain_limit`도 보낸 쪽 기록에 거절로 남겨 카드가 보이게 한다(소켓 거절은 그대로). — 컨덕터 판단: spec 완료 조건이 세 연쇄 거절 모두 카드 문구를 요구하는데, B는 두 코드를 소켓 거절로만 냈다.
+- 흐린 에이전트 행은 사람 메시지로 시작한 턴(0단계)이 done으로 끝난 뒤에만 나간다. 대화 큐에 에이전트 행이 있으면 새 `send`도 큐 끝에 들어가 앞지르지 않는다. — 컨덕터 판단(B 리뷰 🟡 3): spec '큐에 든 에이전트 메시지'의 문장 그대로다.
+- 대화 없는 캔버스로 거의 동시에 온 `send` 둘은 새 대화 둘을 시작할 수 있다. 한계로 PRODUCT에 적는다. — 컨덕터 판단: 겹치는 창이 시작 준비 몇 초다.
+- 판정과 전달 사이에 대상 대화가 지워지면 `not_found`로 거절하고, 카드 문구는 C가 정한다. 삭제 대화상자는 에이전트 행을 세지 않는다. — 컨덕터 판단: spec "그 뒤의 운명은 추적하지 않는다".
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -55,3 +58,5 @@
 - B 지연 항목(runtime v8·토큰·`HANDOFF_MESSAGES`)과 연쇄 거절 기록을 B에 보냈다(`ctx_e3005a4317f8`). B 리뷰 워커 `ctx_9b30ccad5f17`(Opus high, 컨덕터 checkout에서 읽기만).
 - D 지연 항목(R14–R17 `prompt.*`, `eval/lib/turn-prompt.ts` 소유 이전)을 D에 보냈다(`ctx_ca89cb794c7b`).
 - C 시작: `ctx_410f3077dcae`(Opus medium, `cm-c-renderer`, `95e36011a` 기준).
+- B 리뷰(`ctx_9b30ccad5f17`): 🔴 0, 🟡 3, 🟢 5. 수정 1회차 지시를 준비했고, B가 runtime Task를 끝내면 보낸다.
+- 컨덕터 checkout의 `npm --prefix app test`(B 통합 시점): 3건 실패, 모두 부하 시간 초과다(`doanyRender` 2건 20초 초과, `editLines` 50 ms 성능 검사). 이 branch가 바꾸지 않은 파일이고 load average가 60–72였다. 최종 verify에서 다시 본다.
