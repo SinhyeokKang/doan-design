@@ -38,7 +38,7 @@
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 통합 `f75d04b10`–`8320369d0`. 리뷰 1회, 수정 1회. T7에서 볼 것: 프로토타입 창의 칩 누르기 |
 | F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 통합 `c469ee2eb`–`b796f7dd5`. 리뷰 1회, 수정 1회 |
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
-| H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 진행 중 (base `fbc514e0b`, 통합 HEAD `verify.mjs` PASS) |
+| H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 통합 `d43f3929a`–`11b458bc3`(드래프트와 design 문서만, 앱 코드 변경 없음). 1125행 측정, 다른 점 3개를 문서화했다. 실기 확인은 Playwright 구간과 실제 마우스 구간(사람 승인) 모두 통과. 확인하지 못한 것은 T8에서 BACKLOG로 |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | G2 | 최종 eval 회차 | `docs/usability-eval/rounds-2026-11.md` | H | Opus medium — 정해진 시나리오를 다시 돌리고 기록한다 | 최종 HEAD 패키지로 `node eval/run.ts --scenarios R8d,R9b,R10,R11,R12,R13 --round <name>`에서 R13이 Claude·Codex 통과, 나머지는 이전 회차와 비교, 회차 기록. push 직전 `verify.mjs --eval` | 대기 |
 | Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
@@ -74,3 +74,5 @@
 - RE(Opus high, 프로토타입 IPC가 들어가 계획의 Sonnet에서 올렸다): 🔴 0 / 🟡 1 / ⚪ 4, 결정 항목 2. 새 `prototype:reveal` kind `canvas`는 main이 경로를 믿지 않고 id를 목록과 맞추므로 남용 경로가 없다고 판정했다. 🟡 1은 결정 14로 E에 보냈다. 결정 항목 2는 결정 15. ⚪는 그대로 두고 ⚪ 2(문제 상태에서 자기 칩 Fit이 아무 일도 안 함)에 한계 주석을 남긴다.
 - F: 이 브랜치에서 생긴 버그를 코드를 읽다 찾아 고쳤다. Overview 새 대화 시작이 앵커를 넘기지 않아, 칩이 든 시작을 main이 `bad_request`로 거절했다. develop에는 없던 버그라 postmortem은 쓰지 않는다(conductor 판단 — 배포된 적이 없고, 같은 패턴은 리뷰가 모든 시작 경로를 확인했다).
 - RF(Opus high): 🔴 0 / 🟡 1 / ⚪ 5, 결정 항목 1(결정 16). 🟡 1(project를 고르지 않은 Home 초안이 기본 root가 바뀌기만 해도 칩을 잃는다)과 ⚪ 1(테스트 때문에 넓힌 타입), 빠진 `land` 테스트를 F에 보냈다. ⚪ 2·3·4는 한계로 둔다.
+- H: 리뷰 worker는 띄우지 않았다(앱 코드 변경이 없다). conductor가 드래프트 diff를 결정 9·11·12·13·14·15·16과 대조했고 `doan check`가 통과했다. Home 이유 줄 위치는 출시된 공통 동작으로 두고 문서에 적었다(conductor 판단 — 이유 줄 전체가 같은 자리에 있어 이 기능 범위 밖이다). 실제 마우스 구간은 사람이 승인했고, 창을 앞으로 가져온 단계는 handoff-H에 있다.
+- T8 BACKLOG 후보(H에서 확인하지 못한 것): 프로토타입 composer에 같은 root에서 붙여넣기, 프로토타입 composer로 돌아온 초안, 꺼진 메뉴 항목의 hover, 캔버스 패널의 send·flush·Send now에서 경로 바꾸기(단위 테스트만).
