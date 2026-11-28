@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { HandoffMessageNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMetaView, handoffNameTip, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 
@@ -47,6 +47,28 @@ describe("handoffMultiStep", () => {
   test("the summary toast names the source and how many canvases", () => {
     expect(handoffToastText(multi, "acme-web")).toBe("drafts.html handed off to 2 canvases");
     expect(handoffToastText({ ...multi, targets: [...multi.targets, { conversationId: "c4", canvas: { path: ".doan/canvases/receipt.html" } }] }, "acme-web")).toBe("drafts.html handed off to 3 canvases");
+  });
+});
+
+describe("the toast of a turn that sent or ran at step 1 or later", () => {
+  const message = (targets: HandoffMessageNotice["targets"], source: HandoffMessageNotice["source"] = { conversationId: "c1", canvas: DRAFTS }): HandoffMessageNotice => ({ kind: "message", root: "/w/a", source, targets });
+  const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
+  test("one send names both files; from the Overview the project is named", () => {
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "send" }]), "acme-web")).toBe("drafts.html sent a message to checkout-flow.html");
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "send" }], { conversationId: "c1" }), "acme-web")).toBe("acme-web Overview sent a message to checkout-flow.html");
+  });
+  test("one handoff keeps the shipped words", () => {
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "handoff" }]), "acme-web")).toBe("drafts.html handed off to checkout-flow.html");
+  });
+  test("several: mixed, all sends, all handoffs", () => {
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "send" }, { conversationId: "c3", canvas: PAYMENT, via: "handoff" }]), "acme-web")).toBe("drafts.html handed off or sent to 2 canvases");
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "send" }, { conversationId: "c3", canvas: PAYMENT, via: "send" }]), "acme-web")).toBe("drafts.html sent messages to 2 canvases");
+    expect(handoffToastText(message([{ conversationId: "c2", canvas: CHECKOUT, via: "handoff" }, { conversationId: "c3", canvas: PAYMENT, via: "handoff" }]), "acme-web")).toBe("drafts.html handed off to 2 canvases");
+  });
+  test("several show nothing on the source page, as a summary does", () => {
+    const several = message([{ conversationId: "c2", canvas: CHECKOUT, via: "send" }, { conversationId: "c3", canvas: PAYMENT, via: "send" }]);
+    expect(handoffMultiStep(onSource, several)).toBe("none");
+    expect(handoffMultiStep({ ...onSource, canvas: null }, several)).toBe("toast");
   });
 });
 

@@ -180,3 +180,58 @@ test("removing the only scheduled row puts focus in the composer field", async (
   draw();
   expect(focused.at).toBe("input");
 });
+
+// Messages other conversations' agents sent (the summary's agentQueue): after the person's rows, the sender's logo, the line
+// hidden from screen readers in favour of a name with the source, × only, dimmed while held.
+const AGENT = { itemId: "a1", provider: "codex" as const, source: { conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, line: "Use the declined-card message", held: false };
+
+test("an agent row: the sender's logo, its line, the source only in its accessible name, × and no Send now", async () => {
+  const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }], agents: [AGENT] });
+  const tree = draw();
+  expect(tree.filter(item => item.role === "listitem")).toHaveLength(2);
+  const logo = tree.find(item => item.type === "img")!;
+  expect(logo).toMatchObject({ className: "logo", src: "provider-logos/codex.png", alt: "" });
+  expect(tree.find(item => item.className === "queue-text" && item.children === AGENT.line)).toMatchObject({ "aria-hidden": true });
+  const name = tree.find(item => item.className === "sr-only" && item.children === "Message from drafts.html: Use the declined-card message")!;
+  expect(rows(tree, "Send now")).toHaveLength(1);
+  const remove = rows(tree, "Remove queued message");
+  expect(remove).toHaveLength(2);
+  expect(remove[1]!["aria-describedby"]).toBe(name.id);
+  // The source file is never on screen.
+  expect(tree.some(item => typeof item.children === "string" && item.children.includes("drafts.html") && item.className !== "sr-only")).toBe(false);
+  expect(tree.some(item => item.className === "queue-item held")).toBe(false);
+  (remove[1]!.onClick as () => void)();
+  expect(props.onRemove).toHaveBeenCalledWith("a1");
+});
+
+test("a held agent row is dimmed, says why in its tooltip and accessible name, and keeps ×", () => {
+  const { draw, rows } = setup({ items: [], agents: [{ ...AGENT, held: true }] });
+  const tree = draw();
+  expect(tree.some(item => item.className === "queue-item held")).toBe(true);
+  expect(tree.some(item => item["data-tip"] === "" && item.children === "Sends after your next message here ends")).toBe(true);
+  expect(tree.some(item => item.className === "sr-only" && item.children === "Message from drafts.html: Use the declined-card message. Sends after your next message here ends.")).toBe(true);
+  expect(rows(tree, "Remove queued message")).toHaveLength(1);
+});
+
+test("an agent row from a project conversation names the Overview; one without a provider keeps the queued icon", () => {
+  const { draw } = setup({ items: [], agents: [{ itemId: "a2", source: { conversationId: "c0" }, line: "Hi", held: false }] });
+  const tree = draw();
+  expect(tree.some(item => item.className === "sr-only" && item.children === "Message from Overview: Hi")).toBe(true);
+  expect(tree.some(item => item.type === "img")).toBe(false);
+});
+
+test("removing the person's last row moves focus to the agent row's ×; removing the agent row after it to the field", async () => {
+  const { props, focused, draw, rows } = setup({ sendNow: false, items: [{ id: "q1", text: "First" }], agents: [AGENT] });
+  (rows(draw(), "Remove queued message")[0]!.onClick as () => void)();
+  await Promise.resolve(); await Promise.resolve();
+  props.items = [];
+  draw();
+  expect(focused.at).toMatch(/^remove:/);
+  page.activeElement = null;
+  const after = setup({ items: [], agents: [AGENT] });
+  (rows(after.draw(), "Remove queued message")[0]!.onClick as () => void)();
+  await Promise.resolve(); await Promise.resolve();
+  after.props.agents = [];
+  after.draw();
+  expect(after.focused.at).toBe("input");
+});

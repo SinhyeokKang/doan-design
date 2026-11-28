@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
-import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice, HandoffMessageNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 
 // App's handling of conversation:handoff, with hooks as plain state and a stub controller.
 const hooks = vi.hoisted(() => ({
@@ -396,6 +396,49 @@ test("a single handoff still waiting turns into its toast when a summary arrives
   handoff(multi);
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+});
+
+// A turn's notice with any send, or from a turn at step 1 or later: the screen never moves; one target toasts on any
+// screen with Open on it, several toast away from the source page with Open on the source.
+const message = (targets: HandoffMessageNotice["targets"]): HandoffMessageNotice => ({ kind: "message", root: "/w/a", source: { conversationId: "c1", canvas: { path: D, id: "drafts" } }, targets });
+const SENT_CHECKOUT = { conversationId: "c2", canvas: { path: C, id: "checkout" }, via: "send" as const };
+
+test("a send on the source canvas page never moves; its toast's Open opens the receiving conversation", async () => {
+  await onDrafts(listA([drafts, checkout]));
+  clearController();
+  handoff(message([SENT_CHECKOUT]));
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html sent a message to checkout-flow.html", "Open", expect.any(Function));
+  const request = vi.spyOn(CanvasRun.prototype, "request");
+  try {
+    (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+    expect(lastOpen().slice(0, 2)).toEqual(["/w/a", expect.objectContaining({ path: C })]);
+    expect(request).toHaveBeenCalledWith({ root: "/w/a", canvas: { path: C, id: "checkout" } }, "c2", null);
+  } finally { request.mockRestore(); }
+});
+
+test("a handoff from a turn at step 1 or later toasts with the shipped words and never moves", async () => {
+  await onDrafts(listA([drafts, checkout]));
+  clearController();
+  handoff(message([{ ...SENT_CHECKOUT, via: "handoff" }]));
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
+});
+
+test("several requests with a send: nothing on the source page, one summary toast elsewhere", async () => {
+  const mixed = message([SENT_CHECKOUT, { conversationId: "c3", canvas: { path: P, id: "payment" }, via: "handoff" }]);
+  await onDrafts(listA([drafts, checkout, payment]));
+  clearController();
+  handoff(mixed);
+  expect(harness.toast.show).not.toHaveBeenCalled();
+  showCanvas(checkout); await flushAll();
+  clearController();
+  handoff(mixed);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off or sent to 2 canvases", "Open", expect.any(Function));
+  harness.toast.show.mockClear();
+  handoff(message([SENT_CHECKOUT, { conversationId: "c3", canvas: { path: P, id: "payment" }, via: "send" }]));
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html sent messages to 2 canvases", "Open", expect.any(Function));
 });
 
 // A project conversation's handoff: its source page is the root's Overview showing the source conversation
