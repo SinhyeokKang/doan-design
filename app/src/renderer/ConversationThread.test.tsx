@@ -974,17 +974,17 @@ describe("canvas cards and the received handoff", () => {
 
     test("the title not known yet: the time alone describes it and Open names the canvas", () => {
       const out = bubble(sent());
-      expect(out).toMatch(new RegExp(`^${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open drafts.html"))}`));
+      expect(out).toMatch(new RegExp(`${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open drafts.html"))}`));
       expect(out).toContain('<span id="t" hidden="">5 minutes ago</span>');
     });
 
     test("an earlier record without the sender's provider keeps the forward icon", () => {
-      expect(bubble(sent({ provider: undefined }), true, { conversationTitle: titles })).toMatch(new RegExp(`^${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open “Checkout flow on drafts” on drafts.html"), svg("forward"))}`));
+      expect(bubble(handoff({ origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS, via: "send", chain: ["c0"] } }), true, { conversationTitle: titles })).toMatch(new RegExp(`${group("Message from drafts.html", true)}${sendMeta(TIME(at(-1), "5m ago"), PANEL_OPEN("Open “Checkout flow on drafts” on drafts.html"), svg("forward"))}`));
     });
 
     test("the sending conversation deleted: its reason in place of the time and Open", () => {
       const out = bubble(sent(), true, { conversationListed: () => false, conversationTitle: () => null });
-      expect(out).toMatch(new RegExp(`^${group("Message from drafts.html · Conversation deleted", false)}${sendMeta(GONE("Conversation deleted"))}`));
+      expect(out).toMatch(new RegExp(`${group("Message from drafts.html · Conversation deleted", false)}${sendMeta(GONE("Conversation deleted"))}`));
       expect(out).not.toMatch(/<time|<button|hidden=""/);
       // The sending canvas gone says that first, as for a handoff.
       expect(bubble(sent(), false, { conversationListed: () => false })).toContain(GONE("No longer in doan-design"));

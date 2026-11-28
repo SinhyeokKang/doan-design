@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { canvasCardMeta, canvasCardText, middleCut, newCanvasesText } from "./canvasCardText";
+import { canvasCardMeta, canvasCardText, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
@@ -277,5 +277,16 @@ describe("newCanvasesText", () => {
     const bound: ThreadItem = { kind: "marker", key: "k9", seq: 9, marker: "bound", canvas: { path: "a.html", id: "a" } };
     expect(newCanvasesText([end, drawn("a.html"), bound])).toBe("1 new canvas");
     expect(newCanvasesText([end, bound])).toBe("");
+  });
+});
+
+describe("listedTitle", () => {
+  test("the listed title on one line; nothing while the list is not read, for an unlisted or an untitled conversation", () => {
+    const list = [{ conversationId: "c1", title: "Payment\n states " }, { conversationId: "c2", title: "  " }];
+    expect(listedTitle(list, "c1")).toBe("Payment states");
+    expect(listedTitle(list, "c2")).toBeNull();
+    expect(listedTitle(list, "c3")).toBeNull();
+    expect(listedTitle("loading", "c1")).toBeNull();
+    expect(listedTitle("error", "c1")).toBeNull();
   });
 });
