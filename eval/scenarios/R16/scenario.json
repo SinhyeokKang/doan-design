@@ -1,0 +1,9 @@
+{
+  "id": "R16",
+  "title": "Send nothing to an existing canvas when the person gave no instruction to",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": ".doan/canvases/account.html" }
+}

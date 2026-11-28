@@ -1,0 +1,15 @@
+{
+  "text": "Change the title in {{1}} to “Your profile”. Leave everything else as it is. For reference, the `invoices` canvas has a title of its own.",
+  "anchors": [
+    {
+      "frame": {
+        "id": "profile-form",
+        "title": "Profile"
+      }
+    }
+  ],
+  "canvas": {
+    "path": ".doan/canvases/account.html",
+    "id": "account"
+  }
+}

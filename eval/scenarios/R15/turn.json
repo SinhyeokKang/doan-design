@@ -1,0 +1,15 @@
+{
+  "text": "Change the note in {{1}} to say “Invoices are sent on the 5th of each month.” Leave everything else as it is. The `invoices` canvas shows the same note, so pass this change on to the conversation on `invoices`; it will update its own copy.",
+  "anchors": [
+    {
+      "frame": {
+        "id": "billing-form",
+        "title": "Billing"
+      }
+    }
+  ],
+  "canvas": {
+    "path": ".doan/canvases/account.html",
+    "id": "account"
+  }
+}

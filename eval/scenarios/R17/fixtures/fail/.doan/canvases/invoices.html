@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="invoices">
+  <meta name="doan:width" content="600">
+  <title>Invoices</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-8); background: var(--color-surface); color: var(--color-text); font: 16px/1.5 var(--font-body); }
+    [data-doan-frame] { box-sizing: border-box; width: 480px; height: 360px; padding: var(--space-4); background: var(--color-panel); }
+    h1 { margin: 0 0 var(--space-2); font-size: 24px; line-height: 32px; }
+    p { margin: 0 0 var(--space-4); }
+    button { font: inherit; padding: var(--space-2) var(--space-4); border: 0; background: var(--color-muted); color: var(--color-text); }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="invoice-list" data-doan-title="Invoice list">
+    <h1 data-doan-id="invoices-title">Invoices</h1>
+    <p data-doan-id="invoices-note">Invoices are sent on the 5th of each month.</p>
+    <button data-doan-id="download-invoice">Download PDF</button>
+  </section>
+</body>
+</html>

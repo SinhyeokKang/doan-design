@@ -1,0 +1,11 @@
+[
+  [
+    "send",
+    ".doan/canvases/invoices.html",
+    "--message",
+    "Request: on the account canvas the Save button was renamed to “Save changes”; next, reword this canvas's Download PDF button the same way (verb plus object, in the style of “Save changes”). Done: only the account canvas changed; invoices is untouched. Left: the Download PDF wording on invoices.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

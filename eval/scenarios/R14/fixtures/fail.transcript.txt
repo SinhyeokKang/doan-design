@@ -1,0 +1,1 @@
+Renamed the Save button to “Save changes” and sent a message to invoices.

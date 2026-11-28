@@ -1,0 +1,9 @@
+{
+  "id": "R15",
+  "title": "Pass a change on to an existing canvas's conversation with doan send when told to",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": ".doan/canvases/account.html" }
+}
