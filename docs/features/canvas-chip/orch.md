@@ -11,7 +11,7 @@
 1. T2(드래프트)는 끝났다. 사용자가 `.doan/canvases/canvas-chip.html`을 확정했다(`c662fa369`). 이 run에서 다시 하지 않는다(lead 브리프).
 2. T1(PoC)은 아직 하지 않았다. design.md에 'PoC 결과'가 없다. 그래서 이 run의 첫 batch로 돈다(conductor 판단 — tasks T1).
 3. 선행 과제 check-scope와 thread-polish는 develop에 머지됐다. `git ls-tree origin/develop docs/features/check-scope docs/features/thread-polish`의 출력이 비어 있다(conductor 확인).
-4. `prosemirror-dropcursor`는 새 의존성이다. PoC가 그것을 고르면 conductor가 사용자에게 묻고 나서 T5a에 넣는다. 그 전까지는 decoration 방식을 기본으로 둔다(conductor 판단 — design '끌기', AGENTS 'Commands'의 의존성 규칙).
+4. 놓일 자리 표시는 widget decoration으로 한다. PoC가 `prosemirror-dropcursor`를 고르지 않았으므로 새 의존성은 없다(conductor 판단 — design 'PoC 결과').
 5. 모델 교차는 없다. Claude worker만 띄운다(AGENTS 'Runtime differences').
 6. T8(승격과 정리)은 conductor가 문서 커밋으로 한다(orchestrate §5).
 7. T6의 실제 eval 회차는 개발용 실제 로그인을 복사본으로 쓴다(AGENTS 'Real agent sign-ins').
@@ -20,7 +20,7 @@
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| P | T1 | `.scratch/canvas-chip/`, design.md 'PoC 결과' | 없음 | Opus medium — Electron 끌기 동작을 관찰하고 방식을 골라야 한다 | tasks T1 검증 | 대기 |
+| P | T1 | `.scratch/canvas-chip/`, design.md 'PoC 결과' | 없음 | Opus medium — Electron 끌기 동작을 관찰하고 방식을 골라야 한다 | tasks T1 검증 | 통합 `08e73c4dc`. 확인하지 못한 것: 막 없이 iframe이 놓기를 받는지, 드래그 이미지 모습, 포커스된 창의 caret(T7로 넘긴다) |
 | A | T3 | `main/conversation/{types,prompt,store,messageText}.ts`, `renderer/{anchorField,chipField}.ts`의 거울 부분, 그 테스트 | 없음 | Opus medium — 모든 batch가 기대는 형식이다. 범위는 좁다 | tasks T3 검증(`verify.mjs --eval` 포함) | 대기 |
 | B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 대기 |
 | C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 대기 |
@@ -42,4 +42,4 @@
 
 ## 리뷰와 수정 기록
 
-(진행하며 적는다)
+- P: 리뷰 없음(문서만). conductor가 'PoC 결과'를 handoff와 대조했다. C에 넘길 것: 항목 줄 시작에 놓으면 본문 시작으로 옮기는 보정, 지금 `insertChip`이 caret을 칩 앞에 두는 현상(포커스 없는 창에서 관찰).
