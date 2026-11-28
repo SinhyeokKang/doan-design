@@ -188,6 +188,9 @@ const probe = window.probe = {
   menu(inputType) { return probe.input(inputType); },
   insertChip: anchor => field.insertChip(anchor),
   takeDrags(take) { dragHost.take = take; },
+  // A canvas renamed or moved: every canvas chip takes \`path\`.
+  refresh(path) { return field.refreshChips(anchor => anchor.canvas ? { canvas: { ...anchor.canvas, path } } : anchor); },
+  tips: () => Array.from(el.querySelectorAll(".anchor-chip")).map(chip => chip.dataset.tip),
   // Drag events at unit \`unit\`'s drawn place, \`dx\` px to its right, each with a DataTransfer of \`types\` ("Files" a file):
   // dragenter, dragover and, with \`drop\`, drop. The drop place is read as the unit the field draws it at.
   dragAt(unit, types, drop, dx = 1) {
@@ -1164,4 +1167,25 @@ test("the drop place goes when the drag leaves the field or ends elsewhere", { t
     expect(out.after, how).toBe(false);
   }
   expect(await text()).toBe("Make the cart look like");
+});
+
+test("a chip refreshed for a moved canvas changes in place, keeping the caret and the undo history; not while composing", { timeout: 60_000 }, async () => {
+  const MOVED = ".doan/canvases/flows/checkout-flow.html";
+  await open([plain("Follow "), chip(DROPPED), plain(" now")]);
+  await call("place", 12);
+  await press("x");
+  await call("place", 3);
+  const changes = await call<number>("changes");
+  expect(await call("refresh", MOVED)).toBe(true);
+  expect(await sel()).toEqual({ anchor: 3, focus: 3 });
+  expect(await call("tips")).toEqual([MOVED]);
+  expect(await call("segments")).toEqual([plain("Follow "), chip({ canvas: { ...DROPPED.canvas, path: MOVED } }), plain(" nowx")]);
+  // The host already has the new value; the field tells it nothing.
+  expect(await call("changes")).toBe(changes);
+  await press("Meta+z");
+  expect(await call("segments")).toEqual([plain("Follow "), chip({ canvas: { ...DROPPED.canvas, path: MOVED } }), plain(" now")]);
+  await call("compose", "compositionstart");
+  expect(await call("refresh", ".doan/canvases/elsewhere.html")).toBe(false);
+  expect(await call("tips")).toEqual([MOVED]);
+  await call("compose", "compositionend");
 });

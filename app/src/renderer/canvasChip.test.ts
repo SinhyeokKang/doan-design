@@ -5,7 +5,7 @@ import type { FieldSegment } from "./anchorField";
 import { ADD_TO_MESSAGE_CAPTURING, ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { canvasUnlistedText } from "./canvasConversation";
 import {
-  CANVAS_CHIP_COMPOSING, CANVAS_CHIP_NO_COMPOSER, CANVAS_CHIP_NO_ID, CANVAS_CHIP_PICKING, CANVAS_CHIP_SHARED_ID, CANVAS_CHIP_UNREADABLE,
+  CANVAS_CHIP_COMPOSING, CANVAS_CHIP_NO_COMPOSER, CANVAS_CHIP_NO_ID, CANVAS_CHIP_PICKING, CANVAS_CHIP_SENDING, CANVAS_CHIP_SHARED_ID, CANVAS_CHIP_UNREADABLE,
   canvasChipTarget, canvasRowIdReason, chipFieldTakes, homeRootChange, refreshCanvasSegments, type CanvasChipComposer, type CanvasChipScreen,
 } from "./canvasChip";
 
@@ -127,6 +127,10 @@ describe("chipFieldTakes", () => {
   });
   it("gives the composer's own sentence while it takes no input", () => {
     expect(chipFieldTakes({ ...idle, blocked: canvasUnlistedText("doan-web") }, ref("checkout"))).toBe(canvasUnlistedText("doan-web"));
+  });
+  it("gives the sending composer's wait as its own sentence", () => {
+    expect(CANVAS_CHIP_SENDING).toBe("Wait for the message to send.");
+    expect(chipFieldTakes({ ...idle, blocked: CANVAS_CHIP_SENDING }, ref("checkout"))).toBe(CANVAS_CHIP_SENDING);
   });
   it("refuses during a capture, a pick and an IME composition", () => {
     expect(chipFieldTakes({ ...idle, capturing: true }, ref("checkout"))).toBe(ADD_TO_MESSAGE_CAPTURING);

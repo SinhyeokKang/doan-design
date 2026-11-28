@@ -1,16 +1,17 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { CANVAS_CHIP_COMPOSING, CANVAS_CHIP_PICKING, canvasChipTarget } from "./canvasChip";
+import { CANVAS_CHIP_COMPOSING, CANVAS_CHIP_PICKING, CANVAS_CHIP_SENDING, canvasChipTarget } from "./canvasChip";
 import { beginCanvasDrag, CANVAS_DRAG_TYPE, chipComposer, endCanvasDrag } from "./canvasChipDrag";
 import { ADD_TO_MESSAGE_CAPTURING, ANCHOR_LIMIT_TEXT } from "./canvasPicker";
+import type { Anchor } from "../main/conversation/types";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import { plainText, textSegments, type FieldSegment } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { DockedComposer, QueueRows, SEND_NOW_REFUSED_TEXT, type DockedComposerProps, type DockedOutcome } from "./DockedComposer";
-import { draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
+import { canvasGoneText, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import { emptyComposer, HeroComposer } from "./HomeComposerView";
 import type { ModelPickerView } from "./homeComposer";
 import { localClock, queueButtonHint, queueStatusLine } from "./limitReset";
@@ -1589,11 +1590,56 @@ describe("a canvas row dragged onto the composer", () => {
     const segments: FieldSegment[] = [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: ANCHOR }];
     const { store, draw, send, render } = setup({ canvasChips: { ...CHIPS, canvases: [moved] } }, [["conversation:a", { ...EMPTY_DRAFT, segments, shape: "box" }]]);
     draw();
-    hooks.refs[2]!.current = { ...handle(), focus: vi.fn() };
+    hooks.refs[2]!.current = { ...handle(), focus: vi.fn(), refreshChips: () => true };
     runEffects();
     expect(store.current.get("conversation:a")?.segments).toEqual([{ kind: "text", text: "Follow " }, { kind: "chip", anchor: { canvas: { path: moved.path, id: "checkout" } } }]);
     (field(render()).onKeyDown as (event: unknown) => void)(enter());
     await flush();
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ anchors: [{ canvas: { path: moved.path, id: "checkout" } }] }));
+  });
+  test("a composer that is sending refuses a canvas chip with its reason, and nothing goes in", () => {
+    const { draw, render } = setup({ canvasChips: CHIPS, onSend: vi.fn(() => new Promise<DockedOutcome>(() => {})) }, [["conversation:a", draft("Make the cart look like")]]);
+    render();
+    const box = handle();
+    hooks.refs[2]!.current = box;
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    start();
+    draw();
+    runEffects();
+    expect(chipComposer("canvas")?.canTake(ANCHOR)).toBe(CANVAS_CHIP_SENDING);
+    const over = dragEvent(outside);
+    fire(draw(), "onDragEnter", over);
+    fire(draw(), "onDragOver", over);
+    expect(over.dataTransfer.dropEffect).toBe("none");
+    expect(lineText(render())).toBe("Wait for the message to send.");
+    fire(draw(), "onDrop", dragEvent(outside));
+    expect(box.insertChip).not.toHaveBeenCalled();
+  });
+
+  test("a composer showing that its canvas is gone after a refused send refuses a canvas chip with that sentence", async () => {
+    const { draw, render } = setup({ canvasChips: CHIPS, onSend: vi.fn(async (): Promise<DockedOutcome> => ({ error: "canvas_not_found" })) }, [["conversation:a", draft("Make the cart look like")]]);
+    render();
+    hooks.refs[2]!.current = handle();
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    await flush();
+    draw();
+    runEffects();
+    expect(chipComposer("canvas")?.canTake(ANCHOR)).toBe(canvasGoneText("doan-design"));
+  });
+
+  test("a renamed canvas's chip is refreshed in the field in place; while the field composes, the draft waits for the commit", () => {
+    const moved = { ...checkout, path: ".doan/canvases/flows/checkout-flow.html" };
+    const segments: FieldSegment[] = [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: ANCHOR }];
+    for (const composing of [false, true]) {
+      hooks.states = []; hooks.refs = [];
+      const { store, draw } = setup({ canvasChips: { ...CHIPS, canvases: [moved] } }, [["conversation:a", { ...EMPTY_DRAFT, segments, shape: "box" }]]);
+      draw();
+      const refreshChips = vi.fn((update: (anchor: Anchor) => Anchor) => { update(ANCHOR); return !composing; });
+      hooks.refs[2]!.current = { ...handle(), refreshChips };
+      runEffects();
+      expect(refreshChips, String(composing)).toHaveBeenCalledOnce();
+      expect(refreshChips.mock.calls[0]![0](ANCHOR)).toEqual({ canvas: { path: moved.path, id: "checkout" } });
+      expect(store.current.get("conversation:a")?.segments, String(composing)).toEqual(composing ? segments : [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: { canvas: { path: moved.path, id: "checkout" } } }]);
+    }
   });
 });

@@ -62,15 +62,27 @@ describe("the sidebar drag", () => {
   });
 
   // A source row drawn again mid-drag may never get its dragend; a stale drag would leave the board shielded.
-  it("ends on the window's dragend or drop, and at the next press when neither came", () => {
+  it("ends on the window's dragend or drop, and at the next press or move when neither came", () => {
     const target = new EventTarget();
     vi.stubGlobal("window", target);
     try {
-      for (const type of ["dragend", "drop", "pointerdown"]) {
+      for (const type of ["dragend", "drop", "pointerdown", "pointermove", "mousemove"]) {
         beginCanvasDrag(drag(), asTransfer(transfer()));
         target.dispatchEvent(new Event(type));
         expect(canvasDragging(), type).toBe(false);
       }
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  // Chromium sends no pointer or mouse moves while a drag runs, so the first one comes after it.
+  it("ends on the first move after a drag whose source row was removed and whose drop missed every target", () => {
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    try {
+      beginCanvasDrag(drag(), asTransfer(transfer()));
+      expect(canvasDragging()).toBe(true);
+      target.dispatchEvent(new Event("pointermove"));
+      expect(canvasDragging()).toBe(false);
     } finally { vi.unstubAllGlobals(); }
   });
 
