@@ -1370,3 +1370,48 @@ test("a refused canvas row drag over Home shows its reason in Home's reason plac
     expect(find(tree, props => props.className === "composer")["data-chip-refused"]).toBe("");
   } finally { endCanvasDrag(); }
 });
+
+// The default root (the loaded project, the last one) can change without the person touching Home; the chips stay.
+test("a canvas chip pins Home's default root, so a draft whose project was never picked keeps its chips when the default changes", () => {
+  const { box, render, props } = setup({}, { entries: [ENTRY, B], loaded: ENTRY.path });
+  render(); runEffects();
+  expect(box.current.root).toBeNull();
+  (input(render()).onChange as (value: FieldSegment[]) => void)(chipped());
+  expect(box.current.root).toBe(ENTRY.path);
+  props.loaded = B.path;
+  render(); runEffects(); render(); runEffects();
+  expect(box.current).toMatchObject({ root: ENTRY.path, segments: chipped(), chipNotice: null });
+  expect(reasonLine(render())).toBeNull();
+});
+
+test("a draft with text only keeps following the default root", () => {
+  const { box, render, props } = setup({}, { entries: [ENTRY, B], loaded: ENTRY.path });
+  render(); runEffects();
+  (input(render()).onChange as (value: FieldSegment[]) => void)(textSegments("Draw a pricing page."));
+  expect(box.current.root).toBeNull();
+  props.loaded = B.path;
+  render(); runEffects();
+  expect(find(render(), props => typeof props["aria-label"] === "string" && (props["aria-label"] as string).startsWith("Project: "))["aria-label"]).toBe("Project: acme");
+});
+
+// A returned start that waited for a send lands under its own root: chips the field holds for another root become names.
+test("a returned start that waited out a send turns the other root's chips into names when it lands", async () => {
+  const reply = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise as never);
+  const { box, start, render } = setup({}, { entries: [ENTRY, B] });
+  render(); runEffects();
+  pickProject(render, "/code/doan-design/.git", "/code/acme/.git");
+  render(); runEffects();
+  const cart: Anchor = { canvas: { path: ".doan/canvases/cart.html", id: "cart" } };
+  box.current = { ...box.current, segments: chipped(cart), chipRoot: B.path };
+  const sent = pending();
+  start.mockReturnValueOnce(sent.promise as never);
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+  reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(box.current.segments).toEqual(chipped(cart));
+  sent.resolve({ error: "busy" });
+  await vi.waitFor(() => expect(box.current.segments).toEqual(textSegments("Follow cart for the layout.\n\nDraw a pricing page.")));
+  expect(box.current).toMatchObject({ root: ENTRY.path, chipRoot: ENTRY.path, chipNotice: "1 canvas chip became plain text. Its canvas is in another project." });
+});
