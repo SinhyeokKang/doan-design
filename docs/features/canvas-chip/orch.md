@@ -33,8 +33,8 @@
 | B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 통합 `585544720`–`bd8ad9004`. 리뷰 1회, 수정 1회(conductor가 수정 diff를 직접 확인했다) |
 | C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 통합 `804af5a01`–`c0cacf25f`. 리뷰 1회, 수정 1회(conductor가 끌기 끝 경로 diff를 확인했다). postmortem `7384a4632`. T7에서 볼 것: 실제 마우스 끌기 중에 move가 오지 않는지 |
 | D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 통합 `aeba4bcd0`–`a89de6b06`. 리뷰 1회, 수정 1회(conductor가 수정 diff를 확인했다). 수정 뒤 실기 probe는 다시 돌리지 않았다 |
-| E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 구현 끝, 리뷰 1회, 수정 중 |
-| F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 대기 |
+| E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 통합 `f75d04b10`–`8320369d0`. 리뷰 1회, 수정 1회. T7에서 볼 것: 프로토타입 창의 칩 누르기 |
+| F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 진행 중 |
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
 | H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 대기 |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
