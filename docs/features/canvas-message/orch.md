@@ -23,6 +23,7 @@
 - C 리뷰의 제품 질문: 지워진 대상으로의 `send` 거절은 "Didn’t send. That conversation was deleted."(clarify preset으로 다듬음), 다른 `send` 거절은 provider를 말하지 않는 중립 한 줄, 기존 캔버스 handoff는 "new canvas"로 세지 않는다, Overview 보낸 쪽 Open은 `in the Overview`, 흐린 에이전트 행도 docked buddy의 큐 표시에 센다. — 컨덕터 판단: 드래프트 문구 결과 spec 범위 안의 문구·표시 결정이다.
 - 흐린 에이전트 행이 사람의 다음 done 턴까지 남는 드문 경계 셋(flush 경로의 exit 대기 시간 초과, exit 대기 중 새 send, `draft` 결과의 give-back)은 고치지 않고 한계로 적는다. — 컨덕터 판단(B 재리뷰): 시간 초과·삭제·Stop이 겹쳐야 하고 행이 사라지지는 않는다.
 - `/agent-eval` 실제 회차는 real HOME의 지금 로그인으로 돌린다(사용자 결정). 범위는 앱 turn prompt를 쓰는 R8d·R9b·R10–R17이고, eval 하네스 변경(`transcript.ts`, eval Codex 규칙, 가짜 앱)을 보는 W1·R2·X1 회차를 따로 더한다. — 사용자 결정: 필요한 시나리오만 고르되 넉넉하게 잡는다. 다른 시나리오는 이 기능이 바꾸지 않은 가이드와 stub을 쓴다.
+- 요청과 판정 사이에 대상 캔버스 이름이 바뀌면 거절(`not_listed`)된다. 고치지 않고 PRODUCT에 한계로 적었다(handoff도 같다). — 컨덕터 판단(runtime probe check 7): 드문 겹침이고, 새 경로로 다시 보내면 간다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -84,3 +85,4 @@
 - runtime probe(tasks 8)를 워커에 맡겼다: `ctx_c104c5d84e42`(Opus medium, 컨덕터 checkout에서 `.scratch`만 씀). 항목 9개에 canvas-chip의 패널 경로 재작성 확인을 넣었다.
 - lead 알림(#429 머지)으로 `origin/develop`을 merge했다(`8d0b63c06`, rebase 아님). 충돌 둘을 풀었다: `service.ts` import 합치기, ARCHITECTURE 'Canvas lifecycle'(develop의 `adoptListedId` 문장 + 이 branch의 "canvases")와 'Handoff' 머리줄(이 branch). typecheck 깨끗, service 테스트 3파일 400 통과. runtime probe 워커에는 merge 전 빌드면 다시 빌드하라고 보냈다(턴 끝에 전달되므로 보고서의 HEAD로 확인한다).
 - F 끝: 기록 커밋을 통합했다. 반복 회차 `cm-f-scoped-2`와 `cm-f-smoke-1`로 R10–R12, R14–R17, W1·R2·X1이 Claude Code·Codex 모두 pass다. R13 Claude는 판정만 partial(여러 문장 답), R8d Codex는 `seed_structure_kept` 실패(U-048, 한 번, 고치지 않음). real-state: scoped-1은 `sessions.jsonl`(사용자의 실행 중인 Doan), scoped-2는 `keychain:provider-items`(수정 시각까지 보는 해시라 같은 기계의 Claude 세션들이 토큰을 갱신해도 바뀐다; 설정 대상은 바뀌지 않음).
+- runtime probe 끝(`61d66fa15`에서 다시 빌드): 13 pass, check 7 fail → 한계로 적었다. real-state 그대로, 정리 끝. BACKLOG에 확인한 것과 남은 미확인을 적었다. probe 워커 해제.
