@@ -442,8 +442,9 @@ export type PresetNotice =
 export type PresetListView = PresetNotice
   | { kind: "empty"; text: string }
   | { kind: "list"; tabs: PresetTab[]; sections: PresetSection[]; summary: string | null; label?: string; notice?: PresetNotice; emptyText?: string };
-// Only a Doan presets group section has an icon: its head is the sticky name of a role="group".
-export interface PresetSection { title: string | null; rows: PresetRow[]; icon?: string }
+// Only a Doan presets group section has a key and an icon: its head is the sticky name of a role="group". The key is
+// the group's own, since an unknown group may share a known group's label.
+export interface PresetSection { title: string | null; rows: PresetRow[]; key?: string; icon?: string }
 
 function presetRow(p: PresetSummary, withGroup: boolean): PresetRow {
   return { kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title,
@@ -546,7 +547,7 @@ export function presetListView(reply: PresetListReply | undefined, opts: {
   const keys = [...new Set(presets.flatMap(p => p.group === undefined ? [] : [p.group]))];
   const ordered = [...keys.filter(key => Object.hasOwn(GROUPS, key)), ...keys.filter(key => !Object.hasOwn(GROUPS, key))];
   const doan: PresetSection[] = !presets.every(p => p.group !== undefined) ? [{ title: null, rows: presets.map(p => presetRow(p, false)) }]
-    : ordered.map(key => ({ title: groupLabel(key), icon: groupIcon(key), rows: presets.filter(p => p.group === key).map(p => presetRow(p, false)) }));
+    : ordered.map(key => ({ title: groupLabel(key), key: `group:${key}`, icon: groupIcon(key), rows: presets.filter(p => p.group === key).map(p => presetRow(p, false)) }));
   const available = [...(suggested.length > 0 ? ["suggested"] : []), "presets", ...(project.length > 0 ? ["project"] : []), ...(commands.length > 0 ? ["commands"] : [])];
   const selected = opts.tab !== null && available.includes(opts.tab) ? opts.tab : available[0];
   const tabs = available.length < 2 ? [] : available.map(key => key === "suggested"

@@ -339,7 +339,7 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
         const drawn = section.rows.map(row => <PresetOption key={row.key} row={row} index={index++} slash={slash} options={{ ...options, rows }} />);
         if (section.icon === undefined || slash) return <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{drawn}</Fragment>;
         const headId = `${options.listId}-g-${at}`;
-        return <div key={section.title ?? at} className="preset-section" role="group" aria-labelledby={headId}><div className="doan-menu-head preset-section-head" id={headId}><GroupIcon name={section.icon} />{section.title}</div>{drawn}</div>;
+        return <div key={section.key ?? at} className="preset-section" role="group" aria-labelledby={headId}><div className="doan-menu-head preset-section-head" id={headId}><GroupIcon name={section.icon} />{section.title}</div>{drawn}</div>;
       })}
     </div>
   </>;
@@ -385,18 +385,22 @@ export function PresetsButton(props: {
   const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab, skills: props.skills ?? [] });
   // Without a tab row the list is the Doan presets tab.
   const selected = view.kind === "list" ? view.tabs.find(item => item.selected)?.key ?? (view.label !== undefined ? "presets" : undefined) : undefined;
+  const tabRow = view.kind === "list" && view.tabs.length > 0;
+  // A new tab reuses the list element, so its scroll is reset wherever the choice changes.
+  const toTop = () => { const list = content.current?.querySelector<HTMLElement>('[role="listbox"]'); if (list) list.scrollTop = 0; };
+  // A re-read can take the chosen tab, or the whole tab row with the focused tab, away.
   useLayoutEffect(() => {
-    if (open && tab !== null && query === "" && selected && selected !== tab) {
-      setTab(selected);
-      const active = document.activeElement;
-      const lost = lastFocused.current;
-      const restore = lost && !lost.isConnected && active === document.body;
-      const inList = active instanceof HTMLElement && content.current?.contains(active) && !!active.closest('[role="listbox"]');
-      if (restore || inList) (content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? content.current?.querySelector<HTMLElement>("input"))?.focus();
-    }
-  }, [open, tab, query, selected]);
-  // Set before the new tab is drawn into the same list element.
-  const chooseTab = (key: string) => { const list = content.current?.querySelector<HTMLElement>('[role="listbox"]'); if (list && key !== selected) list.scrollTop = 0; setTab(key); };
+    if (!open) return;
+    const moved = tab !== null && query === "" && selected !== undefined && selected !== tab;
+    if (moved) { toTop(); setTab(selected); }
+    const lost = lastFocused.current;
+    if (!moved && (!lost || lost.isConnected)) return;
+    const active = document.activeElement;
+    const restore = lost && !lost.isConnected && active === document.body;
+    const inList = moved && active instanceof HTMLElement && content.current?.contains(active) && !!active.closest('[role="listbox"]');
+    if (restore || inList) (content.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? content.current?.querySelector<HTMLElement>("input"))?.focus();
+  }, [open, tab, query, selected, tabRow]);
+  const chooseTab = (key: string) => { if (key !== selected) toTop(); setTab(key); };
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   // A read that answers with the list takes the line and its Retry away; focus that was on the Retry goes to the search
   // box, the popover's first control, instead of falling to <body>.

@@ -536,7 +536,7 @@ test("a CLI failure explains why with Retry; a refusal has no Retry; an older CL
     .toEqual({ kind: "error", text: "Doan couldn’t read the design presets. You can still send without one.", retry: true });
 });
 
-const presetSection = (presets: readonly PresetSummary[], key: string) => ({ title: groupLabel(key), icon: groupIcon(key),
+const presetSection = (presets: readonly PresetSummary[], key: string) => ({ title: groupLabel(key), key: `group:${key}`, icon: groupIcon(key),
   rows: presets.filter(p => p.group === key).map(p => ({ kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) });
 const DOAN_TAB = { key: "presets", label: "Doan presets", icon: "library-big" };
 
