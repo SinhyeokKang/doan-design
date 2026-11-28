@@ -577,11 +577,15 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
 
 describe("Add to message", () => {
   const ROW = { path: CANVAS, url: "u", id: "a" };
+  // `judged`: App's judgment now; a test changes it while the menu is open.
   function addFixture(reason: string | null = null, focus: (() => void) | null = vi.fn()) {
-    const chipDrag = { reason: vi.fn(() => reason), judge: vi.fn(() => null), add: vi.fn(() => focus) };
+    const judged = { reason, focus };
+    const chipDrag = { reason: vi.fn(() => judged.reason), judge: vi.fn(() => null), add: vi.fn(() => judged.focus) };
     const tree = canvasMenuFixture({}, { chipDrag }, ROW);
     tree.open();
-    const addItem = () => tree.rendered().filter(item => typeof item.onSelect === "function").at(-3)!;
+    const addItem = () => tree.rendered().find(item => typeof item.onSelect === "function" && text(item).includes("Add to message"))!;
+    // The open menu's state; a new object asks for a render with the menu still open.
+    const menuState = () => hooks.states.find(state => (state as { kind?: string } | null)?.kind === "canvas");
     const content = () => tree.rendered().find(item => typeof item.onCloseAutoFocus === "function" && String(item.className).includes("shell-canvas-menu"))!;
     // Focus sits in the menu when it closes, with no dialog open.
     const close = () => {
@@ -592,7 +596,7 @@ describe("Add to message", () => {
       return event.preventDefault;
     };
     (tree.canvasRow().ref as (node: unknown) => void)({ contains: () => false });
-    return { tree, chipDrag, addItem, close };
+    return { tree, chipDrag, addItem, close, judged, menuState };
   }
   beforeEach(() => { vi.stubGlobal("HTMLElement", class {}); });
   afterEach(() => vi.unstubAllGlobals());
@@ -624,15 +628,42 @@ describe("Add to message", () => {
     expect(chipDrag.add).not.toHaveBeenCalled();
   });
 
-  it("an add App refuses at the press leaves the close as Escape's", () => {
-    const { addItem, close } = addFixture(null, null);
-    (addItem().onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  it("an add App refuses at the press keeps the menu open and shows the reason now, not the one it opened with", () => {
+    const { tree, addItem, close, judged, menuState } = addFixture();
+    // The composer started a pick while the menu was open.
+    judged.reason = "Finish or cancel the pick first."; judged.focus = null;
+    const opened = menuState();
+    const event = { preventDefault: vi.fn() };
+    (addItem().onSelect as (event: unknown) => void)(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(menuState()).toEqual(opened);
+    expect(menuState()).not.toBe(opened);
+    // A later close (Escape) is Escape's: no composer focus is left waiting.
     expect(close()).not.toHaveBeenCalled();
+    tree.render();
+    expect(tree.canvasRoot().open).toBe(true);
+    const item = addItem();
+    expect(item["aria-disabled"]).toBe(true);
+    expect(tree.rendered().find(element => element.id === item["aria-describedby"])).toMatchObject({ children: "Finish or cancel the pick first." });
+  });
+
+  it("an item unavailable when the menu opened adds the row once App takes it at the press", () => {
+    const focus = vi.fn();
+    const { chipDrag, addItem, close, judged } = addFixture("Finish typing first.", focus);
+    expect(addItem()["aria-disabled"]).toBe(true);
+    // The composition ended while the menu was open.
+    judged.reason = null;
+    const event = { preventDefault: vi.fn() };
+    (addItem().onSelect as (event: unknown) => void)(event);
+    expect(chipDrag.add).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS, id: "a" }));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(close()).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
   });
 
   it("unavailable: stays reachable by arrows, its reason under the label and as its description, and adds nothing", () => {
     const reason = "Only canvases in demo can go in this message.";
-    const { tree, chipDrag, addItem } = addFixture(reason);
+    const { tree, chipDrag, addItem } = addFixture(reason, null);
     const item = addItem();
     expect(chipDrag.reason).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }));
     expect(item).toMatchObject({ "aria-disabled": true, "aria-label": "Add to message", className: "doan-menu-item shell-menu-reasoned" });
@@ -640,8 +671,9 @@ describe("Add to message", () => {
     expect(tree.rendered().find(element => element.id === item["aria-describedby"])).toMatchObject({ className: "shell-menu-reason", children: reason });
     const event = { preventDefault: vi.fn() };
     (item.onSelect as (event: unknown) => void)(event);
+    // App judges the press again and refuses: the menu stays open on the reason.
     expect(event.preventDefault).toHaveBeenCalledOnce();
-    expect(chipDrag.add).not.toHaveBeenCalled();
+    expect(chipDrag.add).toHaveBeenCalledOnce();
   });
 });
 
