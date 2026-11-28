@@ -39,6 +39,7 @@
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
 | H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 진행 중 (base `fbc514e0b`, 통합 HEAD `verify.mjs` PASS) |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
+| G2 | 최종 eval 회차 | `docs/usability-eval/rounds-2026-11.md` | H | Opus medium — 정해진 시나리오를 다시 돌리고 기록한다 | 최종 HEAD 패키지로 `node eval/run.ts --scenarios R13,R12 --round <name>`에서 R13이 Claude·Codex 통과, 회차 기록. push 직전 `verify.mjs --eval` | 대기 |
 | Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
 
 ## 파일 겹침과 순서
@@ -47,6 +48,7 @@
 - B는 A의 형식에 기댄다. C는 B의 판정과 P의 표시 방식에 기댄다.
 - C·D·E·F는 `ShellSidebar.tsx`, `chipField.ts`, App의 composer 등록을 함께 건드리므로 차례로 돈다.
 - G는 `eval/`만 바꾸므로 A 통합 뒤 B–F와 병렬로 돈다.
+- G2는 H 통합 뒤에 돈다. G의 회차는 A만 든 패키지(`81ba0d8db`)로 돌았으므로, 기능의 마지막 통합 전 회차(AGENTS 'Workflow' `/agent-eval`)로 최종 HEAD에서 다시 돈다.
 - H는 F 통합 뒤에 돈다. GUI probe이므로 다른 worker의 GUI probe와 겹치지 않게 한다.
 
 ## 리뷰와 수정 기록
