@@ -40,3 +40,5 @@
 - RA, RB(리뷰). 실제로 쓴 범위는 끝날 때 갱신한다.
 
 ## 진행 기록
+- Run `run_637f9610c7ca`. A `ctx_59d645b798ef`(bmg-A, Opus high), B `ctx_f94aee5df671`(bmg-B, Opus high), C `ctx_043b4ad33a1a`(bmg-C, Sonnet medium)를 시작했다.
+- `/agent-eval` 범위(사용자 지시, lead 전달): "이번 board motion guide도 전체 eval 말고 필요한 부분만", 이어서 "대신 시나리오 범위를 넉넉하게 잡으라고 전달". 전체 회차는 돌리지 않는다. tasks의 범위(W15 baseline, 그 뒤 W15·W13·D5·W7·W8·W11·W12)를 모두 지키고, 바뀐 guide 문장이나 animate·delight preset을 읽을 수 있는 시나리오, 모션이나 프로토타입을 그리는 시나리오를 E가 찾아 더한다. 애매한 시나리오는 빼지 않는다. 고른 범위와 이유를 회차 기록과 PR 본문에 적는다.
