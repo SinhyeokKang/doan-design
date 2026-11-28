@@ -57,6 +57,7 @@
 
 - 폭 500 px, 탭이 폭을 가득 채운다. 프리셋 설명은 지금처럼 한 줄 말줄임(전체는 tooltip).
 - 섹션 머리: 기존 `doan-menu-head`에 14 px 그룹 아이콘(metadata 색), 바탕 `--surface-popover`(불투명). sticky와 `role="group"`은 Doan presets 탭의 그룹 섹션에만 쓰고, 머리가 하나인 탭(Suggested, Project, Commands)은 develop처럼 평범한 머리다.
+- 붙어 있는 머리와 검색 영역 사이에 틈이 없어야 한다: 스크롤 컨테이너의 위쪽 padding 때문에 머리 위로 행이 비치면 안 된다(사용자 결정, 규칙은 드래프트 노트).
 - 목록 최대 높이 336 px, 짧은 창에서는 `--radix-popover-content-available-height`로 드로어가 줄고 목록이 먼저 줄어든다. `scroll-padding-block-start`는 머리 높이와 같다.
 - Doan presets 탭 아이콘 lucide `LibraryBig`(accent, `GROUP_ICONS`에 추가). tablist 이름 "Categories", listbox 이름 "Doan presets". 모르는 그룹 머리는 키 그대로.
 - 프리셋을 읽지 못했는데 스킬·명령이 있으면 develop처럼 탭 없이 notice 아래에 Project·Commands 섹션을 쌓는다.

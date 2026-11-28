@@ -24,7 +24,7 @@
 
 - `/design-sync`: 새 드래프트와 computed style로 맞추고 `docs/design/conversation.md`의 'Popover'·'Tabs' 줄을 새 값으로 바꾼다. 검색 입력이 MCP Server URL 입력과 같은 높이·글자·여백인지 잰다.
   - 검증: 측정한 속성이 드래프트와 같거나, 다른 점이 'Documented differences'에 이유와 함께 적혀 있다.
-- `/runtime-test`: Home, Overview, 캔버스 대화 패널, 프로토타입 창에서 드로어를 열어 폭, 탭과 행 이동(포인터와 키보드), sticky 머리 아래 포커스 행이 보이는지, 좁은 프로토타입 창에서 탭 라벨 말줄임, 검색, 고르기를 확인한다.
+- `/runtime-test`(스크롤 중 붙은 머리 위로 행이 비치지 않는지 스크린샷으로 확인 포함): Home, Overview, 캔버스 대화 패널, 프로토타입 창에서 드로어를 열어 폭, 탭과 행 이동(포인터와 키보드), sticky 머리 아래 포커스 행이 보이는지, 좁은 프로토타입 창에서 탭 라벨 말줄임, 검색, 고르기를 확인한다.
   - 검증: 항목마다 기대값과 관측값, 스크린샷이 `.scratch/`에 있다.
 - `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
 - `[commit]` `docs(design): …`
