@@ -2,15 +2,25 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
-  interface Frame { frameTreeNodeId: number; processId: number; routingId: number; parent: Frame | null }
+  interface Frame {
+    frameTreeNodeId: number; processId: number; routingId: number; parent: Frame | null; frames: Frame[];
+    executeJavaScript: ReturnType<typeof vi.fn<(script: string) => Promise<unknown>>>;
+  }
   const frames = new Map<string, Frame>();
   let nextId = 1;
+  // A script main runs in a canvas frame: what the canvas answers. No frame by default.
+  let canvas: (script: string, frame: Frame) => Promise<unknown> = async () => null;
   function frame(parent: Frame | null): Frame {
     const id = nextId++;
-    const result = { frameTreeNodeId: id, processId: 10, routingId: id, parent };
+    const result: Frame = {
+      frameTreeNodeId: id, processId: 10, routingId: id, parent, frames: [],
+      executeJavaScript: vi.fn((script: string) => canvas(script, result)),
+    };
+    parent?.frames.push(result);
     frames.set(`10:${id}`, result);
     return result;
   }
+  const setCanvas = (answer: typeof canvas) => { canvas = answer; };
   const webFrameMain = { fromId: (process: number, routing: number) => frames.get(`${process}:${routing}`) };
   class Window extends EventEmitter {
     static instances: Window[] = [];
@@ -22,6 +32,8 @@ const mocks = await vi.hoisted(async () => {
     webContents = Object.assign(new EventEmitter(), {
       mainFrame: this.mainFrame,
       executeJavaScript: vi.fn((_script: string) => {
+        // Each job loads a fresh host page, which holds only the new iframe.
+        this.mainFrame.frames.length = 0;
         this.outer = frame(this.mainFrame);
         this.webContents.emit("frame-created", {}, { frame: this.outer });
         return Window.frame();
@@ -37,16 +49,17 @@ const mocks = await vi.hoisted(async () => {
       Window.instances.push(this);
     }
   }
-  return { Window, frame, frames, webFrameMain };
+  return { Window, frame, frames, setCanvas, webFrameMain };
 });
 vi.mock("electron", () => ({ BrowserWindow: mocks.Window, webFrameMain: mocks.webFrameMain }));
 
-const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, LOAD_LIMIT_MS, SETTLE_MS } = await import("./thumbnailWindow");
+const { CAPTURE_WINDOW_TITLE, createWindowCapturer, frameScript, hostPage, JOB_LIMIT_MS, LOAD_LIMIT_MS, MEASURE_LIMIT_MS, READ_FRAME, SCROLL_BACK, SCROLL_TO_FRAME, SETTLE_MS } = await import("./thumbnailWindow");
 const URL_A = "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html";
 
 beforeEach(() => {
   mocks.Window.instances.length = 0;
   mocks.Window.frame = async () => ({ x: 0, y: 0, width: 1280, height: 800 });
+  mocks.setCanvas(async () => null);
 });
 afterEach(() => vi.useRealTimers());
 
@@ -277,4 +290,184 @@ test("an outer failure during capturePage still rejects the PNG", async () => {
     return { x: 0, y: 0, width: 1280, height: 800 };
   };
   expect(await createWindowCapturer().capture(URL_A, 1280)).toBeNull();
+});
+
+// The first top-level frame: read, then scrolled to and read again, in the job's outer canvas frame only.
+const FIRST_SCREEN = { x: 0, y: 0, width: 960, height: 600 };
+const BELOW = { x: 40, y: 700, width: 880, height: 500 };
+const SCROLLED = { x: 40, y: 0, width: 880, height: 500 };
+type CanvasFrame = NonNullable<InstanceType<typeof mocks.Window>["outer"]>;
+const firstScreenWindow = async () => FIRST_SCREEN;
+
+function canvasAnswers(read: () => Promise<unknown>, scroll: () => Promise<unknown> = async () => SCROLLED, back: () => Promise<unknown> = async () => true) {
+  mocks.setCanvas((script) => {
+    if (script === READ_FRAME) return read();
+    if (script === SCROLL_TO_FRAME) return scroll();
+    if (script === SCROLL_BACK) return back();
+    return Promise.reject(new Error(`unexpected script ${script}`));
+  });
+}
+const scripts = (frame: CanvasFrame | undefined) => frame?.executeJavaScript.mock.calls.map((call) => call[0]) ?? [];
+
+test("the canvas scripts read the first frame, scroll it into view with two frames painted, and scroll back", () => {
+  expect(READ_FRAME).toContain('document.querySelector("[data-doan-frame]")');
+  expect(READ_FRAME).not.toContain("scroll(");
+  expect(SCROLL_TO_FRAME).toContain('scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" })');
+  expect(SCROLL_TO_FRAME.match(/requestAnimationFrame/g)).toHaveLength(2);
+  expect(SCROLL_BACK).toContain('scrollTo({ top: 0, left: 0, behavior: "instant" })');
+  expect(SCROLL_BACK.match(/requestAnimationFrame/g)).toHaveLength(2);
+  expect(MEASURE_LIMIT_MS).toBe(1000);
+});
+
+test("a frame below the first screen is scrolled to and only its rectangle is captured", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => BELOW);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  const window = only();
+  expect(scripts(window.outer)).toEqual([READ_FRAME, SCROLL_TO_FRAME]);
+  expect(window.webContents.capturePage).toHaveBeenCalledExactlyOnceWith(SCROLLED);
+});
+
+test("a narrow frame's capture is cut at its width", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => ({ x: 40, y: 300, width: 390, height: 844 }), async () => ({ x: 40, y: 0, width: 390, height: 844 }));
+  await createWindowCapturer().capture(URL_A, 960);
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith({ x: 40, y: 0, width: 390, height: 390 });
+});
+
+test.each([
+  ["no frame", async () => null],
+  ["a 0 x 0 frame", async () => ({ x: 0, y: 700, width: 0, height: 0 })],
+  ["a frame wider than the board", async () => ({ x: 0, y: 0, width: 4000, height: 500 })],
+  ["a faked NaN rectangle", async () => ({ x: Number.NaN, y: -5, width: 1e7, height: 1e7 })],
+  ["a read that throws", async () => { throw new Error("canvas threw"); }],
+])("%s is not scrolled, and the first screen is captured", async (_name, read) => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(read);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(scripts(only().outer)).toEqual([READ_FRAME]);
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+});
+
+test("a read past the measurement limit is abandoned and the first screen captured, not a job failure", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  let answer: (value: unknown) => void = () => {};
+  canvasAnswers(() => new Promise((resolve) => { answer = resolve; }));
+  const capturer = createWindowCapturer(JOB_LIMIT_MS, 20);
+  expect(await capturer.capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+  // A late answer changes nothing: no scroll follows it.
+  answer(BELOW);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(scripts(only().outer)).toEqual([READ_FRAME]);
+});
+
+test.each([
+  ["a scroll that answers no frame", async () => null],
+  ["a scrolled rectangle still outside the viewport", async () => BELOW],
+  ["a faked scrolled rectangle", async () => ({ x: -1, y: 0, width: 1e7, height: 500 })],
+  ["a scroll that throws", async () => { throw new Error("canvas threw"); }],
+])("%s scrolls back before the first screen is captured", async (_name, scroll) => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => BELOW, scroll);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  const window = only();
+  expect(scripts(window.outer)).toEqual([READ_FRAME, SCROLL_TO_FRAME, SCROLL_BACK]);
+  expect(window.webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+  expect(window.outer!.executeJavaScript.mock.invocationCallOrder.at(-1)).toBeLessThan(window.webContents.capturePage.mock.invocationCallOrder[0]);
+});
+
+test("a scroll past the measurement limit sends the scroll back and captures the first screen", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => BELOW, () => new Promise(() => {}), () => new Promise(() => {}));
+  expect(await createWindowCapturer(JOB_LIMIT_MS, 20).capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(scripts(only().outer)).toEqual([READ_FRAME, SCROLL_TO_FRAME, SCROLL_BACK]);
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+});
+
+test.each([
+  ["fails", () => Promise.reject(new Error("gone"))],
+  ["never answers", () => new Promise(() => {})],
+])("a scroll back that %s still captures the first screen within the measurement limit", async (_name, back) => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => BELOW, async () => null, back);
+  const started = Date.now();
+  expect(await createWindowCapturer(JOB_LIMIT_MS, 40).capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(Date.now() - started).toBeLessThan(JOB_LIMIT_MS);
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+});
+
+test("the outer frame is found again after load, not used from frame-created", async () => {
+  let replaced: CanvasFrame | undefined;
+  mocks.Window.frame = async () => {
+    const window = only();
+    // A redirect gave the outer frame a new renderer; the frame-created object is disposed.
+    const stale = window.outer!;
+    stale.executeJavaScript.mockImplementation(() => { throw new Error("Render frame was disposed"); });
+    replaced = { ...stale, processId: 20, frames: [], executeJavaScript: vi.fn((script: string) => (script === READ_FRAME ? Promise.resolve(BELOW) : Promise.resolve(SCROLLED))) };
+    window.mainFrame.frames.splice(0, 1, replaced);
+    return FIRST_SCREEN;
+  };
+  await createWindowCapturer().capture(URL_A, 960);
+  expect(only().outer!.executeJavaScript).not.toHaveBeenCalled();
+  expect(scripts(replaced)).toEqual([READ_FRAME, SCROLL_TO_FRAME]);
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(SCROLLED);
+});
+
+test("an outer frame gone after load gives the first screen", async () => {
+  mocks.Window.frame = async () => {
+    only().mainFrame.frames.length = 0;
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(only().webContents.capturePage).toHaveBeenCalledExactlyOnceWith(FIRST_SCREEN);
+});
+
+test("no script runs in a nested frame", async () => {
+  let nested: CanvasFrame | undefined;
+  mocks.Window.frame = async () => {
+    const window = only();
+    nested = mocks.frame(window.outer!);
+    window.webContents.emit("frame-created", {}, { frame: nested });
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  await createWindowCapturer().capture(URL_A, 960);
+  expect(nested!.executeJavaScript).not.toHaveBeenCalled();
+  expect(scripts(only().outer)).toEqual([READ_FRAME, SCROLL_TO_FRAME]);
+});
+
+test("a canvas faking its rectangle affects only its own thumbnail", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  const capturer = createWindowCapturer();
+  canvasAnswers(async () => ({ x: 0, y: 0, width: 960, height: 1e9 }));
+  expect(await capturer.capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  canvasAnswers(async () => BELOW);
+  expect(await capturer.capture(URL_A, 960)).toEqual(Buffer.from("png480"));
+  expect(only().webContents.capturePage.mock.calls.map((call) => call[0])).toEqual([FIRST_SCREEN, SCROLLED]);
+});
+
+test("a capture closed while the frame is read neither scrolls nor captures", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  let answer: (value: unknown) => void = () => {};
+  canvasAnswers(() => new Promise((resolve) => { answer = resolve; }));
+  const capturer = createWindowCapturer();
+  const running = capturer.capture(URL_A, 960);
+  await vi.waitFor(() => expect(scripts(only().outer)).toEqual([READ_FRAME]));
+  capturer.close();
+  answer(BELOW);
+  expect(await running).toBeNull();
+  expect(scripts(only().outer)).toEqual([READ_FRAME]);
+  expect(only().webContents.capturePage).not.toHaveBeenCalled();
+});
+
+test("an outer failure while the frame is read rejects the PNG", async () => {
+  mocks.Window.frame = firstScreenWindow;
+  canvasAnswers(async () => {
+    const window = only();
+    failFrame(window, window.outer!, "network");
+    return BELOW;
+  });
+  expect(await createWindowCapturer().capture(URL_A, 960)).toBeNull();
 });
