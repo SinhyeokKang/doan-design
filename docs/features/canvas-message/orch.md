@@ -61,3 +61,4 @@
 - B 리뷰(`ctx_9b30ccad5f17`): 🔴 0, 🟡 3, 🟢 5. 수정 1회차 지시를 준비했고, B가 runtime Task를 끝내면 보낸다.
 - 컨덕터 checkout의 `npm --prefix app test`(B 통합 시점): 3건 실패, 모두 부하 시간 초과다(`doanyRender` 2건 20초 초과, `editLines` 50 ms 성능 검사). 이 branch가 바꾸지 않은 파일이고 load average가 60–72였다. 최종 verify에서 다시 본다.
 - D prompt Task 끝: `316991c39`를 통합했다. 컨덕터 checkout에서 R14–R17과 `eval/lib` 테스트 299 통과, `node eval/run.ts --self-test --scenarios R14,R15,R16,R17` PASS(exit 0). D 배치의 남은 일은 없다. R8d Electron 테스트의 부하 시간 초과는 최종 verify에서 본다.
+- A 1회차 끝: 3커밋을 통합했다. `go vet ./...`, `go test ./...`, `vitest src/formats src/brand`(2232) 통과. A 배치는 남은 일이 없다.
