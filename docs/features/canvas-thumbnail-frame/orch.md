@@ -31,6 +31,9 @@
   - 🟡3 측정 기한이 지난 뒤에도 스크롤을 보낸다 → 보내기 전에 기한을 확인한다(고친다).
   - 🟡2 첫 화면 캡처 실패가 프레임 캡처를 막는다 → 고치지 않는다. 첫 화면 캡처 실패는 지금도 작업 실패이고 동작이 같다.
   - 수정은 T4가 끝난 뒤 같은 워커에 보낸다. 오류 경로만 바뀌어 T4 결과는 그대로 쓴다.
+- T4(실기, DPR 2·1 PASS) 결과: 넓은 canvas card의 160 px 배너 칸이 이미지 비율로 높이가 정해져, 1:1 상한의 폰 프레임 카드가 100 → 160 px로 커졌다(`t4/dpr2/card-wide-phone.png`).
+  - 사용자 결정: 캡처 높이 상한을 1:1에서 16:10(폭 × 10/16)으로 바꾼다. 칸 CSS는 바꾸지 않는다. 48 × 48 행에서 폰 프레임은 위쪽 가운데만 보인다. 앞의 'B 결과의 폭 상한 예외' 판단은 이것으로 없어진다.
+  - 수정 2차(16:10, R2 🟡1·🟡3) 뒤 폰·intro 캔버스만 DPR 2로 다시 확인한다.
 
 ## Codex 사용
 
@@ -43,8 +46,8 @@
 |---|---|---|---|---|---|---|
 | A | T1 PoC | `.scratch/canvas-thumbnail-frame/`, `design.md` 'PoC 결과' | — | Claude Opus high: Electron OOPIF·CSP·숨은 창 페인트 판단, 틀리면 설계가 무너진다 | probe 결과가 `.scratch/`에 있고 design.md에 고른 방법과 이유 | 완료 339d68a1c(워커 브랜치) |
 | B | T2 순수 함수, T3 캡처 | `app/src/main/thumbnailWindow.ts`(+test), 필요하면 `thumbnails.ts`·`thumbnailCache.ts`(+test), 새 순수 함수 파일 | A 검토 | 같은 워커(Opus high): 캔버스가 만든 값을 main이 검사하는 신뢰 경계 | `npm --prefix app test`(red→green), `typecheck`, `lint` | 완료 11431b2bb..fdb58e1cb, verify PASS(워커) |
-| R | B 리뷰 | 보고만 | B | Codex Astra medium: 다른 계열의 독립 리뷰, 신뢰 경계 판단 | `/code-review` 보고 | 진행 |
-| C | T4 실기 확인 | `.scratch/canvas-thumbnail-frame/` | R 🔴 0 | 같은 워커 | 항목별 기대값·스크린샷 | 대기 |
+| R | B 리뷰 | 보고만 | B | Codex Astra medium: 다른 계열의 독립 리뷰, 신뢰 경계 판단 | `/code-review` 보고 | 완료(리뷰 🔴2 → 재리뷰 🔴0) |
+| C | T4 실기 확인 | `.scratch/canvas-thumbnail-frame/` | R 🔴 0 | 같은 워커 | 항목별 기대값·스크린샷 | 1차 PASS, 수정 2차 뒤 일부 재확인 |
 | D | T5 승격과 정리 | ARCHITECTURE, PRODUCT, BACKLOG, `docs/design/*.md`, 기능 디렉터리 | C | 컨덕터 | 문서 확인, 통합 HEAD `/verify` | 대기 |
 
 ## 겹침과 순서
