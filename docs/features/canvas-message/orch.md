@@ -1,0 +1,40 @@
+# canvas-message — orch
+
+- 출처: [spec](./spec.md) · [design](./design.md) · [tasks](./tasks.md)
+- chain: [chain-261128-1](../chain-261128-1/chain.md) 링크 1. 상시 권한과 진행 규칙은 chain 파일과 chain 스킬 §3 'Conductor'를 따른다.
+- 시작 hash: `0ef551850` (origin/develop, canvas-chip PR #428 머지)
+- 통합 branch: `feat/canvas-message` (lead가 만들었다). PR은 develop으로 열고 머지는 lead가 한다.
+- 시작 점검: `git ls-tree origin/develop docs/features/check-scope docs/features/thread-polish docs/features/canvas-chip` 출력이 비어 있다(2026-11-28 확인).
+
+## 결정 기록
+
+- 새 eval 시나리오 번호는 R14–R17이다(tasks 9b의 R13–R16). — 컨덕터 판단: canvas-chip이 R13(캔버스 앵커 Home 대화)을 이미 썼다. tasks 9c의 "R13–R16"도 R14–R17로 읽는다.
+- `turnPrompt`로 다시 만드는 기존 eval 프롬프트 fixture에 R13을 더한다(tasks 5의 R8d, R9b, R10, R11, R12와 함께). — 컨덕터 판단: R13도 `handoff: true`로 `turnPrompt`를 부른다.
+- 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
+
+## 배치
+
+| 배치 | 항목(tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| A cli-schema | 2, 3·4·5의 Go 부분(`send.go`, `send_rules.go`, `send_test.go`, `handoff*.go`의 v5 새 코드, `envelope.go`, `run.go`, `skill.md`·`skill_test.go`·가이드, `canvas_path_test.go`) | `schema/`, `cli/`, `app/src/formats/validate.ts`·`validate.test.ts` | 없음 | Sonnet high: 기존 handoff 명령과 v5 스키마를 본뜨는 일이 대부분이다. 이전 앱·이전 CLI 호환 fixture만 판단이 든다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| B app-main | 3·4·5의 TS main 부분: `conversation/handoff.ts`·`queue.ts`·`drafts.ts`·`types.ts`·`service.ts`·`prompt.ts`·`ipc.ts`(필요시), `runtime.ts`(v8 분기는 지연 항목), 프로토타입 창 알림(`prototype/`, `preload/`), 기존 eval 프롬프트 fixture(`eval/lib/turn-prompt.ts`, `eval/scenarios/{R8d,R9b,R10,R11,R12,R13}/prompt.*`) | 위 파일과 그 테스트 | 없음. `runtime.ts` v8 분기는 A 통합 뒤 | Opus high: 큐·handoff 정착·재시작 merge·동시 send가 얽힌 동시성 일이고, 틀리면 drafts가 깨지거나 메시지가 사라진다 | `npm --prefix app test`, `go test ./...`, `node --test 'eval/**/*.test.ts'`, `npm --prefix app run typecheck`, `npm --prefix app run lint` | 대기 |
+| D eval | 9a(`eval/lib/socket.ts`, `scenario.ts`, `handoff.ts`), 9b(새 시나리오 R14–R17; 각 `prompt.md`는 B 통합 뒤 지연 항목) | `eval/lib/`(`turn-prompt.ts` 제외), `eval/scenarios/R14`–`R17` | 없음. 새 `prompt.md`는 B 통합 뒤 | Sonnet high: 기존 R10–R12 시나리오를 본뜨는 일이다. 요청 하나당 한 번 세는 판정(postmortem)만 주의한다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios R14,R15,R16,R17`, `npm --prefix app run typecheck`, `npm --prefix app run lint` | 대기 |
+| C renderer | 6 | `app/src/renderer/`(`handoffView.ts`, `threadItems.ts`, `canvasCardText.ts`, 큐 줄, `ConversationThread.tsx`, 토스트, `styles.css`)와 그 테스트 | B 통합(`types.ts`, `handoff.ts`의 새 모양) | Opus medium: 드래프트 문구·상태를 기존 부품에 맞추는 일이라 판단이 들지만 동시성은 없다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` | 대기 |
+| E design-sync | 7 | `docs/design/conversation.md`, `.scratch/design-sync/canvas-message-*`, 차이를 고치는 renderer 파일 | C 통합 | Opus medium: 실제 앱 측정과 드래프트 대조 | measure 스크립트 두 개의 결과가 드래프트와 맞음 | 대기 |
+| F eval-round | 9c | `docs/usability-eval/`, `docs/USABILITY-EVAL.md` | A·B·C·D 통합, `npm --prefix app run package` | Sonnet medium: 정해진 회차 실행과 기록 | R14–R17, R10–R12가 두 에이전트에서 pass, 회차 기록 | 대기 |
+| 컨덕터 | 8 `/runtime-test`, 10 `/verify --eval`, 11 문서 승격과 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, README, `orch.md` | 모든 배치 통합 | — | tasks 8·10·11의 확인 | 대기 |
+
+- tasks 1(드래프트)은 끝났다.
+- tasks 3(`/tdd`)은 배치마다 자기 파일의 테스트로 나눈다. 각 워커가 `/deliver`의 tdd 단계에서 red를 본다.
+- 리뷰: 배치마다 독립 리뷰 워커(`/code-review`, 보고만)를 둔다. B는 Opus high, A·C·D는 Sonnet high.
+
+## 파일 겹침과 순서
+
+- 1차 병렬: A, B, D. 겹치는 파일이 없다. A는 `schema/`·`cli/`·`app/src/formats/`, B는 `app/src/main/`과 기존 시나리오의 프롬프트, D는 `eval/lib/`와 새 시나리오.
+- B의 지연 항목: `runtime.ts`의 v8 분기와 대화 토큰은 A의 v8 스키마와 `validate.ts`가 들어온 뒤 새 Task로 보낸다.
+- D의 지연 항목: R14–R17의 `prompt.md`와 `prompt.test.ts`는 B의 `prompt.ts`가 들어온 뒤 새 Task로 보낸다.
+- 2차: C는 B 통합 뒤 시작한다(`types.ts`의 `origin`·큐 행 모양을 쓴다).
+- 3차: E(C 통합 뒤), 컨덕터의 runtime-test, F(패키지 뒤), verify, 문서 승격.
+- canvas-chip의 미확인 화면(BACKLOG 'Canvas chips': 캔버스 패널의 send·큐 flush·Send now 경로)은 B가 큐 경로를 바꾸므로 컨덕터의 runtime-test에서 함께 본다. GUI probe는 lead와 메일로 맞춘다.
+
+## 진행 기록
