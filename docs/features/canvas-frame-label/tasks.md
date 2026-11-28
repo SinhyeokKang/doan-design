@@ -17,7 +17,7 @@
   - 줌 0.05·0.25·1·2에서 같은 높이와 프레임을 따라가는 자리, 프레임 화면 폭으로 줄어드는 최대 폭, 최소 폭 아래 숨김, 화면 왼쪽이나 위로 일부 나간 프레임, 모든 프레임 0 × 0(재지 않음)
   - Select → `pick-frame {index, id}`, Picker → `{frame: {id, title}}`(MAX_STRING으로 자른 프레임 pick 응답과 같음)
   - 선택 상태: 프레임 자체 선택, 그 안의 요소 선택, 중첩 프레임 선택. hover 상태: 이름표 위, 프레임 안
-  - 끌기: 4 px 이하는 누르기, 넘으면 동작 없음
+  - 끌기: 4 px 이하는 누르기, 넘으면 칩 끌기. 받기 판정: 같은 캔버스의 대화 패널 composer는 받고, 다른 캔버스·Overview·Home·프로토타입 창은 받지 않으며, IME·읽기 전용·pick 중·보내는 중·32곳 한도는 이유 줄
 - `[commit]` `test:` → `feat:`
 
 ## T3. 앱 overlay와 누르기
@@ -31,6 +31,7 @@
     - hover: 이름표 위에서 그 프레임의 hover 표시, 이미 선택된 프레임이면 없음, 이름표에서 iframe으로 옮기면 캔버스 hover가 돌아옴, 이름표 hover 중 reload나 프레임 사라짐에서 지워짐.
     - 수식키: ⌘·Shift = 보통 누르기, Option-click은 선택 없음, 오른쪽·Ctrl 무반응. Esc 한 번에 선택 해제.
     - 누르기가 텍스트 범위를 지우고 popover를 닫는다.
+    - 끌기: 4 px 넘게 끌면 선택이 바뀌지 않고 보드가 움직이지 않는다. 대화 패널 composer에 놓으면 그 자리에 프레임 칩이 들어가고 포커스와 caret이 칩 뒤로 간다. undo 한 번으로 되돌아간다. 받지 않는 상태에서 이유 줄이 보인다. 보드나 바깥에 놓으면 아무 일도 없다. `dataTransfer`에 표식만 있고 경로·id가 없다. 사이드바 캔버스 행 끌기(canvas-chip)는 그대로 동작한다.
     - Hand, Space 끌기, Capture area에서는 누르기를 받지 않는다. 이름표가 `aria-hidden`이고 Tab 순서에 없다.
     - 팬과 줌에서 React render가 없고 DOM을 다시 만들지 않는다(최상위 1,000개 layout).
     - 반복 reload 동안 `hidden`·`display`·`className` 쓰기가 없다(spy). 첫 layout이 모두 0 × 0이면 마지막 geometry를 유지하고, 프레임이 없는 layout이면 지운다. 같은 href에서 document token이 바뀐 뒤 누르기와 hover가 동작한다. 캔버스를 바꾸면 이름표가 사라진다. `status`가 있거나 목록에 없는 캔버스에서는 그리지 않는다.
@@ -52,6 +53,7 @@
   - 줌 25 %와 200 %에서 이름표 높이가 같다(측정값).
   - 이름표를 누른 뒤 `doan active`(격리 `DOAN_RUNTIME`)가 그 프레임을 가리키고 화면이 움직이지 않는다.
   - Hand 끌기가 이름표 위에서도 보드를 끈다. Picker 중 누르기가 칩을 넣는다.
+  - 이름표를 대화 패널 composer로 끌어 놓으면 프레임 칩이 들어간다(canvas-chip T1에서 정한 Playwright 끌기 방식, 네이티브 끌기 이미지는 짧은 구간으로 따로). 격리된 가짜 `claude`가 받은 프롬프트에 프레임 앵커가 있다.
   - 에이전트 쓰기로 인한 reload 동안 이름표가 남는다(연속 스크린샷).
   - 보드 맨 위 프레임의 이름표가 헤더나 `section.area`에 잘리지 않는다.
   - 프로토타입 창에 이름표 DOM이 없다.

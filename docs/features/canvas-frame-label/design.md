@@ -9,6 +9,7 @@
     - 포커스: Select에서는 `pick-frame` 응답이 command reply라 `focusOnClick`이 불리지 않으므로, 누르기에서 `section.area.focus({preventScroll, focusVisible: false})`를 직접 부른다. Picker 중에는 mousedown에서 `preventDefault`해 포커스를 composer에 둔다.
     - hover: 포인터가 앱 요소로 들어오면 `pointerOnApp`이 `hoverRect`를 비우므로, `treeHover`(`previewElement`)처럼 앱이 덮어쓰는 rect로 그 프레임의 hover 표시를 그린다. 이름표 위에 있는 동안에는 이름표 hover가 이기고, 늦게 온 iframe hover 응답은 무시한다. 이미 선택된 프레임이면 hover 표시를 그리지 않는다(캔버스 hover 규칙).
     - 누르기의 부수 효과: 캔버스 누르기처럼 텍스트 범위를 지우고 열린 preset 목록·Agent usage·update popover를 닫는다(iframe 밖이라 `press` 메시지가 없으므로 앱이 직접 처리한다).
+    - 끌기: `canvasChipDrag.ts`의 메모리 끌기 상태와 `CANVAS_DRAG_TYPE` 표식, `registerChipComposer`·`useCanvasChipDrop`, 놓을 자리 표시와 이유 줄을 그대로 쓴다. 지금 `CanvasDrag`는 `{root, path, id}`(캔버스)만 담으므로, 끄는 대상을 캔버스 또는 프레임 anchor(`{frame: {id, title}}`, 캔버스 경로와 함께)로 넓힌다. 판정(`judge`)은 프레임이면 '같은 캔버스의 composer'만 받는다. `dataTransfer`에는 지금처럼 표식만 싣고 경로나 id는 싣지 않는다(ARCHITECTURE §7 'Renderer primitives'). 이름표는 앱 문서의 요소라 HTML5 drag를 직접 시작할 수 있다(`draggable`, 4 px 문턱 뒤).
   - 새 순수 모듈 `app/src/renderer/frameLabels.ts`: 아래 '순수 함수'.
   - `app/src/renderer/styles.css`: 이름표 모습. overlay는 `pointer-events: none`이고, size bubble의 버튼과 이름표만 누르기를 받는다(`styles.css`의 overlay 주석도 고친다).
 - **내보낸 viewer**: 구조가 앱과 다르다.
@@ -16,6 +17,7 @@
   - 선택 명령: viewer에는 index로 프레임을 고르는 명령이 없다(프레임 drawer는 화면만 옮긴다). epoch로 거르고 index와 잘린 id를 확인하는 새 `inspect-*` 명령을 `inspectSelection.js`에 더한다.
   - hover: `inspect-marks`로 그리는 `hover-mark`(`inspectView.js`)를 덮어쓴다.
   - Hand: viewer에는 drag layer가 없고 `#board[data-pan]`과 iframe `pointer-events: none`으로 팬한다. 이름표에 `[data-pan]` 규칙과 도구 확인을 따로 둔다.
+  - 끌기: viewer에는 composer가 없어 이름표 끌기는 아무것도 하지 않는다.
   - 고칠 파일: `shell.html`, `shell.css`, `shell.js`, `inspectSelection.js`, `inspectView.js`. `inspect.js`와 `inspectPanel.js`는 생성 파일이라 손으로 고치지 않는다. `renderer/frameLabels`를 `app/scripts/viewerInspect.mjs`의 `viewerApp.js` 항목에 더해 앱과 viewer가 같은 순수 함수를 쓰게 한다.
 - **CLI(Go)**: export가 viewer 파일을 담는 것 말고는 바뀌지 않는다.
 - **형식**: 바뀌지 않는다. `layout` 메시지는 이미 프레임마다 `id`, `title`, `parent`(감싸는 프레임의 index), 보드 좌표를 보낸다(`canvasMessage.ts` `CanvasFrameRect`). 최상위 프레임은 `parent`가 없는 프레임이다. 한계: `parseFrame`이 부모를 버리면 자식의 `parent`도 사라져 그 자식에 이름표가 생긴다.
@@ -28,7 +30,7 @@
 - `labelPlacement(frame, view, metrics)`: 보드 좌표의 프레임 사각형과 view에서 이름표의 화면 위치(프레임 왼쪽 위 바깥, 위쪽 가장자리 바로 위)와 최대 폭(프레임의 화면 폭). 최소 폭보다 좁으면 숨김. view는 앱의 transform(x, y, scale)과 viewer의 stage 위치 + scale을 모두 받는 모양이다.
 - `labelPress(label, mode)`: Select → `pick-frame {index, id}`(화면 이동 없음), Picker → 프레임 칩 anchor `{frame: {id, title}}`(layout의 id·title을 MAX_STRING으로 잘라 `endPick({kind: "picked", …})`, 프레임 pick 응답과 같은 칩), id가 빈 프레임은 Picker에서 칩을 만들지 않는다(main이 빈 id를 거절한다).
 - `labelState(label, selection, hover)`: 선택 상태는 그 최상위 프레임 자체가 선택됐을 때만(`element === undefined`이고 `frameIndex`와 `frame.id`가 같을 때, `canvasMessage.ts`; viewer는 `frameOf`의 `kind: "frame"`과 index). hover 상태는 hover 대상이 그 프레임일 때(이름표 위든 프레임 안이든).
-- 끌기 판정: 이름표에서 4 screen px 넘게 움직이면 아무것도 하지 않는다(선택도 팬도 없음).
+- 끌기 판정: 4 px 이하는 누르기, 넘으면 칩 끌기. 프레임 끌기의 받기 판정(같은 캔버스의 대화 패널 composer만, 그 밖의 이유는 canvas-chip과 같은 이유 문장).
 
 ## 렌더링과 상호작용 규칙
 
@@ -73,6 +75,7 @@
 
 - **프레임**:
   - `board`: 최상위 프레임 여러 개와 중첩 프레임이 있는 보드(이름표는 최상위에만), 줌 5 %·25 %·100 %·200 %
+  - `drag`: 이름표를 끌어 대화 패널 composer에 놓는 모습(끄는 칩, 놓을 자리 표시, 받지 않을 때의 이유 줄)
   - `states`: 기본, hover(이름표 위와 프레임 안 양쪽), 선택(선택 표시와 size bubble과 함께), 긴 이름의 말줄임표, 좁은 프레임과 숨김, "(no id)"
   - `overlap`: 위아래로 붙은 프레임에서 이름표가 위 프레임에 걸치는 모습, 위 프레임의 size bubble과 아래 이름표, working-frame marker와 함께 있는 모습, 캔버스 맨 위 프레임과 agent notice
   - `viewer`: 내보낸 viewer에서의 모습
