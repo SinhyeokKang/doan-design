@@ -21,6 +21,7 @@
 - 판정과 전달 사이에 대상 대화가 지워지면 `not_found`로 거절하고, 카드 문구는 C가 정한다. 삭제 대화상자는 에이전트 행을 세지 않는다. — 컨덕터 판단: spec "그 뒤의 운명은 추적하지 않는다".
 - 받는 대화의 제목은 `sent` 기록의 target에 스냅숏으로 싣고, 렌더러는 목록의 지금 제목을 먼저 쓴다. 에이전트 큐 행은 사람 행 사이의 자리를 받아 실제 보내는 순서로 그린다. — 컨덕터 판단(C의 needs): spec이 대화가 지워진 뒤에도 `Sent to “<title>” · Conversation deleted`를 요구하고, 드래프트 queue 2번 타일이 섞인 순서를 그린다.
 - C 리뷰의 제품 질문: 지워진 대상으로의 `send` 거절은 "Didn’t send. That conversation was deleted."(clarify preset으로 다듬음), 다른 `send` 거절은 provider를 말하지 않는 중립 한 줄, 기존 캔버스 handoff는 "new canvas"로 세지 않는다, Overview 보낸 쪽 Open은 `in the Overview`, 흐린 에이전트 행도 docked buddy의 큐 표시에 센다. — 컨덕터 판단: 드래프트 문구 결과 spec 범위 안의 문구·표시 결정이다.
+- 흐린 에이전트 행이 사람의 다음 done 턴까지 남는 드문 경계 셋(flush 경로의 exit 대기 시간 초과, exit 대기 중 새 send, `draft` 결과의 give-back)은 고치지 않고 한계로 적는다. — 컨덕터 판단(B 재리뷰): 시간 초과·삭제·Stop이 겹쳐야 하고 행이 사라지지는 않는다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -71,3 +72,4 @@
 - C 1회차 끝: 2커밋을 통합했다. typecheck 깨끗. Nit 9(다른 대화의 send 알림이 기다리던 0단계 handoff 이동을 토스트로 바꿀 수 있음)는 한계로 적는다. C 2회차는 B 2회차 뒤에 보낸다.
 - B 2회차 끝: 2커밋을 통합했다(`sent` target.title, `agentQueue[].after`). typecheck 깨끗. C 2회차를 보냈다.
 - C 2회차 끝: 2커밋을 통합했다(제목 스냅숏 사용, 보내는 순서대로 그리는 큐). typecheck 깨끗, feat 푸시. B 재리뷰 `ctx_9900518b2700`(Opus high) 진행 중. E(design-sync)를 C 워커에 새 Task로 보냈다(`ctx_34897d12e0e6`, `cm-c-renderer`). lead에 GUI probe 시작을 메일로 알렸다.
+- B 재리뷰(`ctx_9900518b2700`): 🔴 0, 🟡 1(한도 예약 중 `after`가 실제 순서와 다름), 🟢 6. 3회차를 B에 보냈다.
