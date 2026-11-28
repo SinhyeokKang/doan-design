@@ -13,6 +13,7 @@ export const CANVAS_CHIP_SHARED_ID = "Another canvas has the same ID, so this on
 export const CANVAS_CHIP_NO_COMPOSER = "Open Home, the Overview or a canvas to add this to a message.";
 export const CANVAS_CHIP_PICKING = "Finish or cancel the pick first.";
 export const CANVAS_CHIP_COMPOSING = "Finish typing first.";
+export const CANVAS_CHIP_SENDING = "Wait for the message to send.";
 
 // The visible composer registers this, so the row menu and a drop judge it the same way.
 export interface CanvasChipComposer { root: string; canTake(anchor: Anchor): string | null }

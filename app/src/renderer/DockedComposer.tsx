@@ -5,7 +5,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
+import { CANVAS_CHIP_SENDING, chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
 import { useCanvasChipDrop, type ChipComposerPlace } from "./canvasChipDrag";
 import { fieldSkillRuns } from "./skillWords";
 import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, queuedCommand, STALE_MODE_CARD, type CommandCard, type CommandLists } from "./commandView";
@@ -556,7 +556,8 @@ export function DockedComposer(props: DockedComposerProps) {
 
   const canvasChips = props.canvasChips ?? null;
   const chipDrop = useCanvasChipDrop({ place: canvasChips?.place ?? null, root: canvasChips?.root ?? null, field, onLimit: () => setLimitAt(shownKey.current),
-    takes: anchor => chipFieldTakes({ blocked: props.canvasGone ? canvasGoneText(props.project) : locked ? props.unavailable ?? null : null, capturing: !!props.capturing,
+    // A chip taken while sending would stay in the field after the send settles, as dropped files and pastes would.
+    takes: anchor => chipFieldTakes({ blocked: props.canvasGone || refusal?.kind === "gone" ? canvasGoneText(props.project) : locked ? props.unavailable ?? null : isSending ? CANVAS_CHIP_SENDING : null, capturing: !!props.capturing,
       picking: !!props.pick?.pressed, composing: field.current?.composing() ?? false, segments: draft.segments, ...(reserved ? { reserved } : {}) }, anchor) });
   // A canvas renamed or moved since its chip went in: the chip follows it by id. Only while the draft is still the one read.
   const canvases = canvasChips?.canvases, onDrafts = props.onDrafts;
