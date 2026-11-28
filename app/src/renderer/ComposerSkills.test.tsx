@@ -23,7 +23,7 @@ test.each([true, false])("a vanished tab persists its fallback and moves focus o
   const focus = vi.fn();
   hooks.refs[1]!.current = { querySelector: () => ({ focus }) };
   const focused = { isConnected: false, closest: () => inTab ? {} : null };
-  (tree.find(p => p.className === "doan-floating preset-popover has-skills")!.onFocusCapture as (e: unknown) => void)({ target: focused });
+  (tree.find(p => p.className === "doan-floating preset-popover")!.onFocusCapture as (e: unknown) => void)({ target: focused });
   if (!inTab) vi.stubGlobal("document", { activeElement: {}, body: null });
   props.skills = [];
   render(); hooks.layouts.forEach(effect => effect());
