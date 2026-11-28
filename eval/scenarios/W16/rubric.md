@@ -13,7 +13,7 @@ The automatic checks (W15's canvas checks, shared through `boardChecks` in `eval
 
 Judge the work and the answer:
 
-- The motion must be the card expanding to reveal the description and the team, smoothly. Report partial when only still states are drawn (the request asked to show motion), or when the motion is something else (only a fade of the whole card, say).
+- The motion must be the card expanding to reveal the description and the team, smoothly. Still states drawn only (no motion at all) already fail `motion_shown`. Report partial when the motion is something else (only a fade of the whole card, say) or stands beside a request answered mostly with still states.
 - Where the motion lives: in a frame marked with `data-doan-prototype` (marking `project-list` itself is expected; a separate copy of the list is partial, the content drawn twice), or on the board as a looping animation or a `:hover` effect. Report partial when a motion that runs once is left on the board with no prototype mark, so the person can only catch it as the canvas loads.
 - A replay or toggle button, or any click-driven control, on the board is a fail; the checks catch the ones they can read. What they cannot read stays with you: a click listener whose event type sits in a variable, or a script inside the marked frame that reaches board elements.
 - The board should still show a sensible default state (the thumbnail is taken shortly after load).
