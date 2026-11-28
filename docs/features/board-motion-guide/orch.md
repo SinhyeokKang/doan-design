@@ -22,10 +22,10 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1, T1a | `eval/scenarios/W15/**`, W15를 등록하는 데 필요한 `eval/` 파일, `docs/usability-eval/rounds-2026-11.md`(baseline 회차) | 없음 | Claude Opus high — 프로토타입 표시 없는 영역을 정적으로 가리는 check가 판단을 많이 요하고, 실제 에이전트 baseline 회차를 돌린다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W15`, baseline 회차 기록 | 진행 |
-| B | T2 | `cli/internal/cli/skill.md`, `skill_test.go`, `cli/internal/designskill/presets/animate.md`, `delight.md`, `designskill_test.go` | 없음(C 결과에 따라 `:hover` 문장 조정) | Claude Opus high — 4 B 여유에서 문장을 줄이며 조건·예외를 지켜야 한다(postmortem 2026-10-29) | `go test ./...`, `go vet ./...`, `rg -n -i 'replay control\|visible trigger' cli/internal/designskill/presets` 비어 있음 | 진행 |
+| B | T2 | `cli/internal/cli/skill.md`, `skill_test.go`, `cli/internal/designskill/presets/animate.md`, `delight.md`, `designskill_test.go` | 없음(C 결과에 따라 `:hover` 문장 조정) | Claude Opus high — 4 B 여유에서 문장을 줄이며 조건·예외를 지켜야 한다(postmortem 2026-10-29) | `go test ./...`, `go vet ./...`, `rg -n -i 'replay control\|visible trigger' cli/internal/designskill/presets` 비어 있음 | 통합 ea408c619..9a5563c2e, worktree 정리 |
 | C | T1b | `.scratch/`만 | 없음 | Claude Sonnet medium — 짧은 실기 probe, 판단 적음 | Select·Hand의 `:hover` computed style 관측값이 `.scratch/`에 있다 | 완료, worktree 정리 |
-| RA | A 리뷰 | 없음(보고만) | A | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 대기 |
-| RB | B 리뷰 | 없음(보고만) | B | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 대기 |
+| RA | A 리뷰 | 없음(보고만) | A | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | W15 완료(🔴3 🟡5 ⚪1), W16 대기 |
+| RB | B 리뷰 | 없음(보고만) | B | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료(🔴0 🟡5 ⚪1) |
 | E | T3 | `docs/usability-eval/rounds-2026-11.md`(회차) | A·B 통합 | Claude Opus medium — eval 회차 실행과 판정 기록 | W15 양쪽 통과, 회귀 없음, 회차 기록 | 대기 |
 | 컨덕터 | T4, 통합 `/verify --eval` | `docs/ARCHITECTURE.md`, `docs/USABILITY-EVAL.md`, 기능 디렉터리 삭제 | E | — | ARCHITECTURE §1에 규칙, 기능 디렉터리 없음 | 대기 |
 
@@ -48,3 +48,6 @@
 - A 완료(T1·T1a): 커밋 8b9990710·295b228c7·9d1f73a01. W15 baseline `board-motion-baseline-261128`에서 Claude Code와 Codex 모두 대상 프레임에 `data-doan-prototype`을 붙이고 클릭을 그 안에 만들었다. 자동 검사는 모두 통과했고 judge가 둘 다 partial로 판정했다(답변에 Play할 프레임과 `--prototype` 열기 제안이 없다). 계획이 예상한 보드 클릭 트리거는 나오지 않았다.
 - 사용자 결정: "W16 추가". W15(클릭 요청 → 프로토타입과 Play 안내)는 그대로 두고, 클릭을 말하지 않는 모션 요청 W16을 더해 baseline을 다시 돌린다. 사용자가 보고한 재생 버튼은 모션 요청에서 animate preset의 'replay control' 문장 때문에 생긴 것으로 보기 때문이다. A에 follow-up으로 보냈다. 최종 회차(E)는 W15·W16에 회귀 세트를 더해 돈다.
 - RA(Codex gpt-6.2-astra medium, `ctx_4230f6c67f14`)가 bmg-A에서 W15를 리뷰한다. W16은 A가 끝나면 RA follow-up으로 리뷰한다.
+- B fix round 1 완료: RB 🟡 5건을 232792f91·92e636d7b·8d0c97f6c·c29d2ac4b로 고쳤다. 새로 줄인 문장 2개(옛 디렉터리 줄, 규약 12 첫머리)도 테스트로 고정했다. guide `--json` 21,996 B(여유 4 B), plain 21,807 B. 컨덕터가 diff를 읽어 확인했다. B 커밋 8개를 통합했다(ea408c619..9a5563c2e). 통합 HEAD에서 `go test ./cli/...`와 `go vet ./...`가 통과한다. worker를 release했고 worktree `bmg-B`를 지웠다(브랜치는 c29d2ac4b에 남아 있다).
+- RA 완료(W15): 🔴 3, 🟡 5, ⚪ 1(`.scratch/review-RA.md`). 🔴는 스크립트 귀속이 이벤트 대상이 아니라 스크립트 전체를 본다는 것, CSS 선택자의 이름만 보고 귀속한다는 것, 보조 평면 문자(이모지)에서 프레임 위치가 어긋난다는 것이다. RA가 남긴 사용자 결정(T1a 완료 조건)은 사용자의 "W16 추가" 결정으로 답이 났다. A가 W16 baseline을 마치면 수정 task로 보낸다.
+- W16 check 범위(A의 질문, 컨덕터 판단): `motion_shown`은 seed 밖의 모션이 어디든 있으면 통과한다. 보드에 한 번 도는 모션은 자동 검사를 통과하고 judge가 partial로 판정한다. 정지 상태만 그리면 check에서 실패한다. 보드 클릭 트리거는 공통 detector로 실패한다. brief대로 check를 엄격히 하면 rubric의 partial 줄이 쓰일 일이 없기 때문이다.
