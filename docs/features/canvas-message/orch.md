@@ -20,6 +20,7 @@
 - 대화 없는 캔버스로 거의 동시에 온 `send` 둘은 새 대화 둘을 시작할 수 있다. 한계로 PRODUCT에 적는다. — 컨덕터 판단: 겹치는 창이 시작 준비 몇 초다.
 - 판정과 전달 사이에 대상 대화가 지워지면 `not_found`로 거절하고, 카드 문구는 C가 정한다. 삭제 대화상자는 에이전트 행을 세지 않는다. — 컨덕터 판단: spec "그 뒤의 운명은 추적하지 않는다".
 - 받는 대화의 제목은 `sent` 기록의 target에 스냅숏으로 싣고, 렌더러는 목록의 지금 제목을 먼저 쓴다. 에이전트 큐 행은 사람 행 사이의 자리를 받아 실제 보내는 순서로 그린다. — 컨덕터 판단(C의 needs): spec이 대화가 지워진 뒤에도 `Sent to “<title>” · Conversation deleted`를 요구하고, 드래프트 queue 2번 타일이 섞인 순서를 그린다.
+- C 리뷰의 제품 질문: 지워진 대상으로의 `send` 거절은 "Didn’t send. That conversation was deleted."(clarify preset으로 다듬음), 다른 `send` 거절은 provider를 말하지 않는 중립 한 줄, 기존 캔버스 handoff는 "new canvas"로 세지 않는다, Overview 보낸 쪽 Open은 `in the Overview`, 흐린 에이전트 행도 docked buddy의 큐 표시에 센다. — 컨덕터 판단: 드래프트 문구 결과 spec 범위 안의 문구·표시 결정이다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -65,3 +66,4 @@
 - A 1회차 끝: 3커밋을 통합했다. `go vet ./...`, `go test ./...`, `vitest src/formats src/brand`(2232) 통과. A 배치는 남은 일이 없다.
 - B runtime Task 끝: 2커밋을 통합했다(`e90b7c36b`까지). typecheck가 깨끗해졌다. 연쇄 거절 기록 모양은 `handoff.requested` + 거절 `handoff.resolved`(reason `chain_one`·`chain_limit`)이고, 턴이 도는 동안 쓰여 카드가 처음부터 거절로 보인다. B 수정 1회차를 보냈다.
 - C 끝: 3커밋을 통합했다(`3a5eb6002`·`b3871697b`·`dee2b2c39`의 cherry-pick). 통합 HEAD에서 typecheck 깨끗, 관련 테스트 6파일 247 통과. C 리뷰 워커 `ctx_ff4cd598de36`(Sonnet high) 시작. C의 main 요구 둘(제목 스냅숏, 에이전트 행 자리)은 B 1회차 뒤 2회차로 보낸다.
+- C 리뷰(`ctx_ff4cd598de36`): 🔴 0, 🟡 5, 🟢 8. 1회차를 C에 보냈다(`ctx_fb981c51a08b`). 🟡 5(새로 시작한 대상의 "Conversation deleted" 깜빡임 가능성)는 runtime probe 항목으로 둔다.
