@@ -30,13 +30,16 @@ export interface PrototypeExchange {
   hashes: Record<string, string | null>;
 }
 
-export interface HandoffExchange {
-  request: { v: 5; root: string; handoff: string; path: string; text: string };
-  response: { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: string; message: string } };
+// One exchange of the fake app's handoff log: v5 for `doan handoff`, v8 for `doan send`.
+interface RequestExchange<V extends 5 | 8> {
+  request: { v: V; root: string; handoff: string; path: string; text: string };
+  response: { v: V; ok: true; requested: true } | { v: V; ok: false; error: { code: string; message: string } };
   at: string;
   // SHA-256 of the requested canvas when the request arrived; empty for a refused request.
   hashes: Record<string, string | null>;
 }
+export type HandoffExchange = RequestExchange<5>;
+export type SendExchange = RequestExchange<8>;
 
 export interface CheckContext {
   // Absolute path of the final repo (the pasted instruction's root).
@@ -73,6 +76,8 @@ export interface CheckContext {
   open(): OpenExchange[];
   // App-socket v5 exchanges (`doan handoff`) in order, token removed; empty when there were none.
   handoff(): HandoffExchange[];
+  // App-socket v8 exchanges (`doan send`) in order, token removed; empty when there were none.
+  send(): SendExchange[];
   // App-socket v6 exchanges, token removed, with canvas hashes at arrival.
   prototype(): PrototypeExchange[];
   // Runs in the repo with the agent's environment except PATH, which is the runner's, and stdin from /dev/null.

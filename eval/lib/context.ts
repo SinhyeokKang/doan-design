@@ -6,7 +6,7 @@ import { readRegularFileNoFollowSync } from "../../app/src/main/regularFile.ts";
 import { CANVAS_BYTES, LOG_BYTES, MANIFEST_BYTES, readArtifact, resolveInside, resolveOnDisk } from "./artifact.ts";
 import { readCanvasNames } from "./canvas-watch.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
-import type { CheckContext } from "./types.ts";
+import type { CheckContext, HandoffExchange, SendExchange } from "./types.ts";
 
 export { resolveInside } from "./artifact.ts";
 
@@ -122,6 +122,10 @@ export function createContext(o: ContextOptions): CheckContext {
     const full = resolveOnDisk(o.repo, path);
     try { return readRegularFileNoFollowSync(full, CANVAS_BYTES).toString("utf8"); } catch { return null; }
   };
+  const requests = <V extends 5 | 8>(v: V): (V extends 5 ? HandoffExchange : SendExchange)[] => {
+    if (!o.handoffLog || !existsSync(o.handoffLog)) return [];
+    return readArtifact(o.handoffLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(entry => entry.request.v === v);
+  };
   return {
     repo: o.repo,
     cwd,
@@ -156,10 +160,9 @@ export function createContext(o: ContextOptions): CheckContext {
       if (!o.prototypeLog || !existsSync(o.prototypeLog)) return [];
       return readArtifact(o.prototypeLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
-    handoff() {
-      if (!o.handoffLog || !existsSync(o.handoffLog)) return [];
-      return readArtifact(o.handoffLog, LOG_BYTES).toString("utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
-    },
+    // v5 and v8 requests share one log, in the order they arrived.
+    handoff() { return requests(5); },
+    send() { return requests(8); },
     run: (cmd, args) => sh(cmd, args, o.repo, runnerTools(o.env)),
     git: args => git(args),
   };

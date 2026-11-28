@@ -15,6 +15,6 @@ export const CODEX_RULE = ".codex/rules/doan.rules";
 export const { codexRuleText, CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
 // Codex runs with approval_policy="never", which refuses commands leaving the sandbox, and the eval measures guide
 // use: its rule also allows each command agent setup leaves to the person's Codex settings.
-const EVAL_ALSO_ALLOWED = ["init", "config", "export", "handoff", "remove", "onboarding"];
+const EVAL_ALSO_ALLOWED = ["init", "config", "export", "handoff", "send", "remove", "onboarding"];
 export const evalCodexRuleText = (): string =>
   codexRuleText() + EVAL_ALSO_ALLOWED.map(command => `prefix_rule(pattern=["doan", "${command}"], decision="allow")\n`).join("");

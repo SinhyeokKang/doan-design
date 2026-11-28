@@ -9,16 +9,22 @@ export function handoffCommands(ctx: Pick<CheckContext, "calls">): string[][] {
   return doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "handoff");
 }
 
-// For scenarios that ask for no other canvas (the turn prompt still names handoff): no command and no v5 request.
-// An unfollowable command may have run one the CLI refused, so absence is unproven beside it.
-export function noHandoff(ctx: Pick<CheckContext, "calls" | "handoff">): Check {
-  const commands = handoffCommands(ctx), received = ctx.handoff();
+// The `doan send` commands the agent ran, as their words (evidence of the ask only, like handoffCommands).
+export function sendCommands(ctx: Pick<CheckContext, "calls">): string[][] {
+  return doanInvocations(ctx.calls).words.filter(words => doanCommand(words) === "send");
+}
+
+// For scenarios that ask for no other canvas (the turn prompt still names handoff and send): no command and no v5 or
+// v8 request, so one stray request is one failed check whichever command made it. An unfollowable command may have
+// run one the CLI refused, so absence is unproven beside it.
+export function noHandoff(ctx: Pick<CheckContext, "calls" | "handoff" | "send">): Check {
+  const handoffs = handoffCommands(ctx), sends = sendCommands(ctx), received = ctx.handoff(), delivered = ctx.send();
   const incomplete = doanInvocations(ctx.calls).incomplete;
-  const none = commands.length === 0 && received.length === 0 && !incomplete;
+  const none = handoffs.length === 0 && sends.length === 0 && received.length === 0 && delivered.length === 0 && !incomplete;
   return {
     id: "no_handoff",
     pass: none,
-    detail: none ? "no doan handoff command and no v5 request reached the app" : `doan handoff commands: ${JSON.stringify(commands.map(words => words.slice(0, 3)))}; v5 requests the app received: ${received.length}${incomplete ? "; a command could not be read completely" : ""}`,
+    detail: none ? "no doan handoff or doan send command and no v5 or v8 request reached the app" : `doan handoff commands: ${JSON.stringify(handoffs.map(words => words.slice(0, 3)))}; doan send commands: ${JSON.stringify(sends.map(words => words.slice(0, 3)))}; v5 requests the app received: ${received.length}; v8 requests: ${delivered.length}${incomplete ? "; a command could not be read completely" : ""}`,
   };
 }
 

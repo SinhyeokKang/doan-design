@@ -203,7 +203,7 @@ test("the fake app answers v8 like v5, shares a canvas path with v5, and keeps t
     assert.deepEqual(await ask(5, { path: other }), { v: 5, ok: true, requested: true });
     assert.equal(code(await ask(8, { path: other })), "already_requested");
     const lines: any[] = readFileSync(app.handoffLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(lines.map(line => line.request.v), [8, 8, 8, 8, 8, 8, 8, 5, 8, 8]);
+    assert.deepEqual(lines.map(line => line.request.v), [8, 8, 8, 8, 8, 8, 8, 5, 5, 8]);
     assert.equal(lines[5].hashes[path], contentHash(readFileSync(join(root, path))));
     assert.ok(!readFileSync(app.handoffLog, "utf8").includes(runtime.token));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }

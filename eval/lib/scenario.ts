@@ -19,7 +19,9 @@ export interface Scenario {
   onboarding: "onboarding.json" | null;
   // Stands for a Doan conversation: the agent's environment carries DOAN_HANDOFF and the fake app answers app-socket v5
   // for it. `canvas` is the canvas it works on, or null for a project conversation (Home or Overview), which has none.
-  handoff: { canvas: string | null } | null;
+  // `received`: the conversation runs a turn a message started (`doan handoff` or `doan send` from another conversation);
+  // its chain is the conversation ids up to the sender, and the fake app refuses requests as the app does at that step.
+  handoff: { canvas: string | null; received?: { chain: string[] } } | null;
   // The `others` the fake app puts on app-socket v3 start and update answers: the other sessions on the canvas.
   workOthers: Record<string, unknown>[] | null;
 }
@@ -79,8 +81,12 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   const handoff = v.handoff ?? null;
   if (handoff !== null) {
     const keys = typeof handoff === "object" && !Array.isArray(handoff) ? Object.keys(handoff) : [];
-    const canvas = (handoff as { canvas?: unknown }).canvas;
-    if (keys.length !== 1 || keys[0] !== "canvas" || (canvas !== null && (typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)))) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" | null }");
+    const { canvas, received } = handoff as { canvas?: unknown; received?: unknown };
+    if (!keys.includes("canvas") || keys.some(key => key !== "canvas" && key !== "received") || (canvas !== null && (typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)))) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" | null, received?: { chain: [<conversation id>, ...] } }");
+    if (received !== undefined) {
+      const chain = typeof received === "object" && received !== null && !Array.isArray(received) && Object.keys(received).length === 1 ? (received as { chain?: unknown }).chain : undefined;
+      if (!Array.isArray(chain) || chain.length < 1 || chain.length > 5 || !chain.every(id => typeof id === "string" && id !== "") || new Set(chain).size !== chain.length) fail(dirName, "handoff.received must be { chain: [1 to 5 distinct non-empty conversation ids] }");
+    }
   }
   const workOthers = v.workOthers ?? null;
   if (workOthers !== null && !validWorkResponse({ v: 3, ok: true, others: workOthers })) fail(dirName, "workOthers must be null or an others array that matches the app-socket v3 response");
