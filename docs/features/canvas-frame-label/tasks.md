@@ -13,7 +13,7 @@
 - `topFrames`, `labelText`, `labelPlacement`, `labelPress`, `labelState`, 끌기 판정(design.md '순수 함수').
 - 검증: `npm --prefix app test`에서 표 테스트가 먼저 실패(red)를 보이고 나서 통과한다. 경우:
   - 중첩 프레임 제외, 프레임 없음, 최상위 1,000개
-  - `cut` 프레임, id가 같은 프레임 둘(이름표 둘, 각자 자기 index로 `pick-frame`), 빈 id와 빈 제목("<번호>. (no id)", Picker 칩 없음), 공백뿐인 제목(id로), 번호가 drawer와 같음(중첩 프레임 사이에서 건너뜀), 말줄임에서 번호 유지
+  - `cut` 프레임, id가 같은 프레임 둘(이름표 둘, 각자 자기 index로 `pick-frame`), 빈 id와 빈 제목("<번호>. (no id)", Picker 칩 없음), 공백뿐인 제목(id로), 번호가 drawer와 같음(중첩 프레임 사이에서 건너뜀), 말줄임에서 번호 유지, Play 표시가 drawer의 Play 표시와 같은 프레임에만(prototype 없음·잘못된 표시·`cut` id는 없음), 말줄임에서 Play 아이콘 유지
   - 줌 0.05·0.25·1·2에서 같은 높이와 프레임을 따라가는 자리, 프레임 화면 폭으로 줄어드는 최대 폭, 최소 폭 아래 숨김, 화면 왼쪽이나 위로 일부 나간 프레임, 모든 프레임 0 × 0(재지 않음)
   - Select → `pick-frame {index, id}`, Picker → `{frame: {id, title}}`(MAX_STRING으로 자른 프레임 pick 응답과 같음)
   - 선택 상태: 프레임 자체 선택, 그 안의 요소 선택, 중첩 프레임 선택. hover 상태: 이름표 위, 프레임 안. 마커 상태: working-frame 마커, jump highlight, 선택과 함께일 때

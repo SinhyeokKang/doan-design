@@ -26,6 +26,7 @@
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 - `topFrames(frames)`: `parent`가 없는 프레임만, 문서 순서와 index를 지닌 채로. `cut` 프레임도 이름표가 있다(이름은 잘린 id).
+- `labelPlayable(frame)`: 프레임 drawer의 Play 표시 규칙과 같은 판정(`frameDrawer.ts`의 재생 가능 판정을 공유한다: prototype 표시가 있고 `cut`이 아님).
 - `labelText(frame, index)`: 프레임 drawer 버튼과 같은 "<index + 1>. <이름>"(`frameDrawer.ts`의 번호와 이름 규칙을 공유한다. 번호는 전체 프레임의 문서 순서). 이름은 `frameName`(제목, 공백뿐이면 id), 둘 다 없으면 "(no id)". 말줄임은 이름에만 걸고 번호는 남긴다.
 - `labelPlacement(frame, view, metrics)`: 보드 좌표의 프레임 사각형과 view에서 이름표의 화면 위치(프레임 왼쪽 위 바깥, 위쪽 가장자리 바로 위)와 최대 폭(프레임의 화면 폭). 최소 폭보다 좁으면 숨김. view는 앱의 transform(x, y, scale)과 viewer의 stage 위치 + scale을 모두 받는 모양이다.
 - `labelPress(label, mode)`: Select → `pick-frame {index, id}`(화면 이동 없음), Picker → 프레임 칩 anchor `{frame: {id, title}}`(layout의 id·title을 MAX_STRING으로 잘라 `endPick({kind: "picked", …})`, 프레임 pick 응답과 같은 칩), id가 빈 프레임은 Picker에서 칩을 만들지 않는다(main이 빈 id를 거절한다).
@@ -97,3 +98,4 @@
 ## 확정
 
 - 사용자가 `.doan/canvases/canvas-frame-label.html`을 확정했다(hover 글자 `--text-accent`, 마커 상태 그라데이션 포함).
+- Play 표시(사용자 결정): 재생할 수 있는 프레임의 이름표 끝에 Play 아이콘(drawer의 Play 표시와 같은 아이콘). 표시만이고 누르는 동작은 없다. 말줄임에서 번호와 아이콘은 남는다. 크기와 색은 드래프트에서.
