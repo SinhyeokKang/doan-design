@@ -7,6 +7,7 @@ import { MAX_ATTACHMENTS as MAIN_MAX_ATTACHMENTS, MAX_IMAGE_BYTES } from "../mai
 import { threadItems } from "./threadItems";
 import { validateSendExtras } from "../main/conversation/ipc";
 import { LIMITS } from "../main/conversation/messageText";
+import { textSegments } from "./anchorField";
 import {
   attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, FAST_PROVIDERS, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
@@ -52,7 +53,7 @@ function attachment(name: string, extra: Partial<AttachmentDraft> = {}): Attachm
 }
 const base = (over: Partial<SendInput> = {}): SendInput => ({
   skills: [], projects: 1, root: list("/r/doan-design"), projectName: "doan-design", auth: snapshot(dto("claude")), provider: "claude",
-  text: "Draw a pricing page.", preset: null, attachments: [], sending: false, ...over,
+  text: textSegments("Draw a pricing page."), preset: null, attachments: [], sending: false, ...over,
 });
 
 test("a request without a preset is the user's text without the blank lines around it", () => {
@@ -91,10 +92,10 @@ test("the limit counts the user's text plus the preset header: 32,768 sends, 32,
   const at = "a".repeat(TEXT_LIMIT - header), over = at + "a";
   expect(composeRequest(at, preset("polish"), [], 0)).toHaveLength(TEXT_LIMIT);
   expect(TEXT_LIMIT).toBe(LIMITS.text);
-  expect(sendAvailability(base({ text: at, preset: preset("polish") }))).toEqual({ enabled: true, reason: null });
-  expect(sendAvailability(base({ text: over, preset: preset("polish") }))).toEqual({ enabled: false, reason: { kind: "overLimit", text: "Shorten the message to send it." } });
-  expect(sendAvailability(base({ text: "a".repeat(TEXT_LIMIT) })).enabled).toBe(true);
-  expect(sendAvailability(base({ text: "a".repeat(TEXT_LIMIT + 1) })).enabled).toBe(false);
+  expect(sendAvailability(base({ text: textSegments(at), preset: preset("polish") }))).toEqual({ enabled: true, reason: null });
+  expect(sendAvailability(base({ text: textSegments(over), preset: preset("polish") }))).toEqual({ enabled: false, reason: { kind: "overLimit", text: "Shorten the message to send it." } });
+  expect(sendAvailability(base({ text: textSegments("a".repeat(TEXT_LIMIT)) })).enabled).toBe(true);
+  expect(sendAvailability(base({ text: textSegments("a".repeat(TEXT_LIMIT + 1)) })).enabled).toBe(false);
 });
 
 test("the counter appears from 90% of the limit and says how far over", () => {
@@ -108,9 +109,9 @@ test("the counter appears from 90% of the limit and says how far over", () => {
 
 test("{{ or }} in the text blocks Send with the draft's reason", () => {
   for (const text of ["Use {{ here", "and }} there"]) {
-    expect(sendAvailability(base({ text }))).toEqual({ enabled: false, reason: { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." } });
+    expect(sendAvailability(base({ text: textSegments(text) }))).toEqual({ enabled: false, reason: { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." } });
   }
-  expect(sendAvailability(base({ text: "single { and } are fine" })).enabled).toBe(true);
+  expect(sendAvailability(base({ text: textSegments("single { and } are fine") })).enabled).toBe(true);
 });
 
 test("draftProblem checks only what was typed: a chip passes, typed braces do not, even as a valid marker", () => {
@@ -132,9 +133,9 @@ test("draftProblem checks only what was typed: a chip passes, typed braces do no
 });
 
 test("an empty composer disables Send without a reason line; a preset or an attachment alone can be sent", () => {
-  expect(sendAvailability(base({ text: "  \n" }))).toEqual({ enabled: false, reason: null });
-  expect(sendAvailability(base({ text: "", preset: preset("shape") }))).toEqual({ enabled: true, reason: null });
-  expect(sendAvailability(base({ text: "", attachments: [attachment("brief.pdf")] }))).toEqual({ enabled: true, reason: null });
+  expect(sendAvailability(base({ text: textSegments("  \n") }))).toEqual({ enabled: false, reason: null });
+  expect(sendAvailability(base({ text: textSegments(""), preset: preset("shape") }))).toEqual({ enabled: true, reason: null });
+  expect(sendAvailability(base({ text: textSegments(""), attachments: [attachment("brief.pdf")] }))).toEqual({ enabled: true, reason: null });
 });
 
 test("no project, an unhealthy project, and no chosen agent each give their reason", () => {

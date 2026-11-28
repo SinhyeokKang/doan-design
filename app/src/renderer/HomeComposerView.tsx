@@ -336,6 +336,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
   // A command goes out alone, so the attachments it leaves here do not hold it.
   const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text: segments, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, sending });
+  // Limit: past the place limit, which only joined held starts can reach, the chips go as nothing (dockedMessage too).
   const message = toMessage(segments) ?? { text: typed, anchors: [] };
   const composed = composeRequest(message.text, preset, matched, attachments.length);
   const counter = lengthCounter(composed.length);
