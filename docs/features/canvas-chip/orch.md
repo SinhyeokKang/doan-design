@@ -15,6 +15,7 @@
 5. 모델 교차는 없다. Claude worker만 띄운다(AGENTS 'Runtime differences').
 6. T8(승격과 정리)은 conductor가 문서 커밋으로 한다(orchestrate §5).
 8. 칩의 이름과 tooltip 경로는 보내기 전에도 캔버스 id로 지금 이름을 따라간다. spec '확정한 결정'("칩은 캔버스 id로 따라간다")과 완료 조건 4가 이미 정했다. 방식은 리뷰 추천 (a)로 한다: B가 root 목록으로 캔버스 앵커의 `path`를 갱신하는 순수 함수를 만들고, C가 composer에, E가 보낸 칩에 연결한다(conductor 판단 — 호출처가 늘지 않는다).
+9. 드래프트 `copy` 프레임에 없던 이유 문구 두 개는 B의 임시안으로 정한다: pick 중 "Finish or cancel the pick first.", IME 조합 중 "Finish typing first."(사람, AskUserQuestion). 프로토타입 창은 따로 문구를 두지 않고 "Open Home, the Overview or a canvas to add this to a message."를 쓴다(conductor 판단 — 사이드바가 없고 다른 창의 끌기는 메모리 끌기가 없어 받지 않으므로 거의 보이지 않는다). 드래프트 `copy` 프레임에도 더한다(H가 design-sync 때).
 7. T6의 실제 eval 회차는 개발용 실제 로그인을 복사본으로 쓴다(AGENTS 'Real agent sign-ins').
 
 ## batch
@@ -23,7 +24,7 @@
 |---|---|---|---|---|---|---|
 | P | T1 | `.scratch/canvas-chip/`, design.md 'PoC 결과' | 없음 | Opus medium — Electron 끌기 동작을 관찰하고 방식을 골라야 한다 | tasks T1 검증 | 통합 `08e73c4dc`. 확인하지 못한 것: 막 없이 iframe이 놓기를 받는지, 드래그 이미지 모습, 포커스된 창의 caret(T7로 넘긴다) |
 | A | T3 | `main/conversation/{types,prompt,store,messageText}.ts`, `renderer/{anchorField,chipField}.ts`의 거울 부분, 그 테스트 | 없음 | Opus medium — 모든 batch가 기대는 형식이다. 범위는 좁다 | tasks T3 검증(`verify.mjs --eval` 포함) | 통합 `c2feb0f49`, `f44aad8c4`. 리뷰 1회. 테스트 보강(⚪1·2)을 후속 Task로 보냈다 |
-| B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 진행 중 |
+| B | T4 | `main/conversation/ipc.ts`, 판정·클립보드·Home 변환 순수 함수와 테스트 | A | Opus high — 보낼 때 경로 확인은 신뢰 경계이고 번호 다시 매기기가 틀리면 프롬프트가 깨진다 | tasks T4 검증 | 구현 끝, 리뷰 중 |
 | C | T5a | `ShellSidebar.tsx`(drag), `chipField.ts`(drop), `fieldDecorations.ts`, 보드 막, 이유 줄 | B, P | Opus high — 끌기와 ProseMirror drop, 트리 키보드 보존 | tasks T5a 검증 + test·typecheck·lint | 대기 |
 | D | T5b | `canvasRowMenu.ts`, `ShellSidebar.tsx`(메뉴), composer 등록 | C | Opus medium — 판정은 B·C에 있고 연결과 포커스 처리가 남는다 | tasks T5b 검증 + test·typecheck·lint | 대기 |
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 대기 |
