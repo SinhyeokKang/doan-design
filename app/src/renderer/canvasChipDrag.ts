@@ -26,9 +26,10 @@ export function onCanvasChips(listener: () => void): () => void {
 
 export function canvasDragging(): boolean { return current !== null; }
 
-// A row drawn again mid-drag may never get its dragend, so the window's dragend, a drop anywhere and the next press
-// end the drag too; a drag left in memory would keep the board shielded.
-const ENDS = ["dragend", "drop", "pointerdown"] as const;
+// A row removed mid-drag never gets its dragend, and a drop that misses every target sends no drop, so the window's
+// dragend, a drop anywhere, and the next press or move end the drag too (Chromium sends no moves while a drag runs); a
+// drag left in memory would keep the board shielded.
+const ENDS = ["dragend", "drop", "pointerdown", "pointermove", "mousemove"] as const;
 function stopWatching(): void {
   if (typeof window === "undefined") return;
   for (const type of ENDS) window.removeEventListener(type, endCanvasDrag);
