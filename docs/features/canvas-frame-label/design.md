@@ -3,48 +3,65 @@
 ## 영향 범위
 
 - **앱(renderer)**:
-  - `app/src/renderer/CanvasController.ts`: overlay에 이름표 층을 둔다. 팬과 줌에서는 선택 표시처럼 transform을 동기로 고치고 React는 다시 그리지 않는다. 이름표 누르기는 기존 `select-anchor` 명령으로 그 프레임을 선택한다(selection seq를 올리는 지금 경로).
-  - 새 순수 모듈(예: `app/src/renderer/frameLabels.ts`): 아래 '순수 함수'.
-  - `app/src/renderer/styles.css`: 이름표 모습. overlay는 지금 `pointer-events: none`이므로 이름표만 누르기를 받는다.
-- **내보낸 viewer**: `cli/internal/export/viewer/`(`shell.css`, `inspect*.js`, `viewerApp.js`). 앱 TS에서 만들어지는 inspector 스크립트는 `node app/scripts/viewerInspect.mjs`로 다시 만든다.
+  - `app/src/renderer/CanvasController.ts`: overlay에 이름표 층을 둔다. 팬과 줌에서는 선택 표시처럼 transform을 동기로 고치고 React는 다시 그리지 않는다.
+    - 선택: 프레임 drawer의 `selectFrame`(`pick-frame {index, id}`, index와 잘린 id를 함께 맞춘다, `canvasScript.ts` `pick-frame`)에서 화면 이동(`jump`)만 뺀 경로를 쓴다. `select-anchor`는 쓰지 않는다: layout에는 selector가 없고, `{frame: id}`만으로는 id가 겹치는 두 번째 프레임을 고르지 못하며 잘린 id는 아무 프레임과도 맞지 않는다.
+    - reload 중 누르기: drawer의 `pendingFrame`처럼 새 layout이 오면 index와 id로 선택한다. 새 문서에 그 프레임이 없으면 선택을 바꾸지 않고 toast도 없다.
+    - 포커스: Select에서는 `pick-frame` 응답이 command reply라 `focusOnClick`이 불리지 않으므로, 누르기에서 `section.area.focus({preventScroll, focusVisible: false})`를 직접 부른다. Picker 중에는 mousedown에서 `preventDefault`해 포커스를 composer에 둔다.
+    - hover: 포인터가 앱 요소로 들어오면 `pointerOnApp`이 `hoverRect`를 비우므로, `treeHover`(`previewElement`)처럼 앱이 덮어쓰는 rect로 그 프레임의 hover 표시를 그린다. 이름표 위에 있는 동안에는 이름표 hover가 이기고, 늦게 온 iframe hover 응답은 무시한다. 이미 선택된 프레임이면 hover 표시를 그리지 않는다(캔버스 hover 규칙).
+    - 누르기의 부수 효과: 캔버스 누르기처럼 텍스트 범위를 지우고 열린 preset 목록·Agent usage·update popover를 닫는다(iframe 밖이라 `press` 메시지가 없으므로 앱이 직접 처리한다).
+  - 새 순수 모듈 `app/src/renderer/frameLabels.ts`: 아래 '순수 함수'.
+  - `app/src/renderer/styles.css`: 이름표 모습. overlay는 `pointer-events: none`이고, size bubble의 버튼과 이름표만 누르기를 받는다(`styles.css`의 overlay 주석도 고친다).
+- **내보낸 viewer**: 구조가 앱과 다르다.
+  - 자리: `.vw-overlay`는 배율이 걸린 `.stage` 안에 있고 `overflow: clip`으로 잘린다(`shell.html`, `shell.css`). 이름표는 `.vw-selection`처럼 배율 없는 spacer 층에 화면 px로 두고, stage의 left/top과 scale로 자리를 정한다(`shell.js`). 팬은 native scroll이 맡는다.
+  - 선택 명령: viewer에는 index로 프레임을 고르는 명령이 없다(프레임 drawer는 화면만 옮긴다). epoch로 거르고 index와 잘린 id를 확인하는 새 `inspect-*` 명령을 `inspectSelection.js`에 더한다.
+  - hover: `inspect-marks`로 그리는 `hover-mark`(`inspectView.js`)를 덮어쓴다.
+  - Hand: viewer에는 drag layer가 없고 `#board[data-pan]`과 iframe `pointer-events: none`으로 팬한다. 이름표에 `[data-pan]` 규칙과 도구 확인을 따로 둔다.
+  - 고칠 파일: `shell.html`, `shell.css`, `shell.js`, `inspectSelection.js`, `inspectView.js`. `inspect.js`와 `inspectPanel.js`는 생성 파일이라 손으로 고치지 않는다. `renderer/frameLabels`를 `app/scripts/viewerInspect.mjs`의 `viewerApp.js` 항목에 더해 앱과 viewer가 같은 순수 함수를 쓰게 한다.
 - **CLI(Go)**: export가 viewer 파일을 담는 것 말고는 바뀌지 않는다.
-- **형식**: 바뀌지 않는다. `layout` 메시지는 이미 프레임마다 `id`, `title`, `parent`(감싸는 프레임의 index), 보드 좌표를 보낸다(`canvasMessage.ts` `CanvasFrameRect`). 최상위 프레임은 `parent`가 없는 프레임이다.
+- **형식**: 바뀌지 않는다. `layout` 메시지는 이미 프레임마다 `id`, `title`, `parent`(감싸는 프레임의 index), 보드 좌표를 보낸다(`canvasMessage.ts` `CanvasFrameRect`). 최상위 프레임은 `parent`가 없는 프레임이다. 한계: `parseFrame`이 부모를 버리면 자식의 `parent`도 사라져 그 자식에 이름표가 생긴다.
 - **스킬과 `doan check`**: 바뀌지 않는다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
-- `topFrames(frames)`: `parent`가 없는 프레임만, 문서 순서대로. `cut` 프레임도 이름표는 있다(이름은 잘린 id).
-- `labelPlacement(frame, view, labelHeight)`: 보드 좌표의 프레임 사각형과 view(x, y, scale)에서 이름표의 화면 위치(프레임 왼쪽 위 바깥, 위쪽 가장자리 바로 위)와 최대 폭(프레임의 화면 폭). 폭이 최소값보다 좁으면 숨김.
-- `labelHit(target)` 또는 누르기 → 선택 명령 변환: 이름표의 프레임 id와 anchor(지금 프레임 anchor 규칙: frame id와 selector)를 `select-anchor` 명령으로.
-- Picker 중 누르기 → 프레임 칩 anchor: size bubble의 Add to message처럼 renderer가 `targetAnchor`로 만든다(ARCHITECTURE §3 'Picking and locate'). pick 응답과 같은 칩이어야 한다.
-- 선택 상태: 지금 선택이 그 최상위 프레임 자체일 때만 선택 상태다(그 안의 요소가 선택됐을 때는 아니다 — 드래프트에서 확인).
+- `topFrames(frames)`: `parent`가 없는 프레임만, 문서 순서와 index를 지닌 채로. `cut` 프레임도 이름표가 있다(이름은 잘린 id).
+- `labelText(frame)`: `frameName`(제목, 공백뿐이면 id), id도 제목도 없으면 프레임 drawer와 같은 "(no id)".
+- `labelPlacement(frame, view, metrics)`: 보드 좌표의 프레임 사각형과 view에서 이름표의 화면 위치(프레임 왼쪽 위 바깥, 위쪽 가장자리 바로 위)와 최대 폭(프레임의 화면 폭). 최소 폭보다 좁으면 숨김. view는 앱의 transform(x, y, scale)과 viewer의 stage 위치 + scale을 모두 받는 모양이다.
+- `labelPress(label, mode)`: Select → `pick-frame {index, id}`(화면 이동 없음), Picker → 프레임 칩 anchor `{frame: {id, title}}`(layout의 id·title을 MAX_STRING으로 잘라 `endPick({kind: "picked", …})`, 프레임 pick 응답과 같은 칩), id가 빈 프레임은 Picker에서 칩을 만들지 않는다(main이 빈 id를 거절한다).
+- `labelState(label, selection, hover)`: 선택 상태는 그 최상위 프레임 자체가 선택됐을 때만(`element === undefined`이고 `frameIndex`와 `frame.id`가 같을 때, `canvasMessage.ts`; viewer는 `frameOf`의 `kind: "frame"`과 index). hover 상태는 hover 대상이 그 프레임일 때(이름표 위든 프레임 안이든).
+- 끌기 판정: 이름표에서 4 screen px 넘게 움직이면 아무것도 하지 않는다(선택도 팬도 없음).
 
-## 렌더링 규칙
+## 렌더링과 상호작용 규칙
 
 - 이름표는 overlay(보드 transform 밖)에 그리므로 줌과 관계없이 같은 크기다(ARCHITECTURE §3 'Zoom and pan').
-- 이름표의 사각형은 iframe 밖 앱 문서에 있으므로, 누르기는 앱이 직접 받는다. 캔버스 스크립트가 보낸 메시지를 근거로 삼지 않으므로 위조된 메시지와 상관없다(ARCHITECTURE §3 'Untrusted messages'). 이름 글자는 `textContent`로만 넣는다.
-- 이름표는 `aria-hidden`이고 Tab 순서에 없다(사용자 결정). 누르기 뒤 포커스는 캔버스 클릭처럼 `section.area`로 간다(ARCHITECTURE §3 'Canvas click focus').
-- Capture area 중에는 이름표가 누르기를 받지 않는다.
-- Hand 도구와 Space 끌기에서는 `.drag-layer`가 overlay 위에 있으므로 이름표는 누르기를 받지 않는다(지금 구조 그대로).
-- 다시 읽기 중에는 마지막 geometry를 유지하고, 새 layout이 오면 바꾼다. "아직 재지 않음"(모든 프레임 0 × 0)과 "프레임 없음"을 구분한다.
-- 1,000개 프레임 한도 안에서 최상위 프레임만 그린다. 화면 밖 이름표는 그리지 않아도 된다(성능, `/implement`에서 판단).
+- 누르기는 앱 문서가 직접 받는다. 캔버스 메시지를 근거로 삼지 않으므로 위조와 상관없다(§3 'Untrusted messages'). 이름 글자는 `textContent`로만 넣는다.
+- 이름표는 `aria-hidden`이고 Tab 순서에 없다. tooltip은 없다.
+- 겹침 순서: 툴바·알림·canvas status·toast > size bubble > 이름표 > 선택·hover 표시와 working-frame marker. 이름표끼리는 문서 순서가 뒤인 것이 위다. 다른 프레임 위에 걸친 이름표 자리를 누르면 이름표의 프레임이 선택된다.
+- 수식키와 버튼(사용자 결정): ⌘·Shift는 보통 누르기와 같다. Option을 누른 채 이름표 위에 있으면 그 프레임이 측정 대상이고, Option-click은 선택하지 않는다. 오른쪽·Ctrl 누르기는 아무것도 하지 않는다. 더블 클릭은 두 번 누른 것이다. 누른 뒤 Esc 한 번에 선택이 없어진다(최상위 프레임이라).
+- Hand 도구와 Space 끌기에서는 `.drag-layer`가 overlay 위에 있어 이름표가 누르기를 받지 않는다. Capture area 중에도 받지 않고(`pointer-events: none`, crosshair 커서 유지), 캡처 PNG에는 이름표가 없다(`[data-capture-snapshot] .overlay`가 opacity 0).
+- 커서: Select에서 기본 화살표, Picker에서 Picker 커서.
+- 다시 읽기 중에는 같은 캔버스면 마지막 geometry를 유지하고, 새 layout이 오면 바꾼다. "아직 재지 않음"(모든 프레임 0 × 0)과 "프레임 없음"을 구분한다. 다른 캔버스로 바꾸면 이름표를 지운다. 제목만 바뀌면 글자만 바꾸고 선택은 그대로다.
+- 프레임 윗변이 화면 밖이면 이름표도 함께 나간다(상단 고정 없음). Hide UI(⌘\)에서도 보인다(보드 위 표시).
+- 1,000개 프레임 한도 안에서 최상위 프레임만 그린다. 팬에서는 DOM을 다시 만들지 않고 transform만 바꾼다.
 
 ## postmortem에서 가져온 주의점
 
-- 2026-11-11 "The working-frame marker blinked on every agent write to the canvas": overlay를 일시 상태에서 `hidden`/`display`로 껐다 켜지 말고 마지막 geometry를 유지한다.
+- 2026-11-11 "The working-frame marker blinked on every agent write to the canvas": 일시 상태에서 `hidden`/`display`로 껐다 켜지 말고 마지막 geometry를 유지한다.
+- 2026-11-13, 2026-11-26 재발(`sendCommand`가 loading 중 명령을 보내지 않음): reload 중 누르기는 대기 후 선택으로 처리한다.
 - 2026-11-19 "Hover and selection outlines of a clipped element reached across neighbouring frames": 앱이 그리는 사각형은 보이는 부분으로 자른다. 최상위 프레임은 보통 잘리지 않지만, 이름표 자리는 `layout`의 사각형을 그대로 쓴다.
-- 2026-11-23 "The export viewer cut the selection line of a frame as wide as the canvas": viewer의 overlay 클립 상자가 프레임 바깥에 그리는 표시(이름표)를 자르지 않는지, 캔버스 맨 위 프레임의 이름표로 확인한다.
-- Radix 포털 pointer 규칙(2026-11, tooltip wrapper): 이름표에 tooltip을 달면 wrapper까지 hit-test한다.
+- 2026-11-23 "The export viewer cut the selection line of a frame as wide as the canvas": viewer의 overlay 클립이 이름표를 자르지 않는지 캔버스 맨 위 프레임으로 확인한다(이름표는 배율 없는 층에 둔다).
+- 2026-11-25 forced colors: fill로 그린 모양에는 forced-colors 규칙과 `forcedColors.test.ts` 줄, 에뮬레이션 확인이 필요하다.
+- 2026-11-18 "An open tooltip still took the click meant for the control under it": Radix 포털 표시가 이름표 위에 열릴 때 wrapper까지 hit-test한다.
 
 ## 형식, 규약, 결정에 미치는 영향
 
 - 형식 변경 없음. ARCHITECTURE §1 규약 변경 없음. `doan check` 규칙 추가 없음.
 - 구조 결정: iframe 격리(§3 'Canvas rendering')는 그대로다. 이름표는 앱 문서에 있다.
-- PRODUCT 변경(승격 때): §5 item 4 'Selection'의 첫 줄("selects by ordinary clicks … a frame first")에 이름표 누르기를 더하고, item 2 'Canvas view'와 item 3 'Export and viewer'에 이름표를 적는다. 프로토타입 창과 프로토타입 파일에는 없다고 적는다.
+- PRODUCT 변경(승격 때): §5 item 4 'Selection'에 이름표 누르기와 수식키 규칙을, item 2 'Canvas view'에 이름표를, item 2 'Toolbar'의 캡처에서 빠지는 앱 표시 목록에 이름표를, item 3 'Export and viewer'에 viewer 이름표를 적는다. 프로토타입 창과 프로토타입 파일에는 없다고 적는다.
+- ARCHITECTURE 변경(승격 때): §3 'Zoom and pan'의 `pointer-events: none` overlay 문장(누르기를 받는 표시: size bubble 버튼과 이름표), §3 'Canvas view'의 이름표 층과 `pick-frame` 경로, §3 'Exported canvas and viewer'의 viewer 이름표와 새 선택 명령, 프로토타입 창·파일에 이름표가 없다는 것.
 
 ## PoC
 
-- 필요 없다. 이름과 geometry는 이미 `layout`에 있고, 선택 명령도 있다.
+- 필요 없다. 이름과 geometry는 `layout`에 있고, 선택은 `pick-frame`이 있다.
 
 ## 읽은 design preset
 
@@ -55,8 +72,8 @@
 `/design-draft canvas-frame-label`로 새 드래프트를 그린다. 참고: 사용자가 준 Figma 스크린샷(프레임 왼쪽 위 바깥의 파란 이름표, 선택된 프레임).
 
 - **프레임**:
-  - `board`: 최상위 프레임 여러 개와 중첩 프레임이 있는 보드(이름표는 최상위에만), 줌 25 %·100 %·200 %에서 같은 크기
-  - `states`: 기본, hover(프레임의 hover 표시와 함께), 선택(선택 표시와 size bubble과 함께), 긴 이름의 말줄임표, 좁은 프레임
-  - `overlap`: 위아래로 붙은 프레임에서 이름표가 위 프레임에 걸치는 모습, working-frame marker와 함께 있는 모습, 캔버스 맨 위 프레임
+  - `board`: 최상위 프레임 여러 개와 중첩 프레임이 있는 보드(이름표는 최상위에만), 줌 5 %·25 %·100 %·200 %
+  - `states`: 기본, hover(이름표 위와 프레임 안 양쪽), 선택(선택 표시와 size bubble과 함께), 긴 이름의 말줄임표, 좁은 프레임과 숨김, "(no id)"
+  - `overlap`: 위아래로 붙은 프레임에서 이름표가 위 프레임에 걸치는 모습, 위 프레임의 size bubble과 아래 이름표, working-frame marker와 함께 있는 모습, 캔버스 맨 위 프레임과 agent notice
   - `viewer`: 내보낸 viewer에서의 모습
-- **정할 것**: 글자 스타일과 색(기본·hover·선택), 이름표와 프레임 사이 간격, 최소 폭과 숨김 기준, 다크 모드와 forced colors.
+- **정할 것**: 글자 스타일과 색(기본·hover·선택), 이름표와 프레임 사이 간격(working-frame marker의 4 px 선과 glow, jump highlight의 3 px 선과 ring을 비킨다), 최소 폭과 숨김 기준, 다크 모드와 forced colors.
