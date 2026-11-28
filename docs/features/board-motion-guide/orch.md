@@ -21,12 +21,12 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T1a | `eval/scenarios/W15/**`, W15를 등록하는 데 필요한 `eval/` 파일, `docs/usability-eval/rounds-2026-11.md`(baseline 회차) | 없음 | Claude Opus high — 프로토타입 표시 없는 영역을 정적으로 가리는 check가 판단을 많이 요하고, 실제 에이전트 baseline 회차를 돌린다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W15`, baseline 회차 기록 | 진행 |
+| A | T1, T1a | `eval/scenarios/W15/**`, W15를 등록하는 데 필요한 `eval/` 파일, `docs/usability-eval/rounds-2026-11.md`(baseline 회차) | 없음 | Claude Opus high — 프로토타입 표시 없는 영역을 정적으로 가리는 check가 판단을 많이 요하고, 실제 에이전트 baseline 회차를 돌린다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W15`, baseline 회차 기록 | 통합(W15·W16·수정 2회), T3 진행 |
 | B | T2 | `cli/internal/cli/skill.md`, `skill_test.go`, `cli/internal/designskill/presets/animate.md`, `delight.md`, `designskill_test.go` | 없음(C 결과에 따라 `:hover` 문장 조정) | Claude Opus high — 4 B 여유에서 문장을 줄이며 조건·예외를 지켜야 한다(postmortem 2026-10-29) | `go test ./...`, `go vet ./...`, `rg -n -i 'replay control\|visible trigger' cli/internal/designskill/presets` 비어 있음 | 통합 ea408c619..9a5563c2e, worktree 정리 |
 | C | T1b | `.scratch/`만 | 없음 | Claude Sonnet medium — 짧은 실기 probe, 판단 적음 | Select·Hand의 `:hover` computed style 관측값이 `.scratch/`에 있다 | 완료, worktree 정리 |
-| RA | A 리뷰 | 없음(보고만) | A | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | W15 완료(🔴3 🟡5 ⚪1), W16 대기 |
+| RA | A 리뷰 | 없음(보고만) | A | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | RA 🔴3 🟡5, RA2 🔴3 🟡4 → 수정 뒤 종료 |
 | RB | B 리뷰 | 없음(보고만) | B | Codex gpt-6.2-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고 | 완료(🔴0 🟡5 ⚪1) |
-| E | T3 | `docs/usability-eval/rounds-2026-11.md`(회차) | A·B 통합 | Claude Opus medium — eval 회차 실행과 판정 기록 | W15 양쪽 통과, 회귀 없음, 회차 기록 | 대기 |
+| E | T3 | `docs/usability-eval/rounds-2026-11.md`(회차) | A·B 통합 | Claude Opus medium — eval 회차 실행과 판정 기록 | W15 양쪽 통과, 회귀 없음, 회차 기록 | A follow-up으로 진행 |
 | 컨덕터 | T4, 통합 `/verify --eval` | `docs/ARCHITECTURE.md`, `docs/USABILITY-EVAL.md`, 기능 디렉터리 삭제 | E | — | ARCHITECTURE §1에 규칙, 기능 디렉터리 없음 | 대기 |
 
 ## 겹침과 순서
@@ -55,3 +55,5 @@
 - A fix round 1 완료: 24120258d·d8aed14eb·4a2d63ac9·b4a3c6082. 새 `eval/scenarios/W15/board.ts`가 스크립트를 수신 대상 기준으로, CSS 상태를 실제 요소 기준으로 귀속한다. 프레임은 원문끼리 비교하고, template를 건너뛰며, `@import` 체인을 따라간다. W15 baseline 기록 정정은 agent-eval 절차대로 USABILITY-EVAL 'Documentation corrections'에 적었다(A의 파일 범위 밖이지만 절차가 정한 자리라 받아들임). 저장된 baseline 캔버스 4개를 다시 검사한 결과가 기록과 같다.
 - RA2(같은 Codex 리뷰어의 재검토, `ctx_08e844876f3f`) 완료: 🔴 3, 🟡 4, ⚪ 1(`.scratch/review-RA2.md`). 컨덕터 판단: 정적 detector는 완전할 수 없으므로 fix round 2를 마지막 detector 수정으로 한다. 실제 에이전트가 쓸 법한 경우(인라인 transition, target으로 거른 위임 클릭, `:is()`·CSS 중첩, 주석 속 코드, 아무 요소에도 맞지 않는 상태 규칙)만 고치고, 확신할 수 없으면 자동으로 실패시키지 않고 judge에 넘긴다. 드문 경우(블록 사이의 같은 변수 이름, 값을 읽기만 하는 코드, `animation:none`)는 rubric에 한계로 적는다. A에 보냈다(`ctx_c4e5cdfe906f`).
 - RA2 전체 eval 테스트에서 R8d가 두 번 실패했다(`spawnSync /usr/bin/env ETIMEDOUT`, 이번 diff 밖). 부하 탓인지 통합 `/verify --eval`에서 확인한다.
+- A fix round 2 완료: 63d55ef44·2c9e0d4e7·9a3b20dd9. 전체 eval 테스트 585/585(R8d 통과, 부하가 줄어든 뒤 실행), W15·W16 self-test, typecheck, lint가 통과한다. baseline 재검사 결과는 바뀌지 않았다. A 커밋 17개를 통합했다(…65eca9a65). 이어서 origin/develop(#431, #432)을 merge했다(d2f17f6c7). merge 뒤 guide 출력은 plain 21,807 B, `--json` 21,996 B이고 `go test ./cli/...`가 통과한다.
+- E(T3)는 eval 문맥과 설치를 이미 가진 A worker에 follow-up으로 맡겼다(`ctx_6efdf37bf9b6`, Opus high). 컨덕터 판단: 새 worker를 띄우면 설치와 문맥을 다시 만들어야 한다. 범위는 필수 W15·W16·W13·D5·W7·W8·W11·W12에, 바뀐 rule F와 preset, 줄인 guide 문장을 읽을 수 있는 시나리오를 더한다. 회차 이름은 `board-motion-final-261129`. Codex 주간 사용량은 약 26%다.
