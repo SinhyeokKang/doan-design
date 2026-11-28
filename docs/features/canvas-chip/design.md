@@ -118,6 +118,33 @@
   - 트리 행의 클릭, 키, typeahead
 - Playwright `_electron`의 drag가 창을 앞으로 가져오지 않고 이 흐름을 재현하는지도 확인한다. T6 runtime-test의 방식을 정하기 위해서다.
 
+## PoC 결과
+
+`node .scratch/canvas-chip/probe.mjs`로 격리된 실제 앱(빌드한 `app/`, Electron 45.3.4, `prosemirror-view` 1.43.0, Playwright 1.64.1)에서 확인했다. 끌기와 놓기 코드는 `page.evaluate`로 renderer에 임시로 넣었고, `app/` 파일은 바꾸지 않았다. 캔버스 앵커가 아직 없으므로 칩은 프레임 앵커(`{frame: {id: "canvas:<이름>", title: <이름>}}`)로 대신 넣었다. 결과와 스크린샷은 `.scratch/canvas-chip/`(`RESULTS.md`, `results-all.log`, `shots/`)에 있다.
+
+- **놓일 자리 표시: decoration으로 정한다.**
+  - 칩 필드의 decorations에 `posAtCoords` 자리의 widget decoration(2px 세로선)을 더했더니, 끄는 동안 그 자리에 그려졌다. `dragover`에서 자리가 바뀔 때만 다시 그렸다.
+  - `prosemirror-dropcursor`는 설치하지 않고 1.8.4의 소스만 읽었다. 이 플러그인은 view의 모든 `dragover`에 반응하므로 파일 끌기나 받지 않는 끌기에도 선을 그린다. 또 `posAtCoords`의 날 위치를 쓰므로, 아래의 목록 접두어 보정을 하려면 결국 직접 계산해야 한다. 그래서 새 의존성을 더할 이유가 없다.
+- **`posAtCoords`와 `unitFromPos`/`posFromUnit`**:
+  - 목록 항목의 기호(24px 칸) 위 어디서든 `posAtCoords`는 그 줄의 시작(“- ” 앞)을 준다. 접두어 안으로 떨어지지는 않았다.
+  - filler가 있는 줄(칩으로 시작하는 줄)에서는 filler 앞과 뒤가 같은 unit이 되고, `posFromUnit`이 filler 뒤로 돌려준다. filler 안에는 놓이지 않는다.
+  - 다만 항목 줄의 시작에 놓으면 칩이 “- ” 앞에 들어가서 목록 항목이 깨졌다(`shots/05-crop.png`, 결과 글 `[banner]- item one`). 구현은 놓을 unit이 항목의 줄 시작이면 본문 시작(`fieldListItems`의 `item.start + item.body`)으로 옮겨야 한다. 이 보정은 PoC에서 구현하지 않았다.
+- **파일 드롭과의 구분**:
+  - 캔버스 끌기(Doan 전용 MIME 표식만 있음)를 composer 위로 지나가게 하고 놓아도 "Drop to attach" 덮개가 한 번도 나오지 않았다.
+  - `Files`가 든 합성 끌기에서는 덮개가 나왔고, `dragleave` 뒤에 사라졌다.
+  - `dragover` 동안 `dataTransfer.types`로 MIME 표식이 보였고, 끌기 정보는 메모리에서 읽었다.
+- **보드 막**:
+  - 끄는 동안 기존 Hand 막(`.drag-layer`)을 보였더니, 보드 위 지점의 맨 위 요소가 그 막이었다. 막은 `dragover`를 받고 `preventDefault`를 하지 않으므로, 그 위에 놓으면 `dropEffect`가 `none`이고 칩도 들어가지 않았다.
+  - 확인하지 못한 것: 막이 없을 때 캔버스 iframe이 실제로 놓기를 받는지. Playwright의 끌기는 out-of-process iframe에 이벤트를 하나도 전달하지 않았고, 그 끌기는 `dragend` 없이 끝나지 않았다. 실제 마우스 끌기(창을 앞으로 가져와야 한다)가 필요해서 하지 않았다.
+- **트리 행**: 행에 `draggable`을 켜도 ↓/↑, typeahead(b, b, 잠시 뒤 a), 클릭으로 열기가 끌기 전후 모두 동작했다. 행을 끌기 시작해도 그 캔버스가 열리지 않았다(`aria-current`와 보드가 그대로였다). 놓기 뒤 ⌘Z 한 번으로 칩이 빠졌고, 포커스는 composer로 갔다.
+- **caret 자리(예상과 다름)**: 놓기 뒤 caret이 칩 바로 뒤가 아니라 칩 앞에 있었다(칩 pos 6, `selection.head` 6). 끌기 없이 지금의 `insertChip`을 직접 불러도(글 중간, 필드 끝) 같았다. 칩으로 시작하는 줄(filler가 있는 줄)에서만 칩 뒤에 있었다. 이 probe는 포커스가 없는 창에서 돌았으므로, 창이 포커스를 가질 때도 같은지는 확인하지 못했다. 원인은 추적하지 않았다. 완료 조건("caret은 칩 바로 뒤")을 위해 구현 단계에서 테스트로 확인해야 한다.
+- **runtime-test의 끌기 방식: Playwright `page.mouse`의 down/move/up**으로 한다.
+  - `page.mouse`와 `page.dragAndDrop` 모두 dragstart → 칩 필드의 drop → dragend를 재현했다. 실행 내내 `BrowserWindow.getFocusedWindow()`는 `null`이었다. 다만 창은 앱이 시작할 때 스스로 보여 주므로 화면에는 보인다.
+  - 받는 쪽 안에서 마우스를 두 번 이상 움직여야 `dragover`가 온다. 첫 움직임은 `dragenter`만 낸다. 놓일 자리 표시를 확인하려면 대상 안에서 한 번 더 움직인다.
+  - 합성 `DragEvent`(`new DataTransfer()`)로도 흐름이 돌았다. 하지만 브라우저 끌기를 거치지 않으므로 보조로만 쓴다.
+  - 보드 위로 막 없이 끄는 경우는 Playwright 끌기가 끝나지 않으므로 runtime-test에서 하지 않는다.
+- **`setDragImage`**: 화면 밖에 둔 칩 모양 요소로 불렀을 때 오류는 없었다. 그러나 Playwright가 끌기를 가로채면 OS 끌기 세션이 없어서, 미리보기 모습은 관찰하거나 스크린샷으로 남길 수 없었다. 실제 모습은 확인하지 못했다.
+
 ## postmortem에서 가져온 주의점
 
 - 2026-11-22 "Sent anchor chips inserted line breaks into copied text": 캔버스 칩도 보낸 말풍선에서 복사할 때 줄바꿈을 넣지 않는다.
