@@ -74,3 +74,5 @@
 - C 2회차 끝: 2커밋을 통합했다(제목 스냅숏 사용, 보내는 순서대로 그리는 큐). typecheck 깨끗, feat 푸시. B 재리뷰 `ctx_9900518b2700`(Opus high) 진행 중. E(design-sync)를 C 워커에 새 Task로 보냈다(`ctx_34897d12e0e6`, `cm-c-renderer`). lead에 GUI probe 시작을 메일로 알렸다.
 - B 재리뷰(`ctx_9900518b2700`): 🔴 0, 🟡 1(한도 예약 중 `after`가 실제 순서와 다름), 🟢 6. 3회차를 B에 보냈다.
 - 문서 승격 워커 `ctx_5eb59000c7c9`(Opus high, `cm-docs`) 시작: PRODUCT·ARCHITECTURE·BACKLOG·README. `docs/design/`은 design-sync 몫이라 제외.
+- 문서 승격 끝: 5커밋(PRODUCT, ARCHITECTURE, BACKLOG, README, DIRECTORY)을 검토하고 통합했다. tasks 11의 두 grep 결과 없음. BACKLOG의 미확인 목록은 runtime probe 뒤 컨덕터가 고친다.
+- 정리: D·문서 워커를 해제하고 `cm-d-eval`, `cm-docs` worktree를 지웠다(branch는 남김). handoff와 리뷰 사본은 `.scratch/canvas-message/`.
