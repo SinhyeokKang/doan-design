@@ -4,6 +4,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
+import type { AgentQueueRow } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 import { refreshCanvasAnchor } from "../main/conversation/canvasAnchors";
 import { CANVAS_CHIP_SENDING, chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
@@ -141,6 +142,8 @@ export interface DockedComposerProps {
   // A message Send now has in flight is not among them: it shows in the thread. message: the request, whose attachments
   // a row with a folder names.
   queued: readonly QueuedRow[];
+  // The summary's agentQueue: other conversations' agents' messages, after the person's rows.
+  agentQueue?: readonly AgentQueueRow[];
   // The rows offer Send now: the conversation's stored provider takes a message into a running turn and the turn runs
   // or waits for a permission answer (steerSupport sendNowShown, decided as if no row were sending).
   sendNow?: boolean;
@@ -586,7 +589,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const dragHandlers = Object.fromEntries((["onDragEnter", "onDragOver", "onDragLeave", "onDrop"] as const).map(name => [name, (event: DragEvent<HTMLDivElement>) => { drop.handlers[name](event); chipDrop.handlers[name](event); }]));
   return <div className="docked" data-shape={shape} ref={root} data-chip-refused={chipDrop.refusal !== null ? "" : undefined} {...dragHandlers}>
     <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, queuedRequest(item), props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={sendNowShown} blocked={sendNowBlocked} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
-      onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
+      {...(props.agentQueue ? { agents: props.agentQueue } : {})} onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
     {/* Always drawn, empty when nothing waits for a reset, so the live region is registered before it speaks. */}
@@ -594,7 +597,7 @@ export function DockedComposer(props: DockedComposerProps) {
     <ComposerCard readonly={isSending}>
       {/* The docked buddy's floor on the card's top edge; the buddy reads its reasons from these attributes. */}
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
-        data-queue={props.queued.length > 0 ? "" : undefined}
+        data-queue={props.queued.length > 0 || !!props.agentQueue?.length ? "" : undefined}
         data-waiting={props.stepAside?.waiting ? "" : undefined} data-notice={props.stepAside?.notice ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
       {presetHeld && <div className="composer-chips command-notice"><Info aria-hidden="true" /><span>{PRESET_NOTICE}</span></div>}
       <ComposerChips lead={playing && <Tooltip><TooltipTrigger asChild><span className="anchor-chip pw-playing" data-kind="frame"><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span></TooltipTrigger>
@@ -661,6 +664,8 @@ const PLAYING_TITLE = "Sent with each message";
 
 export const SEND_NOW_TIP = "Add to the current turn without stopping it";
 export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";
+export const AGENT_HELD_TEXT = "Sends after your next message here ends";
+const NO_AGENTS: readonly AgentQueueRow[] = [];
 const SEND_NOW_REFUSED_MS = 4000;
 type QueueButton = "sendNow" | "remove";
 
@@ -679,6 +684,8 @@ function queuedRequest(item: QueuedRow): string {
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
   items: readonly QueuedRow[];
+  // Messages other conversations' agents sent, drawn after the person's rows: × only, never sent from here.
+  agents?: readonly AgentQueueRow[];
   // Shortens the attachment paths a row lists to ~.
   homeDirectory?: string | null;
   sendNow: boolean;
@@ -712,9 +719,10 @@ export function QueueRows(props: QueueRowsProps) {
   }, [refused]);
   // Main can send the queue with the window in the background, so these hand-offs are made again on activation.
   const handFocus = useActivationFocus();
+  const agents = props.agents ?? NO_AGENTS;
   useLayoutEffect(() => {
     const wanted = pending.current;
-    if (wanted && !props.items.some(item => item.id === wanted.leaving)) {
+    if (wanted && !props.items.some(item => item.id === wanted.leaving) && !agents.some(row => row.itemId === wanted.leaving)) {
       pending.current = null; lost.current = false;
       const { target } = wanted;
       const button = () => target.kind === "input" ? undefined : buttons.current.get(`${target.kind}:${target.itemId}`) ?? buttons.current.get(`remove:${target.itemId}`);
@@ -726,13 +734,14 @@ export function QueueRows(props: QueueRowsProps) {
 
   // Place focus only while it is still on the leaving row (or was dropped with it): an agent may read the message long after
   // the press, and focus the person moved meanwhile stays.
-  const focusAfter = (id: string, asked: QueueRowsProps["items"]) => {
+  const focusAfter = (id: string, asked: { items: QueueRowsProps["items"]; agents: readonly AgentQueueRow[] }) => {
     const active = document.activeElement;
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
-    const now = latest.current;
-    const list = now.items.some(item => item.id === id) ? now.items : asked;
-    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow && !item.command }));
-    pending.current = { leaving: id, target: queueFocusAfter(rows, list.findIndex(item => item.id === id)) };
+    const now = latest.current, nowAgents = now.agents ?? NO_AGENTS;
+    const held = now.items.some(item => item.id === id) || nowAgents.some(row => row.itemId === id);
+    const list = [...(held ? now.items : asked.items).map(item => ({ itemId: item.id, sendNow: now.sendNow && !item.command })),
+      ...(held ? nowAgents : asked.agents).map(row => ({ itemId: row.itemId, sendNow: false }))];
+    pending.current = { leaving: id, target: queueFocusAfter(list, list.findIndex(item => item.itemId === id)) };
   };
   // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
   const sendNow = async (id: string) => {
@@ -740,7 +749,7 @@ export function QueueRows(props: QueueRowsProps) {
     if (flying.current.has(id) || latest.current.blocked) return;
     flying.current.add(id);
     setRefused(current => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
-    focusAfter(id, props.items);
+    focusAfter(id, { items: props.items, agents });
     const reply = await props.onSendNow(id).catch((): { error: string; turnRuns?: boolean } => ({ error: "unknown" }));
     flying.current.delete(id);
     if (!reply || !("error" in reply)) return;
@@ -758,14 +767,18 @@ export function QueueRows(props: QueueRowsProps) {
     sendNow,
   }));
   const remove = async (id: string) => {
-    const asked = props.items;
+    const asked = { items: props.items, agents };
     if (await props.onRemove(id).catch(() => false)) focusAfter(id, asked);
   };
   const keep = (kind: QueueButton, id: string) => (node: HTMLButtonElement | null) => {
     if (node) buttons.current.set(`${kind}:${id}`, node); else buttons.current.delete(`${kind}:${id}`);
   };
 
-  if (props.items.length === 0) return null;
+  if (props.items.length === 0 && agents.length === 0) return null;
+  const removeButton = (id: string, describedBy: string) => <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
+    <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
+      aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(id)}><X aria-hidden="true" /></button></TooltipTrigger>
+    <TooltipContent>Remove queued message</TooltipContent></Tooltip>}</QueueButtonLife>;
   return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
     const textId = `${idBase}-${index}`, summaryId = `${textId}-attachments`;
     const summary = queueAttachmentSummary(item.message?.attachments ?? [], props.homeDirectory ?? null);
@@ -786,12 +799,21 @@ export function QueueRows(props: QueueRowsProps) {
               {...(props.blocked ? { "aria-disabled": true, "data-disabled": "" } : {})} aria-describedby={props.blocked ? `${blockedId} ${describedBy}` : describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{props.blocked ?? SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         {props.sendNow && !item.command && props.blocked && <span className="sr-only" id={blockedId}>{props.blocked}</span>}
-        <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
-          <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
-            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button></TooltipTrigger>
-          <TooltipContent>Remove queued message</TooltipContent></Tooltip>}</QueueButtonLife>
+        {removeButton(item.id, describedBy)}
       </div>
       <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
+    </div>;
+  })}{agents.map((row, index) => {
+    // The source is named to assistive technology only; the line is hidden from it so the row reads once.
+    const nameId = `${idBase}-agent-${index}`, text = <span className="queue-text" aria-hidden={true}>{row.line}</span>;
+    const source = row.source.canvas ? row.source.canvas.path.split("/").at(-1) ?? row.source.canvas.path : "Overview";
+    return <div key={row.itemId} className="queue-entry" role="listitem">
+      <div className={row.held ? "queue-item held" : "queue-item"}>
+        {row.provider ? <img className="logo" src={providerLogo(row.provider)} alt="" /> : <MessageSquareDashed aria-hidden="true" />}
+        {row.held ? <Tooltip><TooltipTrigger asChild>{text}</TooltipTrigger><TooltipContent>{AGENT_HELD_TEXT}</TooltipContent></Tooltip> : text}
+        <span className="sr-only" id={nameId}>{`Message from ${source}: ${row.line}${row.held ? `. ${AGENT_HELD_TEXT}.` : ""}`}</span>
+        {removeButton(row.itemId, nameId)}
+      </div>
     </div>;
   })}</div>;
 }
