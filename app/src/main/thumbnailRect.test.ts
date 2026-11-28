@@ -59,13 +59,13 @@ describe("thumbnailRect: the scrolled frame's viewport rectangle to the capture 
     ["a frame taller than the viewport keeps its top 16:10", viewport960, window960, frame(0, 0, 960, 3000), frame(0, 0, 960, 600)],
     ["a very wide, low frame", frame(0, 0, 1440, 900), { width: 1440, height: 900 }, frame(0, 0, 1440, 24), frame(0, 0, 1440, 24)],
     ["a 1440 px board's full-width frame", frame(0, 0, 1440, 900), { width: 1440, height: 900 }, frame(0, 0, 1440, 2000), frame(0, 0, 1440, 900)],
-    ["a 390 px board's frame is capped at its width", frame(0, 0, 390, 244), { width: 390, height: 244 }, frame(0, 0, 390, 844), frame(0, 0, 390, 244)],
-    ["a 390 px phone frame is capped at its width", viewport960, window960, frame(40, 0, 390, 844), frame(40, 0, 390, 390)],
-    ["a narrow frame is capped at its width", viewport960, window960, frame(40, 0, 200, 400), frame(40, 0, 200, 200)],
+    ["a 390 px board's frame is capped at 16:10", frame(0, 0, 390, 244), { width: 390, height: 244 }, frame(0, 0, 390, 844), frame(0, 0, 390, 244)],
+    ["a 390 px phone frame is capped at 16:10", viewport960, window960, frame(40, 0, 390, 844), frame(40, 0, 390, 244)],
+    ["a narrow frame is capped at 16:10", viewport960, window960, frame(40, 0, 200, 400), frame(40, 0, 200, 125)],
     ["a frame partly above the viewport (transform) keeps its visible part", viewport960, window960, frame(100, -20, 300, 200), frame(100, 0, 300, 180)],
     ["fractional edges round to whole pixels", viewport960, window960, frame(40.4, 0.6, 880.2, 499.8), frame(40, 1, 881, 499)],
     ["the host offset of the iframe is added", frame(10, 20, 960, 600), { width: 970, height: 620 }, frame(40, 0, 880, 500), frame(50, 20, 880, 500)],
-    ["a window narrower than the board cuts the frame at its edge", frame(0, 0, 2000, 1250), { width: 1440, height: 900 }, frame(1200, 0, 600, 500), frame(1200, 0, 240, 240)],
+    ["a window narrower than the board cuts the frame at its edge", frame(0, 0, 2000, 1250), { width: 1440, height: 900 }, frame(1200, 0, 600, 500), frame(1200, 0, 240, 150)],
     ["a window lower than the board cuts the frame at its bottom", frame(0, 0, 2000, 1250), { width: 1440, height: 900 }, frame(0, 0, 1440, 1250), frame(0, 0, 1440, 900)],
   ])("%s", (_name, viewport, window, visible, expected) => {
     expect(thumbnailRect(answer(visible.x, visible.y, visible.width, visible.height), viewport, window)).toEqual(expected);

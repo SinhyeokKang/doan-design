@@ -380,11 +380,11 @@ test("a frame below the first screen is scrolled to and only its rectangle is st
   expect(captured()).toEqual([FIRST_SCREEN, SCROLLED]);
 });
 
-test("a narrow frame's capture is cut at its width", async () => {
+test("a narrow frame's capture is cut at 16:10", async () => {
   mocks.Window.frame = firstScreenWindow;
   canvasAnswers(async () => "40 300 390 844", async () => "40 0 390 844");
   await createWindowCapturer().capture(URL_A, 960);
-  expect(captured()).toEqual([FIRST_SCREEN, { x: 40, y: 0, width: 390, height: 390 }]);
+  expect(captured()).toEqual([FIRST_SCREEN, { x: 40, y: 0, width: 390, height: 244 }]);
 });
 
 test.each([
@@ -444,7 +444,7 @@ test("the frame capture is cut to the window's real content size", async () => {
   mocks.Window.frame = async () => ({ x: 0, y: 0, width: 2000, height: 1250 });
   canvasAnswers(async () => "1200 700 600 500", async () => "1200 0 600 500");
   await createWindowCapturer().capture(URL_A, 2000);
-  expect(captured()).toEqual([{ x: 0, y: 0, width: 2000, height: 1250 }, { x: 1200, y: 0, width: 240, height: 240 }]);
+  expect(captured()).toEqual([{ x: 0, y: 0, width: 2000, height: 1250 }, { x: 1200, y: 0, width: 240, height: 150 }]);
 });
 
 test("a frame outside the window's real content keeps the image taken before the scroll", async () => {
@@ -553,4 +553,44 @@ test.each(["read", "scroll"] as const)("an outer failure while the frame is %s r
   };
   canvasAnswers(step === "read" ? () => fail(BELOW) : async () => BELOW, step === "scroll" ? () => fail(SCROLLED_ANSWER) : undefined);
   expect(await createWindowCapturer().capture(URL_A, 960)).toBeNull();
+});
+
+test("a rejected frame capture keeps the image taken before the scroll", async () => {
+  mocks.Window.frame = async () => {
+    only().webContents.capturePage.mockImplementationOnce(async () => image("before"))
+      .mockImplementationOnce(async () => { throw new Error("surface gone"); });
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  expect(await createWindowCapturer().capture(URL_A, 960)).toEqual(Buffer.from("before"));
+  expect(mocks.Window.instances).toHaveLength(1);
+  expect(only().destroy).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["the capture is closed", (capturer: ReturnType<typeof createWindowCapturer>) => capturer.close()],
+  ["the outer frame fails", () => failFrame(only(), only().outer!, "network")],
+])("a rejected frame capture stores nothing when %s during it", async (_name, interrupt) => {
+  const capturer = createWindowCapturer();
+  mocks.Window.frame = async () => {
+    only().webContents.capturePage.mockImplementationOnce(async () => image("before"))
+      .mockImplementationOnce(async () => { interrupt(capturer); throw new Error("surface gone"); });
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  expect(await capturer.capture(URL_A, 960)).toBeNull();
+});
+
+test("no scroll is sent once the measurement limit passed during the first-screen capture", async () => {
+  vi.useFakeTimers();
+  mocks.Window.frame = async () => {
+    only().webContents.capturePage.mockImplementationOnce(() => new Promise((resolve) => { setTimeout(() => resolve(image("before")), MEASURE_LIMIT_MS + 500); }));
+    return FIRST_SCREEN;
+  };
+  canvasAnswers(async () => BELOW);
+  const running = createWindowCapturer().capture(URL_A, 960);
+  await vi.advanceTimersByTimeAsync(MEASURE_LIMIT_MS + 1000);
+  expect(await running).toEqual(Buffer.from("before"));
+  expect(scripts(only().outer)).toEqual([READ_FRAME]);
+  expect(captured()).toEqual([FIRST_SCREEN]);
 });
