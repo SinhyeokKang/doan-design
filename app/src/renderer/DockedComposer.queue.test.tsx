@@ -213,6 +213,11 @@ test("a held agent row is dimmed, says why in its tooltip and accessible name, a
   expect(rows(tree, "Remove queued message")).toHaveLength(1);
 });
 
+test("a held row's name keeps one period when its line ends in one", () => {
+  const { draw } = setup({ items: [], agents: [{ ...AGENT, line: "Use the declined-card message.", held: true }] });
+  expect(draw().some(item => item.className === "sr-only" && item.children === "Message from drafts.html: Use the declined-card message. Sends after your next message here ends.")).toBe(true);
+});
+
 test("an agent row from a project conversation names the Overview; one without a provider keeps the queued icon", () => {
   const { draw } = setup({ items: [], agents: [{ itemId: "a2", source: { conversationId: "c0" }, line: "Hi", held: false }] });
   const tree = draw();

@@ -50,6 +50,14 @@ describe("handoffMultiStep", () => {
   });
 });
 
+describe("a received send's meta", () => {
+  test("from the Overview with a known title, Open names it in the Overview", () => {
+    const view = handoffMetaView({ via: "send" }, "acme-web", true, new Date(0).toISOString(), 60_000, { listed: true, title: "Plan the checkout" });
+    expect(view.open).toBe("Open “Plan the checkout” in the Overview");
+    expect(view.label).toBe("Message from Overview");
+  });
+});
+
 describe("the toast of a turn that sent or ran at step 1 or later", () => {
   const message = (targets: HandoffMessageNotice["targets"], source: HandoffMessageNotice["source"] = { conversationId: "c1", canvas: DRAFTS }): HandoffMessageNotice => ({ kind: "message", root: "/w/a", source, targets });
   const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };

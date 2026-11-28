@@ -139,12 +139,24 @@ describe("canvasCardText for a send", () => {
     expect(view(sent(true), { conversationTitle: titles, listed: () => false })).toMatchObject({ icon: "send", status: "Queued in “Payment states” · No longer in acme-web", open: null });
   });
 
+  test("a send refused because its conversation was deleted before delivery says so, Open on the canvas", () => {
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_found", via: "send" } })))
+      .toEqual({ icon: "send", name: "checkout-flow.html", status: "Didn’t send. That conversation was deleted.", label: "checkout-flow.html, Didn’t send. That conversation was deleted.", open: OPEN });
+  });
+
+  test("any other refusal of a send reads as one neutral line that names no agent and gives no start advice", () => {
+    for (const code of ["not_logged_in", "busy", "cli_missing", "runtime_unsupported", "bad_request", "unknown"]) {
+      expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: code, via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. That conversation couldn’t take the message.", open: OPEN });
+    }
+    // A handoff keeps the start wording.
+    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_logged_in" } })).status).toBe(`Didn’t hand off. ${startErrorView("not_logged_in", "claude", "acme-web").text}`);
+  });
+
   test("refused, cancelled and any other start refusal lead with Didn’t send", () => {
     expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "not_listed", via: "send" } }), { listed: () => false }))
       .toMatchObject({ icon: "send", status: "Didn’t send. It isn’t a single canvas in acme-web.", open: null });
     expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "same_canvas", via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. It’s this conversation’s own canvas.", open: null });
     expect(view(card({ drawn: false, handoff: { outcome: "cancelled", via: "send" } }))).toMatchObject({ icon: "send", status: "Didn’t send. The turn didn’t finish.", open: OPEN });
-    expect(view(card({ drawn: false, handoff: { outcome: "refused", reason: "busy", via: "send" } })).status).toBe(`Didn’t send. ${startErrorView("busy", "claude", "acme-web").text}`);
   });
 });
 
@@ -258,6 +270,15 @@ describe("middleCut", () => {
 });
 
 describe("newCanvasesText", () => {
+  test("a started handoff counts as a new canvas only when drawn, or when its record predates handoffs to existing canvases", () => {
+    const target = { conversationId: "c2", canvas: { path: "a.html" } };
+    const started = (path: string, patch: Partial<Card>) => card({ key: `ct1:${path}`, canvas: { path }, drawn: false, ...patch });
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "started", target, via: "handoff" } })])).toBe("");
+    expect(newCanvasesText([started("a.html", { drawn: true, handoff: { outcome: "started", target, via: "handoff" } })])).toBe("1 new canvas");
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "started", target } })])).toBe("1 new canvas");
+    expect(newCanvasesText([started("a.html", { handoff: { outcome: "sent", target, queued: false, via: "send" } })])).toBe("");
+  });
+
   const drawn = (path: string, patch: Partial<Card> = {}): ThreadItem => card({ key: `ct1:${path}`, canvas: { path }, ...patch });
   const end: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "interrupted", reason: "user" } };
   test("counts the new canvases among the thread's trailing cards", () => {
