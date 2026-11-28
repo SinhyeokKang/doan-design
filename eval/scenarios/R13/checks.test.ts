@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -35,9 +35,11 @@ test("R13 passes the pass fixture with a Read of the anchored canvas", () => {
 });
 test("R13 counts a shell read of the anchored canvas, not a doan call or a read of the other canvas", () => {
   const ctx = setup();
-  for (const command of ["cat .doan/canvases/plans.html", "sed -n '1,80p' .doan/canvases/plans.html", "cd .doan/canvases && cp plans.html checkout.html"])
+  for (const command of ["cat .doan/canvases/plans.html", "sed -n '1,80p' .doan/canvases/plans.html", "cd .doan/canvases && cp plans.html checkout.html",
+    "/bin/zsh -c 'cat .doan/canvases/plans.html .doan/config.json'", "python3 -c \"print(open('.doan/canvases/plans.html').read())\"",
+    "python3 - <<'PY'\nfrom pathlib import Path\nprint(Path('.doan/canvases/plans.html').read_text())\nPY"])
     assert.deepEqual(failed(ctx, claude([bash(command)])), [], command);
-  for (const transcript of ["", claude([bash("doan check .doan/canvases/plans.html --json")]), claude([bash("cat .doan/canvases/plans-2025.html")]), claude([read(`${ctx.repo}/.doan/canvases/plans-2025.html`)])])
+  for (const transcript of ["", claude([bash("doan check .doan/canvases/plans.html --json")]), claude([bash("cat .doan/canvases/plans-2025.html")]), claude([bash("cat <<'EOF'\nplans.html\nEOF")]), claude([read(`${ctx.repo}/.doan/canvases/plans-2025.html`)])])
     assert.deepEqual(failed(ctx, transcript), ["anchor_path_read"], transcript);
 });
 test("R13 fails a canvas drawn from the other canvas", () => {
@@ -50,4 +52,11 @@ test("R13 fails any change to the anchored canvas, even a trailing newline", () 
   assert.ok(readFileSync(path, "utf8").endsWith("\n"));
   appendFileSync(path, "\n");
   assert.deepEqual(failed(ctx, claude([read(".doan/canvases/plans.html")])), ["reference_unchanged", "only_new_canvas_added", "new_canvas_from_reference"]);
+});
+test("R13 fails a second new file and a doan open", () => {
+  const ctx = setup();
+  writeFileSync(join(ctx.repo, ".doan/canvases/extra.html"), readFileSync(join(ctx.repo, ".doan/canvases/checkout.html"), "utf8").replace('content="checkout"', 'content="extra"'));
+  assert.deepEqual(failed(ctx, claude([read(".doan/canvases/plans.html")])), ["only_new_canvas_added", "new_canvas_from_reference"]);
+  const opened = setup();
+  assert.deepEqual(failed(opened, claude([read(".doan/canvases/plans.html"), bash("doan open .doan/canvases/checkout.html")])), ["no_doan_open"]);
 });

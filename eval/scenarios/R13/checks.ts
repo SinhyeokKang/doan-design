@@ -13,8 +13,10 @@ const CANVAS = /^\.doan\/canvases\/[^/]+\.html$/;
 const CARRIED = ["Northwind Cloud", "$24", "support@northwind.example"];
 const DECOY = ["Northwind Classic", "$19", "help@classic.example"];
 
-// A Claude Read of the file, or a non-doan shell command (cat, sed, cp, …) that names it. A `doan` call that names
-// the path (check, handoff) does not show its content to the agent.
+// A Claude Read of the file, or a non-doan shell command whose words contain its name (a path inside a `python -c`
+// script counts). A heredoc body is not a word, so an interpreter fed one counts when the command text names the file.
+// A `doan` call that names the path (check, handoff) does not show its content to the agent.
+const INTERPRETER = /(?:^|\/)(?:python[\d.]*|node|ruby|perl)$/;
 function readsReference(ctx: Parameters<Checks>[0]): string[] {
   const hits: string[] = [];
   for (const line of ctx.transcript.split(/\r?\n/)) {
@@ -27,8 +29,12 @@ function readsReference(ctx: Parameters<Checks>[0]): string[] {
     }
   }
   for (const command of ctx.calls.commands) {
-    const named = commandWords(command).some(words => !/(?:^|\/)doan$/.test(words[0] ?? "") && words.slice(1).some(w => w === NAME || w.endsWith(`/${NAME}`)));
-    if (named) hits.push(command.slice(0, 200));
+    const runs = commandWords(command).filter(words => !/(?:^|\/)doan$/.test(words[0] ?? ""));
+    const named = runs.some(words => words.slice(1).some(w => w.includes(NAME))) ||
+      (runs.some(words => INTERPRETER.test(words[0] ?? "")) && command.includes(NAME));
+    if (!named) continue;
+    const at = command.indexOf(NAME);
+    hits.push(at === -1 ? command.slice(0, 160) : command.slice(Math.max(0, at - 80), at + NAME.length + 80));
   }
   return hits;
 }
