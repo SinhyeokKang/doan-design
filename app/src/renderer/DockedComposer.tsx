@@ -685,7 +685,8 @@ function queuedRequest(item: QueuedRow): string {
 export interface QueueRowsProps {
   handle?: MutableRefObject<QueueRowsHandle | null>;
   items: readonly QueuedRow[];
-  // Messages other conversations' agents sent, drawn after the person's rows: × only, never sent from here.
+  // Messages other conversations' agents sent, drawn in send order among the person's rows (queueOrder): × only, never
+  // sent from here.
   agents?: readonly AgentQueueRow[];
   // Shortens the attachment paths a row lists to ~.
   homeDirectory?: string | null;
@@ -740,8 +741,8 @@ export function QueueRows(props: QueueRowsProps) {
     if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
     const now = latest.current, nowAgents = now.agents ?? NO_AGENTS;
     const held = now.items.some(item => item.id === id) || nowAgents.some(row => row.itemId === id);
-    const list = [...(held ? now.items : asked.items).map(item => ({ itemId: item.id, sendNow: now.sendNow && !item.command })),
-      ...(held ? nowAgents : asked.agents).map(row => ({ itemId: row.itemId, sendNow: false }))];
+    const list = queueOrder(held ? now.items : asked.items, held ? nowAgents : asked.agents)
+      .map(row => row.kind === "person" ? { itemId: row.item.id, sendNow: now.sendNow && !row.item.command } : { itemId: row.row.itemId, sendNow: false });
     pending.current = { leaving: id, target: queueFocusAfter(list, list.findIndex(item => item.itemId === id)) };
   };
   // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
@@ -780,7 +781,9 @@ export function QueueRows(props: QueueRowsProps) {
     <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
       aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(id)}><X aria-hidden="true" /></button></TooltipTrigger>
     <TooltipContent>Remove queued message</TooltipContent></Tooltip>}</QueueButtonLife>;
-  return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
+  return <div className="queue" role="list" aria-label="Queued messages">{queueOrder(props.items, agents).map(entry => {
+    if (entry.kind === "agent") return agentRow(entry.row, entry.index);
+    const { item, index } = entry;
     const textId = `${idBase}-${index}`, summaryId = `${textId}-attachments`;
     const summary = queueAttachmentSummary(item.message?.attachments ?? [], props.homeDirectory ?? null);
     // Both buttons are told apart by the row's attachments and text, so the full list reaches them too.
@@ -804,7 +807,8 @@ export function QueueRows(props: QueueRowsProps) {
       </div>
       <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
     </div>;
-  })}{agents.map((row, index) => {
+  })}</div>;
+  function agentRow(row: AgentQueueRow, index: number) {
     // The source is named to assistive technology only; the line is hidden from it so the row reads once.
     const nameId = `${idBase}-agent-${index}`, text = <span className="queue-text" aria-hidden={true}>{row.line}</span>;
     const source = row.source.canvas ? fileName(row.source.canvas.path) : "Overview";
@@ -816,7 +820,16 @@ export function QueueRows(props: QueueRowsProps) {
         {removeButton(row.itemId, nameId)}
       </div>
     </div>;
-  })}</div>;
+  }
+}
+
+// The rows in send order: an agent row right after the person's row its `after` names, before every person's row
+// without one or when that row is no longer here (rows leave from the front). index: the row's place in its own list.
+export function queueOrder(items: readonly QueuedRow[], agents: readonly AgentQueueRow[]):
+  ({ kind: "person"; item: QueuedRow; index: number } | { kind: "agent"; row: AgentQueueRow; index: number })[] {
+  const ids = new Set(items.map(item => item.id));
+  const agentsAfter = (id: string | null) => agents.flatMap((row, index) => (row.after !== undefined && ids.has(row.after) ? row.after : null) === id ? [{ kind: "agent" as const, row, index }] : []);
+  return [...agentsAfter(null), ...items.flatMap((item, index) => [{ kind: "person" as const, item, index }, ...agentsAfter(item.id)])];
 }
 
 // Tells its row when the button it draws leaves while focused: its layout cleanup runs before React removes the node,

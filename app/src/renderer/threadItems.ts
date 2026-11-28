@@ -41,7 +41,7 @@ export type ThreadItem =
 
 // via: the request's record; absent in an earlier build's, which handed off only to new canvases.
 export type CardHandoff = ({ outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } }
-  | { outcome: "sent"; target: { conversationId: string; canvas: Canvas }; queued: boolean } | { outcome: "refused"; reason: string }) & { via?: HandoffVia };
+  | { outcome: "sent"; target: { conversationId: string; canvas: Canvas; title?: string }; queued: boolean } | { outcome: "refused"; reason: string }) & { via?: HandoffVia };
 type CanvasCard = Extract<ThreadItem, { kind: "canvasCard" }>;
 
 export type SentFile = AttachmentRecord;

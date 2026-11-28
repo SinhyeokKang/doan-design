@@ -62,7 +62,8 @@ export function canvasCardText(card: CanvasCard, ctx: { project: string; provide
       return gone("forward", "Handed off", { canvas: target.canvas, conversationId: target.conversationId, label: `Open the new conversation on ${name}` }, target.canvas);
     }
     case "sent": {
-      const target = handoff.target, title = ctx.conversationTitle?.(target.conversationId) ?? null;
+      // The live title wins; the one kept at delivery names a deleted conversation and one the window does not list.
+      const target = handoff.target, title = ctx.conversationTitle?.(target.conversationId) ?? target.title ?? null;
       const status = `${handoff.queued ? "Queued in" : "Sent to"} ${title === null ? "a conversation" : `“${title}”`}`;
       if (ctx.conversationListed?.(target.conversationId) === false) return view("send", `${status} · Conversation deleted`, null);
       return gone("send", status, { canvas: target.canvas, conversationId: target.conversationId, label: title === null ? `Open the conversation on ${name}` : `Open “${title}” on ${name}` }, target.canvas);
