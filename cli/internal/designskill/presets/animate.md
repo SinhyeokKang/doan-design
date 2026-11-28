@@ -102,16 +102,16 @@ States and contrast below are checkable defects. The other items are review defa
 ## Apply the change in Doan
 
 - Change only the motion in the requested scope. Keep canvas, frame, and element ids unchanged, and leave frames and elements outside the request as they are.
-- A canvas is reviewed as a still board, where an ordinary click selects instead of reaching the canvas, so make the motion readable without playing it. Choose one or more:
-  - draw the key states (start, end, and any meaningful intermediate state) as elements or frames side by side, annotated with trigger, properties, duration, easing, and the reduced-motion alternative;
-  - on the board, implement the motion in canvas CSS as a looping animation or a `:hover` trigger (it works under the Select tool), and still annotate the values;
+- A canvas is reviewed as a still board, where an ordinary click selects instead of reaching the canvas, so make the motion readable without playing it. Choose one or more, and whichever you choose, annotate the trigger, properties, duration, easing, and the reduced-motion alternative:
+  - draw the key states (start, end, and any meaningful intermediate state) as elements or frames side by side;
+  - on the board, implement the motion in canvas CSS as a looping animation or a `:hover` trigger (it works under the Select tool);
   - build motion that needs a click, runs once, or is scroll-driven in a frame marked `data-doan-prototype` (Doan guide convention 14); when it belongs to an existing frame, mark that frame instead of drawing a copy.
 - Put no replay button or other click trigger on the board.
 - Use token CSS variables for colors and motion values; do not copy raw hex or rgb values.
 - When motion drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the findings and the proposed motion plan without editing files.
 - After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
-- In your answer, list what changed, the motion thesis you used, and what you left unchanged on purpose. When motion is in a prototype frame, name that frame in your answer as the one to Play, and offer to open it with `doan open <canvas path> --frame <id> --prototype`.
+- In your answer, list what changed, the motion thesis you used, and what you left unchanged on purpose. When motion is in a prototype frame, name that frame in your answer as the one to Play. Offer to open it with `doan open <canvas path> --frame <id> --prototype` only when the CLI can open it: the frame is in the file (not added by a script at load) and the canvas is not in a subfolder of `.doan/canvases/` or `.doan/ds/`.
 
 ## Verify
 

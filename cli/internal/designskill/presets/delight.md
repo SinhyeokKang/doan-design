@@ -83,7 +83,7 @@ When the delight is mainly authored motion (timing, easing, reduced-motion behav
 - When new copy, illustration, sound, or interaction drawn on a canvas is not in code yet, say so on the canvas, as the Doan guide requires for anything drawn that is not in code. Edit implementation code only when the user asked for it.
 - If the user asked for a review only, report the opportunities and the proposed thesis without editing files.
 - After editing a canvas, make `doan check <edited canvas, CSS and config paths> --json` pass.
-- In your answer, list what changed, the delight thesis, and what you left unchanged on purpose, especially serious moments you kept plain. When a moment is in a prototype frame, name that frame in your answer as the one to Play, and offer to open it with `doan open <canvas path> --frame <id> --prototype`.
+- In your answer, list what changed, the delight thesis, and what you left unchanged on purpose, especially serious moments you kept plain. When a moment is in a prototype frame, name that frame in your answer as the one to Play. Offer to open it with `doan open <canvas path> --frame <id> --prototype` only when the CLI can open it: the frame is in the file (not added by a script at load) and the canvas is not in a subfolder of `.doan/canvases/` or `.doan/ds/`.
 
 ## Verify
 
