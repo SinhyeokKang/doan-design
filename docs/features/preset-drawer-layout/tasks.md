@@ -17,7 +17,7 @@
 ## T3. UI
 
 - `ComposerParts.tsx`와 `styles.css`: 새 구조, 고정 폭, 검색 입력 기본 크기.
-- 검증: `ComposerParts.test.tsx`(또는 새 테스트)에서 탭 이동(←/→ 순환), 행 이동(↑/↓ 끝에서 멈춤, 섹션 머리 건너뜀), 탭을 바꾸면 스크롤 맨 위, 폭이 스킬·명령 유무와 무관한 600 px(CSS), 드로어 검색 입력에 `data-ui-size`가 없고 `/` 목록 검색창은 그대로, listbox·tablist 이름. `ComposerSkills.test.tsx`의 포커스 복원과 고르기·닫기 테스트가 그대로 통과한다. `drawnTarget.test-support.ts`의 className fixture와 `ds/checks.test.ts`의 accent selector 목록을 새 구조에 맞춘다. `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`가 통과한다.
+- 검증: `ComposerParts.test.tsx`(또는 새 테스트)에서 탭 이동(←/→ 순환), 행 이동(↑/↓ 끝에서 멈춤, 섹션 머리 건너뜀), 탭을 바꾸면 스크롤 맨 위, 폭이 스킬·명령 유무와 무관한 600 px(CSS), 드로어 검색 입력에 `data-ui-size`가 없고 `/` 목록 검색창은 그대로, listbox·tablist 이름. `ComposerSkills.test.tsx`의 포커스 복원과 고르기·닫기 테스트가 그대로 통과한다. `app/src/renderer/ds/surfaces.css`의 행 hover 선택자(`[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover`)는 직계 자식만 잡아 `role="group"` 안의 행에 hover 채움이 사라지므로, 선택자를 넓히고 다른 listbox(Quick Open, `/` 목록, 메뉴)에서 hover가 그대로인지 테스트한다. `drawnTarget.test-support.ts`의 className fixture와 `ds/checks.test.ts`의 accent selector 목록을 새 구조에 맞춘다. `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`가 통과한다.
 - `[commit]` `test:` → `feat:`
 
 ## T4. 측정과 실기 확인
