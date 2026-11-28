@@ -587,13 +587,13 @@ func TestSkillGuideShortenedLinesKeepConditions(t *testing.T) {
 		prefix   string
 		required []string
 	}{
-		{"Keep project files in `.doan/`", []string{"Settings are never served to canvases."}},
+		{"Keep project files in `.doan/`", []string{"Settings are never served to canvases.", "Old `doan/` and `design/` directories are ignored, not migrated."}},
 		// Token CSS is linked relative to the canvas; the worked example carries that rule.
 		{"For `.doan/canvases/home.html`", []string{"`../../styles/tokens.css` for that repository file", "Recalculate relative links for nested canvases."}},
 		{"1. ", []string{"in `.doan/assets/` and link them relatively", "Create it only when needed; it is served without config."}},
 		{"2. ", []string{"The id must match `^[a-z0-9]+(-[a-z0-9]+)*$`."}},
 		{"11. ", []string{"When a linked stylesheet uses them on something the canvas shows, override that property in the canvas in px."}},
-		{"12. ", []string{"copy the needed `<symbol>` elements into the canvas"}},
+		{"12. ", []string{"For an icon only in a sprite file, copy the needed `<symbol>` elements into the canvas"}},
 		{"13. ", []string{"or register it with `@property` giving `syntax: \"<url>\"`, `inherits` and an `initial-value`."}},
 		{"14. ", []string{"add `data-doan-prototype=\"390x844\"` (px, 1-99999, lowercase x)", "W×H is the target screen's viewport"}},
 		{"  - A frame id may be missing from `doan ls`", []string{"the app also lists frames a canvas script draws at runtime."}},
