@@ -5,11 +5,12 @@ import { join } from "node:path";
 import { DraftStore } from "./drafts";
 import { chipLabel, messageLine } from "./messageText";
 import { anchorTokens, LIMITS, turnPrompt } from "./prompt";
-import { ConversationStore } from "./store";
+import { ConversationStore, validCanvas } from "./store";
 import type { Anchor } from "./types";
 
 const canvas = (path: string, id = "checkout-flow"): Anchor => ({ canvas: { path, id } });
 const accepts = (anchor: unknown) => anchorTokens("{{1}}", [anchor]) !== null;
+const atLimit = (length: number) => `.doan/canvases/${"a".repeat(length - ".doan/canvases/.html".length)}.html`;
 
 describe("validAnchor: canvas anchors", () => {
   it.each([
@@ -17,6 +18,7 @@ describe("validAnchor: canvas anchors", () => {
     ".doan/ds/buttons.html",
     ".doan/canvases/settings/notifications/quiet-hours.html",
     ".doan/canvases/결제-흐름.html",
+    atLimit(LIMITS.path),
   ])("accepts %s", path => {
     expect(accepts(canvas(path))).toBe(true);
   });
@@ -32,6 +34,11 @@ describe("validAnchor: canvas anchors", () => {
     ["the canvas directory itself", ".doan/canvases"],
     ["an empty segment", ".doan/canvases//a.html"],
     ["a path past the length limit", `.doan/canvases/${"a".repeat(LIMITS.path)}.html`],
+    ["a path one past the length limit", atLimit(LIMITS.path + 1)],
+    ["a NUL in the path", ".doan/canvases/a\0b.html"],
+    ["a directory that only starts like .doan/canvases", ".doan/canvasesX/a.html"],
+    ["a directory that only starts like .doan/ds", ".doan/dsx/a.html"],
+    ["a trailing slash", ".doan/canvases/a.html/"],
   ])("rejects %s", (_name, path) => {
     expect(accepts(canvas(path))).toBe(false);
   });
@@ -41,6 +48,23 @@ describe("validAnchor: canvas anchors", () => {
     expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: "" } })).toBe(false);
     expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: "Not An Id" } })).toBe(false);
     expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: 7 } })).toBe(false);
+    expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: "a\0b" } })).toBe(false);
+    expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: "a".repeat(LIMITS.label) } })).toBe(true);
+    expect(accepts({ canvas: { path: ".doan/canvases/a.html", id: "a".repeat(LIMITS.label + 1) } })).toBe(false);
+  });
+
+  // validAnchor checks paths with canvasKind instead of importing store.ts (a cycle); it must stay no looser.
+  it("accepts only paths store.ts validCanvas also accepts", () => {
+    const paths = [
+      ".doan/canvases/checkout-flow.html", ".doan/ds/buttons.html", ".doan/canvases/settings/notifications/quiet-hours.html",
+      ".doan/canvases/결제-흐름.html", atLimit(LIMITS.path), atLimit(LIMITS.path + 1), ".doan/canvases/../secret.html",
+      "/Users/me/repo/.doan/canvases/a.html", ".doan/canvases/a.HTML", ".doan/canvases/.hidden/a.html", ".doan/canvases/.a.html",
+      "src/a.html", ".doan/canvases/a.css", ".doan/canvases", ".doan/canvases//a.html", ".doan/canvases/a\0b.html",
+      ".doan/canvasesX/a.html", ".doan/dsx/a.html", ".doan/canvases/a.html/", ".doan/canvases/./a.html",
+    ];
+    const accepted = paths.filter(path => accepts(canvas(path)));
+    expect(accepted).toHaveLength(5);
+    for (const path of accepted) expect(validCanvas({ path, id: "checkout-flow" })).toBe(true);
   });
 
   it("rejects a canvas mixed with a frame, element or point, and unknown keys", () => {
