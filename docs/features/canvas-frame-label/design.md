@@ -93,3 +93,7 @@
 - 번호: 이름표는 프레임 drawer와 같은 "<번호>. <이름>"이다. 번호는 중첩 프레임까지 센 문서 순서라 최상위 이름표끼리 건너뛸 수 있다.
 - 마커 통일(사용자 결정): jump highlight를 working-frame 마커의 모습(4 px 흐르는 그라데이션 선, 흰 링 없음, 숨 쉬는 색 glow, `styles.css` `.mark.jump-highlight.working`)으로 바꾼다. 보이는 시간과 사라짐(1.2 s, 0.8 s 뒤 0.4 s에 걸쳐 사라짐), reduced motion·reduced transparency·forced colours 규칙은 지금 jump highlight 것을 유지한다. 요소와 점(12 px 원)의 jump highlight도 같은 선 모양으로 맞춘다(lead 판단, 드래프트에서 확인). `docs/design/canvas.md`의 Jump highlight 줄과 'Working-frame marker' 줄을 승격 때 고친다.
 - 마커 상태(사용자 결정): 최상위 프레임에 마커가 붙은 동안 이름표 채움을 마커 그라데이션으로 칠한다. 선택 상태와 구분한다. 순수 함수 `labelState`가 마커 여부를 입력으로 받는다.
+
+## 확정
+
+- 사용자가 `.doan/canvases/canvas-frame-label.html`을 확정했다(hover 글자 `--text-accent`, 마커 상태 그라데이션 포함).
