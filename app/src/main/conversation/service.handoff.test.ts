@@ -1390,7 +1390,8 @@ describe("a send", () => {
       expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toMatchObject([{ held: true }]);
       expect(userMessages(h, x)).toHaveLength(1);
       await h.service.send(x, "go on", []);
-      expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toMatchObject([{ held: false }]);
+      // Still held while the person's turn runs: it goes once that turn ended done.
+      expect(h.service.list("/repo").find(row => row.conversationId === x)?.agentQueue).toMatchObject([{ held: true }]);
       h.service.receive(x, { type: "turn.done" });
       await vi.waitFor(() => expect(userMessages(h, x)).toHaveLength(3));
       expect(userMessages(h, x)[2]).toMatchObject({ origin: { conversationId: s } });

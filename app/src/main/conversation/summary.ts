@@ -46,7 +46,8 @@ export interface ConversationSummary {
 }
 // An agent's queued message. provider: the sender's, for its logo (absent in an earlier record). source: the sending
 // conversation and its canvas, named only to assistive technology. line: the message's one-line form, never read for
-// {{n}} markers. held: it goes only after a done turn the person starts here (removed with conversation removeQueued).
+// {{n}} markers. held: it goes only after a done turn a person's message starts in this conversation; otherwise it goes
+// after this conversation's next done turn. Removed with conversation removeQueued.
 export interface AgentQueueRow { itemId: string; provider?: Provider; source: { conversationId: string; canvas?: Canvas }; line: string; held: boolean }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
