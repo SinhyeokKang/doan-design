@@ -1837,6 +1837,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const entry = entriesRef.current.find(entry => entry.path === root);
     const onScreen = canvasOnScreenRef.current;
     const target = replyChipTarget({ canvas: canvas.id }, { root, openCanvasId: onScreen?.root === root ? onScreen.id : null, entry });
+    // Limit: while the open canvas is in a problem state (no frame) the Fit does nothing and the press ends silently.
     if (target === "locate") { controller.current?.command("fit"); return Promise.resolve(null); }
     if (target === "missing") return Promise.resolve("missing");
     if (typeof target === "string") { live.current.toast.show(replyChipRefusal(target, canvasStem(canvas.path), live.current.projectLabel(root), entry)); return Promise.resolve(null); }
