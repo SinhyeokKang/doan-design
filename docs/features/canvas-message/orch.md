@@ -22,6 +22,7 @@
 - 받는 대화의 제목은 `sent` 기록의 target에 스냅숏으로 싣고, 렌더러는 목록의 지금 제목을 먼저 쓴다. 에이전트 큐 행은 사람 행 사이의 자리를 받아 실제 보내는 순서로 그린다. — 컨덕터 판단(C의 needs): spec이 대화가 지워진 뒤에도 `Sent to “<title>” · Conversation deleted`를 요구하고, 드래프트 queue 2번 타일이 섞인 순서를 그린다.
 - C 리뷰의 제품 질문: 지워진 대상으로의 `send` 거절은 "Didn’t send. That conversation was deleted."(clarify preset으로 다듬음), 다른 `send` 거절은 provider를 말하지 않는 중립 한 줄, 기존 캔버스 handoff는 "new canvas"로 세지 않는다, Overview 보낸 쪽 Open은 `in the Overview`, 흐린 에이전트 행도 docked buddy의 큐 표시에 센다. — 컨덕터 판단: 드래프트 문구 결과 spec 범위 안의 문구·표시 결정이다.
 - 흐린 에이전트 행이 사람의 다음 done 턴까지 남는 드문 경계 셋(flush 경로의 exit 대기 시간 초과, exit 대기 중 새 send, `draft` 결과의 give-back)은 고치지 않고 한계로 적는다. — 컨덕터 판단(B 재리뷰): 시간 초과·삭제·Stop이 겹쳐야 하고 행이 사라지지는 않는다.
+- `/agent-eval` 실제 회차는 real HOME의 지금 로그인으로 돌리고(사용자 결정), 범위는 앱 turn prompt를 쓰는 R8d·R9b·R10–R17만이다. — 컨덕터 판단(사용자가 전체 회차가 필요한지 물음): 다른 시나리오는 이 기능이 바꾸지 않은 가이드와 stub을 쓴다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -76,3 +77,4 @@
 - 문서 승격 워커 `ctx_5eb59000c7c9`(Opus high, `cm-docs`) 시작: PRODUCT·ARCHITECTURE·BACKLOG·README. `docs/design/`은 design-sync 몫이라 제외.
 - 문서 승격 끝: 5커밋(PRODUCT, ARCHITECTURE, BACKLOG, README, DIRECTORY)을 검토하고 통합했다. tasks 11의 두 grep 결과 없음. BACKLOG의 미확인 목록은 runtime probe 뒤 컨덕터가 고친다.
 - 정리: D·문서 워커를 해제하고 `cm-d-eval`, `cm-docs` worktree를 지웠다(branch는 남김). handoff와 리뷰 사본은 `.scratch/canvas-message/`.
+- B 3회차 끝: 2커밋 통합, typecheck 깨끗. B 배치 끝. 워커 해제, `cm-b-main` 제거(branch 남김). F(eval 회차) 시작 `ctx_6078cd5e0177`(Sonnet medium, `cm-f-eval`).
