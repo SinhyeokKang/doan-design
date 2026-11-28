@@ -211,6 +211,15 @@ describe("app-socket v8 stays apart from v1 to v7", () => {
   }
 });
 
+// An earlier app answers a v8 request on its v1 path, so the reply is a v1 bad_request that no v8 reader accepts.
+describe("app-socket v8 earlier-app reply", () => {
+  test("is a v1 bad_request that is not a v8 response", () => {
+    const reply = readJson(new URL("v1-bad-request.json", fixtureDirectory("app-socket-v8/response", "invalid")));
+    expect(reply).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+    expect(validateSendResponse(reply)).toBe(false);
+  });
+});
+
 // v8 repeats v5's refusal codes by value, since the schemas share nothing.
 describe("app-socket v8 refusal codes", () => {
   test("equal v5's", () => {

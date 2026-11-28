@@ -43,7 +43,7 @@
           "pattern": "^[^\\x00-\\x08\\x0b-\\x1f\\x7f]*$",
           "allOf": [
             {
-              "pattern": "[^\\s   -     　﻿]"
+              "pattern": "[^\\s\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]"
             }
           ],
           "$comment": "HANDOFF_TEXT_LIMIT is this maxLength, counted in code points by both validators. One code point serializes to at most 6 bytes (U+2028 as \\u2028, '<' as \\u003c), so 10000 keeps the worst case at 60 KB under the 64 KiB socket line limit, leaving headroom for token, root and path. The pattern allows only \\n and \\t among control characters and the allOf needs a non-whitespace character. It names ECMAScript's Unicode whitespace beside \\s because Go's \\s is ASCII only, so both validators refuse the same blank text; the exact trim rule stays in the CLI and app code."
