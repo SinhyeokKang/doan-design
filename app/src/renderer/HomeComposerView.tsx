@@ -606,7 +606,8 @@ export function HeroComposer(props: HeroComposerProps) {
     if (result.confirm) setConfirm({ request: result.request, ...result.confirm });
     else apply(result.request);
   }, [props.restore?.seq]);
-  // Every way Home's root changes (the pickers, a removed project's fallback, a restored request) reaches here.
+  // Every way Home's root changes reaches here: the pickers, a removed project's fallback, a restored request. A draft
+  // with a canvas chip has its root picked (the field's onChange), so a change of the default root alone moves no chip.
   useEffect(() => {
     const from = m.chipRoot, before = m.segments;
     if (!root || from === null || from === root) return;
@@ -721,7 +722,7 @@ export function HeroComposer(props: HeroComposerProps) {
         <ComposerCard readonly={sending}>
           {presetHeld && <div className="composer-chips command-notice"><Info aria-hidden="true" /><span>{PRESET_NOTICE}</span></div>}
           <ComposerChips attachments={attachments} preset={presetHeld ? null : preset} thumbnails={m.thumbnails} homeDirectory={props.homeDirectory} disabled={sending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
-          <ComposerField ref={field} skillNames={skillNames} commandNames={commandNames} onAnnounce={setAnnouncement} value={segments} onChange={value => edit({ segments: value, chipRoot: root })} readOnly={sending} placeholder={presetPlaceholder(preset)}
+          <ComposerField ref={field} skillNames={skillNames} commandNames={commandNames} onAnnounce={setAnnouncement} value={segments} onChange={value => edit({ segments: value, chipRoot: root, ...(memory.current.root === null && value.some(segment => segment.kind === "chip" && segment.anchor.canvas) ? { root } : {}) })} readOnly={sending} placeholder={presetPlaceholder(preset)}
             chipRoot={root} chipDrag={chipDrop.fieldDrag} onChipClick={props.onCanvasChip ? press : undefined} canvasOpen={props.onCanvasChip ? { id: null } : undefined}
             combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
             onKey={keyDown} onSubmit={() => void send()} onPaste={paste} onInput={() => doany.current?.typing()} />
