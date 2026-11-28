@@ -273,6 +273,7 @@ Each screen's measured values, documented differences and Not verified list are 
 | Answer popover | [design/conversation.md](design/conversation.md) |
 | Permission request | [design/conversation.md](design/conversation.md) |
 | Canvas handoff | [design/conversation.md](design/conversation.md) |
+| Canvas message | [design/conversation.md](design/conversation.md) |
 | Fast switch | [design/conversation.md](design/conversation.md) |
 | Sent bubble lists | [design/conversation.md](design/conversation.md) |
 | Turn indicator | [design/conversation.md](design/conversation.md) |
