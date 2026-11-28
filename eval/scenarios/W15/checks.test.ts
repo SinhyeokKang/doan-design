@@ -156,6 +156,10 @@ test("W15 reads linked stylesheets, their @import chains and linked scripts", ()
 test("W15 accepts page-level selectors scoped to the marked frame and rejects them without the mark", () => {
   assert.deepEqual(withCanvas(addScript(unmarked, "document.querySelector('[data-doan-id=\"atlas-toggle\"]').addEventListener('click', () => {});")), ["no_board_click_trigger", "prototype_marked"]);
   assert.deepEqual(withCanvas(addCss(unmarked, ".card:focus-within .details { grid-template-rows: 1fr; }")), ["no_board_click_trigger", "prototype_marked"]);
+  // The Claude W16 baseline's script: `frame=` inside the selector string is not an assignment to `frame`.
+  const chained = "(() => {\n  const frame = document.querySelector('[data-doan-frame=\"project-list\"]');\n  const card = frame.querySelector('[data-doan-id=\"atlas-card\"]');\n  const toggle = card.querySelector('.toggle');\n  toggle.addEventListener('click', () => card.toggleAttribute('data-open'));\n})();";
+  assert.deepEqual(withCanvas(addScript(unmarked, chained)), ["no_board_click_trigger", "prototype_marked"]);
+  assert.deepEqual(withCanvas(addScript(pass.replace(frameScript, ""), chained)), []);
 });
 
 test("W15 accepts the interaction in a new marked frame", () => {
