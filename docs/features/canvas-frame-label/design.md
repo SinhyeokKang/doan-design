@@ -71,7 +71,7 @@
 
 ## 드래프트 요청
 
-`/design-draft canvas-frame-label`로 새 드래프트를 그린다. 참고: 사용자가 준 Figma 스크린샷(프레임 왼쪽 위 바깥의 파란 이름표, 선택된 프레임).
+`/design-draft canvas-frame-label`로 새 드래프트 `.doan/canvases/canvas-frame-label.html`(캔버스 id `canvas-frame-label`, 프레임 id `board`, `drag`, `states`, `overlap`, `viewer`)을 그린다. 참고: 사용자가 준 Figma 스크린샷(프레임 왼쪽 위 바깥의 파란 이름표, 선택된 프레임).
 
 - **프레임**:
   - `board`: 최상위 프레임 여러 개와 중첩 프레임이 있는 보드(이름표는 최상위에만), 줌 5 %·25 %·100 %·200 %
