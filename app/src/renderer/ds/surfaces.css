@@ -69,7 +69,8 @@
 /* A listbox row has no data-highlighted: it fills on focus (which hover moves once focus is in the list), or on hover
    only while focus is outside the list, so one row at a time is filled. */
 .doan-menu-item[role="option"][tabindex]:focus,
-[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
+[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover,
+[role="listbox"]:not(:has(:focus)) > [role="group"] > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
 .doan-menu-item[data-disabled], .doan-menu-item[data-disabled] .sub { color: var(--text-disabled); }
 .doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 

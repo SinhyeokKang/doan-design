@@ -788,6 +788,22 @@ body:has(.shell-top) { background: transparent; }
 .group-tabs.shell-modes { position: static; transform: none; display: flex; width: max-content; max-width: 100%; margin: var(--space-1) var(--space-1) var(--space-2); }
 .group-tabs.shell-modes button { gap: var(--space-1h); padding: 0 var(--space-3); }
 .group-tabs.shell-modes svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The drawer stays 500 whatever its tabs (the `/` list keeps 600); a short window caps it at Radix's room. */
+.preset-popover:not(.slash-popover) { display: flex; flex-direction: column; width: 500px; max-height: var(--radix-popover-content-available-height); }
+/* Only the list gives up height: a notice or the search field that shrank would clip its own text. */
+.preset-popover:not(.slash-popover) > :not([role="listbox"]) { flex-shrink: 0; }
+/* The scroll padding is a section head's 28 visible px, so a row focused from the keyboard lands just under a stuck head. */
+.preset-popover:not(.slash-popover) .popover-list { min-height: 0; max-height: 336px; scroll-padding-block-start: calc(var(--space-2) + var(--type-caption-line-height) + var(--space-1)); }
+/* Opaque, as the 90% glass would show the rows under it. It sticks 1px above the list's edge with that pixel added on
+   top, so at a fractional zoom or offset no row rounds into a gap above it. */
+.preset-section-head { position: sticky; top: -1px; z-index: 1; display: flex; align-items: center; gap: var(--space-1h); padding-top: calc(var(--space-2) + 1px); background: var(--surface-popover); }
+.preset-section-head svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Tabs grow from their own width to fill the row; when it is too narrow, labels ellipsize and icons stay. Quick Open
+   shares .group-tabs.shell-modes, so these stay under .preset-popover. */
+.preset-popover .group-tabs.shell-modes { width: auto; }
+.preset-popover .group-tabs.shell-modes button { flex: 1 1 auto; justify-content: center; min-width: 0; }
+.preset-popover .group-tabs .tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-popover .group-tabs.shell-modes svg { flex: none; }
 .preset-item { gap: var(--space-3); }
 .preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
 .preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
@@ -1852,8 +1868,6 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .skill-word { padding: 0 var(--space-1h); border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .bubble .skill-word { background: var(--surface-panel); }
 
-.preset-popover.has-skills:not(.slash-popover) { width: 691px; }
-.preset-popover.has-commands:not(.slash-popover) { width: 809px; }
 .preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
 .preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }

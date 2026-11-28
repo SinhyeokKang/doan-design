@@ -6,7 +6,7 @@ import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
 import { AgentPicker, ComposerField, EffortPicker, fieldTabKey, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets, SuggestionButton } from "./ComposerParts";
 import { moveFocus } from "./chipField";
-import { slashKey, takesSuggestion } from "./homeComposer";
+import { presetListView, slashKey, takesSuggestion, type PresetListReply, type PresetSummary } from "./homeComposer";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { LIST_RETRY_IDLE } from "./listRetry";
@@ -526,6 +526,205 @@ test("the / list never runs past the composer's right edge", () => {
   expect(css).toContain(".preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }");
   // Same weight as the shared popover rule, so it wins by coming after it.
   expect(css.indexOf(".slash-popover {")).toBeGreaterThan(css.indexOf(".preset-popover {"));
+});
+
+const DRAWER_PRESETS: PresetSummary[] = [["context", "start"], ["shape", "start"], ["critique", "review"], ["polish", "refine"], ["bolder", "refine"], ["distill", "content"], ["adapt", "explore"]]
+  .map(([id, group]) => ({ id: id!, title: id!, description: `About ${id}.`, scope: "s", group: group! }));
+const drawerReply: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: DRAWER_PRESETS } };
+const drawerSkills = [{ kind: "skill" as const, name: "deploy", description: "Deploy" }, { kind: "command" as const, name: "clear", description: "Clear" }];
+const drawerMarkup = (tab: string | null) => renderToStaticMarkup(<TooltipProvider>{presetBody(presetListView(drawerReply, { project: "p", suggested: [DRAWER_PRESETS[2]!], query: "", tab, skills: drawerSkills }), false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {}, onTab: () => {} })}</TooltipProvider>);
+
+test("the drawer's tablist is Categories; each tab is its icon and an ellipsizing label, Doan presets with LibraryBig", () => {
+  const html = drawerMarkup(null);
+  expect(html).toContain('role="tablist" aria-label="Categories"');
+  expect(html).not.toContain("Preset groups");
+  expect([...html.matchAll(/data-group="([a-z]+)"/g)].map(m => m[1])).toEqual(["suggested", "presets", "project", "commands"]);
+  expect(html).toMatch(/data-group="presets"[^>]*><svg[^>]*lucide-library-big[^>]*>.*?<\/svg><span class="tab-label">Doan presets<\/span><\/button>/);
+  expect([...html.matchAll(/<span class="tab-label">([^<]+)<\/span>/g)].map(m => m[1])).toEqual(["Suggested", "Doan presets", "Project", "Commands"]);
+});
+
+test("the Doan presets tab names its listbox Doan presets and draws each group as a role=group named by its sticky icon head", () => {
+  const html = drawerMarkup("presets");
+  expect(html).toContain('role="listbox" aria-label="Doan presets"');
+  const groups = [...html.matchAll(/<div class="preset-section" role="group" aria-labelledby="([^"]+)"><div class="doan-menu-head preset-section-head" id="([^"]+)"><svg[^>]*>.*?<\/svg>([^<]+)<\/div>/g)];
+  expect(groups.map(m => m[3])).toEqual(["Start", "Review", "Refine", "Content", "Explore"]);
+  for (const m of groups) expect(m[1]).toBe(m[2]);
+  expect(new Set(groups.map(m => m[1])).size).toBe(5);
+  // Row ids run on across sections, so ↑/↓ pass the heads.
+  expect([...html.matchAll(/id="(l-p-\d+)"/g)].map(m => m[1])).toEqual(DRAWER_PRESETS.map((_, i) => `l-p-${i}`));
+});
+
+test("a known group and an unknown group drawn with the same name keep apart", () => {
+  const presets = [...DRAWER_PRESETS, { id: "x", title: "x", description: "", scope: "s", group: "Start" }];
+  const view = presetListView({ v: 1, ok: true, result: { version: "1", presets } }, { project: "p", suggested: [], query: "", tab: null, skills: [] });
+  const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {} }) as ReactElement<{ children: ReactNode }>;
+  const listbox = propsOf(list).find(item => item.props.role === "listbox")!;
+  const keys = (listbox.props.children as ReactElement[]).map(section => section.key);
+  expect(keys).toHaveLength(6);
+  expect(new Set(keys).size).toBe(6);
+});
+
+test("Suggested, Project and Commands keep one plain head with no group", () => {
+  for (const tab of ["suggested", "project", "commands"]) {
+    const html = drawerMarkup(tab);
+    expect(html).not.toContain('role="group"');
+    expect(html).not.toContain("preset-section-head");
+    expect(html).toMatch(/<div class="doan-menu-head">[^<]+<\/div>/);
+  }
+});
+
+// focus() alone centres a row that is partly out of view; the drawer scrolls it only as far as the list's scroll padding,
+// so a row moved to from the keyboard lands right under a stuck head.
+test("↑/↓ on drawer rows cross section heads, stop at both ends and scroll the row only into view", () => {
+  const view = presetListView(drawerReply, { project: "p", suggested: [], query: "", tab: "presets", skills: [] });
+  const rows = optionRows(presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {} }) as ReactNode);
+  expect(rows).toHaveLength(DRAWER_PRESETS.length);
+  const focused: string[] = [], scrolled: unknown[] = [];
+  vi.stubGlobal("document", { getElementById: (id: string) => ({ focus: (options: unknown) => focused.push(`${id} ${JSON.stringify(options)}`), scrollIntoView: (options: unknown) => scrolled.push(options) }) });
+  try {
+    const key = (at: number, name: string) => (optionOf((rows[at]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[at]!.props)).props.onKeyDown as (event: unknown) => void)({ key: name, preventDefault: () => {} });
+    key(1, "ArrowDown"); key(2, "ArrowUp"); key(0, "ArrowUp"); key(DRAWER_PRESETS.length - 1, "ArrowDown");
+    expect(focused).toEqual(["l-p-2", "l-p-1", "l-p-0", `l-p-${DRAWER_PRESETS.length - 1}`].map(id => `${id} {"preventScroll":true}`));
+    expect(scrolled).toEqual(Array(4).fill({ block: "nearest" }));
+  } finally { vi.unstubAllGlobals(); }
+});
+
+function drawerButton(skills: typeof drawerSkills | [] = drawerSkills, suggested: PresetSummary[] = [DRAWER_PRESETS[2]!]) {
+  const draw = () => {
+    hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+    return propsOf(PresetsButton({ reply: drawerReply, skills, project: "p", suggested, listId: "l", disabled: false, retry: IDLE_RETRY, onOpen: () => {}, onChoose: () => {}, onRetry: async () => false, onPicked: () => {} }));
+  };
+  return draw;
+}
+
+test("choosing another tab scrolls the list back to the top", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("requestAnimationFrame", () => 0);
+  try {
+    const draw = drawerButton();
+    (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
+    let tree = draw();
+    const list = { scrollTop: 240 };
+    (tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === '[role="listbox"]' ? list : null };
+    (tree.find(item => item.props["data-group"] === "presets")!.props.onClick as () => void)();
+    expect(list.scrollTop).toBe(0);
+    tree = draw();
+    expect(tree.find(item => item.props["data-group"] === "presets")!.props["aria-selected"]).toBe(true);
+    // Pressing the chosen tab again keeps the place in its list.
+    list.scrollTop = 200;
+    (tree.find(item => item.props["data-group"] === "presets")!.props.onClick as () => void)();
+    expect(list.scrollTop).toBe(200);
+    list.scrollTop = 120;
+    (tree.find(item => item.props["data-group"] === "presets")!.props.onKeyDown as (event: unknown) => void)({ key: "ArrowRight", preventDefault: () => {}, currentTarget: { parentElement: null } });
+    expect(list.scrollTop).toBe(0);
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+test("the drawer has one class whatever the tabs, and only its search field drops the sm size", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  try {
+    for (const skills of [drawerSkills, [] as []]) {
+      const draw = drawerButton(skills);
+      (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
+      const tree = draw();
+      expect(tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props.className).toBe("doan-floating preset-popover");
+      const field = tree.find(item => typeof item.type === "function" && item.type.name === "SearchField")!;
+      const input = propsOf((field.type as (props: unknown) => ReactNode)(field.props)).find(item => item.type === "input")!;
+      expect(input.props.className).toBe("doan-input");
+      expect("data-ui-size" in input.props && input.props["data-ui-size"] !== undefined).toBe(false);
+    }
+  } finally { hooks.on = false; }
+  const slash = renderToStaticMarkup(<TooltipProvider><SlashPresets view={presetListView(drawerReply, { project: "p", suggested: [], query: "", tab: null, slash: true })} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} retry={IDLE_RETRY} onRetry={async () => false} /></TooltipProvider>);
+  expect(slash).toMatch(/<input class="doan-input" data-ui-size="sm"/);
+});
+
+test("a tab row that vanishes with the content focus was in hands focus to the search box", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  const input = { focus: vi.fn() };
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("document", { activeElement: null, body: null });
+  try {
+    let skills: typeof drawerSkills | [] = [drawerSkills[0]!] as typeof drawerSkills;
+    const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return propsOf(PresetsButton({ reply: drawerReply, skills, project: "p", suggested: [], listId: "l", disabled: false, retry: IDLE_RETRY, onOpen: () => {}, onChoose: () => {}, onRetry: async () => false, onPicked: () => {} })); };
+    (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
+    let tree = draw();
+    (tree.find(item => item.props["data-group"] === "project")!.props.onClick as () => void)();
+    tree = draw();
+    const content = tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props;
+    (content.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === "input" ? input : null };
+    (content.onFocusCapture as (event: unknown) => void)({ target: { isConnected: false, closest: () => ({}) } });
+    skills = [];
+    draw(); hooks.effects.forEach(effect => effect());
+    expect(input.focus).toHaveBeenCalledTimes(1);
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+// No Suggested and one skill: Doan presets and Project are the only tabs, so losing the skill removes the tab row.
+function vanishingTabRow(pressProject: boolean) {
+  const input = { focus: vi.fn() }, list = { scrollTop: 0 };
+  let skills: typeof drawerSkills | [] = [drawerSkills[0]!] as typeof drawerSkills;
+  const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return propsOf(PresetsButton({ reply: drawerReply, skills, project: "p", suggested: [], listId: "l", disabled: false, retry: IDLE_RETRY, onOpen: () => {}, onChoose: () => {}, onRetry: async () => false, onPicked: () => {} })); };
+  (draw()[0]!.props.onOpenChange as (open: boolean) => void)(true);
+  let tree = draw();
+  const content = tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props;
+  (content.ref as { current: unknown }).current = { querySelector: (selector: string) => selector === "input" ? input : selector === '[role="listbox"]' ? list : null };
+  if (pressProject) { (tree.find(item => item.props["data-group"] === "project")!.props.onClick as () => void)(); tree = draw(); }
+  return { input, list, tree, content: () => tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props, lose: () => { skills = []; draw(); hooks.effects.forEach(effect => effect()); } };
+}
+
+test("focus on a Doan presets tab that goes with the tab row moves to the search box", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("document", { activeElement: null, body: null });
+  try {
+    const drawer = vanishingTabRow(false);
+    (drawer.content().onFocusCapture as (event: unknown) => void)({ target: { isConnected: false, closest: () => ({}) } });
+    drawer.lose();
+    expect(drawer.input.focus).toHaveBeenCalledTimes(1);
+    // Focus kept on a row that stays is left there.
+    const kept = vanishingTabRow(false);
+    (kept.content().onFocusCapture as (event: unknown) => void)({ target: { isConnected: true, closest: () => ({}) } });
+    vi.stubGlobal("document", { activeElement: {}, body: null });
+    kept.lose();
+    expect(kept.input.focus).not.toHaveBeenCalled();
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+test("a re-read that changes the chosen tab scrolls the list back to the top", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("document", { activeElement: {}, body: null });
+  try {
+    const drawer = vanishingTabRow(true);
+    drawer.list.scrollTop = 300;
+    drawer.lose();
+    expect(drawer.list.scrollTop).toBe(0);
+  } finally { hooks.on = false; vi.unstubAllGlobals(); }
+});
+
+test("the drawer is 500 px whatever its tabs, with tabs filling the row; the / list stays 600", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).not.toContain("has-skills");
+  expect(css).not.toContain("has-commands");
+  expect(css).not.toContain("691px");
+  expect(css).not.toContain("809px");
+  expect(css).toContain(".preset-popover:not(.slash-popover) { display: flex; flex-direction: column; width: 500px; max-height: var(--radix-popover-content-available-height); }");
+  // A short window caps the drawer; only the list shrinks, so a read-failure notice above it keeps both lines.
+  expect(css).toContain('.preset-popover:not(.slash-popover) > :not([role="listbox"]) { flex-shrink: 0; }');
+  expect(css).toContain(".preset-popover .group-tabs.shell-modes { width: auto; }");
+  expect(css).toContain(".preset-popover .group-tabs.shell-modes button { flex: 1 1 auto; justify-content: center; min-width: 0; }");
+  expect(css).toContain(".preset-popover .group-tabs .tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
+  // A squeezed tab gives up label width only; its icon stays 14 px.
+  expect(css).toContain(".preset-popover .group-tabs.shell-modes svg { flex: none; }");
+  // Quick Open shares .group-tabs.shell-modes: the drawer's tab rules stay under .preset-popover.
+  for (const line of css.split("\n").filter(text => text.includes(".tab-label") || text.includes("flex: 1 1 auto; justify-content: center"))) expect(line.startsWith(".preset-popover ")).toBe(true);
+});
+
+test("the Doan presets list is 336 high and keeps a focused row clear of its stuck head, which never shows rows above it", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".preset-popover:not(.slash-popover) .popover-list { min-height: 0; max-height: 336px; scroll-padding-block-start: calc(var(--space-2) + var(--type-caption-line-height) + var(--space-1)); }");
+  expect(css).toContain(".preset-section-head { position: sticky; top: -1px; z-index: 1; display: flex; align-items: center; gap: var(--space-1h); padding-top: calc(var(--space-2) + 1px); background: var(--surface-popover); }");
+  expect(css).toContain(".preset-section-head svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
 });
 
 // POSTMORTEM 2026-11-17: a read answered while the window is in the background moves focus to the search box, which

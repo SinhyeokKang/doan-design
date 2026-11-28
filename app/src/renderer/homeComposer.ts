@@ -441,7 +441,10 @@ export type PresetNotice =
   | { kind: "olderCli"; text: string };
 export type PresetListView = PresetNotice
   | { kind: "empty"; text: string }
-  | { kind: "list"; tabs: PresetTab[]; sections: { title: string | null; rows: PresetRow[] }[]; summary: string | null; notice?: PresetNotice; emptyText?: string };
+  | { kind: "list"; tabs: PresetTab[]; sections: PresetSection[]; summary: string | null; label?: string; notice?: PresetNotice; emptyText?: string };
+// Only a Doan presets group section has a key and an icon: its head is the sticky name of a role="group". The key is
+// the group's own, since an unknown group may share a known group's label.
+export interface PresetSection { title: string | null; rows: PresetRow[]; key?: string; icon?: string }
 
 function presetRow(p: PresetSummary, withGroup: boolean): PresetRow {
   return { kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title,
@@ -541,18 +544,19 @@ export function presetListView(reply: PresetListReply | undefined, opts: {
   if (opts.slash) return { kind: "list", tabs: [], sections: [{ title: null, rows: searchDrawer(presets, skills, "") }], summary: null, ...withNotice };
   if (notice) return { kind: "list", tabs: [], sections: [...project, ...commands], summary: null, notice };
   const suggested = opts.suggested.length > 0 ? [{ title: `Suggested for ${opts.project}`, rows: opts.suggested.map(p => presetRow(p, false)) }] : [];
-  if (!presets.every(p => p.group !== undefined)) return { kind: "list", tabs: [], sections: [...suggested, { title: "All presets", rows: presets.map(p => presetRow(p, false)) }, ...project, ...commands], summary: null };
-  const keys = [...new Set(presets.map(p => p.group!))];
-  const available = [...(suggested.length > 0 ? ["suggested"] : []), ...keys, ...(project.length > 0 ? ["project"] : []), ...(commands.length > 0 ? ["commands"] : [])];
+  const keys = [...new Set(presets.flatMap(p => p.group === undefined ? [] : [p.group]))];
+  const ordered = [...keys.filter(key => Object.hasOwn(GROUPS, key)), ...keys.filter(key => !Object.hasOwn(GROUPS, key))];
+  const doan: PresetSection[] = !presets.every(p => p.group !== undefined) ? [{ title: null, rows: presets.map(p => presetRow(p, false)) }]
+    : ordered.map(key => ({ title: groupLabel(key), key: `group:${key}`, icon: groupIcon(key), rows: presets.filter(p => p.group === key).map(p => presetRow(p, false)) }));
+  const available = [...(suggested.length > 0 ? ["suggested"] : []), "presets", ...(project.length > 0 ? ["project"] : []), ...(commands.length > 0 ? ["commands"] : [])];
   const selected = opts.tab !== null && available.includes(opts.tab) ? opts.tab : available[0];
-  const tabs = available.map(key => key === "suggested"
+  const tabs = available.length < 2 ? [] : available.map(key => key === "suggested"
     ? { key, label: "Suggested", icon: PRESET_ICON, selected: key === selected }
     : key === "project" ? { key, label: "Project", icon: "square-slash", selected: key === selected }
     : key === "commands" ? { key, label: "Commands", icon: "terminal", selected: key === selected }
-    : { key, label: groupLabel(key)!, icon: groupIcon(key), selected: key === selected });
-  const sections = selected === "suggested" ? suggested : selected === "project" ? project : selected === "commands" ? commands
-    : selected === undefined ? [] : [{ title: groupLabel(selected), rows: presets.filter(p => p.group === selected).map(p => presetRow(p, false)) }];
-  return { kind: "list", tabs, sections, summary: null };
+    : { key, label: "Doan presets", icon: "library-big", selected: key === selected });
+  if (selected === "presets") return { kind: "list", tabs, sections: doan, summary: null, label: "Doan presets" };
+  return { kind: "list", tabs, sections: selected === "suggested" ? suggested : selected === "project" ? project : commands, summary: null };
 }
 
 export const GREETINGS = ["What should we design today?", "What are we making next?", "What would you like to change?", "What’s next for <project>?", "Where should we start?"] as const;

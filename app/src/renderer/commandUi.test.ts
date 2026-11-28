@@ -49,7 +49,7 @@ describe("the / list and the Presets popover", () => {
   test("the Commands tab follows Project with the terminal icon, rows in name order", () => {
     const view = presetListView(reply, { ...opts, tab: "commands" });
     if (view.kind !== "list") throw new Error("list");
-    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "refine", "project", "commands"]);
+    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets", "project", "commands"]);
     expect(view.tabs.at(-1)).toEqual({ key: "commands", label: "Commands", icon: "terminal", selected: true });
     expect(view.sections).toEqual([{ title: "Commands", rows: searchDrawer([], ROWS.filter(r => r.kind === "command" && r.name !== "context"), "") }]);
     expect(view.sections[0]!.rows.map(r => r.id)).toEqual(["clear", "compact", "init", "review", "usage"]);
@@ -58,14 +58,14 @@ describe("the / list and the Presets popover", () => {
   test("without commands (being read, failed, or none) there is no Commands tab and no command row", () => {
     const view = presetListView(reply, { ...opts, skills: ROWS.filter(r => r.kind === "skill"), tab: "commands" });
     if (view.kind !== "list") throw new Error("list");
-    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "refine", "project"]);
+    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets", "project"]);
     expect(view.tabs.find(t => t.selected)?.key).toBe("suggested");
   });
 
   test("commands alone, without skills, still get their tab, and the search box keeps the shipped label", () => {
     const view = presetListView(reply, { ...opts, skills: ROWS.filter(r => r.kind === "command") });
     if (view.kind !== "list") throw new Error("list");
-    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "refine", "commands"]);
+    expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets", "commands"]);
     expect(drawerSearchLabel(ROWS)).toBe("Search presets and skills");
     expect(drawerSearchLabel(ROWS.filter(r => r.kind === "command"))).toBe("Search presets");
   });
