@@ -14,7 +14,8 @@ export function canvasById(canvases: readonly Canvas[], id: string): CanvasLooku
   return found === undefined ? "missing" : { path: found };
 }
 
-// A dropped chip's name stays in the text, where a brace pair would read as a marker that anchorTokens refuses.
+// A dropped chip's name stays in the text, where a brace pair, inside it or at its edge with a brace next to it, would
+// read as a marker that anchorTokens refuses.
 function nameText(path: string): string { return canvasStem(path).replace(/([{}])(?=[{}])/g, "$1 "); }
 
 // An anchor's path is the sender's and never trusted: each canvas anchor goes out with the one path the root lists for
@@ -30,9 +31,13 @@ export function sendCanvasAnchors(text: string, anchors: readonly Anchor[], canv
     kept.push({ canvas: { path: found.path, id: anchor.canvas.id } });
     marks.push(kept.length);
   }
-  const out = text.replace(/\{\{([1-9][0-9]*)\}\}/g, (marker, n: string) => {
+  const brace = (char: string | undefined) => char === "{" || char === "}";
+  const out = text.replace(/\{\{([1-9][0-9]*)\}\}/g, (marker, n: string, at: number) => {
     const mark = marks[Number(n) - 1];
-    return mark === undefined ? marker : typeof mark === "number" ? `{{${mark}}}` : mark;
+    if (mark === undefined) return marker;
+    if (typeof mark === "number") return `{{${mark}}}`;
+    const before = brace(mark[0]) && brace(text[at - 1]) ? " " : "", after = brace(mark.at(-1)) && brace(text[at + marker.length]) ? " " : "";
+    return `${before}${mark}${after}`;
   });
   return { text: out, anchors: kept };
 }

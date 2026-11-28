@@ -76,6 +76,19 @@ describe("sendCanvasAnchors", () => {
     valid(out);
   });
 
+  it.each([
+    ["a name ending in { before typed {", "a{{1}}{b", ".doan/canvases/x{.html"],
+    ["a name ending in } before typed }", "a{{1}}}b", ".doan/canvases/x}.html"],
+    ["a name starting with { after typed {", "a{{{1}}b", ".doan/canvases/{x.html"],
+    ["a name starting with } after typed }", "a}{{1}}b", ".doan/canvases/}x.html"],
+    ["two names that meet at braces", "a{{1}}{{2}}b", ".doan/canvases/x{.html", ".doan/canvases/{y.html"],
+  ])("keeps %s from forming a marker brace pair with the text around it", (_case, text, path, second?: string) => {
+    const out = sendCanvasAnchors(text, [canvas(path, "gone"), ...(second ? [canvas(second, "gone-too")] : [])], listed);
+    expect(out.anchors).toEqual([]);
+    expect(out.text).not.toMatch(/\{\{|\}\}/);
+    valid(out);
+  });
+
   it("drops every anchor when none is listed, leaving no marker", () => {
     const out = sendCanvasAnchors("{{1}}{{2}}", [canvas(".doan/canvases/a.html", "a"), canvas(".doan/canvases/sub/b.html", "b")], []);
     expect(out).toEqual({ text: "ab", anchors: [] });
