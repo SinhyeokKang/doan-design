@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { canvasCardMeta, canvasCardText, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
+import { canvasCardMeta, canvasCardText, listedConversation, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
@@ -317,5 +317,16 @@ describe("listedTitle", () => {
     expect(listedTitle(list, "c3")).toBeNull();
     expect(listedTitle("loading", "c1")).toBeNull();
     expect(listedTitle("error", "c1")).toBeNull();
+  });
+});
+
+describe("listedConversation", () => {
+  test("gone only once a settled list lacks it; while a read is under way or the list is not read, it counts as there", () => {
+    const list = [{ conversationId: "c1", title: "A" }];
+    expect(listedConversation(list, "c1", false)).toBe(true);
+    expect(listedConversation(list, "c2", false)).toBe(false);
+    expect(listedConversation(list, "c2", true)).toBe(true);
+    expect(listedConversation("loading", "c2", false)).toBe(true);
+    expect(listedConversation("error", "c2", false)).toBe(true);
   });
 });
