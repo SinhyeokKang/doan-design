@@ -10,6 +10,8 @@
 
 - 새 eval 시나리오 번호는 R14–R17이다(tasks 9b의 R13–R16). — 컨덕터 판단: canvas-chip이 R13(캔버스 앵커 Home 대화)을 이미 썼다. tasks 9c의 "R13–R16"도 R14–R17로 읽는다.
 - `turnPrompt`로 다시 만드는 기존 eval 프롬프트 fixture에 R13을 더한다(tasks 5의 R8d, R9b, R10, R11, R12와 함께). — 컨덕터 판단: R13도 `handoff: true`로 `turnPrompt`를 부른다.
+- 받는 대화가 사용량 한도 예약 상태(`scheduling(id)`)일 때의 `send`: 턴을 돌리지 않고 실패한 턴도 쓰지 않는다. 메시지는 받는 대화의 큐에 에이전트 행으로 들어가고(흐린 상태), 보낸 쪽 카드는 Queued in이다. 리셋에 맞춰 예약하지 않는다. — 컨덕터 판단(B 질문): design '앱 main'의 "한도 실패로 끝낸다"와 "큐 행으로 남는다"가 충돌해, spec '큐에 든 에이전트 메시지'(한도 실패 뒤 흐린 행)와 Out of scope 4의 한도 예외를 넓히지 않는다는 결정에 맞는 쪽을 골랐다. PRODUCT 승격 때 적는다.
+- 에이전트 큐 행은 `ConversationSummary.agentQueue`로 렌더러에 간다(목록 변경마다 전달, 흐린 상태 포함, ×는 기존 `removeQueued`). — 컨덕터 판단(B 질문): 새 ipc 채널보다 기존 요약 전달에 얹는 쪽이 단순하다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
