@@ -564,16 +564,19 @@ test("Suggested, Project and Commands keep one plain head with no group", () => 
   }
 });
 
-test("↑/↓ on drawer rows cross section heads and stop at both ends", () => {
+// focus() alone centres a row that is partly out of view; the drawer scrolls it only as far as the list's scroll padding,
+// so a row moved to from the keyboard lands right under a stuck head.
+test("↑/↓ on drawer rows cross section heads, stop at both ends and scroll the row only into view", () => {
   const view = presetListView(drawerReply, { project: "p", suggested: [], query: "", tab: "presets", skills: [] });
   const rows = optionRows(presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {} }) as ReactNode);
   expect(rows).toHaveLength(DRAWER_PRESETS.length);
-  const focused: string[] = [];
-  vi.stubGlobal("document", { getElementById: (id: string) => ({ focus: () => focused.push(id) }) });
+  const focused: string[] = [], scrolled: unknown[] = [];
+  vi.stubGlobal("document", { getElementById: (id: string) => ({ focus: (options: unknown) => focused.push(`${id} ${JSON.stringify(options)}`), scrollIntoView: (options: unknown) => scrolled.push(options) }) });
   try {
     const key = (at: number, name: string) => (optionOf((rows[at]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[at]!.props)).props.onKeyDown as (event: unknown) => void)({ key: name, preventDefault: () => {} });
     key(1, "ArrowDown"); key(2, "ArrowUp"); key(0, "ArrowUp"); key(DRAWER_PRESETS.length - 1, "ArrowDown");
-    expect(focused).toEqual(["l-p-2", "l-p-1", "l-p-0", `l-p-${DRAWER_PRESETS.length - 1}`]);
+    expect(focused).toEqual(["l-p-2", "l-p-1", "l-p-0", `l-p-${DRAWER_PRESETS.length - 1}`].map(id => `${id} {"preventScroll":true}`));
+    expect(scrolled).toEqual(Array(4).fill({ block: "nearest" }));
   } finally { vi.unstubAllGlobals(); }
 });
 
@@ -650,9 +653,13 @@ test("the drawer is 500 px whatever its tabs, with tabs filling the row; the / l
   expect(css).not.toContain("691px");
   expect(css).not.toContain("809px");
   expect(css).toContain(".preset-popover:not(.slash-popover) { display: flex; flex-direction: column; width: 500px; max-height: var(--radix-popover-content-available-height); }");
+  // A short window caps the drawer; only the list shrinks, so a read-failure notice above it keeps both lines.
+  expect(css).toContain('.preset-popover:not(.slash-popover) > :not([role="listbox"]) { flex-shrink: 0; }');
   expect(css).toContain(".preset-popover .group-tabs.shell-modes { width: auto; }");
   expect(css).toContain(".preset-popover .group-tabs.shell-modes button { flex: 1 1 auto; justify-content: center; min-width: 0; }");
   expect(css).toContain(".preset-popover .group-tabs .tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
+  // A squeezed tab gives up label width only; its icon stays 14 px.
+  expect(css).toContain(".preset-popover .group-tabs.shell-modes svg { flex: none; }");
   // Quick Open shares .group-tabs.shell-modes: the drawer's tab rules stay under .preset-popover.
   for (const line of css.split("\n").filter(text => text.includes(".tab-label") || text.includes("flex: 1 1 auto; justify-content: center"))) expect(line.startsWith(".preset-popover ")).toBe(true);
 });
