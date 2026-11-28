@@ -87,7 +87,7 @@
 - 숨김 기준: 프레임 화면 폭이 56 px보다 좁으면 이름표를 숨긴다(40·48 px에서는 두세 글자만 남는다).
 - 겹침: Option 측정 표시(`.measure`)는 이름표 위다. 그 아래로 size bubble > 이름표 > 선택·hover 표시.
 - 글자: 11 px, 새 토큰(이름과 값은 드래프트와 `tokens.css`, DESIGN.md 줄). Figma의 공식 값은 찾지 못했고 Figma UI가 약 11 px라는 사용자 관찰만 있다(forum.figma.com).
-- 기본: 보드 위에서는 `--text-subtle` 글자가 `--surface-inset` 채움 위에 있어 맨 글자처럼 보이고, 캔버스 내용 위에서는 회색 pill로 보인다. hover: 글자는 `--text-standard`, 이름표 칩 안쪽에 accent 색 1px inset box-shadow(사용자 결정), 프레임에 점선 hover 표시. 프레임 위로 6 px(`--space-1h`) 띄운다. 높이 16 px, 좌우 padding 4 px, `--radius-inline`. 누름·hover 영역은 아래 간격 6 px까지 넓힌다(위로는 넓히지 않는다).
+- 기본: 보드 위에서는 `--text-subtle` 글자가 `--surface-inset` 채움 위에 있어 맨 글자처럼 보이고, 캔버스 내용 위에서는 회색 pill로 보인다. hover: 글자는 `--text-accent`(사용자 결정), 이름표 칩 안쪽에 accent 색 1px inset box-shadow(사용자 결정), 프레임에 점선 hover 표시. 프레임 위로 6 px(`--space-1h`) 띄운다. 높이 16 px, 좌우 padding 4 px, `--radius-inline`. 누름·hover 영역은 아래 간격 6 px까지 넓힌다(위로는 넓히지 않는다).
 - forced colors: 기본과 hover는 시스템 색(Canvas, CanvasText), 선택만 `forced-color-adjust: none`으로 `Highlight`/`HighlightText`.
 - 구현 메모: 겹침 순서를 위해 `.dims`에 `z-index: 1`이 필요하고 `.measure`는 그 위로 유지한다.
 - 번호: 이름표는 프레임 drawer와 같은 "<번호>. <이름>"이다. 번호는 중첩 프레임까지 센 문서 순서라 최상위 이름표끼리 건너뛸 수 있다.
