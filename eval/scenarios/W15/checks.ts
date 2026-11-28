@@ -5,9 +5,9 @@ const canvas = ".doan/canvases/projects.html";
 // The frame the prompt names ("Project list"); the click and the motion belong in it.
 const target = "project-list";
 
-// The four checks below, plus the final canvas's style and script texts (inline, linked and imported) for scenarios
-// that share this canvas (W16).
-export function boardChecks(ctx: CheckContext): { checks: Check[]; css: string[]; scripts: string[] } {
+// The four checks below, plus the final canvas's style and script texts (inline, linked and imported) and the style
+// attributes of its active elements, for scenarios that share this canvas (W16).
+export function boardChecks(ctx: CheckContext): { checks: Check[]; css: string[]; scripts: string[]; styleAttributes: string[] } {
   const check = ctx.doan(["check"]);
   const clean = { id: "doan_check_clean", pass: check.json?.ok === true && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` };
   const seedHtml = ctx.seed(canvas), finalHtml = ctx.read(canvas);
@@ -15,7 +15,7 @@ export function boardChecks(ctx: CheckContext): { checks: Check[]; css: string[]
   const final = finalHtml === null ? null : parseCanvas(ctx, finalHtml);
   if (seed === null || final === null) {
     const detail = finalHtml === null ? "canvas missing" : "parse failed";
-    return { checks: [clean, ...["no_board_click_trigger", "prototype_marked", "other_frames_unchanged"].map(id => ({ id, pass: false, detail }))], css: [], scripts: [] };
+    return { checks: [clean, ...["no_board_click_trigger", "prototype_marked", "other_frames_unchanged"].map(id => ({ id, pass: false, detail }))], css: [], scripts: [], styleAttributes: [] };
   }
 
   const dom = new Dom(final.nodes);
@@ -45,7 +45,8 @@ export function boardChecks(ctx: CheckContext): { checks: Check[]; css: string[]
     return now.length !== 1 || now[0]!.source !== f.source;
   }).map(f => f.id);
 
-  return { css, scripts, checks: [
+  const styleAttributes = final.nodes.flatMap(n => (n.attrs.style === undefined ? [] : [n.attrs.style]));
+  return { css, scripts, styleAttributes, checks: [
     clean,
     { id: "no_board_click_trigger", pass: board.length === 0, detail: JSON.stringify(board) },
     // A canvas with no click interaction at all needs no mark; the judge scores a still-only drawing.

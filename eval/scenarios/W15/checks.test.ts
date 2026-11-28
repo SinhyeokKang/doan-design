@@ -39,6 +39,8 @@ const addFrame = (html: string, body: string, marked = false) =>
 const addScript = (html: string, script: string) => html.replace("</body>", `<script>${script}</script>\n</body>`);
 const addCss = (html: string, css: string) => html.replace("</style>", `  ${css}\n</style>`);
 const unmarked = pass.replace(mark, "").replace(frameScript, "");
+// Interaction whose receiver only run time can tell: never a board click, but it needs a mark.
+const wireUnknown = "function wire(el) { el.addEventListener('click', () => {}); }";
 const partial = { verdict: "partial" as const, reasons: [], stalls: [], layer: "guide" as const };
 
 test("W15 seed and pass leave the judge to grade, fail clicks on the board", () => {
@@ -67,8 +69,8 @@ test("W15 rejects click handlers, popovers and details on an unmarked frame", ()
 
 test("W15 ignores inert templates for board elements and for frame marks", () => {
   assert.deepEqual(withCanvas(pass.replace("</body>", "<template><details><summary>More</summary></details><button onclick=\"go()\">x</button></template>\n</body>")), []);
-  // A click-state rule that matches nothing still counts as interaction, so a mark is needed; one inside a template does not count.
-  const templated = addCss(unmarked, ".ghost:focus { outline: none; }").replace("</body>", `<template><section data-doan-frame="extra"${mark}><button class="ghost">x</button></section></template>\n</body>`);
+  // A registration with an unresolvable receiver is interaction, so a mark is needed; one inside a template does not count.
+  const templated = addScript(unmarked, wireUnknown).replace("</body>", `<template><section data-doan-frame="extra"${mark}><button class="ghost">x</button></section></template>\n</body>`);
   assert.deepEqual(withCanvas(templated), ["prototype_marked"]);
 });
 
@@ -175,7 +177,7 @@ test("W15 prototype_marked checks only the mark; where the interaction lives is 
   // A mark on a child of the target is not a frame mark (doan check also refuses it).
   assert.deepEqual(withCanvas(pass.replace(mark, "").replace('<div class="cards">', `<div class="cards"${mark}>`)), ["doan_check_clean", "prototype_marked"]);
   // Marking the other existing frame changes it.
-  assert.deepEqual(withCanvas(addCss(unmarked, ".ghost:focus { outline: none; }").replace('data-doan-title="No projects"', `data-doan-title="No projects"${mark}`)), ["other_frames_unchanged", "prototype_marked"]);
+  assert.deepEqual(withCanvas(addScript(unmarked, wireUnknown).replace('data-doan-title="No projects"', `data-doan-title="No projects"${mark}`)), ["other_frames_unchanged", "prototype_marked"]);
 });
 
 test("W15 needs the other frames byte-identical", () => {

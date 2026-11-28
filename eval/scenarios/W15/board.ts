@@ -126,6 +126,7 @@ const CLICK_STATE_TEXT = /:(?:focus-within|focus|active|checked|target-within|ta
 // Pseudo-classes that depend on the element's state; inside :not() they cannot exclude anything statically.
 const STATE = /^(?:focus-within|focus-visible|focus|active|hover|checked|target-within|target|visited|link|any-link|enabled|disabled|read-only|read-write|placeholder-shown|default|indeterminate|valid|invalid|user-valid|user-invalid|required|optional|in-range|out-of-range|open|closed|popover-open|modal|playing|paused|fullscreen)$/;
 const LEGACY_ELEMENTS = /^(?:before|after|first-line|first-letter)$/;
+const IS = ["is", "where", "matches", "-webkit-any", "-moz-any"];
 
 // The index after the group that opens at `start` ("(" or "["), skipping quoted strings; -1 when unclosed.
 function closeOf(text: string, start: number): number {
@@ -251,7 +252,7 @@ export class Dom {
         if (list && list.some(s => this.complex(i, s, s.compounds.length - 1, true))) return false;
         continue;
       }
-      if (["is", "where", "matches", "-webkit-any", "-moz-any"].includes(p.name)) {
+      if (IS.includes(p.name)) {
         const list = p.arg === null ? null : parseList(p.arg);
         if (list && !list.some(s => this.complex(i, s, s.compounds.length - 1, inNot))) return false;
         continue;
@@ -282,33 +283,64 @@ export class Dom {
   }
 
   // For each click state in a selector list, the elements it applies to: the compound carrying the state, matched
-  // with what precedes it. null when the selector does not parse.
-  clickStateTargets(selector: string): number[][] | null {
+  // with what precedes it. Inside :is()/:where() only the branches holding the state count. null marks a state the
+  // static reading cannot place (an unparsed selector, a state inside :not() or :has()).
+  clickStateTargets(selector: string): (number[] | null)[] {
     const list = parseList(selector);
-    if (list === null) return null;
-    const out: number[][] = [];
+    if (list === null) return [null];
+    const out: (number[] | null)[] = [];
     for (const s of list)
       s.compounds.forEach((c, index) => {
-        if (c.pseudos.some(p => CLICK_STATE.test(p.name) || (p.arg !== null && CLICK_STATE_TEXT.test(p.arg))))
-          out.push(this.nodes.map((_, i) => i).filter(i => this.complex(i, s, index, false)));
+        const direct = c.pseudos.some(p => CLICK_STATE.test(p.name));
+        const nested = c.pseudos.filter(p => p.arg !== null && CLICK_STATE_TEXT.test(p.arg));
+        if (!direct && !nested.length) return;
+        let compound = c;
+        if (!direct) {
+          if (nested.some(p => !IS.includes(p.name))) { out.push(null); return; }
+          compound = { ...c, pseudos: c.pseudos.map(p => (nested.includes(p) ? { name: p.name, arg: splitTopLevel(p.arg!).filter(b => CLICK_STATE_TEXT.test(b)).join(", ") } : p)) };
+        }
+        const variant = { ...s, compounds: s.compounds.map((x, k) => (k === index ? compound : x)) };
+        out.push(this.nodes.map((_, i) => i).filter(i => this.complex(i, variant, index, false)));
       });
     return out;
   }
 }
 
+// Every style rule's selector, with CSS nesting resolved against its parent rule (`&` or a relative selector).
+export function styleRules(css: string): string[] {
+  const text = uncomment(css), out: string[] = [], stack: (string | null)[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"' || ch === "'") { const end = text.indexOf(ch, i + 1); if (end < 0) break; i = end; }
+    else if (ch === ";") start = i + 1;
+    else if (ch === "}") { stack.pop(); start = i + 1; }
+    else if (ch === "{") {
+      const prelude = text.slice(start, i).trim();
+      const parent = stack.findLast(sel => sel !== null) ?? null;
+      if (!prelude || prelude.startsWith("@")) stack.push(null);
+      else {
+        const selector = parent === null ? prelude : splitTopLevel(prelude).map(c => (c.includes("&") ? c.split("&").join(`:is(${parent})`) : `:is(${parent}) ${c}`)).join(", ");
+        stack.push(selector);
+        out.push(selector);
+      }
+      start = i + 1;
+    }
+  }
+  return out;
+}
+
+// A state that matches no element, or that the static reading cannot place, is neither interaction nor a board click.
 export function cssClickStates(dom: Dom, css: string[]): { interaction: boolean; board: string[] } {
   let interaction = false;
   const board: string[] = [];
   for (const text of css)
-    for (const rule of uncomment(text).matchAll(/([^{}]+)\{[^{}]*\}/g)) {
-      // Statements such as @import end in ";" before the rule's own prelude.
-      const prelude = rule[1]!.slice(rule[1]!.lastIndexOf(";") + 1).trim();
-      if (prelude.startsWith("@") || !CLICK_STATE_TEXT.test(prelude)) continue;
-      interaction = true;
-      for (const selector of splitTopLevel(prelude)) {
-        const targets = dom.clickStateTargets(selector);
-        // An unparsed selector is left to the judge.
-        if (targets?.some(nodes => nodes.some(i => !dom.nodes[i]!.marked))) board.push(`css ${selector}`);
+    for (const rule of styleRules(text)) {
+      if (!CLICK_STATE_TEXT.test(rule)) continue;
+      for (const selector of splitTopLevel(rule)) {
+        const targets = dom.clickStateTargets(selector).filter((t): t is number[] => t !== null && t.length > 0);
+        if (targets.length) interaction = true;
+        if (targets.some(nodes => nodes.some(i => !dom.nodes[i]!.marked))) board.push(`css ${selector}`);
       }
     }
   return { interaction, board };
@@ -369,6 +401,63 @@ function chainAt(text: string, start: number): string {
   return text.slice(start, i);
 }
 
+function codeMask(text: string): boolean[] {
+  const code = new Array<boolean>(text.length).fill(true);
+  const quiet = (from: number, to: number) => { for (let k = from; k < Math.min(to, text.length); k++) code[k] = false; };
+  for (let i = 0; i < text.length;) {
+    const ch = text[i], next = text[i + 1];
+    if (ch === "/" && next === "/") { const end = text.indexOf("\n", i); const to = end < 0 ? text.length : end; quiet(i, to); i = to; continue; }
+    if (ch === "/" && next === "*") { const end = text.indexOf("*/", i + 2); const to = end < 0 ? text.length : end + 2; quiet(i, to); i = to; continue; }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) j += text[j] === "\\" ? 2 : 1;
+      quiet(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    i++;
+  }
+  return code;
+}
+
+// The text after a group's first top-level comma (a call's second argument onwards).
+function afterFirstComma(args: string): string | null {
+  let depth = 0;
+  for (let i = 0; i < args.length; i++) {
+    const ch = args[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") { const end = args.indexOf(ch, i + 1); if (end < 0) return null; i = end; }
+    else if ("([{".includes(ch)) depth++;
+    else if (")]}".includes(ch)) depth--;
+    else if (ch === "," && depth === 0) return args.slice(i + 1);
+  }
+  return null;
+}
+
+// The rest of a statement from `start`: up to a top-level ";" or line break, or the end of an enclosing group.
+function statementFrom(text: string, start: number): string {
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") { const end = text.indexOf(ch, i + 1); if (end < 0) return text.slice(start); i = end; }
+    else if ("([{".includes(ch)) depth++;
+    else if (")]}".includes(ch)) { if (--depth < 0) return text.slice(start, i); }
+    else if ((ch === ";" || ch === "\n") && depth === 0) return text.slice(start, i);
+  }
+  return text.slice(start);
+}
+
+// The index after the brace block that opens at `start`.
+function closeBrace(text: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '"' || ch === "'" || ch === "`") { const end = text.indexOf(ch, i + 1); if (end < 0) return text.length; i = end; }
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
 const literal = (arg: string): string | null => {
   const m = /^\s*(?:"([^"\\]*)"|'([^'\\]*)'|`([^`\\$]*)`)\s*$/.exec(arg);
   return m ? (m[1] ?? m[2] ?? m[3]!) : null;
@@ -378,25 +467,60 @@ export class ScriptReader {
   private readonly dom: Dom;
   private readonly text: string;
   private readonly scriptNode: number;
+  // false inside comments and string literals, where a registration is only text.
+  private readonly code: boolean[];
   constructor(dom: Dom, text: string, scriptNode: number) {
     this.dom = dom;
     this.text = text;
     this.scriptNode = scriptNode;
+    this.code = codeMask(text);
   }
 
   // Every click registration in the script: "page" (the whole page listens), the elements that listen, or unknown.
+  // A listener that reaches board elements is judged by its handler: an unfiltered one stays a board click, one that
+  // acts only when the event target is in the prototype is the prototype's, any other filter is the judge's.
   registrations(): { site: string; value: Value }[] {
     const out: { site: string; value: Value }[] = [];
+    const add = (site: string, receiver: Value, handler: string | null) => {
+      const reachesBoard = receiver.kind === "page" || (receiver.kind === "nodes" && receiver.nodes.some(i => !this.dom.nodes[i]!.marked));
+      out.push({ site, value: reachesBoard ? this.filtered(receiver, handler) : receiver });
+    };
     for (const m of this.text.matchAll(LISTEN)) {
+      if (!this.code[m.index!]) continue;
       let j = m.index!;
       while (j > 0 && /\s/.test(this.text[j - 1]!)) j--;
       const dotted = this.text[j - 1] === ".";
       const end = dotted ? j - 1 - (this.text[j - 2] === "?" ? 1 : 0) : j;
-      out.push({ site: m[0], value: dotted ? this.evaluate(this.text.slice(chainStart(this.text, end), end), 0) : { kind: "page" } });
+      const open = this.text.indexOf("(", m.index!);
+      const close = closeOf(this.text, open);
+      const args = close < 0 ? null : this.text.slice(open + 1, close - 1);
+      add(m[0], dotted ? this.evaluate(this.text.slice(chainStart(this.text, end), end), 0) : { kind: "page" }, args === null ? null : afterFirstComma(args));
     }
-    for (const m of this.text.matchAll(PROPERTY)) out.push({ site: m[0], value: this.evaluate(this.text.slice(chainStart(this.text, m.index!), m.index!), 0) });
-    for (const m of this.text.matchAll(BARE_PROPERTY)) out.push({ site: m[0], value: { kind: "page" } });
+    for (const m of this.text.matchAll(PROPERTY))
+      if (this.code[m.index!]) add(m[0], this.evaluate(this.text.slice(chainStart(this.text, m.index!), m.index!), 0), statementFrom(this.text, m.index! + m[0].length));
+    for (const m of this.text.matchAll(BARE_PROPERTY))
+      if (this.code[m.index!]) add(m[0], { kind: "page" }, statementFrom(this.text, m.index! + m[0].length));
     return out;
+  }
+
+  private filtered(receiver: Value, handler: string | null): Value {
+    let body = handler?.trim() ?? null;
+    if (body !== null && /^[\w$]+$/.test(body)) {
+      const id = escapeRegex(body);
+      const decl = new RegExp(`function\\s+${id}\\s*\\(`).exec(this.text);
+      const brace = decl ? this.text.indexOf("{", decl.index) : -1;
+      const assigned = decl ? null : new RegExp(`(?<![\\w$.])${id}\\s*=(?![=>])`).exec(this.text);
+      body = brace >= 0 ? this.text.slice(brace, closeBrace(this.text, brace)) : assigned ? statementFrom(this.text, assigned.index + assigned[0].length) : null;
+    }
+    if (body === null) return UNKNOWN;
+    const selectors = [...body.matchAll(/\.(?:closest|matches)\s*\(\s*(["'`])([^"'`]*)\1\s*\)/g)].map(m => m[2]!);
+    const other = /\.contains\s*\(|\.target\s*[!=]==?|[!=]==?\s*[\w$.]*\.target\b|\.target\.(?:id|className|classList|dataset|tagName|nodeName)\b|\.composedPath\s*\(/.test(body);
+    if (!selectors.length) return other ? UNKNOWN : receiver;
+    const hits = selectors.map(sel => this.dom.select(sel));
+    if (hits.some(h => h === null)) return UNKNOWN;
+    const nodes = (hits as number[][]).flat();
+    if (nodes.some(i => !this.dom.nodes[i]!.marked)) return receiver;
+    return nodes.length ? { kind: "nodes", nodes } : UNKNOWN;
   }
 
   private evaluate(expr: string, depth: number): Value {
@@ -501,6 +625,7 @@ export class ScriptReader {
     const values: Value[] = [];
     // A right side that is no chain (a string, a number, `name=` inside a selector string) defines no element.
     for (const m of this.text.matchAll(new RegExp(`(?<![\\w$.])${id}\\s*=(?![=>])`, "g"))) {
+      if (!this.code[m.index!]) continue;
       const chain = chainAt(this.text, m.index! + m[0].length);
       if (chain) values.push(this.evaluate(chain, depth));
     }
