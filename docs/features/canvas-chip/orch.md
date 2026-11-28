@@ -37,7 +37,7 @@
 | E | T5c | `ConversationThread.tsx`(SentChip), `prototype/requests.ts`, 클립보드 붙이기 | D | Opus medium — 기존 `replyChipTarget`을 재사용한다 | tasks T5c 검증 + test·typecheck·lint | 통합 `f75d04b10`–`8320369d0`. 리뷰 1회, 수정 1회. T7에서 볼 것: 프로토타입 창의 칩 누르기 |
 | F | T5d | `HomeComposerView.tsx`, `homeConversations.ts`, Home 초안·마지막 요청 | E | Opus high — Home 상태 모양을 바꾸고 복원 경로가 많다 | tasks T5d 검증 + test·typecheck·lint | 통합 `c469ee2eb`–`b796f7dd5`. 리뷰 1회, 수정 1회 |
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
-| H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 대기 |
+| H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 진행 중 (base `fbc514e0b`, 통합 HEAD `verify.mjs` PASS) |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
 
