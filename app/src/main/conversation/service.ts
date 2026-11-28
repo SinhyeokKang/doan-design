@@ -1508,7 +1508,8 @@ export class ConversationService {
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
         // The Fast stored now, judged for the model the queue goes out on.
         const fastTurn = m.fast === true && m.owner.kind === "doan" && this.queueOptions.fast?.(m.root, m.session.runtime, m.model) === true;
-        // Checked again as it goes out: a canvas may have moved or gone since the messages were queued.
+        // Checked again as it goes out: a canvas may have moved or gone since the messages were queued. A root that is no
+        // list now (reading, a problem) lists none, so every canvas chip then goes out as its name.
         const checked = sendCanvasAnchors(combined.text, combined.anchors, this.canvases(m.root));
         await this.submit(id, checked.text, checked.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) }, attached);
         const sent = items.map(item => item.itemId);
