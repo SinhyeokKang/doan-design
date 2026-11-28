@@ -284,6 +284,8 @@ func TestHandoffReply(t *testing.T) {
 		{"error-handoff-turn.json", "handoff_turn", 5},
 		{"error-already-requested.json", "already_requested", 5},
 		{"error-same-canvas.json", "same_canvas", 5},
+		{"error-chain-one.json", "chain_one", 5},
+		{"error-chain-limit.json", "chain_limit", 5},
 	} {
 		line := handoffFixture(t, "valid", tt.file)
 		got, failure := handoffReply(line, root, canvas)
@@ -334,10 +336,14 @@ func TestHandoffFailureSteps(t *testing.T) {
 		{"If it still fails", "Applications", "Settings… > About"},
 	})
 	for code, words := range map[string][]string{
-		"not_app_conversation": {"`doan handoff` works only in a conversation in the Doan app", "open the new canvas"},
+		"not_app_conversation": {"`doan handoff` works only in a conversation in the Doan app", "open the canvas"},
 		"root_mismatch":        {"without --repo"},
 		"canvas_not_found":     {"`doan ls`"},
-		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
+		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other canvas once"},
+		// Existing canvases are targets now, so no step asks for a new one.
+		"same_canvas": {"another canvas"},
+		"chain_one":   {"one request", "do not send or hand off again"},
+		"chain_limit": {"fifth", "do not send or hand off"},
 		// A project of the same name already in Doan may be another checkout or worktree at another path.
 		"project_not_open": {"File > Add Projects…", "Project Settings", "another checkout or worktree"},
 	} {
@@ -352,7 +358,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 	if steps := strings.Join(handoffFailure("not_app_conversation", "m").NextSteps, "\n"); strings.Contains(steps, "canvas conversation") {
 		t.Errorf("not_app_conversation: still names a canvas conversation: %q", steps)
 	}
-	for _, code := range []string{"app_protocol_mismatch", "project_not_open", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "same_canvas"} {
+	for _, code := range []string{"app_protocol_mismatch", "project_not_open", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "same_canvas", "chain_one", "chain_limit"} {
 		if len(handoffFailure(code, "m").NextSteps) == 0 {
 			t.Errorf("%s: no nextSteps", code)
 		}
@@ -363,6 +369,15 @@ func TestHandoffDuplicateCanvasMessage(t *testing.T) {
 	_, failure := handoffReply(handoffFixture(t, "valid", "error-already-requested.json"), "/Users/me/repo", ".doan/canvases/checkout.html")
 	if failure == nil || failure.Message != "This turn already requested a handoff to this canvas" {
 		t.Fatalf("unexpected duplicate canvas message: %v", failure)
+	}
+}
+
+// The judgement is the app's: no step says the target must be a new canvas.
+func TestHandoffStepsHaveNoNewCanvasCondition(t *testing.T) {
+	for _, code := range []string{"canvas_not_found", "not_app_conversation", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas", "chain_one", "chain_limit"} {
+		if steps := strings.Join(handoffFailure(code, "m").NextSteps, "\n"); strings.Contains(steps, "new canvas") {
+			t.Errorf("%s: %q", code, steps)
+		}
 	}
 }
 
