@@ -502,3 +502,73 @@ describe("DraftStore moved queue", () => {
     expect(new DraftStore(dir).take(B)).toMatchObject({ text: "sent", attachments: Array(6).fill(file) });
   });
 });
+
+// A row an agent's send put in the queue: its text is that agent's, never read for {{n}} markers, so it carries no
+// anchors or files and is checked apart from the person's rows. It never becomes a draft and never moves.
+describe("DraftStore agent rows", () => {
+  const origin = { kind: "handoff" as const, conversationId: "33333333-3333-4333-8333-333333333333", canvas: { path: ".doan/canvases/a.html", id: "a" }, via: "send" as const, chain: ["33333333-3333-4333-8333-333333333333"], provider: "claude" as const };
+  const agent = (itemId: string, text = "Use {{1}} and {{9}} literally") => ({ itemId, text, anchors: [], attachments: [], origin });
+  it("keeps an agent row whose text holds markers, and reads it back after a restart as a queued row, not a draft", () => {
+    const dir = directory(), first = new DraftStore(dir);
+    first.add(A, { itemId: "q1", text: "mine {{1}}", anchors: [anchor], attachments: [] });
+    first.add(A, agent("g1"));
+    first.add(A, { itemId: "q2", text: "later", anchors: [], attachments: [] });
+    const second = new DraftStore(dir);
+    expect(second.queued(A)).toEqual([agent("g1")]);
+    expect(second.returned(A)).toMatchObject({ text: "mine {{1}}\n\nlater", anchors: [anchor], reason: "restarted" });
+    // And a start after that one still reads it.
+    const third = new DraftStore(dir);
+    expect(third.queued(A)).toEqual([agent("g1")]);
+    expect(third.returned(A)).toMatchObject({ text: "mine {{1}}\n\nlater" });
+  });
+  it("keeps an agent row that was on its way out at a restart as a waiting row", () => {
+    const dir = directory(), first = new DraftStore(dir);
+    first.add(A, agent("g1"));
+    expect(first.markSending(A, items => items.slice(0, 1))).toEqual([agent("g1")]);
+    expect(new DraftStore(dir).queued(A)).toEqual([agent("g1")]);
+  });
+  it("leaves the agent rows queued when the queue is given back, and drafts only the person's rows", () => {
+    const store = new DraftStore(directory());
+    store.add(A, agent("g1"));
+    store.add(A, { itemId: "q1", text: "mine", anchors: [], attachments: [file] });
+    store.markSending(A, items => items.slice(0, 1));
+    expect(store.giveBackQueued(A, "turn_failed")).toBe(true);
+    expect(store.queued(A)).toEqual([agent("g1")]);
+    expect(store.returned(A)).toEqual({ text: "mine", anchors: [], attachments: [file], reason: "turn_failed" });
+    expect(store.giveBackQueued(A, "interrupted")).toBe(false);
+    expect(store.queued(A)).toEqual([agent("g1")]);
+    expect(store.returned(A)?.reason).toBe("turn_failed");
+  });
+  it("leaves the agent rows behind when a handoff moves the queue", () => {
+    const store = new DraftStore(directory());
+    store.add(A, agent("g1"));
+    store.add(A, { itemId: "q1", text: "mine", anchors: [], attachments: [] });
+    expect(store.move(A, B)).toEqual({ moved: [{ itemId: "q1", text: "mine", anchors: [], attachments: [] }], returned: [] });
+    expect(store.queued(A)).toEqual([agent("g1")]);
+    expect(store.queued(B).map(item => item.itemId)).toEqual(["q1"]);
+  });
+  it("does not count an agent row in the one-message bound of the person's rows", () => {
+    const store = new DraftStore(directory());
+    store.add(A, agent("g1", "x".repeat(10_000)));
+    store.add(A, { itemId: "q1", text: "y".repeat(32_768 - 10), anchors: [], attachments: [] });
+    expect(store.queued(A).map(item => item.itemId)).toEqual(["g1", "q1"]);
+  });
+  it("reads unread a conversation whose agent row carries anchors, attachments or a bad origin, and keeps it on disk", () => {
+    for (const row of [{ ...agent("g1", "x"), anchors: [anchor] }, { ...agent("g1", "x"), attachments: [file] }, { ...agent("g1", "x"), origin: { ...origin, chain: ["other"] } }, { ...agent("g1", "x"), origin: { kind: "other", conversationId: "s" } }]) {
+      const dir = directory(); vi.spyOn(console, "error").mockImplementation(() => {});
+      writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: { [A]: [row], [B]: [agent("g2")] }, returned: {} }));
+      const store = new DraftStore(dir);
+      expect(store.queued(A)).toEqual([]);
+      expect(store.queued(B)).toEqual([agent("g2")]);
+      expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).queued[A]).toEqual([row]);
+    }
+  });
+  it("removes an agent row by its id and discards it with its conversation", () => {
+    const store = new DraftStore(directory());
+    store.add(A, agent("g1"));
+    expect(store.remove(A, "g1")).toBe(true);
+    store.add(A, agent("g2"));
+    store.discard(A);
+    expect(store.queued(A)).toEqual([]);
+  });
+});

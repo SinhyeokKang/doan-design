@@ -189,6 +189,13 @@ describe("handoff fold", () => {
     expect(foldConversation(turn({ type: "handoff.resolved", canvas: { path }, outcome: "refused", reason: "not_new" }), "a", true).handoffs["turn-1"]).toEqual([{ canvas: { path }, outcome: "refused", reason: "not_new" }]);
     expect(foldConversation(turn({ type: "handoff.resolved", canvas: { path }, outcome: "cancelled" }, { type: "interrupted", reason: "user" }), "a", false).handoffs["turn-1"]).toEqual([{ canvas: { path }, outcome: "cancelled" }]);
   });
+  it("takes a send's request and its sent resolution, with the conversation it reached and whether it queued there", () => {
+    const requested: EventPayload = { type: "handoff.requested", canvas: { path }, text: "x", via: "send" };
+    const sent: EventPayload = { type: "handoff.resolved", canvas: { path }, via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path, id: "new" } }, queued: true };
+    const events = [event(1, { type: "user.message", text: "go", anchors: [] }), event(2, { type: "turn.started" }), event(3, requested), event(4, { type: "turn.done" }), event(5, sent)];
+    expect(foldConversation(events, "a", true).handoffs["turn-1"]).toEqual([{ canvas: { path }, via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path, id: "new" } }, queued: true }]);
+    expect(foldConversation(events.slice(0, 4), "a", false).handoffs["turn-1"]).toEqual([{ canvas: { path }, via: "send", outcome: "pending" }]);
+  });
   it("reads a resolution without a canvas as the turn's only request's", () => {
     const started: EventPayload = { type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path, id: "new" } } };
     expect(foldConversation(turn(started), "a", true).handoffs["turn-1"]).toEqual([{ canvas: { path }, outcome: "started", target: { conversationId: "b", canvas: { path, id: "new" } } }]);

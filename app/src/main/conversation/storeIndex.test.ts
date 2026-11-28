@@ -494,6 +494,38 @@ describe("handoff events in event v1", () => {
       expect(() => new ConversationStore(g.root).read("c"), JSON.stringify(bad)).toThrow("Invalid conversation event");
     }
   });
+  // A new build's origin adds via, chain and provider; the chain runs from step 0 to the sender (ARCHITECTURE §7 'Handoff').
+  it("round-trips an origin with via, chain and provider, and a send's sent resolution, and rejects malformed ones", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const linked = { kind: "handoff", conversationId: "s", canvas: { path: ".doan/canvases/a.html", id: "a" }, via: "send", chain: ["p", "s"], provider: "codex" } as const;
+    const saved = [
+      store.append("c", "t", { type: "user.message", text: "Use {{1}}", anchors: [], origin: linked }),
+      store.append("c", "t", { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "x", via: "send" }),
+      store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/b.html" }, via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } }, queued: true }),
+    ];
+    expect(new ConversationStore(f.root).read("c")).toEqual(saved);
+    const five = ["1", "2", "3", "4", "s"];
+    expect(new ConversationStore(seed({ "c.jsonl": line({ type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: five } }) }).root).read("c")).toHaveLength(1);
+    const bad = [
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, via: "mail" } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: [] } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: ["0", ...five] } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: ["s", "p"] } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: ["", "s"] } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: ["x".repeat(513), "s"] } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, chain: "s" } },
+      { type: "user.message", text: "x", anchors: [], origin: { ...linked, provider: "gemini" } },
+      { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "x", via: "mail" },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" } } },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { canvas: { path: ".doan/canvases/b.html" } }, queued: false },
+      { type: "handoff.resolved", via: "send", outcome: "sent", target: { conversationId: "b", canvas: { path: "b.html" } }, queued: false },
+      { type: "handoff.resolved", via: "post", outcome: "cancelled" },
+    ];
+    for (const body of bad) {
+      const g = seed({ "c.jsonl": line(body) });
+      expect(() => new ConversationStore(g.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
+    }
+  });
   it("still reads a resolution written before resolutions named their canvas", () => {
     const old = line({ type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" } } });
     const f = seed({ "c.jsonl": old });
