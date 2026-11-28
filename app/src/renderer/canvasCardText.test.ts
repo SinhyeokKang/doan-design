@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { canvasCardMeta, canvasCardText, listedConversation, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
+import { canvasCardMeta, canvasCardText, ListedGrace, listedTitle, middleCut, newCanvasesText } from "./canvasCardText";
 import { startErrorView } from "./homeComposer";
 import type { ThreadItem } from "./threadItems";
 
@@ -320,13 +320,29 @@ describe("listedTitle", () => {
   });
 });
 
-describe("listedConversation", () => {
-  test("gone only once a settled list lacks it; while a read is under way or the list is not read, it counts as there", () => {
-    const list = [{ conversationId: "c1", title: "A" }];
-    expect(listedConversation(list, "c1", false)).toBe(true);
-    expect(listedConversation(list, "c2", false)).toBe(false);
-    expect(listedConversation(list, "c2", true)).toBe(true);
-    expect(listedConversation("loading", "c2", false)).toBe(true);
-    expect(listedConversation("error", "c2", false)).toBe(true);
+describe("ListedGrace", () => {
+  const list = [{ conversationId: "c1", title: "A" }];
+  test("an id the settled list names, or a list not read, counts as there", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "c1", { started: 1, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", "loading", "c2", { started: 1, applied: 0 })).toBe(true);
+    expect(grace.listed("/r", "error", "c2", { started: 1, applied: 1 })).toBe(true);
+  });
+  test("an id first asked about while a read is under way (a conversation main just made) counts as there until that read answers", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 1 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 2 })).toBe(false);
+  });
+  test("an id a settled list already lacked stays gone through every later read", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "gone", { started: 1, applied: 1 })).toBe(false);
+    expect(grace.listed("/r", list, "gone", { started: 2, applied: 1 })).toBe(false);
+    expect(grace.listed("/r", list, "gone", { started: 5, applied: 4 })).toBe(false);
+  });
+  test("roots keep their own ids", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/a", list, "x", { started: 1, applied: 1 })).toBe(false);
+    expect(grace.listed("/b", list, "x", { started: 2, applied: 1 })).toBe(true);
   });
 });

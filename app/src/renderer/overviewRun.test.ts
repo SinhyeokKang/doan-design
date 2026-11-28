@@ -1108,13 +1108,12 @@ test("a queue returned after a failed turn is protected by the Edit and resend q
   expect(h.run.store.editAndResendConfirm(A)).toMatchObject({ title: "Replace your draft?" });
 });
 
-// main writes a conversation it just made (a send's new conversation) to the list, then the resolution naming it: until
-// the list read under way lands, the list may not name it yet.
-test("a root's list is being read while a started read has not answered", () => {
+
+test("a root's list reads: started and answered", () => {
   const h = harness();
-  expect(h.run.listReading(ROOT)).toBe(false);
+  expect(h.run.listReads(ROOT)).toEqual({ started: 0, applied: 0 });
   h.host.reread(ROOT);
-  expect(h.run.listReading(ROOT)).toBe(true);
+  expect(h.run.listReads(ROOT)).toEqual({ started: 1, applied: 0 });
   h.answer(ROOT, []);
-  expect(h.run.listReading(ROOT)).toBe(false);
+  expect(h.run.listReads(ROOT)).toEqual({ started: 2, applied: 2 });
 });
