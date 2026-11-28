@@ -7,8 +7,6 @@ import type { ConversationError } from "../conversation/ipc";
 import type { ReplyAnchor } from "../conversation/replyAnchor";
 import type { ConversationSummary } from "../conversation/summary";
 import type { Anchor, Canvas } from "../conversation/types";
-
-type CanvasAnchor = NonNullable<Anchor["canvas"]>;
 import type { NewConversationPreference } from "../preferences";
 import type { FolderEntry } from "../view";
 import type { Rect } from "./fit";
@@ -202,6 +200,7 @@ export interface PanelRequest {
   width?: number;
 }
 
+type CanvasAnchor = NonNullable<Anchor["canvas"]>;
 // `prototype:reveal`, from the prototype window: a person's chip, a person's canvas chip, an answer's chip, Sign in, a
 // notice's Open, and a handoff line's or card's Open.
 export type RevealPayload =
