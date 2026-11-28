@@ -450,12 +450,12 @@ describe("sent canvas chips", () => {
     parts: anchors.flatMap((_, i) => [{ text: " and " }, { anchor: i + 1 }]),
   });
   const press = async () => null;
-  const base = { marker: 1, frames: undefined, disabled: false, onLocate: undefined, rows, openCanvasId: "drafts", project: "doan-web" };
+  const base = { marker: 1, frames: undefined, disabled: false, onLocate: undefined, rows, fitCanvasId: "drafts", project: "doan-web" };
   type Chip = ReactElement<{ onClick(): void; "aria-label"?: string; children: ReactNode }>;
   const tip = (args: Parameters<typeof SentChip>[0]) => renderToStaticMarkup(<>{(SentChip(args) as ReactElement<{ detail: ReactNode }>).props.detail}</>);
 
   test("the button is named Open and its canvas's name now, by id, the open canvas's chip too", () => {
-    const out = html([user([moved, own, gone])], { onCanvasChip: press, canvasRows: rows, openCanvasId: "drafts" });
+    const out = html([user([moved, own, gone])], { onCanvasChip: press, canvasRows: rows, openCanvasId: "drafts", fitCanvasId: "drafts" });
     expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open pay-step"[^>]*><svg[^>]*>.*?<\/svg><span>pay-step<\/span><\/button>/);
     expect(out).toContain('aria-label="Open drafts"');
     // A canvas the list no longer has keeps the name it was sent with.
@@ -467,6 +467,15 @@ describe("sent canvas chips", () => {
     expect(tip({ ...base, anchor: own, onCanvasChip: press })).toBe(".doan/canvases/drafts.html");
     // Not pressable: the path alone.
     expect(tip({ ...base, anchor: moved })).toBe(".doan/canvases/flows/pay-step.html");
+    // No canvas Fits in place (the prototype window): the playing canvas's chip says Open too.
+    expect(tip({ ...base, fitCanvasId: null, anchor: own, onCanvasChip: press })).toBe('<span class="tip-line">Open drafts</span><span class="tip-line">.doan/canvases/drafts.html</span>');
+  });
+
+  // openCanvasId names reply chips and markers; only fitCanvasId decides a canvas chip's tooltip.
+  test("a chip of a canvas that does not Fit in place takes the Open tooltip", () => {
+    const own1 = (fit: string | null) => tip({ ...base, fitCanvasId: fit, anchor: own, onCanvasChip: press });
+    expect(own1(null)).toContain("Open drafts");
+    expect(own1("drafts")).toBe(".doan/canvases/drafts.html");
   });
 
   test("a design-system canvas takes the sidebar's design-system icon, any other the canvas icon", () => {

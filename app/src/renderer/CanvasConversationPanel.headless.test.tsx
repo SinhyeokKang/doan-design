@@ -115,6 +115,20 @@ async function headless(calls: ReturnType<typeof fakeCalls>) {
   return { run, store, support, panel };
 }
 
+// The open canvas's chips Fit in place in the main window's panel; with canvasChipFits false (the prototype window) every
+// canvas chip opens, so none takes the path-only tooltip.
+test("the composer's canvas chips Fit in place for the open canvas only while canvasChipFits is not false", async () => {
+  const calls = fakeCalls();
+  const { run, support } = await headless(calls);
+  const panel = (fits?: boolean) => () => CanvasConversation({
+    calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onCanvasChip: vi.fn(async () => null), onSettings: vi.fn(), onNotice: vi.fn(), work: [], ...(fits === undefined ? {} : { canvasChipFits: fits }),
+  });
+  expect(dockedProps(render(panel()))!.fitCanvasId).toBe(CANVAS.id);
+  expect(dockedProps(render(panel(false)))!.fitCanvasId).toBeNull();
+});
+
 test("the panel body renders, reads and starts a conversation through the call object, without window.doan", async () => {
   expect((window as { doan?: unknown }).doan).toBeUndefined();
   const calls = fakeCalls();
