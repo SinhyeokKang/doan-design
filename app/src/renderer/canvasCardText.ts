@@ -19,7 +19,7 @@ export interface CanvasCardView {
   open: { canvas: Canvas; conversationId?: string; label: string } | null;
 }
 
-const fileName = (path: string) => path.split("/").at(-1) ?? path;
+export const fileName = (path: string) => path.split("/").at(-1) ?? path;
 const REASONS: Record<string, (project: string) => string> = {
   not_listed: project => `It isn’t a single canvas in ${project}.`,
   // The same fact as a judged not_listed.
@@ -32,6 +32,10 @@ const REASONS: Record<string, (project: string) => string> = {
   chain_one: () => "A turn started by a message can send only once.",
   chain_limit: () => "This chain reached 5 steps.",
 };
+// A send's own refusals; any other code a send was refused with reads as SEND_REFUSED, since the start wording names the
+// sender's agent and advice that does not apply to a send.
+const SEND_REASONS: Record<string, string> = { not_found: "That conversation was deleted." };
+const SEND_REFUSED = "That conversation couldn’t take the message.";
 // These reasons already say the canvas is not a single listed one, so a gone canvas adds no tail to them.
 const SAYS_GONE = new Set(["not_listed", "canvas_not_found"]);
 
@@ -68,7 +72,7 @@ export function canvasCardText(card: CanvasCard, ctx: { project: string; provide
     case "refused": {
       const reason = handoff.reason;
       // Home's refusal wording, so no second wording exists for a code.
-      const status = `${lead} ${Object.hasOwn(REASONS, reason) ? REASONS[reason]!(ctx.project) : startErrorView(reason, ctx.provider, ctx.project).text}`;
+      const status = `${lead} ${Object.hasOwn(REASONS, reason) ? REASONS[reason]!(ctx.project) : send ? SEND_REASONS[reason] ?? SEND_REFUSED : startErrorView(reason, ctx.provider, ctx.project).text}`;
       if (SAYS_GONE.has(reason)) return view(ban, status, null);
       return gone(ban, status, reason === "same_canvas" ? null : own);
     }
@@ -150,14 +154,15 @@ export function trailingCards(items: readonly ThreadItem[]): { start: number; en
   return start === end ? { start: items.length, end: items.length } : { start, end };
 }
 
-// main hands off and misses only new canvases; a refused, cancelled or pending card says nothing either way.
+// New canvases are the drawn ones and the missed ones; a started handoff counts too when its record predates handoffs to
+// existing canvases (no via), whose canvases were always new. A refused, cancelled, pending or sent card says nothing.
 export function newCanvasesText(items: readonly ThreadItem[]): string {
   const { start, end } = trailingCards(items);
   let n = 0;
   for (const item of items.slice(start, end)) {
     if (item.kind !== "canvasCard") continue;
     if (item.drawing) return "";
-    if (item.drawn || item.handoff?.outcome === "started" || item.handoff?.outcome === "missed") n++;
+    if (item.drawn || (item.handoff?.outcome === "started" && item.handoff.via === undefined) || item.handoff?.outcome === "missed") n++;
   }
   return n === 0 ? "" : n === 1 ? "1 new canvas" : `${n} new canvases`;
 }

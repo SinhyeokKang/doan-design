@@ -5,6 +5,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import type { AgentQueueRow } from "../main/conversation/summary";
+import { fileName } from "./canvasCardText";
 import type { CanvasRow } from "../main/view";
 import { refreshCanvasAnchor } from "../main/conversation/canvasAnchors";
 import { CANVAS_CHIP_SENDING, chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
@@ -806,12 +807,12 @@ export function QueueRows(props: QueueRowsProps) {
   })}{agents.map((row, index) => {
     // The source is named to assistive technology only; the line is hidden from it so the row reads once.
     const nameId = `${idBase}-agent-${index}`, text = <span className="queue-text" aria-hidden={true}>{row.line}</span>;
-    const source = row.source.canvas ? row.source.canvas.path.split("/").at(-1) ?? row.source.canvas.path : "Overview";
+    const source = row.source.canvas ? fileName(row.source.canvas.path) : "Overview";
     return <div key={row.itemId} className="queue-entry" role="listitem">
       <div className={row.held ? "queue-item held" : "queue-item"}>
         {row.provider ? <img className="logo" src={providerLogo(row.provider)} alt="" /> : <MessageSquareDashed aria-hidden="true" />}
         {row.held ? <Tooltip><TooltipTrigger asChild>{text}</TooltipTrigger><TooltipContent>{AGENT_HELD_TEXT}</TooltipContent></Tooltip> : text}
-        <span className="sr-only" id={nameId}>{`Message from ${source}: ${row.line}${row.held ? `. ${AGENT_HELD_TEXT}.` : ""}`}</span>
+        <span className="sr-only" id={nameId}>{`Message from ${source}: ${row.held ? `${row.line.replace(/\.$/, "")}. ${AGENT_HELD_TEXT}.` : row.line}`}</span>
         {removeButton(row.itemId, nameId)}
       </div>
     </div>;

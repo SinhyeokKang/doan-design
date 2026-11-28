@@ -63,7 +63,7 @@ export function handoffMetaView(source: { canvas?: Canvas; via?: HandoffVia }, p
   const short = reason === null ? canvasCardMeta(undefined, undefined, now, "", { handedOffAt: at }).handedOff : null, words = shortAgo(at, now);
   const title = send ? sender.title : null, lead = send ? "Message from" : "Handoff from";
   return { kind, name, time: short && words ? { text: short.text, words: title === null ? words.label : `Sent from “${title}” · ${words.label}`, dateTime: short.dateTime, title: short.title } : null, reason,
-    open: reason !== null ? null : title !== null ? `Open “${title}” on ${name}` : source.canvas ? `Open ${name}` : "Open the source conversation in the Overview",
+    open: reason !== null ? null : title !== null ? source.canvas ? `Open “${title}” on ${name}` : `Open “${title}” in the Overview` : source.canvas ? `Open ${name}` : "Open the source conversation in the Overview",
     label: reason === null ? `${lead} ${name}` : `${lead} ${name} · ${reason}` };
 }
 // The name's tooltip as it opens: while the time is hidden, the name and that time whether cut or not; else a cut name.
