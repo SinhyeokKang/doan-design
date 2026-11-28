@@ -1,4 +1,5 @@
 import type { Provider } from "../main/agentAuth/types";
+import { hasContent, sameSegments, type FieldSegment } from "./anchorField";
 import type { StripState } from "./conversationStrip";
 import type { HomeCard } from "./homeCards";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
@@ -55,12 +56,13 @@ export function removalQuestionLabel(cards: readonly HomeCard[], paths: readonly
 }
 
 export interface LastRequest {
-  root: string; text: string; preset: PresetSummary | null; attachments: AttachmentDraft[];
+  // segments: the draft as sent, its canvas chips of `root`.
+  root: string; segments: readonly FieldSegment[]; preset: PresetSummary | null; attachments: AttachmentDraft[];
   provider: Provider; model: string | null; effort: string | null;
   // The composer turns them into object URLs.
   thumbnails?: Readonly<Record<string, Uint8Array>>;
 }
-export interface ComposerDraft { text: string; preset: PresetSummary | null; attachments: readonly AttachmentDraft[] }
+export interface ComposerDraft { segments: readonly FieldSegment[]; preset: PresetSummary | null; attachments: readonly AttachmentDraft[] }
 
 export function rememberRequest<T extends LastRequest>(requests: ReadonlyMap<string, T>, request: T): Map<string, T> {
   return new Map(requests).set(request.root, request);
@@ -74,8 +76,8 @@ export type ReplaceDraftConfirm = { title: string; body: string; cancel: string;
 // renderer has no other way to check a path.
 export function restoreRequest(draft: ComposerDraft, last: LastRequest, project: string): { request: LastRequest; confirm: ReplaceDraftConfirm | null } {
   const request = last;
-  const empty = !draft.text.trim() && !draft.preset && draft.attachments.length === 0;
-  const same = draft.text === last.text && draft.preset?.id === last.preset?.id
+  const empty = !hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0;
+  const same = sameSegments(draft.segments, last.segments) && draft.preset?.id === last.preset?.id
     && draft.attachments.length === last.attachments.length && draft.attachments.every((a, i) => a.key === last.attachments[i]!.key);
   return {
     request,

@@ -851,7 +851,7 @@ test("the preset list handles Control+Enter before the steer shortcut", () => {
 
 
 test("Home Control+Enter still sends through its actual ComposerField", async () => {
-  const memory = { current: { ...emptyComposer(), auth: AUTH, text: "Draw a page" } };
+  const memory = { current: { ...emptyComposer(), auth: AUTH, segments: textSegments("Draw a page") } };
   const start = vi.fn(async () => ({ ok: true as const }));
   const tree = elements(HeroComposer({
     entries: [{ kind: "list", path: "/project", servedRev: 0, canvases: [] }], homeDirectory: null,

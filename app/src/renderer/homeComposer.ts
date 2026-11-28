@@ -13,7 +13,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { toMessage, type FieldSegment } from "./anchorField";
+import { hasContent, toMessage, type FieldSegment } from "./anchorField";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
 import { displayPath } from "./projectDisplay";
@@ -73,7 +73,8 @@ export interface SendInput {
   projects: number;
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
-  text: string; preset: PresetRef | null; skills: readonly string[]; attachments: readonly AttachmentDraft[];
+  // Home passes its field's segments, as draftProblem takes them.
+  text: string | readonly FieldSegment[]; preset: PresetRef | null; skills: readonly string[]; attachments: readonly AttachmentDraft[];
   sending: boolean;
 }
 export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string };
@@ -89,7 +90,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
   // Home keeps its suggestions until something is typed.
-  if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
+  const empty = typeof input.text === "string" ? !input.text.trim() : !hasContent(input.text);
+  if (empty && !input.preset && input.attachments.length === 0) return off(null);
   const draft = draftProblem(input.text, input.preset, input.attachments, input.skills);
   return draft ? off(draft) : { enabled: true, reason: null };
 }

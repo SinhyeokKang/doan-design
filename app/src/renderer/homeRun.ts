@@ -6,6 +6,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
+import { fromMessage } from "./anchorField";
 import { conversationCanvasMatch } from "./canvasConversationRows";
 import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
 import { dropAttachment } from "./conversationStore";
@@ -687,7 +688,7 @@ export class HomeRun {
       return chip;
     });
     // Home's list fills in the rest of the preset when it has it.
-    return { root, text: body, preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, ...(Object.keys(thumbnails).length ? { thumbnails } : {}) };
+    return { root, segments: fromMessage(body, message.anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, ...(Object.keys(thumbnails).length ? { thumbnails } : {}) };
   }
   private restoreTo(request: LastRequest): void {
     this.restore = { request, seq: (this.restore?.seq ?? 0) + 1 };

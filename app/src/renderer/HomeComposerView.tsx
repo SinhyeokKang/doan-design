@@ -1,10 +1,12 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, GitBranch, Info, Plus } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
+import { refreshCanvasAnchor } from "../main/conversation/canvasAnchors";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
+import type { Anchor } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { localClock, resetTimeText } from "./limitReset";
@@ -21,7 +23,11 @@ import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
 import { CLIPBOARD_TYPE } from "./chipField";
 import { useActivationFocus } from "./activationFocus";
-import { plainText, textSegments, typedText } from "./anchorField";
+import { normalize, plainText, sameSegments, textSegments, toMessage, typedText, type FieldSegment } from "./anchorField";
+import { CANVAS_CHIP_SENDING, chipFieldTakes, homeRootChange, refreshCanvasSegments } from "./canvasChip";
+import { useCanvasChipDrop } from "./canvasChipDrag";
+import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
+import { pressChip, useLocateNote, type CanvasChipPress } from "./ConversationThread";
 import { dropAttachment, restoreStartDraft } from "./conversationStore";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
@@ -46,7 +52,10 @@ import { TooltipEscape } from "./components/ui/tooltip";
 // Everything the composer keeps between Home visits for this run (a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
 export interface ComposerMemory {
-  text: string; preset: PresetSummary | null; attachments: AttachmentDraft[];
+  // chipRoot: the root the field's canvas chips belong to; under another root they become names (chipNotice says so
+  // until the next edit).
+  segments: readonly FieldSegment[]; chipRoot: string | null; chipNotice: string | null;
+  preset: PresetSummary | null; attachments: AttachmentDraft[];
   // Choices the person made; absent ones follow the defaults. The agent, model and effort
   // picks last until the input is sent; the project stays.
   root: string | null; provider: Provider | null;
@@ -73,7 +82,7 @@ export interface ComposerMemory {
   lastIds: Record<string, string[]>;
   // A start still waiting for main, so a later visit stays locked and its reply clears only the draft it sent. command: a
   // provider command took neither the preset nor the attachments (`keys` are the draft's, kept).
-  sending: { generation: number; text: string; preset: string | null; keys: string[]; command?: true } | null;
+  sending: { generation: number; segments: readonly FieldSegment[]; preset: string | null; keys: string[]; command?: true } | null;
   generation: number;
   notice: { text: string; retry: boolean } | null;
   // The card of a built-in command Doan does not run, under the composer until Dismiss or a start (this run only).
@@ -87,7 +96,7 @@ export interface ComposerMemory {
   waitingStarts: Map<string, { land(): void; discard(): void }>;
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 }, startsAsked: new Map(), waitingStarts: new Map() };
+  return { segments: [], chipRoot: null, chipNotice: null, preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, fast: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 }, startsAsked: new Map(), waitingStarts: new Map() };
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
@@ -104,7 +113,7 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
   return mounts;
 }
 
-export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
+export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
 // conversationId: the started conversation, for a host that shows it in place (the project Overview). resetsAt: a
 // usage-limit refusal's reset time (ISO), when main knew it.
 export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
@@ -135,6 +144,8 @@ export interface HeroComposerProps {
   buddy?: BuddyId;
   // A model or effort pick is remembered as Last used before any send.
   onRemember?(choice: ComposerChoice): void;
+  // A canvas chip's press in the field, for a chip of `root` (App canvasChip).
+  onCanvasChip?(root: string, ...canvas: Parameters<CanvasChipPress>): ReturnType<CanvasChipPress>;
 }
 
 // The group sits 64px above the panel's centre with at least --space-8 around it.
@@ -249,7 +260,7 @@ export function HeroComposer(props: HeroComposerProps) {
   useEffect(() => window.doan.onAgentAuth(snapshot => update({ auth: snapshot })), []);
   // An empty composer takes the current default; once something is typed, attached or picked as a preset, the input
   // keeps the default it started with until it is sent.
-  const started = m.text !== "" || m.preset !== null || m.attachments.length > 0;
+  const started = m.segments.length > 0 || m.preset !== null || m.attachments.length > 0;
   const defaults = started && m.defaults !== undefined ? m.defaults : props.defaults ?? null;
   useEffect(() => { if (!started && props.defaults !== undefined && memory.current.defaults !== props.defaults) update({ defaults: props.defaults }); });
   const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, defaults);
@@ -306,25 +317,30 @@ export function HeroComposer(props: HeroComposerProps) {
   const presets = m.presets?.ok ? m.presets.result.presets : [];
   const suggested = suggestedPresets(entry, presets);
 
-  const { text, preset, attachments } = m;
+  const { segments, preset, attachments } = m;
+  const text = plainText(segments), typed = typedText(segments);
   const projectSkills = useProjectSkills(MAIN_SKILLS, root, provider, root && props.working.has(root) ? "running" : "idle", generation);
   const skills = projectSkills.skills;
   const skillNames = new Set(skills.filter(skill => skill.kind !== "command").map(skill => skill.name));
-  const matched = fieldSkillRuns(textSegments(text), skillNames).map(run => run.name);
+  const matched = fieldSkillRuns(segments, skillNames).map(run => run.name);
   // Home starts conversations, so an ACP agent's commands (its conversation's) are not known here; Claude Code's and
   // Codex's fixed lists are, and every provider's card names.
   const commands = provider ? commandLists(provider, skills) : null;
   const commandNames = new Set(commands ? [...commands.commands, ...commands.aliases.keys(), ...commands.unsupported] : []);
-  const first = commands ? classifyFirstWord(text, commands).kind : "text";
+  // A chip makes the field a message, so only typed text can start with a command.
+  const firstWord = (value: readonly FieldSegment[]) => commands && value.every(segment => segment.kind === "text") ? classifyFirstWord(plainText(value), commands).kind : "text";
+  const first = firstWord(segments);
   // The preset stays chosen but goes with no command: its chip leaves the row for the notice until the word goes.
   const isCommand = first !== "text" && first !== "skill";
   const presetHeld = isCommand && preset !== null;
   const chips = [...attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(preset ? [{ label: preset.title, preset: true }] : [])];
   // A command goes out alone, so the attachments it leaves here do not hold it.
-  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, sending });
-  const composed = composeRequest(text, preset, matched, attachments.length);
+  const availability = sendAvailability({ projects: cards.length, root: entry, projectName: project, auth, provider, text: segments, preset: isCommand ? null : preset, skills: isCommand ? [] : matched, attachments: isCommand ? [] : attachments, sending });
+  const message = toMessage(segments) ?? { text: typed, anchors: [] };
+  const composed = composeRequest(message.text, preset, matched, attachments.length);
   const counter = lengthCounter(composed.length);
-  const slash = slashQuery(text, dismissed, new Set([...skillNames, ...commandNames]));
+  // The `/` list reads a field of typed text only.
+  const slash = slashQuery(text === typed ? text : "", dismissed, new Set([...skillNames, ...commandNames]));
   const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true, skills }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !sending;
@@ -333,8 +349,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const prompts = ready && healthy ? suggestedPrompts(entry, project, presets) : [];
   const edit = (patch: Partial<ComposerMemory>) => {
     // Said once as the notice takes the chip's place.
-    if (patch.text !== undefined && commands && preset && !presetHeld && !["text", "skill"].includes(classifyFirstWord(patch.text, commands).kind)) setAnnouncement(PRESET_NOTICE);
-    update({ ...patch, notice: null });
+    if (patch.segments !== undefined && preset && !presetHeld && !["text", "skill"].includes(firstWord(patch.segments))) setAnnouncement(PRESET_NOTICE);
+    update({ ...patch, notice: null, chipNotice: null });
   };
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
   const previousRows = useRef<{ query: string | null; rows: PresetRow[] }>({ query: null, rows: [] });
@@ -358,7 +374,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
     if (!chosen) return;
-    edit({ preset: chosen, ...(fromSlash ? { text: "" } : {}) });
+    edit({ preset: chosen, ...(fromSlash ? { segments: [] } : {}) });
     if (fromSlash) queueMicrotask(focusEnd);
   };
 
@@ -453,6 +469,31 @@ export function HeroComposer(props: HeroComposerProps) {
   };
 
   const drop = useComposerDrop({ blocked: () => sending, onFiles: files => addFiles(files, false), onNotice: text => setNotice(text === null ? null : { text, retry: false }) });
+  // A chip taken while a start is out would stay in the field after the start clears it.
+  const chipDrop = useCanvasChipDrop({ place: "home", root, field, onLimit: () => update({ chipNotice: ANCHOR_LIMIT_TEXT }),
+    takes: anchor => chipFieldTakes({ blocked: memory.current.sending ? CANVAS_CHIP_SENDING : null, capturing: false, picking: false, composing: field.current?.composing() ?? false, segments: memory.current.segments }, anchor) });
+  const homeBox = useRef<HTMLDivElement | null>(null);
+  const [missing, showMissing] = useLocateNote(() => field.current?.element() ?? null);
+  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number; text: string } | null>(null);
+  const noteId = `${listId}-missing`;
+  const press = (anchor: Anchor, chip: HTMLElement) => {
+    const at = root, open = props.onCanvasChip;
+    if (!at || !open) return;
+    void pressChip(anchor, project, { onCanvasChip: canvas => open(at, canvas) })?.then(note => {
+      const box = homeBox.current?.getBoundingClientRect();
+      if (note === null || !box || !chip.isConnected) return;
+      const place = chip.getBoundingClientRect();
+      setMissingAt({ chip, left: place.left - box.left, top: place.bottom - box.top, text: note });
+      showMissing();
+    });
+  };
+  const noteShown = missing && missingAt !== null && missingAt.chip.isConnected;
+  useEffect(() => {
+    if (!noteShown) return;
+    const { chip } = missingAt;
+    chip.setAttribute("aria-describedby", noteId);
+    return () => { if (chip.getAttribute("aria-describedby") === noteId) chip.removeAttribute("aria-describedby"); };
+  }, [noteShown, missingAt, noteId]);
   const paste = (event: ClipboardEvent<HTMLDivElement>) => {
     if (memory.current.sending || field.current?.composing() || field.current?.element()?.isContentEditable === false) return;
     const files = Array.from(event.clipboardData.files);
@@ -484,7 +525,7 @@ export function HeroComposer(props: HeroComposerProps) {
   // decides what stays.
   const send = async (retry = false) => {
     if (!availability.enabled || !root || !provider) return;
-    const plan = commands ? planSend(text, preset, matched, attachments.length, commands) : null;
+    const plan = commands && isCommand ? planSend(text, preset, matched, attachments.length, commands) : null;
     // Nothing starts: the card says where Doan has it, and the text stays for the person to change.
     if (plan?.kind === "unsupported") {
       const card = commandCard(provider, plan.name);
@@ -497,20 +538,20 @@ export function HeroComposer(props: HeroComposerProps) {
     // A send that starts hops; one that cannot start does nothing.
     doany.current?.hop();
     const request: StartInput = {
-      root, mode: "newDesign", runtime: provider, text: command ? plan.text : composed,
+      root, mode: "newDesign", runtime: provider, text: command ? plan.text : composed, ...(!command && message.anchors.length ? { anchors: message.anchors } : {}),
       ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}),
       ...(attachments.length && !command ? { attachments: attachments.flatMap(a => a.id ? [{ id: a.id }] : []) } : {}),
     };
-    const last: LastRequest = command ? { root, text: plan.text, preset: null, attachments: [], provider, model, effort } : { root, text, preset, attachments, provider, model, effort };
-    const mine = { generation: memory.current.generation + 1, text, preset: preset?.id ?? null, keys: attachments.map(a => a.key), ...(command ? { command: true as const } : {}) };
-    update({ sending: mine, generation: mine.generation, notice: retry ? memory.current.notice : null, card: null });
+    const last: LastRequest = command ? { root, segments: textSegments(plan.text), preset: null, attachments: [], provider, model, effort } : { root, segments, preset, attachments, provider, model, effort };
+    const mine = { generation: memory.current.generation + 1, segments, preset: preset?.id ?? null, keys: attachments.map(a => a.key), ...(command ? { command: true as const } : {}) };
+    update({ sending: mine, generation: mine.generation, notice: retry ? memory.current.notice : null, chipNotice: null, card: null });
     const outcome = await props.start(request, last).catch((): StartOutcome => ({ error: "unknown" }));
     // The reply may come after the person left and came back to Home; it settles only its own send.
     if (memory.current.sending?.generation !== mine.generation) return;
     if ("ok" in outcome) {
       const ids = mine.command ? [] : attachments.flatMap(a => a.id ? [a.id] : []);
       update(current => {
-        const same = current.text === mine.text && (current.preset?.id ?? null) === mine.preset && current.attachments.map(a => a.key).join("\n") === mine.keys.join("\n");
+        const same = sameSegments(current.segments, mine.segments) && (current.preset?.id ?? null) === mine.preset && current.attachments.map(a => a.key).join("\n") === mine.keys.join("\n");
         const draft = same && !mine.command ? [] : current.attachments;
         const lastKeys = { ...current.lastKeys, [root]: mine.command ? [] : mine.keys }, lastIds = { ...current.lastIds, [root]: ids };
         // This root's previous last request is replaced: what no root's last request and no draft still uses goes.
@@ -521,7 +562,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, notice: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, restoredEfforts: {}, permissions: {}, fast: {}, ...(same ? mine.command ? { text: "" } : { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, notice: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, restoredModels: {}, efforts: {}, restoredEfforts: {}, permissions: {}, fast: {}, ...(same ? mine.command ? { segments: [] } : { segments: [], preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -543,8 +584,12 @@ export function HeroComposer(props: HeroComposerProps) {
   useEffect(() => {
     if (!root) return;
     restoreStartDraft(window.doan, memory.current.startsAsked, root, { root }, returned => {
-      const body = plainText(returned.segments);
-      const land = () => update(current => ({ root, text: current.text && body ? `${current.text}\n\n${body}` : current.text || body, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments] }));
+      // It lands under its own root, so chips typed meanwhile under another one keep only their names.
+      const land = () => update(current => {
+        const kept = current.chipRoot !== null && current.chipRoot !== root ? homeRootChange(current.segments, current.chipRoot, root, props.entries) : { segments: current.segments, notice: null };
+        const gap: FieldSegment[] = kept.segments.length && returned.segments.length ? [{ kind: "text", text: "\n\n" }] : [];
+        return { root, chipRoot: root, segments: normalize([...kept.segments, ...gap, ...returned.segments]), preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments], ...(kept.notice ? { chipNotice: kept.notice } : {}) };
+      });
       if (memory.current.sending) memory.current.waitingStarts.set(root, { land, discard: () => {
         for (const attachment of returned.attachments) dropAttachment(window.doan, attachment);
       } });
@@ -557,10 +602,29 @@ export function HeroComposer(props: HeroComposerProps) {
     if (!props.restore || props.restore.seq === memory.current.seen.restore) return;
     const seq = props.restore.seq;
     update(current => ({ seen: { ...current.seen, restore: seq } }));
-    const result = restoreRequest({ text, preset, attachments }, props.restore.request, nameOf(props.restore.request.root) ?? project);
+    const result = restoreRequest({ segments, preset, attachments }, props.restore.request, nameOf(props.restore.request.root) ?? project);
     if (result.confirm) setConfirm({ request: result.request, ...result.confirm });
     else apply(result.request);
   }, [props.restore?.seq]);
+  // Every way Home's root changes (the pickers, a removed project's fallback, a restored request) reaches here.
+  useEffect(() => {
+    const from = m.chipRoot, before = m.segments;
+    if (!root || from === null || from === root) return;
+    const changed = homeRootChange(before, from, root, props.entries);
+    update(current => current.segments === before && current.chipRoot === from ? { segments: changed.segments, chipRoot: root, ...(changed.notice ? { chipNotice: changed.notice } : {}) } : {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a change of the list alone moves no chip; the update checks the draft it read.
+  }, [root, m.chipRoot, m.segments]);
+  // A canvas renamed or moved since its chip went in: the chip follows it by id, in the field first so its caret and undo
+  // history stay. While an IME composes the field refuses, and the commit's change comes back here.
+  const canvases = entry?.kind === "list" ? entry.canvases : null;
+  useEffect(() => {
+    const before = m.segments;
+    if (!canvases || m.chipRoot !== root) return;
+    const next = refreshCanvasSegments(before, canvases);
+    if (next === before || field.current?.refreshChips(anchor => refreshCanvasAnchor(anchor, canvases)) === false) return;
+    update(current => current.segments === before ? { segments: next } : {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- update is the memory's writer, new each render.
+  }, [m.segments, canvases, root, m.chipRoot]);
   const keepDraft = () => { setConfirm(null); queueMicrotask(focusEnd); };
   const apply = (request: LastRequest) => {
     setConfirm(null);
@@ -589,7 +653,7 @@ export function HeroComposer(props: HeroComposerProps) {
     // Its images' thumbnails join the composer's object URLs, released by the same rules as a chosen file's.
     const thumbnails = { ...memory.current.thumbnails };
     for (const [key, bytes] of Object.entries(request.thumbnails ?? {})) if (!thumbnails[key]) { const url = thumbnailUrl(bytes); if (url) thumbnails[key] = url; }
-    edit({ text: request.text, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
+    edit({ segments: request.segments, chipRoot: request.root, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
       restoredModels: request.model ? { [request.provider]: request.model } : {},
       restoredEfforts: request.model && request.effort ? { [effortKey(request.provider, request.model)]: request.effort } : {},
@@ -611,6 +675,10 @@ export function HeroComposer(props: HeroComposerProps) {
   };
 
   const reason = availability.reason;
+  // A canvas row drag is never a file drag, so each set leaves the other's events alone.
+  const dragHandlers = Object.fromEntries((["onDragEnter", "onDragOver", "onDragLeave", "onDrop"] as const).map(name => [name, (event: DragEvent<HTMLDivElement>) => { drop.handlers[name](event); chipDrop.handlers[name](event); }]));
+  // A refused drag's reason, then the chip notice, take the reason line's place.
+  const chipLine = chipDrop.refusal ?? m.chipNotice;
   const projectRows = card?.rows ?? [];
   const branchOf = (row: FolderEntry) => cardRow(row, null, null).summary?.branch ?? null;
   const branch = entry ? branchOf(entry) : null;
@@ -619,7 +687,7 @@ export function HeroComposer(props: HeroComposerProps) {
   return <HomeStage>
     <Buddy buddy={props.buddy ?? "doany"} size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
-    <div className="home-composer">
+    <div className="home-composer" ref={homeBox}>
       {hasProjects ? <DropdownMenu.Root open={projectMenu} onOpenChange={setProjectMenu}>
         <NameTip text={project}><DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
           <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span className="home-project-name">{project}</span><ChevronDown className="chev" aria-hidden="true" />
@@ -648,12 +716,13 @@ export function HeroComposer(props: HeroComposerProps) {
         </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
       </DropdownMenu.Root>
         : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => props.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
-      <div className="composer" {...drop.handlers}>
+      <div className="composer" data-chip-refused={chipDrop.refusal !== null ? "" : undefined} {...dragHandlers}>
         {drop.cover}
         <ComposerCard readonly={sending}>
           {presetHeld && <div className="composer-chips command-notice"><Info aria-hidden="true" /><span>{PRESET_NOTICE}</span></div>}
           <ComposerChips attachments={attachments} preset={presetHeld ? null : preset} thumbnails={m.thumbnails} homeDirectory={props.homeDirectory} disabled={sending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
-          <ComposerField ref={field} skillNames={skillNames} commandNames={commandNames} onAnnounce={setAnnouncement} value={textSegments(text)} onChange={value => edit({ text: typedText(value) })} readOnly={sending} placeholder={presetPlaceholder(preset)}
+          <ComposerField ref={field} skillNames={skillNames} commandNames={commandNames} onAnnounce={setAnnouncement} value={segments} onChange={value => edit({ segments: value, chipRoot: root })} readOnly={sending} placeholder={presetPlaceholder(preset)}
+            chipRoot={root} chipDrag={chipDrop.fieldDrag} onChipClick={props.onCanvasChip ? press : undefined} canvasOpen={props.onCanvasChip ? { id: null } : undefined}
             combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
             onKey={keyDown} onSubmit={() => void send()} onPaste={paste} onInput={() => doany.current?.typing()} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}
@@ -692,13 +761,14 @@ export function HeroComposer(props: HeroComposerProps) {
         </div>}
       </div>
       {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt =>
-        <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }} />)}</div>}
+        <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { edit({ preset: prompt.preset, segments: textSegments(prompt.text) }); queueMicrotask(focusEnd); }} />)}</div>}
       {m.card && <CommandCardNotice card={m.card} onDismiss={() => { update({ card: null }); queueMicrotask(focusEnd); }}
         onAction={target => { if (target === "agentsSettings") props.openSettings({ section: "agents", ...(provider ? { provider } : {}) }); else focusPicker(field.current?.element()?.closest(".home-composer"), target); }} />}
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable" id={`${listId}-notice`}>{notice.text}</span>{notice.retry && retryButton({ running: sending, variant: "subtle", describedBy: `${listId}-notice`, onRetry: () => void send(true) })}</div>}
-      {!notice && reason && reason.kind !== "noAgent" && (reason.kind === "attachmentMissing"
-        ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
-        : <div className="composer-reason" role="status"><span>{reason.text}</span></div>)}
+      {!notice && reason?.kind === "attachmentMissing" && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>}
+      {chipLine !== null ? <div className="composer-reason" role="status"><span>{chipLine}</span></div>
+        : !notice && reason && reason.kind !== "noAgent" && reason.kind !== "attachmentMissing" && <div className="composer-reason" role="status"><span>{reason.text}</span></div>}
+      {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{missingAt.text}</span>}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
     {/* Escape is Keep draft, so both put focus back in the field. An alertdialog, as every confirmation. */}

@@ -15,7 +15,7 @@ import { requestTitleText } from "../main/conversation/requestLines";
 import { messageLine } from "../main/conversation/messageText";
 import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
-import { plainText, textSegments } from "./anchorField";
+import { textSegments } from "./anchorField";
 import { queuedMessage, startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { focusFieldEnd } from "./chipField";
@@ -307,12 +307,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if (mode.kind === "new") {
       if (!chosen) return { error: "no_agent" };
       const start: StartInput = {
-        root, mode: "newDesign", runtime: chosen, text: request.text,
+        root, mode: "newDesign", runtime: chosen, text: request.text, ...(request.anchors.length ? { anchors: [...request.anchors] } : {}),
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
       // A command remembers only its text, as Home's does: its preset and attachments stay in this draft.
-      const last: LastRequest = request.command ? { root, text: request.text, preset: null, attachments: [], provider: chosen, model, effort }
-        : { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      const last: LastRequest = request.command ? { root, segments: textSegments(request.text), preset: null, attachments: [], provider: chosen, model, effort }
+        : { root, segments: draft.segments, preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) {

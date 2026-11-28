@@ -2806,7 +2806,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if ("ok" in outcome && outcome.conversationId) overviewRun.current?.store.markSent(outcome.conversationId, request.text, 0);
       return outcome;
     })} addProjects={openAddProjects}
-    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} onCanvasChip={canvasChip} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
