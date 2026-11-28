@@ -70,9 +70,9 @@ test("R14 judges the target and message of every accepted request, so a request 
   // A refused request is not judged.
   assert.deepEqual(failed(ctx, { handoff: [handoff(ctx), handoff(ctx, { path: ACCOUNT, text: "", ok: false })] }), []);
 });
-test("R14 fails an empty message, or one that does not name the new wording", () => {
+test("R14 fails an empty message once, or one that does not name the new wording", () => {
   const ctx = setup();
-  for (const text of ["", " \n\t "]) assert.deepEqual(failed(ctx, { handoff: [handoff(ctx, { text })] }), ["handoff_message_not_empty", "handoff_message_names_the_wording"]);
+  for (const text of ["", " \n\t "]) assert.deepEqual(failed(ctx, { handoff: [handoff(ctx, { text })] }), ["handoff_message_not_empty"]);
   assert.deepEqual(failed(ctx, { handoff: [handoff(ctx, { text: "Continue on invoices." })] }), ["handoff_message_names_the_wording"]);
 });
 test("R14 puts the start of the delivered message in the detail", () => {

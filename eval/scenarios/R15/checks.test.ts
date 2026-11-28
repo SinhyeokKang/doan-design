@@ -70,9 +70,9 @@ test("R15 judges the target and message of every accepted request", () => {
   assert.deepEqual(failed(ctx, { send: [send(ctx)], handoff: [handoff(ctx, { path: ACCOUNT })] }), ["request_target_is_invoices"]);
   assert.deepEqual(failed(ctx, { send: [send(ctx), send(ctx, { path: ACCOUNT, text: "", ok: false })] }), []);
 });
-test("R15 fails an empty message, or one that does not name the new date", () => {
+test("R15 fails an empty message once, or one that does not name the new date", () => {
   const ctx = setup();
-  for (const text of ["", " \n\t "]) assert.deepEqual(failed(ctx, { send: [send(ctx, { text })] }), ["send_message_not_empty", "send_message_names_the_change"]);
+  for (const text of ["", " \n\t "]) assert.deepEqual(failed(ctx, { send: [send(ctx, { text })] }), ["send_message_not_empty"]);
   assert.deepEqual(failed(ctx, { send: [send(ctx, { text: "Please update your note." })] }), ["send_message_names_the_change"]);
 });
 test("R15 puts the start of the delivered message in the detail", () => {

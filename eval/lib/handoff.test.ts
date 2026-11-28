@@ -260,11 +260,15 @@ test("a turn started by a received message gets chain_one for a second accepted 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("acceptedRequests joins the accepted v5 and v8 requests and requestSummary lists every request with its version", () => {
-  const handoff: HandoffExchange = { request: { v: 5, root: "/r", handoff: key, path, text: "x" }, response: { v: 5, ok: true, requested: true }, at: "", hashes: {} };
-  const refused: SendExchange = { request: { v: 8, root: "/r", handoff: key, path, text: "x" }, response: { v: 8, ok: false, error: { code: "chain_one", message: "m" } }, at: "", hashes: {} };
-  const sent: SendExchange = { ...refused, response: { v: 8, ok: true, requested: true } };
+test("acceptedRequests and requestSummary list the v5 and v8 requests in the order they arrived", () => {
+  const at = (n: number) => new Date(Date.UTC(2026, 10, 28, 0, 0, n)).toISOString();
+  const refused: SendExchange = { request: { v: 8, root: "/r", handoff: key, path, text: "x" }, response: { v: 8, ok: false, error: { code: "chain_one", message: "m" } }, at: at(1), hashes: {} };
+  const handoff: HandoffExchange = { request: { v: 5, root: "/r", handoff: key, path, text: "x" }, response: { v: 5, ok: true, requested: true }, at: at(2), hashes: {} };
+  const sent: SendExchange = { ...refused, response: { v: 8, ok: true, requested: true }, at: at(3) };
   const ctx = { handoff: () => [handoff], send: () => [refused, sent] };
   assert.deepEqual(acceptedRequests(ctx), [handoff, sent]);
-  assert.deepEqual(JSON.parse(requestSummary(ctx)), [{ v: 5, path, ok: true }, { v: 8, path, ok: false, error: "chain_one" }, { v: 8, path, ok: true }]);
+  assert.deepEqual(JSON.parse(requestSummary(ctx)), [{ v: 8, path, ok: false, error: "chain_one" }, { v: 5, path, ok: true }, { v: 8, path, ok: true }]);
+  // Equal timestamps keep each list's own order.
+  const same = { handoff: () => [{ ...handoff, at: at(1) }], send: () => [{ ...refused, at: at(1) }, { ...sent, at: at(1) }] };
+  assert.deepEqual(JSON.parse(requestSummary(same)).map((e: { v: number }) => e.v), [5, 8, 8]);
 });

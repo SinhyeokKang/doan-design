@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -51,6 +51,14 @@ const calls = (...commands: string[]) => ({ commands, mcpTools: [] }) as unknown
 const run = (ctx: Ctx, log: { handoff?: HandoffExchange[]; send?: SendExchange[] }, ...commands: string[]) =>
   checks({ ...ctx, calls: calls(...commands), handoff: () => log.handoff ?? [], send: () => log.send ?? [] }).filter(c => !c.pass).map(c => c.id);
 
+// The message says the Billing note on account already says the 5th, so the seed must not contradict it.
+test("R17's account canvas already says the 5th in the seed and in both fixtures", () => {
+  for (const base of ["seed", "fixtures/pass", "fixtures/fail"]) {
+    const file = join(dir, base, ".doan/canvases/account.html");
+    if (base !== "seed" && !existsSync(file)) continue;
+    assert.match(readFileSync(file, "utf8"), /data-doan-id="billing-note"[^>]*>[^<]*5th[^<]*</, base);
+  }
+});
 test("R17 passes when the note is changed and nothing is sent", () => {
   const ctx = setup();
   assert.deepEqual(run(ctx, {}), []);

@@ -80,6 +80,11 @@ test("handoff may add received: the chain of conversation ids a message-started 
     assert.throws(() => parseScenarioJson({ ...value, handoff: { canvas, received } }, "R17"), Error, JSON.stringify(received));
 });
 
+test("handoff.received is refused for a project conversation, which receives nothing", () => {
+  const value = { id: "R17", title: "t", focus: "write", init: null, selection: null };
+  assert.throws(() => parseScenarioJson({ ...value, handoff: { canvas: null, received: { chain: ["conv-a"] } } }, "R17"), /project conversation/);
+});
+
 test("workOthers is null or the others array the fake app reports in v3 answers", () => {
   const value = { id: "W9", title: "t", focus: "write", init: null, selection: null };
   const other = { kind: "conversation", provider: "codex", frame: "hero", note: "Rewriting the headline" };
