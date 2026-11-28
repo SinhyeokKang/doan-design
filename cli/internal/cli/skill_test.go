@@ -556,7 +556,7 @@ func TestSkillGuideBoardInteraction(t *testing.T) {
 	at := 0
 	for _, required := range []string{
 		"F. Ordinary board clicks only select: no click-operated controls there;",
-		// :hover reaches the canvas under the Select tool, not under Hand.
+		// The allowance names the tool under which the board passes pointer moves to the canvas.
 		"board motion loops or uses `:hover` (Select tool).",
 		// The board sizes the canvas to its document, so scroll-driven motion does not run there either.
 		"Put click behavior and one-shot or scroll-driven motion in a `data-doan-prototype` frame",
@@ -572,7 +572,7 @@ func TestSkillGuideBoardInteraction(t *testing.T) {
 	}
 }
 
-// These lines were shortened for the output budget; each still states the condition its longer wording did.
+// These lines are worded for the output budget; each must still state its condition.
 func TestSkillGuideShortenedLinesKeepConditions(t *testing.T) {
 	first := func(prefix string) string {
 		for _, l := range strings.Split(skillBody, "\n") {
