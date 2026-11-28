@@ -536,32 +536,64 @@ test("a CLI failure explains why with Retry; a refusal has no Retry; an older CL
     .toEqual({ kind: "error", text: "Doan couldn’t read the design presets. You can still send without one.", retry: true });
 });
 
-test("grouped presets show Suggested and the five tabs; a tab shows its group in catalog order", () => {
+const presetSection = (presets: readonly PresetSummary[], key: string) => ({ title: groupLabel(key), key: `group:${key}`, icon: groupIcon(key),
+  rows: presets.filter(p => p.group === key).map(p => ({ kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) });
+const DOAN_TAB = { key: "presets", label: "Doan presets", icon: "library-big" };
+
+test("Suggested and Doan presets are the tabs; Suggested opens first with its plain head", () => {
   const suggested = [preset("document"), preset("critique"), preset("polish")];
   const view = presetListView(listed(), { project: "doan-design", suggested, query: "", tab: null });
   expect(view.kind).toBe("list");
   if (view.kind !== "list") return;
   expect(view.tabs).toEqual([
     { key: "suggested", label: "Suggested", icon: "pencil-sparkles", selected: true },
-    { key: "start", label: "Start", icon: "compass", selected: false },
-    { key: "review", label: "Review", icon: "scan-eye", selected: false },
-    { key: "refine", label: "Refine", icon: "paintbrush", selected: false },
-    { key: "content", label: "Content", icon: "text-align-start", selected: false },
-    { key: "explore", label: "Explore", icon: "shapes", selected: false },
+    { ...DOAN_TAB, selected: false },
   ]);
   expect(view.sections).toEqual([{ title: "Suggested for doan-design", rows: suggested.map(p => ({ kind: "preset", key: `preset:${p.id}`, icon: groupIcon(p.group), id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
-  const refine = presetListView(listed(), { project: "doan-design", suggested, query: "", tab: "refine" });
-  if (refine.kind !== "list") throw new Error("list");
-  expect(refine.sections).toHaveLength(1);
-  expect(refine.sections[0]!.title).toBe("Refine");
-  expect(refine.sections[0]!.rows.map(r => r.id)).toEqual(["polish", "bolder", "quieter", "layout", "typeset", "colorize"]);
+  expect(view.label).toBeUndefined();
 });
 
-test("no suggestions hides the Suggested tab and opens Start; an unknown group keeps its key and the default icon", () => {
-  const view = presetListView(listed([...PRESETS, { id: "x", title: "X", description: "d", scope: "s", group: "lab" }]), { project: "p", suggested: [], query: "", tab: null });
+test("the Doan presets tab is one list of the five groups in catalog order, each under its icon head, named Doan presets", () => {
+  const view = presetListView(listed(), { project: "doan-design", suggested: [preset("critique")], query: "", tab: "presets" });
   if (view.kind !== "list") throw new Error("list");
-  expect(view.tabs.map(t => [t.key, t.selected])).toEqual([["start", true], ["review", false], ["refine", false], ["content", false], ["explore", false], ["lab", false]]);
-  expect(view.tabs.at(-1)).toEqual({ key: "lab", label: "lab", icon: "pencil-sparkles", selected: false });
+  expect(view.tabs.map(t => [t.key, t.selected])).toEqual([["suggested", false], ["presets", true]]);
+  expect(view.sections).toEqual(["start", "review", "refine", "content", "explore"].map(key => presetSection(PRESETS, key)));
+  expect(view.sections.map(s => [s.title, s.icon])).toEqual([["Start", "compass"], ["Review", "scan-eye"], ["Refine", "paintbrush"], ["Content", "text-align-start"], ["Explore", "shapes"]]);
+  expect(view.sections.flatMap(s => s.rows).map(r => r.id)).toEqual(PRESETS.map(p => p.id));
+  expect(view.label).toBe("Doan presets");
+});
+
+test("with no suggestions, skills or commands the one Doan presets tab draws no tab row", () => {
+  const view = presetListView(listed(), { project: "p", suggested: [], query: "", tab: null });
+  if (view.kind !== "list") throw new Error("list");
+  expect(view.tabs).toEqual([]);
+  expect(view.sections.map(s => s.title)).toEqual(["Start", "Review", "Refine", "Content", "Explore"]);
+  expect(view.label).toBe("Doan presets");
+});
+
+test("with no suggestions but skills and commands, Doan presets is first and chosen", () => {
+  const skills = [{ kind: "skill", name: "deploy", description: "" }, { kind: "command", name: "clear", description: "" }] as const;
+  const view = presetListView(listed(), { project: "p", suggested: [], query: "", tab: null, skills });
+  if (view.kind !== "list") throw new Error("list");
+  expect(view.tabs.map(t => [t.key, t.selected])).toEqual([["presets", true], ["project", false], ["commands", false]]);
+  expect(view.sections).toHaveLength(5);
+});
+
+test("a group without presets has no head, and an unknown group follows the five with its key and the default icon", () => {
+  const lab = { id: "x", title: "X", description: "d", scope: "s", group: "lab" };
+  const presets = [lab, ...PRESETS.filter(p => p.group !== "content")];
+  const view = presetListView(listed(presets), { project: "p", suggested: [], query: "", tab: null });
+  if (view.kind !== "list") throw new Error("list");
+  expect(view.sections.map(s => [s.title, s.icon])).toEqual([["Start", "compass"], ["Review", "scan-eye"], ["Refine", "paintbrush"], ["Explore", "shapes"], ["lab", "pencil-sparkles"]]);
+  expect(view.sections.at(-1)!.rows.map(r => r.id)).toEqual(["x"]);
+});
+
+test("an old Doan presets tab key or a vanished tab falls back to the first tab", () => {
+  for (const tab of ["refine", "project", "commands"]) {
+    const view = presetListView(listed(), { project: "p", suggested: [preset("critique")], query: "", tab });
+    if (view.kind !== "list") throw new Error("list");
+    expect(view.tabs.find(t => t.selected)?.key).toBe("suggested");
+  }
 });
 
 test("a query searches every group, drops the tabs and names each row's group", () => {
@@ -576,14 +608,16 @@ test("no match says so with the query", () => {
   expect(presetListView(listed(), { project: "p", suggested: [], query: "wireframe", tab: null })).toEqual({ kind: "empty", text: "No presets match “wireframe”." });
 });
 
-test("an older CLI without groups shows Suggested and All presets without tabs", () => {
-  const view = presetListView(listed(UNGROUPED), { project: "p", suggested: [UNGROUPED[0]!], query: "", tab: null });
+test("an older CLI without groups keeps the tabs and shows one Doan presets list without heads", () => {
+  const view = presetListView(listed(UNGROUPED), { project: "p", suggested: [UNGROUPED[0]!], query: "", tab: "presets" });
   if (view.kind !== "list") throw new Error("list");
-  expect(view.tabs).toEqual([]);
-  expect(view.sections.map(s => [s.title, s.rows.length])).toEqual([["Suggested for p", 1], ["All presets", 20]]);
+  expect(view.tabs.map(t => t.key)).toEqual(["suggested", "presets"]);
+  expect(view.sections).toEqual([{ title: null, rows: UNGROUPED.map(p => ({ kind: "preset", key: `preset:${p.id}`, icon: "pencil-sparkles", id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
+  expect(view.label).toBe("Doan presets");
   const plain = presetListView(listed(UNGROUPED), { project: "p", suggested: [], query: "", tab: null });
   if (plain.kind !== "list") throw new Error("list");
-  expect(plain.sections.map(s => s.title)).toEqual(["All presets"]);
+  expect(plain.tabs).toEqual([]);
+  expect(plain.sections.map(s => [s.title, s.rows.length])).toEqual([[null, 20]]);
 });
 
 test("the / list has no tabs: an empty query lists every preset in catalog order with its group", () => {

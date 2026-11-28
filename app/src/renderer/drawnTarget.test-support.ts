@@ -39,7 +39,7 @@ export const OPEN_SURFACES: [string, Drawn[]][] = [
   ["the conversation menu", [{ className: "doan-floating doan-menu conv-menu", role: "menu" }, { role: "menuitem" }]],
   ["the composer's agent, effort and permission menus", [{ className: "doan-floating doan-menu agent-popover", role: "menu" }, { role: "menuitem" }]],
   ["the design presets list", [{ className: "doan-floating preset-popover", role: "dialog" }, { role: "listbox" }, { role: "option" }]],
-  ["the design presets group tabs", [{ className: "doan-floating preset-popover has-skills", role: "dialog" }, { className: "group-tabs shell-modes", role: "tablist" }, { role: "tab" }]],
+  ["the design presets tabs", [{ className: "doan-floating preset-popover", role: "dialog" }, { className: "group-tabs shell-modes", role: "tablist" }, { role: "tab" }]],
   ["the design presets Retry", [{ className: "doan-floating preset-popover", role: "dialog" }, { className: "popover-actions" }, { className: "doan-button" }]],
   ["the / list", [{ className: "doan-floating preset-popover slash-popover", role: "presentation" }, { className: "popover-list doan-scroll", role: "listbox" }, { className: "doan-menu-item preset-item", role: "option" }]],
   ["the / list's Retry", [{ className: "doan-floating preset-popover slash-popover", role: "presentation" }, { className: "popover-actions" }, { className: "doan-button" }]],

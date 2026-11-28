@@ -277,7 +277,8 @@ test("every modal dialog scrolls with the quiet scrollbar, and there is no secon
 // unfocusable and moves one highlight.
 test("a focusable option row fills like a highlighted menu row while focused, or hovered when the list has no focus", () => {
   const css = read("./surfaces.css");
-  expect(css).toContain('.doan-menu-item[role="option"][tabindex]:focus,\n[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }');
+  // A row inside a role="group" section of the listbox (the Presets drawer's Doan presets tab) hovers the same way.
+  expect(css).toContain('.doan-menu-item[role="option"][tabindex]:focus,\n[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover,\n[role="listbox"]:not(:has(:focus)) > [role="group"] > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }');
   expect(read("../styles.css")).not.toContain(".doan-frame-row:focus");
 });
 

@@ -14,7 +14,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
 test.each([true, false])("a vanished tab persists its fallback and moves focus only from its removed content (%s)", inTab => {
-  const props = { reply: { v: 1 as const, ok: true as const, result: { version: "1", presets: [{ id: "polish", title: "Polish", group: "refine", description: "Polish", scope: "canvas" }] } }, skills: [{ kind: "skill" as const, name: "deploy", description: "Deploy" }], project: "Project", suggested: [], listId: "skills", disabled: false, onOpen: vi.fn(), onChoose: vi.fn(), retry: { running: false, failures: 0, run: vi.fn() }, onRetry: vi.fn(async () => false), onPicked: vi.fn() };
+  const props = { reply: { v: 1 as const, ok: true as const, result: { version: "1", presets: [{ id: "polish", title: "Polish", group: "refine", description: "Polish", scope: "canvas" }] } }, skills: [{ kind: "skill" as const, name: "deploy", description: "Deploy" }], project: "Project", suggested: [{ id: "polish", title: "Polish", group: "refine", description: "Polish", scope: "canvas" }], listId: "skills", disabled: false, onOpen: vi.fn(), onChoose: vi.fn(), retry: { running: false, failures: 0, run: vi.fn() }, onRetry: vi.fn(async () => false), onPicked: vi.fn() };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.layouts = []; return elements(PresetsButton(props)); };
   let tree = render();
   (tree.find(p => "onOpenChange" in p)!.onOpenChange as (open: boolean) => void)(true);
@@ -23,7 +23,7 @@ test.each([true, false])("a vanished tab persists its fallback and moves focus o
   const focus = vi.fn();
   hooks.refs[1]!.current = { querySelector: () => ({ focus }) };
   const focused = { isConnected: false, closest: () => inTab ? {} : null };
-  (tree.find(p => p.className === "doan-floating preset-popover has-skills")!.onFocusCapture as (e: unknown) => void)({ target: focused });
+  (tree.find(p => p.className === "doan-floating preset-popover")!.onFocusCapture as (e: unknown) => void)({ target: focused });
   if (!inTab) vi.stubGlobal("document", { activeElement: {}, body: null });
   props.skills = [];
   render(); hooks.layouts.forEach(effect => effect());
@@ -31,5 +31,5 @@ test.each([true, false])("a vanished tab persists its fallback and moves focus o
   props.skills = [{ kind: "skill", name: "deploy", description: "Deploy" }];
   tree = render();
   expect(tree.find(p => p["data-group"] === "project")!["aria-selected"]).toBe(false);
-  expect(tree.find(p => p["data-group"] === "refine")!["aria-selected"]).toBe(true);
+  expect(tree.find(p => p["data-group"] === "suggested")!["aria-selected"]).toBe(true);
 });
