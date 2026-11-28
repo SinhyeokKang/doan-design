@@ -642,3 +642,37 @@ describe("a send's turn the usage limit stops", () => {
     }
   });
 });
+
+// The reset sends every person's row first as one turn (flush of the person's rows only); an agent row goes after it.
+describe("an agent row's place while a reset is scheduled", () => {
+  const listed = [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }];
+  it("follows the last person's row, wherever it sits in the queue", async () => {
+    const h = fixture({ listed });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.limit(RESET);
+    await h.limited(target, true);
+    const { itemId: q1 } = h.service.schedule(target, { text: "q1", anchors: [] });
+    h.service.requestSend({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "agent" });
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q1]);
+    const { itemId: q2 } = h.service.schedule(target, { text: "q2", anchors: [] });
+    expect(h.drafts.queued(target).map(item => item.text)).toEqual(["q1", "agent", "q2"]);
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q2]);
+  });
+  it("follows the last person's row after a stopped turn's own message was queued again in front", async () => {
+    const h = fixture({ listed });
+    const source = await h.start();
+    const target = await h.start(".doan/canvases/b.html");
+    h.service.requestSend({ root: "/repo", handoff: h.open.mock.calls[0]![0].env.DOAN_HANDOFF!, path: ".doan/canvases/b.html", text: "agent" });
+    h.service.receive(source, { type: "turn.done" });
+    await drain();
+    const { itemId: q2 } = h.service.queue(target, { text: "q2", anchors: [] });
+    h.limit(RESET);
+    await h.limited(target, false);
+    expect(h.drafts.queued(target).map(item => item.text)).toEqual(["hello", "agent", "q2"]);
+    expect(h.summary(target).scheduledAt).toBeDefined();
+    expect(h.summary(target).agentQueue?.map(row => row.after)).toEqual([q2]);
+  });
+});
