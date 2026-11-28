@@ -331,6 +331,7 @@ export class HomeRun {
   }
   readsStarted(root: string): number { return this.readCount.get(root) ?? 0; }
   readsApplied(root: string): number { return this.applied.get(root) ?? 0; }
+  readQueued(root: string): boolean { return this.reads.get(root)?.again === true; }
   // The strongest state first, then the latest activity; null when the slot is a canvas conversation's or none.
   slotConversation(root: string): { conversationId: string; waiting: boolean } | null {
     const seen = new Set(this.seen.keys());

@@ -19,6 +19,8 @@ export interface OverviewRunHost {
   // HomeRun's counts of the root's list reads: started so far, and the number of the last one that answered.
   readsStarted(root: string): number;
   readsApplied(root: string): number;
+  // A list read waits to start once the one under way answers.
+  readQueued?(root: string): boolean;
   reread(root: string): void;
   // null until ui-state was read, so a pick never runs ahead of the memory.
   remembered(): Readonly<Record<string, string>> | null;
@@ -85,7 +87,9 @@ export class OverviewRun {
   private scrolls = 0;
 
   // The root's list reads: started so far and the last one that answered.
-  listReads(root: string): { started: number; applied: number } { return { started: this.host.readsStarted(root), applied: this.host.readsApplied(root) }; }
+  listReads(root: string): { started: number; applied: number; queued?: true } {
+    return { started: this.host.readsStarted(root), applied: this.host.readsApplied(root), ...(this.host.readQueued?.(root) ? { queued: true as const } : {}) };
+  }
   constructor(private host: OverviewRunHost, calls: StoreCalls) {
     this.store = new ConversationStore({
       list: root => host.list(root), readsStarted: root => host.readsStarted(root), readsApplied: root => host.readsApplied(root),

@@ -504,6 +504,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     list: root => homeRun.current.listState(root),
     readsStarted: root => homeRun.current.readsStarted(root),
     readsApplied: root => homeRun.current.readsApplied(root),
+    readQueued: root => homeRun.current.readQueued(root),
     reread: root => homeRun.current.retryList(root),
     remembered: () => memoryRead.current ? conversationByRoot.current : null,
     remember: (root, id) => {
@@ -2148,7 +2149,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Keyed by the canvas, not the target object: a render that reads the same canvas does not show it again.
   useLayoutEffect(() => { canvasRun.current!.show(panelTargetRef.current); }, [panelKey]);
   useEffect(() => { canvasRun.current!.panel(rightPanel.open && panelKey !== null); }, [rightPanel.open, panelKey]);
-  const listedGrace = useRef(new ListedGrace());
+  const listedGrace = useRef<ListedGrace | null>(null);
+  listedGrace.current ??= new ListedGrace();
   const panelList = panelTarget ? homeRun.current.listState(panelTarget.root) : "loading";
   const panelCanvasName = panelCanvas ? canvasLabel(panelCanvas.row) : "";
   const panelTitle = canvasConversationTitle(canvasRun.current!, panelList);
@@ -2874,7 +2876,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => listedGrace.current.listed(panelTarget.root, panelList, id, overviewRun.current!.listReads(panelTarget.root))} conversationTitle={id => listedTitle(panelList, id)} work={work} thumbnailHub={thumbnailHub} />}
+          conversationListed={id => listedGrace.current!.listed(panelTarget.root, panelList, id, overviewRun.current!.listReads(panelTarget.root))} conversationTitle={id => listedTitle(panelList, id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}

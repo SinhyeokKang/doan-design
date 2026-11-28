@@ -89,13 +89,14 @@ export function listedTitle(list: readonly { conversationId: string; title: stri
 
 // Whether a send card's or a received send's conversation still exists. main lists a conversation it just made, then
 // writes the resolution naming it, so an id first asked about while a list read is under way counts as there until that
-// read answers; an id a settled list already lacked stays gone through later reads. An unread list counts as there.
+// read answers (or the follow-up read queued behind it, whose answer the new conversation's listChanged asked for); an
+// id a settled list already lacked stays gone through later reads. An unread list counts as there.
 export class ListedGrace {
   private until = new Map<string, number>();
-  listed(root: string, list: readonly { conversationId: string }[] | "loading" | "error", conversationId: string, reads: { started: number; applied: number }): boolean {
+  listed(root: string, list: readonly { conversationId: string }[] | "loading" | "error", conversationId: string, reads: { started: number; applied: number; queued?: boolean }): boolean {
     if (!Array.isArray(list) || list.some(c => c.conversationId === conversationId)) return true;
     const key = `${root}\0${conversationId}`;
-    if (!this.until.has(key)) this.until.set(key, reads.applied < reads.started ? reads.started : -1);
+    if (!this.until.has(key)) this.until.set(key, reads.applied < reads.started ? reads.started + (reads.queued ? 1 : 0) : -1);
     return reads.applied < this.until.get(key)!;
   }
 }
