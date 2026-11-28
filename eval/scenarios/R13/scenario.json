@@ -1,0 +1,9 @@
+{
+  "id": "R13",
+  "title": "Draw a new canvas from a canvas anchor in a Home conversation, leaving the referenced canvas as it is",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": null }
+}

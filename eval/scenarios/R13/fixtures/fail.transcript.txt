@@ -1,0 +1,2 @@
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cat .doan/canvases/plans-2025.html"}}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Drew checkout from the plans canvas."}]}}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="checkout">
+  <meta name="doan:width" content="1200">
+  <title>Checkout</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-8); background: var(--color-surface); color: var(--color-text); font: 16px/1.5 var(--font-body); }
+    [data-doan-frame] { box-sizing: border-box; width: 1136px; background: var(--color-panel); }
+    .site-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--color-line); }
+    .brand { font-weight: 700; color: var(--color-brand); }
+    main { display: flex; justify-content: center; padding: var(--space-8); }
+    .plan-card { width: 400px; padding: var(--space-6); border: 1px solid var(--color-line); border-radius: var(--radius-card); }
+    .plan-card h2 { margin: 0 0 var(--space-2); font-size: 20px; line-height: 28px; }
+    .price { margin: 0 0 var(--space-4); font-size: 28px; line-height: 36px; font-weight: 700; }
+    .plan-card button { font: inherit; padding: var(--space-2) var(--space-4); border: 0; border-radius: 8px; background: var(--color-brand); color: var(--color-on-brand); }
+    .site-footer { padding: var(--space-4) var(--space-8); border-top: 1px solid var(--color-line); color: var(--color-subtle); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="checkout" data-doan-title="Checkout">
+    <header class="site-header">
+      <span class="brand" data-doan-id="brand">Northwind Classic</span>
+      <nav data-doan-id="nav">Product · Pricing · Docs</nav>
+    </header>
+    <main>
+      <article class="plan-card" data-doan-id="order-summary">
+        <h2>Order summary: Team</h2>
+        <p class="price">$19 per seat / month</p>
+        <button data-doan-id="pay">Pay</button>
+      </article>
+    </main>
+    <footer class="site-footer" data-doan-id="footer">Questions? help@classic.example</footer>
+  </section>
+</body>
+</html>
