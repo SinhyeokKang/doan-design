@@ -1051,10 +1051,10 @@ test("a canvas chip's clipboard carries the root; pasted in the same root it sta
   expect(await call("segments")).toEqual([plain("Use checkout-flow for "), chip()]);
 });
 
-test("a canvas chip carries its id and name for the tooltip; a frame chip carries neither", { timeout: 60_000 }, async () => {
+test("a canvas chip carries its id for the tooltip; a frame chip does not", { timeout: 60_000 }, async () => {
   await open([chip({ canvas: { path: ".doan/canvases/flows/checkout-flow.html", id: "checkout" } }), plain(" "), chip()]);
-  expect(await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => [node.dataset.canvas, node.dataset.name, node.dataset.tip])))
-    .toEqual([["checkout", "checkout-flow", ".doan/canvases/flows/checkout-flow.html"], [undefined, undefined, "Frame · hero"]]);
+  expect(await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => [node.dataset.canvas, node.dataset.tip])))
+    .toEqual([["checkout", ".doan/canvases/flows/checkout-flow.html"], [undefined, "Frame · hero"]]);
 });
 
 test("the host's value right after a composition ends wins: a send empties the field, a returned draft fills it", { timeout: 60_000 }, async () => {

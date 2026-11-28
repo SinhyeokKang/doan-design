@@ -27,7 +27,7 @@ import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
-import { ConversationLoading, ConversationThread, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ConversationLoading, ConversationThread, openReplyLink, type CanvasChipPress, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
@@ -89,6 +89,8 @@ export interface ProjectOverviewProps {
   composerLink?: MutableRefObject<DockedFieldLink | null>;
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // A canvas chip's press, sent or in the composer: the host opens its canvas.
+  onCanvasChip?: CanvasChipPress;
   // The window's thumbnails, for the thread's canvas cards; the Overview's list shares them.
   thumbnailHub?: ThumbnailHub;
   onRetryList(): void;
@@ -444,7 +446,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={async text => { const ok = copyText(text); if (ok) props.onNotice?.("Copied code"); return ok; }}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} {...(props.onCanvasChip ? { onCanvasChip: props.onCanvasChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
         now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
         localSends={run.store.localSends(conversationId)} onSpendSends={marks => run.store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : waiting || conversationId ? <ConversationLoading /> : <div className="ov-col ov-new">
@@ -456,7 +458,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </div>
     <div className="ov-foot"><div className="ov-col">
       <DockedComposer {...(props.composerLink ? { link: props.composerLink } : {})} skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
-        drafts={run.drafts} onDrafts={update => run.setDrafts(update)} canvasChips={{ place: "overview", root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }}
+        drafts={run.drafts} onDrafts={update => run.setDrafts(update)} canvasChips={{ place: "overview", root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }} onCanvasChip={props.onCanvasChip}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
         onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}),

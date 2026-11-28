@@ -30,7 +30,7 @@ import { slashKey, pasteAction } from "./HomeComposerView";
 import { CLIPBOARD_TYPE, type ChipInsert } from "./chipField";
 import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
-import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
+import { pressChip, useLocateNote, type CanvasChipPress, type LocateOutcome } from "./ConversationThread";
 import {
   pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, MAX_PASTED_BYTES, attachRefusal, composeRequest, followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
@@ -159,6 +159,9 @@ export interface DockedComposerProps {
   // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
   canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
+  // A canvas chip's press, as a sent one's (ConversationThread onCanvasChip); openCanvasId: the canvas whose chip fits.
+  onCanvasChip?: CanvasChipPress | undefined;
+  openCanvasId?: string | null;
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
@@ -216,9 +219,9 @@ export function DockedComposer(props: DockedComposerProps) {
   // The 32-place line, for the draft it was refused on; the next edit drops it.
   const [limitAt, setLimitAt] = useState<string | null>(null);
   const [missing, showMissing] = useLocateNote(() => field.current?.element() ?? null);
-  // "No longer in the canvas" by the composer chip that was not found: an overlay placed
-  // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
-  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
+  // The note by the composer chip that was not found: an overlay placed under the chip, outside the field's DOM, and the
+  // chip described by it like a thread chip.
+  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number; text: string } | null>(null);
   // Draws again when a reset passes, so the status line and the Queue tooltip follow the clock.
   const [resetTick, setResetPassed] = useState(0);
   // A draft already pointing at the limit's number of places takes no more from the canvas, so the canvas panel's
@@ -418,12 +421,12 @@ export function DockedComposer(props: DockedComposerProps) {
     link.current = mine;
     return () => { if (link.current === mine) link.current = null; };
   }, [props.link]);
-  const locate = (anchor: Anchor, chip: HTMLElement) => {
-    void props.onLocate?.(anchor).then(outcome => {
+  const press = (anchor: Anchor, chip: HTMLElement) => {
+    void pressChip(anchor, props.project, { onLocate: props.onLocate, onCanvasChip: props.onCanvasChip })?.then(text => {
       const box = root.current?.getBoundingClientRect();
-      if (outcome !== "missing" || !box || !chip.isConnected) return;
+      if (text === null || !box || !chip.isConnected) return;
       const at = chip.getBoundingClientRect();
-      setMissingAt({ chip, left: at.left - box.left, top: at.bottom - box.top });
+      setMissingAt({ chip, left: at.left - box.left, top: at.bottom - box.top, text });
       showMissing();
     });
   };
@@ -599,7 +602,8 @@ export function DockedComposer(props: DockedComposerProps) {
         attachments={draft.attachments} preset={presetHeld ? null : draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} commandNames={commandNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
-        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} chipRoot={canvasChips?.root ?? null} chipDrag={chipDrop.fieldDrag} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
+        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} chipRoot={canvasChips?.root ?? null} chipDrag={chipDrop.fieldDrag} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate || props.onCanvasChip ? press : undefined}
+        canvasOpen={props.onCanvasChip ? { id: props.openCanvasId ?? null } : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
@@ -644,7 +648,7 @@ export function DockedComposer(props: DockedComposerProps) {
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
-    {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
+    {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{missingAt.text}</span>}
     {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}
     {playingShown && <span className="sr-only" id={playingId}>{playing.description}</span>}
     <div className="sr-only" role="status">{announcement}</div>

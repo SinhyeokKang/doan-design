@@ -456,7 +456,7 @@ describe("sent canvas chips", () => {
 
   test("the button is named Open and its canvas's name now, by id, the open canvas's chip too", () => {
     const out = html([user([moved, own, gone])], { onCanvasChip: press, canvasRows: rows, openCanvasId: "drafts" });
-    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open pay-step"[^>]*><svg[^>]*><\/svg><span>pay-step<\/span><\/button>/);
+    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open pay-step"[^>]*><svg[^>]*>.*?<\/svg><span>pay-step<\/span><\/button>/);
     expect(out).toContain('aria-label="Open drafts"');
     // A canvas the list no longer has keeps the name it was sent with.
     expect(out).toContain('aria-label="Open gone"');
@@ -470,7 +470,8 @@ describe("sent canvas chips", () => {
   });
 
   test("a design-system canvas takes the sidebar's design-system icon, any other the canvas icon", () => {
-    const icon = (anchor: Anchor) => ((sentChip({ ...base, anchor, onCanvasChip: press }) as unknown as Chip).props.children as ReactElement[])[0]!.type;
+    // The button's children are one fragment: the icon, then the name.
+    const icon = (anchor: Anchor) => ((sentChip({ ...base, anchor, onCanvasChip: press }) as unknown as Chip).props.children as ReactElement<{ children: ReactElement[] }>).props.children[0]!.type;
     expect(icon(ds)).toBe(SwatchBook);
     expect(icon(moved)).toBe(PanelsTopLeft);
   });

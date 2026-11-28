@@ -1831,6 +1831,23 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
   }
+  // A canvas chip, sent or in a composer of `root`: the canvas on screen fits with no visit, another opens as a link does
+  // (decideOpen). "missing" is the chip's own note; a shared id or an unusable list is a toast.
+  function canvasChip(root: string, canvas: NonNullable<Anchor["canvas"]>): Promise<"missing" | null> {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    const onScreen = canvasOnScreenRef.current;
+    const target = replyChipTarget({ canvas: canvas.id }, { root, openCanvasId: onScreen?.root === root ? onScreen.id : null, entry });
+    if (target === "locate") { controller.current?.command("fit"); return Promise.resolve(null); }
+    if (target === "missing") return Promise.resolve("missing");
+    if (typeof target === "string") { live.current.toast.show(replyChipRefusal(target, canvasStem(canvas.path), live.current.projectLabel(root), entry)); return Promise.resolve(null); }
+    const decision = decideOpen({ root, canvas: target.open.path }, openPage());
+    if (decision.kind === "busy") return Promise.resolve(null);
+    cancelRestore();
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path, live.current.projectLabel(root)));
+    if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return Promise.resolve(null); }
+    controller.current?.openCanvas(root, decision.row, undefined, { unavailable, opened: () => completeNavigation(root) });
+    return Promise.resolve(null);
+  }
   // A chip, Sign in or an Open pressed in the prototype window: main checked it and brought this window forward. It
   // acts as this window's own chip or button would; a dialog, a locked page or first run stays as it is, with a toast.
   function prototypeReveal(request: PrototypeReveal) {
@@ -1851,6 +1868,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       }
       case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path, live.current.projectLabel(step.root))); return;
       case "reply": void replyChip(step.root, step.link).then(missing); return;
+      // No note in this window: a gone canvas says so as the reply chip's toast does.
+      case "canvas": void canvasChip(step.root, step.canvas).then(outcome => {
+        if (outcome === "missing") live.current.toast.show(replyChipRefusal("missing", revealName(request, entriesRef.current), live.current.projectLabel(step.root), undefined));
+      }); return;
       case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
         if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "card" });
@@ -2818,7 +2839,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
-      onReplyChip={link => replyChip(overview.path, link)} thumbnailHub={thumbnailHub}
+      onReplyChip={link => replyChip(overview.path, link)} onCanvasChip={canvas => canvasChip(overview.path, canvas)} thumbnailHub={thumbnailHub}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -2840,7 +2861,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => { panelArrived.current = seq; setArrival(current => current?.seq === seq ? null : current); }}
-          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} capturing={state.capturing} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
+          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onCanvasChip={canvas => canvasChip(panelTarget.root, canvas)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} capturing={state.capturing} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}

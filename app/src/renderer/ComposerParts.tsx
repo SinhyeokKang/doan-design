@@ -9,7 +9,7 @@ import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { useActivationFocus } from "./activationFocus";
 import { AlertIcon } from "./AlertIcon";
-import type { FieldSegment } from "./anchorField";
+import { canvasChipTip, type FieldSegment } from "./anchorField";
 import { ChipField, moveFocus, type ChipInsert } from "./chipField";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
@@ -156,6 +156,9 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   onPaste(event: ClipboardEvent<HTMLDivElement>): void; onInput?(): void; onAnnounce?(text: string): void;
   // A click on a chip in the field (the caret is already right after it).
   onChipClick?: ((anchor: Anchor, chip: HTMLElement) => void) | undefined;
+  // Canvas chips open their canvas on a press, so their tooltip says so, except the open canvas's (`id`), which fits.
+  // Absent: canvas chips are not pressed and show their path.
+  canvasOpen?: { id: string | null } | undefined;
   // The reason line under the docked card also describes the field.
   describedBy?: string | undefined;
 }>(function ComposerField(props, ref) {
@@ -210,7 +213,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       if (isSubmitKey({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) { event.preventDefault(); props.onSubmit(); }
     }}
     onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />
-    <FieldChipTip field={node} /></>;
+    <FieldChipTip field={node} canvasOpen={props.canvasOpen} /></>;
 });
 
 // Ctrl+Tab and Ctrl+Shift+Tab always move focus, as in a macOS text view; Chromium moves focus only on a Tab without Ctrl,
@@ -223,8 +226,9 @@ export function fieldTabKey(event: { key: string; ctrlKey: boolean; metaKey: boo
 // The chips are DOM the field draws, so the tooltip anchors to a fixed box portalled to the body over the chip. It waits
 // the provider's first-open delay itself; Radix's skip window does not reach it.
 const CHIP_TIP_DELAY_MS = 700;
-function FieldChipTip({ field }: { field: RefObject<HTMLDivElement | null> }) {
-  const [tip, setTip] = useState<{ text: string; box: DOMRect } | null>(null);
+function FieldChipTip({ field, canvasOpen }: { field: RefObject<HTMLDivElement | null>; canvasOpen: { id: string | null } | undefined }) {
+  const [tip, setTip] = useState<{ lines: string[]; box: DOMRect } | null>(null);
+  const open = useRef(canvasOpen); open.current = canvasOpen;
   const over = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const element = field.current;
@@ -235,10 +239,10 @@ function FieldChipTip({ field }: { field: RefObject<HTMLDivElement | null> }) {
       const chip = event.target instanceof Element ? event.target.closest<HTMLElement>(".anchor-chip") : null;
       if (!chip || !element.contains(chip) || chip === over.current) return;
       close();
-      const text = chip.dataset.tip;
+      const text = chip.dataset.tip, id = chip.dataset.canvas;
       if (!text) return;
       over.current = chip;
-      timer = setTimeout(() => setTip({ text, box: chip.getBoundingClientRect() }), CHIP_TIP_DELAY_MS);
+      timer = setTimeout(() => setTip({ lines: id === undefined ? [text] : canvasChipTip({ path: text, id }, { open: open.current?.id ?? null, pressable: open.current !== undefined }), box: chip.getBoundingClientRect() }), CHIP_TIP_DELAY_MS);
     };
     const leave = (event: Event) => {
       const to = event instanceof MouseEvent ? event.relatedTarget : null;
@@ -259,7 +263,7 @@ function FieldChipTip({ field }: { field: RefObject<HTMLDivElement | null> }) {
   const { left, top, width, height } = tip.box;
   return createPortal(<Tooltip open onOpenChange={open => { if (!open) { over.current = null; setTip(null); } }}>
     <TooltipTrigger asChild><span aria-hidden="true" style={{ position: "fixed", left, top, width, height, pointerEvents: "none" }} /></TooltipTrigger>
-    <TooltipContent>{tip.text}</TooltipContent></Tooltip>, document.body);
+    <TooltipContent>{tip.lines.length > 1 ? tip.lines.map((line, i) => <span key={i} className="tip-line">{line}</span>) : tip.lines[0]}</TooltipContent></Tooltip>, document.body);
 }
 
 export function ComposerTools({ children }: { children: ReactNode }) {

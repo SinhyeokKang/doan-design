@@ -32,7 +32,7 @@ import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryBu
 import { ConversationHead } from "./ConversationLine";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
-import { ConversationLoading, ConversationThread, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ConversationLoading, ConversationThread, openReplyLink, type CanvasChipPress, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
@@ -96,6 +96,8 @@ export interface CanvasConversationProps {
   onLocate(anchor: Anchor): Promise<LocateOutcome>;
   // A chip in an agent's reply: the host locates it on this canvas or opens another canvas.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // A canvas chip's press, sent or in the composer: the host fits this canvas or opens another.
+  onCanvasChip?: CanvasChipPress;
   // The person chose what the panel shows (a conversation, New).
   onChoose?(): void;
   // The composer's Pick from canvas, and the page's way into its field (pick results); a host without a board has neither.
@@ -560,7 +562,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={async text => { const ok = copyText(text); if (ok) props.onNotice("Copied code"); return ok; }}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} {...(props.onCanvasChip ? { onCanvasChip: props.onCanvasChip } : {})} openCanvasId={target.canvas.id ?? null} openCanvasPath={target.canvas.path} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS}
         now={props.now} {...(props.thumbnailHub ? { thumbnails: { hub: props.thumbnailHub, root } } : {})}
         localSends={store.localSends(conversationId)} onSpendSends={marks => store.spendSends(conversationId, marks)} stopping={summary?.stopping === true} />
         : view.kind === "wait" || conversationId ? <ConversationLoading /> : <>
@@ -575,7 +577,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     </div>
     <div className="cp-foot">
       <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
-        {...(props.pick ? { pick: props.pick } : {})} capturing={!!props.capturing} canvasChips={{ place: "canvas", root: target.root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
+        {...(props.pick ? { pick: props.pick } : {})} capturing={!!props.capturing} canvasChips={{ place: "canvas", root: target.root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} onCanvasChip={props.onCanvasChip} openCanvasId={target.canvas.id ?? null} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

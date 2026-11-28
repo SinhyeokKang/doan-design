@@ -153,6 +153,7 @@ export function prototypeRevealRequest(payload: RevealPayload, playing: PlayingC
       const conversation = conversationInScope(payload.conversationId, playing, row, conversations, entries);
       return conversation?.canvas === undefined ? null : { kind: "chip", root: playing.root, canvas: conversation.canvas, conversationId: conversation.conversationId, anchor: payload.anchor };
     }
+    case "canvas": return { kind: "canvas", root: playing.root, canvas: payload.canvas };
     case "reply":
       return conversationInScope(payload.conversationId, playing, row, conversations, entries) === null ? null
         : { kind: "reply", root: playing.root, conversationId: payload.conversationId, link: payload.link };

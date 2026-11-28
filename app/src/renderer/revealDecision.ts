@@ -24,6 +24,7 @@ export type RevealStep =
   | { kind: "open"; root: string; row: CanvasRow; anchor: Anchor }
   | { kind: "canvas_not_found"; root: string; path: string; entry: FolderEntry | undefined }
   | { kind: "reply"; root: string; link: Extract<PrototypeReveal, { kind: "reply" }>["link"] }
+  | Extract<PrototypeReveal, { kind: "canvas" }>
   | Extract<PrototypeReveal, { kind: "settings" }>
   | Extract<PrototypeReveal, { kind: "conversation" }>
   | Extract<PrototypeReveal, { kind: "handoff" }>;
@@ -50,6 +51,11 @@ export function revealDecision(request: PrototypeReveal, state: RevealState): Re
 export function revealName(request: PrototypeReveal, entries: readonly FolderEntry[]): string {
   switch (request.kind) {
     case "chip": return chipLabel(request.anchor).label;
+    case "canvas": {
+      const entry = entries.find(candidate => candidate.path === request.root);
+      const row = entry?.kind === "list" ? entry.canvases.find(candidate => candidate.id === request.canvas.id) : undefined;
+      return row ? canvasLabel(row) : canvasStem(request.canvas.path);
+    }
     case "reply": {
       const entry = entries.find(candidate => candidate.path === request.root);
       const row = entry?.kind === "list" ? entry.canvases.find(candidate => candidate.id === request.link.canvas) : undefined;

@@ -2,11 +2,10 @@ import { closeHistory, history, redo, undo } from "prosemirror-history";
 import type { Node as PMNode } from "prosemirror-model";
 import { EditorState, Plugin, TextSelection, type Transaction } from "prosemirror-state";
 import { DecorationSet, EditorView } from "prosemirror-view";
-import { canvasKind } from "../formats/canvasPath";
 import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
-  chipAt, distinctTargets, hardLine, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sliceUnits, spliceUnits, unitLength,
+  chipAt, chipIcon, distinctTargets, hardLine, isLineStart, normalize, pasteFieldClipboard, plainText, sameSegments, sliceUnits, spliceUnits, unitLength,
   writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
 import { continueList, fieldListItems, indentItem, removeMarker, type FieldEdit } from "./composerLists";
@@ -682,24 +681,23 @@ export class ChipField {
     event.preventDefault();
     const fragment = sliceUnits(this.segments, start, end);
     data.setData("text/plain", plainText(fragment));
-    const scope = this.hooks.scope();
-    if (scope !== null && fragment.some(segment => segment.kind === "chip")) data.setData(CLIPBOARD_TYPE, writeFieldClipboard(scope, fragment));
+    const scope = this.hooks.scope(), root = this.hooks.root?.() ?? null;
+    if ((scope !== null || root !== null) && fragment.some(segment => segment.kind === "chip")) data.setData(CLIPBOARD_TYPE, writeFieldClipboard(scope, fragment, root));
     if (cut && !this.readOnly()) this.replace(start, end, [], "own");
     return true;
   }
 
-  // After the host's paste handler left the event alone. A chip clipboard keeps its chips only in a field of the same
-  // canvas and within LIMITS.anchors.
+  // After the host's paste handler left the event alone. Each chip is judged alone (pasteFieldClipboard), against what
+  // the field keeps once the selection is replaced.
   paste(event: ClipboardEvent): void {
     event.preventDefault();
     if (this.composing() || this.readOnly() || !event.clipboardData) return;
     const data = event.clipboardData;
     const [start, end] = ordered(this.readSelection());
-    const custom = data.getData(CLIPBOARD_TYPE), scope = this.hooks.scope();
-    let inserted = custom && scope !== null ? readFieldClipboard(custom, scope) : null;
-    // Counted on the result of replacing the selection, as for an inserted chip.
-    if (inserted && distinctTargets([...this.reservedChips(), ...spliceUnits(this.segments, start, end, inserted).segments]) > LIMITS.anchors) inserted = null;
-    inserted ??= normalize([{ kind: "text", text: data.getData("text/plain").replace(/\r\n?/g, "\n") }]);
+    const custom = data.getData(CLIPBOARD_TYPE);
+    const kept = [...this.reservedChips(), ...spliceUnits(this.segments, start, end, []).segments];
+    const inserted = (custom ? pasteFieldClipboard(custom, { scope: this.hooks.scope(), root: this.hooks.root?.() ?? null }, kept) : null)
+      ?? normalize([{ kind: "text", text: data.getData("text/plain").replace(/\r\n?/g, "\n") }]);
     this.replace(start, end, inserted, "own");
   }
 
@@ -805,12 +803,13 @@ export function chipNode(anchor: Anchor, doc: Document = document): HTMLElement 
   node.dataset.kind = kind;
   // Shown by the field's shared tooltip (ComposerParts FieldChipTip), never a native title.
   node.dataset.tip = title;
+  if (anchor.canvas) node.dataset.canvas = anchor.canvas.id;
   const hidden = doc.createElement("span");
   hidden.className = "sr-only";
   hidden.textContent = `${KIND_PREFIX[kind]} `;
   const icon = doc.createElementNS(SVG, "svg");
   for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) icon.setAttribute(name, value);
-  for (const [tag, attributes] of ICONS[anchor.canvas && canvasKind(anchor.canvas.path) === "ds" ? "ds" : kind]) {
+  for (const [tag, attributes] of ICONS[chipIcon(anchor)]) {
     const shape = doc.createElementNS(SVG, tag);
     for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
     icon.append(shape);
