@@ -1,4 +1,4 @@
-import type { Checks, CheckContext } from "../../lib/types.ts";
+import type { Check, Checks, CheckContext } from "../../lib/types.ts";
 
 const canvas = ".doan/canvases/projects.html";
 // The frame the prompt names ("Project list"); the click and the motion belong in it.
@@ -107,7 +107,9 @@ function selectors(prelude: string): string[] {
   return out.map(s => s.trim()).filter(Boolean);
 }
 
-const checks: Checks = ctx => {
+// The four checks below, plus the final canvas's style and script texts (inline and linked) for scenarios that share
+// this canvas (W16).
+export function boardChecks(ctx: CheckContext): { checks: Check[]; css: string[]; scripts: string[] } {
   const check = ctx.doan(["check"]);
   const clean = { id: "doan_check_clean", pass: check.json?.ok === true && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` };
   const seedHtml = ctx.seed(canvas), finalHtml = ctx.read(canvas);
@@ -115,7 +117,7 @@ const checks: Checks = ctx => {
   const final = finalHtml === null ? null : parse(ctx, finalHtml);
   if (seed === null || final === null || seedHtml === null || finalHtml === null) {
     const detail = finalHtml === null ? "canvas missing" : "parse failed";
-    return [clean, ...["no_board_click_trigger", "prototype_marked", "other_frames_unchanged"].map(id => ({ id, pass: false, detail }))];
+    return { checks: [clean, ...["no_board_click_trigger", "prototype_marked", "other_frames_unchanged"].map(id => ({ id, pass: false, detail }))], css: [], scripts: [] };
   }
 
   // A script or a selector outside the marked elements belongs to them when it names only their elements: it names
@@ -128,8 +130,10 @@ const checks: Checks = ctx => {
 
   const board: string[] = [];
   for (const t of final.elementTriggers) if (!t.marked) board.push(t.kind);
+  const scripts: string[] = [];
   for (const script of final.scripts) {
     const text = script.src === null ? script.text : linked(ctx, script.src) ?? "";
+    scripts.push(text);
     const match = JS_CLICK.exec(text);
     if (match && !script.marked && !belongsToPrototype(text)) board.push(`script ${script.src ?? "inline"}: ${match[0]}`);
   }
@@ -146,11 +150,13 @@ const checks: Checks = ctx => {
     return now.length !== 1 || finalHtml.slice(now[0]!.start, now[0]!.end) !== seedHtml.slice(f.start, f.end);
   }).map(f => f.id);
 
-  return [
+  return { css, scripts, checks: [
     clean,
     { id: "no_board_click_trigger", pass: board.length === 0, detail: JSON.stringify(board) },
     { id: "prototype_marked", pass: marked.length > 0, detail: JSON.stringify(final.frames.map(f => ({ id: f.id, prototype: f.prototype }))) },
     { id: "other_frames_unchanged", pass: changed.length === 0, detail: JSON.stringify(changed) },
-  ];
-};
+  ] };
+}
+
+const checks: Checks = ctx => boardChecks(ctx).checks;
 export default checks;
