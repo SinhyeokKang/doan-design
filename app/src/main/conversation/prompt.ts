@@ -1,6 +1,8 @@
 import { object } from "./sessions";
 import { LIMITS } from "./messageText";
 import { HANDOFF_TEXT_LIMIT } from "./handoff";
+import { canvasKind } from "../../formats/canvasPath";
+import { CANVAS_ID } from "./replyAnchor";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 
 // Defined in messageText.ts so the renderer can read the limits without importing this module (POSTMORTEM 2026-10-30).
@@ -11,6 +13,11 @@ function string(value: unknown, limit: number, empty = false): value is string {
 function optional(value: unknown, limit: number): boolean { return value === undefined || string(value, limit, true); }
 function keys(value: Record<string, unknown>, allowed: string[]): boolean { return Object.keys(value).every(key => allowed.includes(key)); }
 export function validAnchor(value: unknown): value is Anchor {
+  // canvasKind's listing rule is stricter than store.ts validCanvas's path check; importing store here would be a cycle.
+  if (object(value) && value.canvas !== undefined) {
+    return keys(value, ["canvas"]) && object(value.canvas) && keys(value.canvas, ["path", "id"]) && string(value.canvas.path, LIMITS.path) &&
+      canvasKind(value.canvas.path) !== null && string(value.canvas.id, LIMITS.label) && CANVAS_ID.test(value.canvas.id);
+  }
   if (!object(value) || !keys(value, ["frame", "element", "point"]) || (!value.frame && !value.element && !value.point)) return false;
   if (value.element && value.point) return false;
   if (value.frame !== undefined && (!object(value.frame) || !keys(value.frame, ["id", "title"]) || !string(value.frame.id, LIMITS.label) || !optional(value.frame.title, LIMITS.label))) return false;

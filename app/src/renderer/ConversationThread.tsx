@@ -261,7 +261,7 @@ function Link({ href, children }: { href: string | undefined; children?: ReactNo
   if (!url) return <span>{children}</span>;
   return <a href={url} onClick={event => { event.preventDefault(); openLink(url); }}>{children}</a>;
 }
-const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
+const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin, canvas: PanelsTopLeft } as const;
 
 // The link's text is agent output and never names the chip. A chip into the open canvas takes its frame titles while it has a
 // layout; otherwise the titles of the one list row with the link's canvas id, else the id itself.

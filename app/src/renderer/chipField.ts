@@ -2,6 +2,7 @@ import { closeHistory, history, redo, undo } from "prosemirror-history";
 import type { Node as PMNode } from "prosemirror-model";
 import { EditorState, Plugin, TextSelection, type Transaction } from "prosemirror-state";
 import { DecorationSet, EditorView } from "prosemirror-view";
+import { canvasKind } from "../formats/canvasPath";
 import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
@@ -43,12 +44,15 @@ type Press = { kind: "break" } | { kind: "indent"; dir: 1 | -1 };
 
 // lucide Frame, SquareMousePointer and MapPin.
 const SVG = "http://www.w3.org/2000/svg";
-const ICONS: Record<"frame" | "element" | "point", [string, Record<string, string>][]> = {
+// canvas and ds are the sidebar rows' icons (lucide panels-top-left, swatch-book).
+const ICONS: Record<"frame" | "element" | "point" | "canvas" | "ds", [string, Record<string, string>][]> = {
   frame: [["line", { x1: "22", x2: "2", y1: "6", y2: "6" }], ["line", { x1: "22", x2: "2", y1: "18", y2: "18" }], ["line", { x1: "6", x2: "6", y1: "2", y2: "22" }], ["line", { x1: "18", x2: "18", y1: "2", y2: "22" }]],
   element: [["path", { d: "M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z" }], ["path", { d: "M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" }]],
   point: [["path", { d: "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" }], ["circle", { cx: "12", cy: "10", r: "3" }]],
+  canvas: [["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2" }], ["path", { d: "M3 9h18" }], ["path", { d: "M9 21V9" }]],
+  ds: [["path", { d: "M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z" }], ["path", { d: "M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7" }], ["path", { d: "M 7 17h.01" }], ["path", { d: "m11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8" }]],
 };
-const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point" } as const;
+const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point", canvas: "Canvas" } as const;
 
 // The field on each element, so focusFieldEnd, whose host holds only the element, goes through it.
 const fields = new WeakMap<HTMLElement, ChipField>();
@@ -740,7 +744,7 @@ function chipNode(anchor: Anchor): HTMLElement {
   hidden.textContent = `${KIND_PREFIX[kind]} `;
   const icon = document.createElementNS(SVG, "svg");
   for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) icon.setAttribute(name, value);
-  for (const [tag, attributes] of ICONS[kind]) {
+  for (const [tag, attributes] of ICONS[anchor.canvas && canvasKind(anchor.canvas.path) === "ds" ? "ds" : kind]) {
     const shape = document.createElementNS(SVG, tag);
     for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
     icon.append(shape);

@@ -4,10 +4,10 @@ import type { Anchor } from "../main/conversation/types";
 // The composer and main exchange it as {text, anchors}, where each chip is a {{n}} marker.
 export type FieldSegment = { kind: "text"; text: string } | { kind: "chip"; anchor: Anchor };
 
-// Names and excerpts are labels only, so a renamed frame is still the same target.
+// Names, excerpts and canvas paths are labels only, so a renamed frame or a moved canvas is still the same target.
 function targetKey(anchor: Anchor): string {
-  const { frame, element, point } = anchor;
-  return JSON.stringify([frame?.id ?? null, element ? [element.doanId ?? null, element.selector] : null, point ? [point.frameId ?? null, point.dx, point.dy] : null]);
+  const { frame, element, point, canvas } = anchor;
+  return JSON.stringify([frame?.id ?? null, element ? [element.doanId ?? null, element.selector] : null, point ? [point.frameId ?? null, point.dx, point.dy] : null, canvas?.id ?? null]);
 }
 export function sameTarget(a: Anchor, b: Anchor): boolean { return targetKey(a) === targetKey(b); }
 
@@ -164,7 +164,8 @@ const optional = (value: unknown, type: "string" | "number") => value === undefi
 // Every member chipLabel and toMessage read is typed as declared (types.ts).
 function isAnchor(value: unknown): boolean {
   if (!isObject(value)) return false;
-  const { frame, element, point } = value;
+  const { frame, element, point, canvas } = value;
+  if (canvas !== undefined) return frame === undefined && element === undefined && point === undefined && isObject(canvas) && typeof canvas.path === "string" && typeof canvas.id === "string";
   if (frame === undefined && element === undefined && point === undefined) return false;
   if (frame !== undefined && !(isObject(frame) && typeof frame.id === "string" && optional(frame.title, "string"))) return false;
   if (element !== undefined && !(isObject(element) && typeof element.selector === "string" && optional(element.doanId, "string") && optional(element.text, "string") && optional(element.tag, "string"))) return false;
