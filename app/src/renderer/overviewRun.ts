@@ -84,8 +84,8 @@ export class OverviewRun {
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;
 
-  // A list read of the root was started and has not answered yet.
-  listReading(root: string): boolean { return this.host.readsApplied(root) < this.host.readsStarted(root); }
+  // The root's list reads: started so far and the last one that answered.
+  listReads(root: string): { started: number; applied: number } { return { started: this.host.readsStarted(root), applied: this.host.readsApplied(root) }; }
   constructor(private host: OverviewRunHost, calls: StoreCalls) {
     this.store = new ConversationStore({
       list: root => host.list(root), readsStarted: root => host.readsStarted(root), readsApplied: root => host.readsApplied(root),

@@ -74,7 +74,7 @@ import { overlayOpen } from "./canvasTool";
 import { keptColumns, toggleUi, uiHidden, type UiColumns } from "./hideUi";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
-import { listedConversation, listedTitle } from "./canvasCardText";
+import { ListedGrace, listedTitle } from "./canvasCardText";
 import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
 import { bubbleItems } from "./bubbleItems";
 import { BubbleAdd } from "./BubbleAdd";
@@ -2148,6 +2148,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Keyed by the canvas, not the target object: a render that reads the same canvas does not show it again.
   useLayoutEffect(() => { canvasRun.current!.show(panelTargetRef.current); }, [panelKey]);
   useEffect(() => { canvasRun.current!.panel(rightPanel.open && panelKey !== null); }, [rightPanel.open, panelKey]);
+  const listedGrace = useRef(new ListedGrace());
   const panelList = panelTarget ? homeRun.current.listState(panelTarget.root) : "loading";
   const panelCanvasName = panelCanvas ? canvasLabel(panelCanvas.row) : "";
   const panelTitle = canvasConversationTitle(canvasRun.current!, panelList);
@@ -2873,7 +2874,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
-          conversationListed={id => listedConversation(panelList, id, overviewRun.current!.listReading(panelTarget.root))} conversationTitle={id => listedTitle(panelList, id)} work={work} thumbnailHub={thumbnailHub} />}
+          conversationListed={id => listedGrace.current.listed(panelTarget.root, panelList, id, overviewRun.current!.listReads(panelTarget.root))} conversationTitle={id => listedTitle(panelList, id)} work={work} thumbnailHub={thumbnailHub} />}
       </ConversationPanel></>}
     {/* Its own key space: the Overview beside it is keyed by the same root, and siblings sharing a key remount on every render. */}
     {problem && <ProblemOverlay key={`problem\n${loadedRoot}`} view={problem} details={detailsOpen} detail={detailText} pressed={retryPending ? "retry" : pressed && pressed.root === loadedRoot ? pressed.name : null}
