@@ -185,3 +185,7 @@ export type PrototypeResponse = { v: 6; ok: true; played: true } | { v: 6; ok: f
 export type RemoveRequest = { v: 7; token: string; root: string };
 export type RemoveErrorCode = "bad_request" | "bad_token" | "project_not_open" | "busy" | "conversation_running";
 export type RemoveResponse = { v: 7; ok: true; removed: true; project: string; roots: string[] } | { v: 7; ok: false; error: { code: RemoveErrorCode; message: string } };
+
+export type SendRequest = { v: 8; token: string; root: string; handoff: string; path: string; text: string };
+export type SendErrorCode = HandoffErrorCode | "chain_one" | "chain_limit";
+export type SendResponse = { v: 8; ok: true; requested: true } | { v: 8; ok: false; error: { code: SendErrorCode; message: string } };

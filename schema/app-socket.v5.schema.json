@@ -71,9 +71,11 @@
         "plan_mode",
         "handoff_turn",
         "already_requested",
-        "same_canvas"
+        "same_canvas",
+        "chain_one",
+        "chain_limit"
       ],
-      "$comment": "In the app's check order after the schema and token: project_not_open, not_app_conversation, root_mismatch, not_running, not_canvas_conversation, plan_mode, handoff_turn, already_requested, same_canvas."
+      "$comment": "In the app's check order after the schema and token: project_not_open, not_app_conversation, root_mismatch, not_running, plan_mode, already_requested, same_canvas, chain_limit, chain_one. not_canvas_conversation and handoff_turn are no longer sent; an earlier app still sends them. chain_limit and chain_one are newer than the first v5: an earlier CLI refuses a reply carrying them as a schema failure."
     },
     "response": {
       "oneOf": [
