@@ -198,3 +198,45 @@ test("W15 fails every canvas check when the canvas is gone", () => {
   rmSync(join(ctx.repo, canvasPath));
   assert.deepEqual(failures(ctx).filter(id => id !== "doan_check_clean"), ["no_board_click_trigger", "other_frames_unchanged", "prototype_marked"]);
 });
+
+test("W15 tells unfiltered page clicks from target-filtered delegation", () => {
+  // Delegation into the prototype passes; a filter on board elements fails; an undecidable filter is the judge's.
+  for (const [script, expected] of [
+    ["document.addEventListener('click', e => { const t = e.target.closest('[data-doan-prototype] .toggle'); if (t) t.closest('.card').classList.toggle('is-open'); });", []],
+    ["function onClick(e) { if (e.target.matches('[data-doan-prototype] button')) e.target.closest('.card').classList.toggle('is-open'); }\ndocument.addEventListener('click', onClick);", []],
+    ["document.body.addEventListener('click', e => { if (e.target === window.toggleButton) go(); });", []],
+    ["document.addEventListener('click', e => { if (e.target.closest('.primary')) go(); });", ["no_board_click_trigger"]],
+    ["function go() {}\ndocument.addEventListener('click', go);", ["no_board_click_trigger"]],
+    ["document.onclick = () => go();", ["no_board_click_trigger"]],
+  ] as const) assert.deepEqual(withCanvas(addScript(pass, script)), expected, script);
+});
+
+test("W15 keeps the branch a click state belongs to and the parent of nested CSS", () => {
+  for (const [css, expected] of [
+    [":is(.toggle:focus, .primary:hover) { opacity: 0.9; }", []],
+    [":is(.toggle:hover, .primary:focus) { opacity: 0.9; }", ["no_board_click_trigger"]],
+    [":where(.card, .empty) :is(.toggle:active) { opacity: 0.9; }", []],
+    [".primary { color: inherit; &:focus { opacity: 0.5; } }", ["no_board_click_trigger"]],
+    [".toggle { &:focus { opacity: 0.5; } }", []],
+    [".empty { button:focus { opacity: 0.5; } }", ["no_board_click_trigger"]],
+    [".card { & > .toggle:active { opacity: 0.5; } }", []],
+    // A state inside :has() cannot be resolved statically: the judge's.
+    [".empty:has(:checked) p { display: block; }", []],
+  ] as const) assert.deepEqual(withCanvas(addCss(pass, css)), expected, css);
+});
+
+test("W15 ignores registrations in JS comments and string literals", () => {
+  for (const script of [
+    "// document.addEventListener('click', go)",
+    "/* window.onclick = go; */",
+    "const help = \"document.addEventListener('click', go)\";",
+    "const html = '<button onclick=\"go()\">x</button>';",
+    "const doc = `document.querySelector('.primary').onclick = go`;",
+  ]) assert.deepEqual(withCanvas(addScript(pass, script)), [], script);
+});
+
+test("W15 does not count a click state that matches no element as interaction", () => {
+  const still = setup("pass", { [canvasPath]: addCss(addFrame(unmarked, "<p>Expanded state</p>"), ".missing:focus { opacity: 0.8; }") });
+  assert.deepEqual(failures(still), []);
+  assert.equal(finalResult(checks(still), partial), "partial");
+});

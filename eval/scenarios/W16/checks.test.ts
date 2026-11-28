@@ -87,3 +87,10 @@ test("W16 shares W15's receiver, template, @import and frame-text rules", () => 
   assert.deepEqual(withCanvas(imported, { ".doan/assets/motion.css": "@import 'parts/loop.css';\n", ".doan/assets/parts/loop.css": ".details { animation: grow 2s infinite; }\n" }), []);
   assert.deepEqual(withCanvas(pass.replace('<h2 data-doan-id="atlas-name">Atlas redesign</h2>', '<h2 data-doan-id="atlas-name">🚀 Atlas redesign</h2>')), []);
 });
+
+test("W16 reads motion from style attributes of active elements", () => {
+  const hover = onBoard(".details { max-height: 0; overflow: hidden; } .card:hover .details { max-height: 180px; }");
+  assert.deepEqual(withCanvas(hover.replace('<div class="details" data-doan-id="atlas-details">', '<div class="details" data-doan-id="atlas-details" style="transition: max-height .3s">')), []);
+  // Inert template content does not move.
+  assert.deepEqual(withCanvas(hover.replace("</body>", '<template><div style="transition: opacity .3s"></div></template>\n</body>')), ["motion_shown"]);
+});
