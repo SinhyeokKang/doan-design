@@ -239,13 +239,13 @@ export class DraftStore {
   // The person's queued messages back as one draft (those on their way out first, as queued), in one write; false when
   // there are none. Agent rows stay queued, one on its way out waiting again.
   giveBackQueued(id: string, reason: string): boolean {
-    const items = this.file.queued[id] ?? [], mine = personRows(items);
-    if (!mine.length) return false;
-    const kept = agentRows(items).map(({ sending: _sending, ...item }) => item);
+    const items = this.file.queued[id] ?? [], mine = personRows(items), agents = agentRows(items);
+    if (!mine.length && !agents.some(item => item.sending)) return false;
+    const kept = agents.map(({ sending: _sending, ...item }) => item);
     if (kept.length) this.file.queued[id] = kept; else delete this.file.queued[id];
-    this.merge(id, joined(mine), reason);
+    if (mine.length) this.merge(id, joined(mine), reason);
     this.save();
-    return true;
+    return mine.length > 0;
   }
   // Never throws: a draft that cannot be saved is still handed over in this run.
   giveBack(id: string, draft: DraftParts, reason: string): void { this.merge(id, draft, reason); this.save(); }

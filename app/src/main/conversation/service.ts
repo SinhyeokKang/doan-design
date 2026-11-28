@@ -7,14 +7,14 @@ import { storableText, transportError, type ClaudeModeReport } from "./transport
 import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
-import { handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, nextOrigin, originLink, type ConversationHandoffNotice, type HandoffDecision, type HandoffRefusal } from "./handoff";
+import { handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, nextOrigin, originLink, type ConversationHandoffNotice, type HandoffDecision, type HandoffRefusal, type SendCandidate } from "./handoff";
 import { messageLine } from "./messageText";
 import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, SETTLE_MS, settleDeadline } from "./project";
-import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
+import { clampSeen, conversationSummary, type AgentQueueRow, type ConversationSummary } from "./summary";
 import { combineQueued, nextQueued } from "./queue";
 import { sendCanvasAnchors } from "./canvasAnchors";
-import { DraftStore, type ReturnedDraft } from "./drafts";
+import { DraftStore, personRows, type QueuedItem, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
@@ -362,11 +362,11 @@ export class ConversationService {
       if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
-      const chain = handoff ? originLink(handoff.origin).chain : [];
-      const guided = handoffGuidanceFor(metadata, { ...mode(request.permissionMode), step: chain.length }) === "person";
+      const link = handoff ? originLink(handoff.origin) : undefined, chain = link?.chain ?? [];
+      const guidance = handoffGuidanceFor(metadata, { ...mode(request.permissionMode), step: chain.length }), guided = guidance === "person";
       // A command goes out as its own text: the provider runs it only as the whole message.
-      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas) : command ? request.text
-        : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: guided });
+      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas, { via: link!.via, handoff: guidance === "received" }) : command ? request.text
+        : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, ...(guidance ? { handoff: guidance } : {}) });
       if (prompt === null) throw new Error("bad_request");
       const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];
       attached?.sent();
@@ -408,7 +408,9 @@ export class ConversationService {
       throw error;
     });
   }
-  private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments, held?: string): Promise<void> {
+  // agent: an agent's message (a send, or its queued row going out): no hold, no command or review check, its origin in
+  // the history, the received turn's prompt, and its source checked again right before acceptance.
+  private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments, held?: string, agent?: { origin: HandoffOrigin; source?: { turnId: string; path: string } }): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick. The finished turn's
     // process is ended first, or its suggestion or background work would hold the group and a handoff's judgement.
     this.endAfterTurn(id);
@@ -420,9 +422,11 @@ export class ConversationService {
     const runtime = metadata.session.runtime;
     // command: one of the provider's table, which the thread draws; asIs: also an ACP server's unconfirmed one. Either
     // goes out as its own text.
-    const command = commandName(runtime, text), asIsName = command ?? passthroughName(text, this.passthroughOf(id, runtime)), asIs = !!asIsName;
-    checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0, asIs);
-    checkReview(runtime, text, metadata.owner.kind === "doan", this.statedModes.get(id), (extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) ?? "default");
+    const command = agent ? null : commandName(runtime, text), asIsName = agent ? null : command ?? passthroughName(text, this.passthroughOf(id, runtime)), asIs = !!asIsName;
+    if (!agent) {
+      checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0, asIs);
+      checkReview(runtime, text, metadata.owner.kind === "doan", this.statedModes.get(id), (extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) ?? "default");
+    }
     // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
     // new turn on a new entry, and is refused like any first write when the history still takes none.
     const existing = this.live.get(id); if (existing?.busy || (existing?.failedPersistence && !existing.exited)) throw new Error("busy");
@@ -461,8 +465,11 @@ export class ConversationService {
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : extras.attachments ?? [];
       // Home's paragraph only while the conversation has no canvas: one an earlier build promoted works on its canvas.
-      const guided = handoffGuidanceFor(metadata, { ...chosen, step: 0 }) === "person";
-      const prompt = asIs ? text : turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
+      const link = agent ? originLink(agent.origin) : undefined, chain = link?.chain ?? [];
+      const guidance = handoffGuidanceFor(metadata, { ...chosen, step: chain.length }), guided = guidance === "person";
+      const prompt = agent ? handoffPrompt(text, metadata, agent.origin.canvas, { via: link!.via, handoff: guidance === "received" })
+        : asIs ? text : turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, ...(guidance ? { handoff: guidance } : {}) });
+      if (prompt === null) throw new Error("bad_request");
       // The choice is written before the turn's events: a failed append then leaves only a saved choice.
       // An entry without seenSeq has had all of its history seen; from now on its ends count.
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
@@ -470,10 +477,12 @@ export class ConversationService {
       // A picker change stored while this send was prepared is the later pick, so it stays for the next turn.
       const stored = metadata.permissionMode !== admittedMode ? mode(metadata.permissionMode) : mode(chosen.permissionMode);
       const fast = fastOf(extras.fast !== undefined ? extras : metadata);
-      // A conversation a command started is named by its first message that is not one.
-      const title = !asIs && !metadata.title ? messageLine(requestTitleText(text), anchors) : metadata.title;
+      // A conversation a command started is named by its first message that is not one; an agent's message never names it.
+      const title = !asIs && !agent && !metadata.title ? messageLine(requestTitleText(text), anchors) : metadata.title;
       const updated: ConversationMetadata = { ...rest, title, ...choice(chosen), ...fast, ...stored, seenSeq };
-      const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
+      const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}), ...(agent ? { origin: agent.origin } : {}) };
+      // A send cancelled meanwhile (a Stop, a sign-out, a deletion of its source) is not accepted (POSTMORTEM 2026-10-27).
+      if (agent?.source) this.checkHandoffSource(agent.origin.conversationId, agent.source.turnId, agent.source.path);
       attached?.sent();
       if (rebound || title !== metadata.title || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq)
         this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
@@ -484,7 +493,7 @@ export class ConversationService {
       this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command, asIsName);
       this.noteMode(live, runtime, metadata.owner.kind === "doan", command, chosen.permissionMode ?? "default");
       // The previous turn's handoff was resolved before this send went on (handoffWait).
-      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), chain: [], requests: [], guided, edits: new Set(), waiters: [] });
+      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), chain, requests: [], guided, edits: new Set(), waiters: [] });
       this.watchDrawn(id, live.turnId, metadata.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
@@ -591,7 +600,10 @@ export class ConversationService {
   }
   // A `doan handoff` request after the socket's own checks: null when it was taken and written as handoff.requested. The
   // key must be the current runner's, so a previous turn's still-exiting process asks for no turn.
-  requestHandoff(request: { root: string; handoff: string; path: string; text: string }): "not_app_conversation" | HandoffRefusal | null {
+  requestHandoff(request: { root: string; handoff: string; path: string; text: string }): "not_app_conversation" | HandoffRefusal | null { return this.takeRequest(request, "handoff"); }
+  // A `doan send` request, taken and judged as a handoff is.
+  requestSend(request: { root: string; handoff: string; path: string; text: string }): "not_app_conversation" | HandoffRefusal | null { return this.takeRequest(request, "send"); }
+  private takeRequest(request: { root: string; handoff: string; path: string; text: string }, via: HandoffVia): "not_app_conversation" | HandoffRefusal | null {
     const id = this.handoffKeys.get(request.handoff); if (id === undefined) return "not_app_conversation";
     const m = this.store.list().find(e => e.conversationId === id); if (!m) return "not_app_conversation";
     const live = this.live.get(id), turn = this.handoffTurns.get(id);
@@ -601,8 +613,8 @@ export class ConversationService {
       running, step: turn?.chain.length ?? 0, requested: turn?.requests.map(r => r.path) ?? [] });
     if (refused) return refused;
     const text = request.text.trim(); if (!text) throw new Error("bad_request");
-    this.append(id, live!.turnId, { type: "handoff.requested", canvas: { path: request.path }, text, via: "handoff" });
-    turn!.requests.push({ path: request.path, text, via: "handoff", state: "taken" });
+    this.append(id, live!.turnId, { type: "handoff.requested", canvas: { path: request.path }, text, via });
+    turn!.requests.push({ path: request.path, text, via, state: "taken" });
     return null;
   }
   receive(id: string, event: EventPayload): void {
@@ -787,13 +799,15 @@ export class ConversationService {
       const suggestion = this.suggestions.get(m.conversationId)?.text;
       const live = this.live.get(m.conversationId);
       const background = live?.background && !live.busy ? live.background : undefined, stopping = live?.stopping && live.busy;
-      const queued = this.drafts.queued(m.conversationId).length, working = this.working(m.conversationId);
+      // queued counts the person's rows, as the renderer holds them; agent rows come as their own list.
+      const rows = this.drafts.queued(m.conversationId), queued = personRows(rows).length, working = this.working(m.conversationId);
+      const agentQueue = rows.flatMap(item => item.origin ? [agentRow(item, item.origin, !working)] : []);
       const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
       const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
       const stoppingRemoval = !!live && this.removalStopping(m.conversationId, live);
       return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working: working || stoppingRemoval,
         ...((!m.canvas && working || stoppingRemoval) && live?.turnId ? { projectTurnId: live.turnId } : {}), returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}),
-        ...(limit !== null ? { limitResetsAt: new Date(limit).toISOString() } : {}), ...(scheduledAt ? { scheduledAt } : {}) });
+        ...(limit !== null ? { limitResetsAt: new Date(limit).toISOString() } : {}), ...(scheduledAt ? { scheduledAt } : {}), ...(agentQueue.length ? { agentQueue } : {}) });
     });
   }
   // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.
@@ -987,7 +1001,7 @@ export class ConversationService {
     if (!this.drafts.remove(id, itemId)) throw new Error("stale");
     const held = this.forget(id, [itemId]); if (held.length) this.queueOptions.files?.discard?.(held.map(h => h.id));
     // The last scheduled message removed: nothing is left to send at the reset.
-    if (!this.drafts.queued(id).length) this.disarm(id);
+    if (!personRows(this.drafts.queued(id)).length) this.disarm(id);
     this.changed(m.root);
   }
   // Send now: resolves once the agent read the message; until then it stays queued, marked sending. The checks run again
@@ -995,8 +1009,9 @@ export class ConversationService {
   async sendNow(id: string, itemId: string): Promise<void> {
     const m = this.metadata(id), live = this.live.get(id);
     // A command goes out alone in its own turn, never into a running one.
+    // An agent's message goes only as its own turn after a done one.
     const queued = this.drafts.queued(id).find(entry => entry.itemId === itemId);
-    if (queued && this.asIs(id, m.session.runtime, queued.text)) throw new Error("bad_request");
+    if (queued && (queued.origin || this.asIs(id, m.session.runtime, queued.text))) throw new Error("bad_request");
     if (!live || !this.steerable(id, live)) throw new Error("not_running");
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
     // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
@@ -1011,11 +1026,10 @@ export class ConversationService {
       checked = sendCanvasAnchors(item.text, item.anchors, this.canvases(m.root));
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
-      // The prompt a send of this message would carry. A message steered into a handoff's first turn does not lift its limit;
-      // a turn that asked already may still hand off to its other new canvases.
+      // The prompt a send of this message would carry. A message steered into a received turn keeps that turn's step.
       const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
-      const handoff = handoffGuidanceFor(m, { ...mode(m.permissionMode), step: current?.chain.length ?? 0 }) === "person";
-      prompt = turnPrompt(checked.anchors, checked.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
+      const handoff = handoffGuidanceFor(m, { ...mode(m.permissionMode), step: current?.chain.length ?? 0 });
+      prompt = turnPrompt(checked.anchors, checked.text, m, { home: m.fromHome === true && !m.canvas, attachments, ...(handoff ? { handoff } : {}) }); if (prompt === null) throw new Error("bad_request");
     } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
     const turnId = live.turnId, messageId = randomUUID();
     this.markTranscript(live);
@@ -1074,7 +1088,7 @@ export class ConversationService {
   scheduled(id: string): ScheduledItem[] {
     this.metadata(id);
     if (!this.schedules.has(id)) return [];
-    return this.drafts.queued(id).map(item => {
+    return personRows(this.drafts.queued(id)).map(item => {
       const repeat = this.repeats.get(item.itemId);
       return { itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments, ...(repeat ? { turnId: repeat.turnId } : {}) };
     });
@@ -1154,8 +1168,9 @@ export class ConversationService {
     const at = decision === "retry" ? now + SEND_DELAY_MS : reset !== null && reset > now ? sendAt(reset) : null;
     if (at === null) return none;
     const again = decision !== "none" && this.requeue(id, saved.turnId, events);
-    // The messages queued behind the turn wait for the same reset; the turn's own only when it did nothing.
-    if (!this.drafts.queued(id).length) return none;
+    // The messages queued behind the turn wait for the same reset; the turn's own only when it did nothing. An agent's
+    // row waits for a done turn instead.
+    if (!personRows(this.drafts.queued(id)).length) return none;
     this.arm(id, { at, reset: reset!, provider: owner.provider, connectionId: owner.connectionId, retried: decision === "retry" });
     return { armed: true, again };
   }
@@ -1200,7 +1215,7 @@ export class ConversationService {
   private sendDue(id: string, schedule: Schedule): void {
     if (this.schedules.get(id) !== schedule || this.quitting) return;
     const m = this.store.list().find(e => e.conversationId === id);
-    if (!m || !this.drafts.queued(id).length) { this.disarm(id); this.changedOf(id); return; }
+    if (!m || !personRows(this.drafts.queued(id)).length) { this.disarm(id); this.changedOf(id); return; }
     if (this.working(id)) return;
     this.disarm(id);
     this.resent.set(id, { reset: schedule.reset, retried: schedule.retried });
@@ -1208,7 +1223,7 @@ export class ConversationService {
     if (!live) { live = { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops }; this.live.set(id, live); }
     live.provider ??= schedule.provider;
     live.holding = {};
-    this.flush(id, live);
+    this.flush(id, live, true);
   }
   // After any list change: a due schedule tries again, once per tick.
   private wakeDue(): void {
@@ -1312,13 +1327,15 @@ export class ConversationService {
     const turn = this.handoffTurns.get(id); if (turn?.state !== "judging") return;
     const m = this.store.list().find(e => e.conversationId === id);
     if (!m) { this.cancelHandoff(id, turn); return; }
-    let listed: Canvas[] | undefined;
+    let listed: Canvas[] | undefined, conversations: SendCandidate[] | undefined;
     for (const request of turn.requests) {
       if (request.decision) continue;
       let decision: HandoffDecision;
       try {
         listed ??= this.snapshot(m.root);
-        decision = handoffDecision({ done: true, root: m.root, path: request.path, listed, ...(m.canvas ? { source: m.canvas } : {}), settled });
+        if (request.via === "send") conversations ??= this.sendCandidates(m.root);
+        decision = handoffDecision({ done: true, root: m.root, path: request.path, listed, ...(m.canvas ? { source: m.canvas } : {}), settled, via: request.via,
+          ...(conversations ? { conversations } : {}), chain: [...turn.chain, id] });
       } catch (error) { console.error("doan: handoff judgement failed", error); decision = { kind: "refused", reason: "not_listed" }; }
       if (decision.kind !== "wait") request.decision = decision;
     }
@@ -1339,8 +1356,10 @@ export class ConversationService {
   private async startHandoffs(id: string, turn: HandoffTurn, m: ConversationMetadata): Promise<void> {
     for (const request of turn.requests) {
       if (this.handoffTurns.get(id) !== turn || turn.state !== "starting") return;
-      if (request.state !== "starting" || request.decision?.kind !== "start") continue;
-      await this.startHandoff(id, turn, request, m, request.decision.canvas);
+      const decision = request.decision;
+      if (request.state !== "starting" || (decision?.kind !== "start" && decision?.kind !== "send")) continue;
+      if (decision.kind === "send") await this.deliverSend(id, turn, request, m, decision.conversationId, decision.canvas);
+      else await this.startHandoff(id, turn, request, m, decision.canvas);
     }
   }
   // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now, and
@@ -1354,7 +1373,9 @@ export class ConversationService {
       const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode), ...(defaultEffort ? { defaultEffort } : {}) },
         undefined, { origin, handoffText: request.text, turnId: turn.turnId, path: request.path });
-      resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
+      const started = { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target };
+      // A send to a canvas with no conversation it could reach is still a send.
+      resolution = request.via === "send" ? { outcome: "sent", target: started, queued: false } : { outcome: "started", target: started };
     } catch (error) {
       const code = reason(error);
       // A stop of its provider meanwhile is the person's cancel, whatever the start then failed with.
@@ -1363,6 +1384,55 @@ export class ConversationService {
     // A cancel meanwhile resolved it already, and a quit dropped the turn.
     if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
     this.resolveHandoff(id, turn, request, resolution);
+  }
+  // A send to the canvas's latest conversation, judged at the turn's end: it runs on that conversation's own choices,
+  // starts a turn there when it rests and waits in its queue otherwise. A conversation deleted since refuses it.
+  private async deliverSend(id: string, turn: HandoffTurn, request: HandoffRequest, m: ConversationMetadata, target: string, canvas: Canvas): Promise<void> {
+    const origin = nextOrigin({ conversationId: id, ...(turn.source ? { canvas: turn.source } : {}), provider: m.session.runtime }, turn.chain, "send");
+    const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
+    let resolution: HandoffResolution;
+    try {
+      const queued = await this.deliverMessage(target, origin, request.text, { turnId: turn.turnId, path: request.path });
+      resolution = { outcome: "sent", target: { conversationId: target, canvas: this.store.list().find(e => e.conversationId === target)?.canvas ?? canvas }, queued };
+    } catch (error) {
+      const code = reason(error);
+      resolution = code === "handoff_cancelled" || this.stopped({ ...(provider ? { provider } : {}), since }) ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
+    }
+    if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
+    this.resolveHandoff(id, turn, request, resolution);
+  }
+  // An agent's message to an existing conversation: a turn when it rests, else a row at the end of its queue (true). A
+  // conversation whose usage limit holds takes it as a row too, never on a schedule. source: the asking turn and request,
+  // checked again before acceptance; absent for a queued row going out.
+  private async deliverMessage(id: string, origin: HandoffOrigin, text: string, source?: { turnId: string; path: string }): Promise<boolean> {
+    this.metadata(id);
+    if (source) this.checkHandoffSource(origin.conversationId, source.turnId, source.path);
+    if (this.working(id) || this.scheduling(id)) { this.queueAgent(id, origin, text); return true; }
+    try { await this.submit(id, text, [], {}, undefined, undefined, { origin, ...(source ? { source } : {}) }); return false; }
+    catch (error) {
+      // Busy since the judgement (a send that just started, a previous process exiting): it waits in the queue instead.
+      if (reason(error) !== "busy" || this.quitting || !this.store.list().some(e => e.conversationId === id)) throw error;
+      if (source) this.checkHandoffSource(origin.conversationId, source.turnId, source.path);
+      this.queueAgent(id, origin, text); return true;
+    }
+  }
+  private queueAgent(id: string, origin: HandoffOrigin, text: string): void {
+    this.drafts.add(id, { itemId: randomUUID(), text, anchors: [], attachments: [], origin });
+    // As queue() does: a queue added while the conversation's own handoffs wait goes out with their resolution.
+    const live = this.live.get(id), turn = this.handoffTurns.get(id);
+    if (live && !live.busy && !live.holding && !this.judging.has(id) && !!turn && this.handoffPending(turn)) live.holding = {};
+    this.changedOf(id);
+  }
+  // The root's conversations as a send's judgement reads them (handoff.ts latestConversation); only Doan-connected ones'
+  // histories are read.
+  private sendCandidates(root: string): SendCandidate[] {
+    return this.store.list().filter(m => m.root === root).map(m => {
+      const row = { conversationId: m.conversationId, root: m.root, ...(m.canvas ? { canvas: m.canvas } : {}), owner: m.owner.kind,
+        signedIn: m.owner.kind === "doan" && this.connectionOf(m.owner) !== undefined };
+      if (m.owner.kind !== "doan") return { ...row, lastActivityAt: "" };
+      try { return { ...row, lastActivityAt: this.store.readRequired(m.conversationId).at(-1)?.at ?? "" }; }
+      catch { return { ...row, lastActivityAt: "", readError: true as const }; }
+    });
   }
   // The asking turn must still be the conversation's handoff turn: after a cancel, a later turn may ask for the same path,
   // whose request must not lend this start its state; and the conversation must not be deleted (POSTMORTEM 2026-10-27).
@@ -1397,8 +1467,9 @@ export class ConversationService {
     if (outcome === "move" && !this.store.list().some(e => e.conversationId === started[0]!.conversationId)) outcome = "draft";
     const live = this.live.get(id);
     if (outcome === "move") { this.moveQueue(id, started[0]!.conversationId); this.queueAfterEnd(started[0]!.conversationId); }
+    // An agent's row stays here when the person's rows move, and goes out after the done turn as on the source.
     if (live?.holding) {
-      if (outcome === "source") this.flush(id, live);
+      if (outcome === "source" || (outcome === "move" && this.drafts.queued(id).length)) this.flush(id, live);
       else { this.release(id, live, live.holding); if (outcome === "draft") this.giveBack(id, "interrupted"); }
     }
     for (const wake of turn.waiters.splice(0)) wake();
@@ -1483,15 +1554,17 @@ export class ConversationService {
     return held;
   }
   // The queue goes out as one message, its attachments and the send's checks run again; its items stay marked sending in
-  // drafts.json until acceptance, and anything that stops it hands the whole queue back as a draft.
-  private flush(id: string, live: Live): void {
+  // drafts.json until acceptance, and anything that stops it hands the whole queue back as a draft. An agent's row goes
+  // alone as its own message. people: a schedule's send, which sends the person's rows only: an agent's row never waits
+  // for a reset, only for a done turn.
+  private flush(id: string, live: Live, people = false): void {
     // A sign-out of its provider from here on stops it as it stops a run (stopRuns): it comes back as interrupted.
     const hold = live.holding, provider = live.provider, since = this.stops;
     // A command goes out alone: the queue sends the messages before the next command, or that command (queue.ts).
     const runtime = this.store.list().find(e => e.conversationId === id)?.session.runtime;
-    const items = this.drafts.markSending(id, queued => runtime ? nextQueued(queued, item => this.asIs(id, runtime, item.text)) : queued);
+    const items = this.drafts.markSending(id, queued => nextQueued(people ? personRows(queued) : queued, item => !!item.origin || (!!runtime && this.asIs(id, runtime, item.text))));
     const ids = items.flatMap(item => this.queuedExtras.get(item.itemId)?.ids ?? []);
-    const combined = combineQueued(items);
+    const combined = combineQueued(items), agent: QueuedItem | undefined = items[0]?.origin ? items[0] : undefined;
     if (!items.length || !combined.ok) {
       if (items.length) this.giveBack(id, "attachment_limit");
       this.release(id, live, hold); return;
@@ -1510,10 +1583,15 @@ export class ConversationService {
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
         // The Fast stored now, judged for the model the queue goes out on.
         const fastTurn = m.fast === true && m.owner.kind === "doan" && this.queueOptions.fast?.(m.root, m.session.runtime, m.model) === true;
-        // Checked again as it goes out: a canvas may have moved or gone since the messages were queued. A root that is no
-        // list now (reading, a problem) lists none, so every canvas chip then goes out as its name.
-        const checked = sendCanvasAnchors(combined.text, combined.anchors, this.canvases(m.root));
-        await this.submit(id, checked.text, checked.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) }, attached);
+        const choices = { ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) };
+        // An agent's row has no anchors and its text is never read for markers.
+        if (agent?.origin) await this.submit(id, agent.text, [], choices, undefined, undefined, { origin: agent.origin });
+        else {
+          // Checked again as it goes out: a canvas may have moved or gone since the messages were queued. A root that is
+          // no list now (reading, a problem) lists none, so every canvas chip then goes out as its name.
+          const checked = sendCanvasAnchors(combined.text, combined.anchors, this.canvases(m.root));
+          await this.submit(id, checked.text, checked.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...choices }, attached);
+        }
         const sent = items.map(item => item.itemId);
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
@@ -1960,6 +2038,11 @@ function checkReview(provider: Provider, text: string, doan: boolean, stated: Pe
 // The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
 function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
 // A refusal's code for a draft's reason; anything else is unknown.
+// held: nothing will send it until a done turn the person starts (the conversation is not working).
+function agentRow(item: QueuedItem, origin: HandoffOrigin, held: boolean): AgentQueueRow {
+  const { provider } = originLink(origin);
+  return { itemId: item.itemId, ...(provider ? { provider } : {}), source: { conversationId: origin.conversationId, ...(origin.canvas ? { canvas: origin.canvas } : {}) }, line: messageLine(item.text, []), held };
+}
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {
   return { ...(source.model ? { model: source.model } : {}), ...(source.effort ? { effort: source.effort } : {}) };

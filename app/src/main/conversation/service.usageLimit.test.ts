@@ -575,7 +575,7 @@ it("waits while the canvas conversation works when its schedule comes due", asyn
 // no turn and arms no schedule, and goes only after a later done turn there.
 describe("a send to a conversation whose usage limit holds", () => {
   it("queues as a held agent row, schedules nothing, and stays past the reset", async () => {
-    const h = fixture();
+    const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
     const source = await h.start();
     const target = await h.start(".doan/canvases/b.html");
     h.limit(RESET);
@@ -598,7 +598,7 @@ describe("a send to a conversation whose usage limit holds", () => {
     expect(h.drafts.queued(target)).toHaveLength(1);
   });
   it("leaves an agent row queued behind a person's scheduled message, which goes alone at the reset", async () => {
-    const h = fixture();
+    const h = fixture({ listed: [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }] });
     const source = await h.start();
     const target = await h.start(".doan/canvases/b.html");
     h.limit(RESET);
