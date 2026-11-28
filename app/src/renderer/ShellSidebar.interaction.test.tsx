@@ -575,6 +575,76 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
   } finally { vi.unstubAllGlobals(); }
 });
 
+describe("Add to message", () => {
+  const ROW = { path: CANVAS, url: "u", id: "a" };
+  function addFixture(reason: string | null = null, focus: (() => void) | null = vi.fn()) {
+    const chipDrag = { reason: vi.fn(() => reason), judge: vi.fn(() => null), add: vi.fn(() => focus) };
+    const tree = canvasMenuFixture({}, { chipDrag }, ROW);
+    tree.open();
+    const addItem = () => tree.rendered().filter(item => typeof item.onSelect === "function").at(-3)!;
+    const content = () => tree.rendered().find(item => typeof item.onCloseAutoFocus === "function" && String(item.className).includes("shell-canvas-menu"))!;
+    // Focus sits in the menu when it closes, with no dialog open.
+    const close = () => {
+      const inMenu = Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), { closest: (selector: string) => selector.includes(".shell-canvas-menu") ? {} : null });
+      vi.stubGlobal("document", { activeElement: inMenu, body: {}, querySelector: () => null });
+      const event = { preventDefault: vi.fn() };
+      (content().onCloseAutoFocus as (event: unknown) => void)(event);
+      return event.preventDefault;
+    };
+    (tree.canvasRow().ref as (node: unknown) => void)({ contains: () => false });
+    return { tree, chipDrag, addItem, close };
+  }
+  beforeEach(() => { vi.stubGlobal("HTMLElement", class {}); });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the menu's first item, above Export… and Move to Trash", () => {
+    const { tree, addItem } = addFixture();
+    expect(text(addItem())).toEqual(["Add to message"]);
+    expect(tree.items().map(text)).toEqual([["Export…"], ["Move to Trash"]]);
+    expect(addItem()["aria-disabled"]).toBeUndefined();
+  });
+
+  it("adds the row as the list holds it now, and focus goes to the composer once the menu has closed, not back to the button", () => {
+    const focus = vi.fn();
+    const { chipDrag, addItem, close } = addFixture(null, focus);
+    (addItem().onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(chipDrag.add).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS, id: "a" }));
+    // Radix's modal menu takes back focus moved while it is open, so the composer gets it on close.
+    expect(focus).not.toHaveBeenCalled();
+    expect(close()).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
+    // The next close (Escape) goes back to the trigger as before.
+    expect(close()).not.toHaveBeenCalled();
+    expect(focus).toHaveBeenCalledOnce();
+  });
+
+  it("Escape without a choice returns focus to the row's button", () => {
+    const { chipDrag, close } = addFixture();
+    expect(close()).not.toHaveBeenCalled();
+    expect(chipDrag.add).not.toHaveBeenCalled();
+  });
+
+  it("an add App refuses at the press leaves the close as Escape's", () => {
+    const { addItem, close } = addFixture(null, null);
+    (addItem().onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(close()).not.toHaveBeenCalled();
+  });
+
+  it("unavailable: stays reachable by arrows, its reason under the label and as its description, and adds nothing", () => {
+    const reason = "Only canvases in demo can go in this message.";
+    const { tree, chipDrag, addItem } = addFixture(reason);
+    const item = addItem();
+    expect(chipDrag.reason).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }));
+    expect(item).toMatchObject({ "aria-disabled": true, "aria-label": "Add to message", className: "doan-menu-item shell-menu-reasoned" });
+    expect(item.disabled).toBeUndefined();
+    expect(tree.rendered().find(element => element.id === item["aria-describedby"])).toMatchObject({ className: "shell-menu-reason", children: reason });
+    const event = { preventDefault: vi.fn() };
+    (item.onSelect as (event: unknown) => void)(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(chipDrag.add).not.toHaveBeenCalled();
+  });
+});
+
 // PRODUCT §5 item 2 'Canvas header': on the canvas page an open row menu keeps every printable key, while a row that
 // only has focus leaves V and H to the canvas tools.
 it("V, H and Space pressed in an open row menu never switch the canvas tool; a focused row with no menu open keeps them", () => {

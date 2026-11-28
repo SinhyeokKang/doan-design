@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { WorkItem } from "../main/workState";
@@ -73,6 +73,7 @@ vi.mock("./thumbnails", () => ({ useThumbnailHub: () => null, useThumbnails: () 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { CanvasTrashDialog } = await import("./CanvasTrashDialog");
+const { registerChipComposer } = await import("./canvasChipDrag");
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
@@ -435,4 +436,68 @@ test("focus that fell to the page while the save panel was open goes back to Exp
   (document as { activeElement: unknown }).activeElement = { name: "the frame drawer" };
   exporter().onExport(button(focused)); await flush(); render();
   expect(focused).toEqual([]);
+});
+
+// The row menu's Add to message: the chip goes to the current screen's composer (canvas panel, Overview) at its caret;
+// App hands back the composer's focus for the menu to run once it has closed.
+describe("Add to message", () => {
+  const anchor = { canvas: { path: B, id: "b" } };
+  const added = () => ({ ...row(B), id: "b" });
+  const chipAdd = () => (sidebar() as unknown as { chipDrag: { add(root: string, row: CanvasRow): (() => void) | null } }).chipDrag.add;
+  const composer = (root = "/w/a", refuse: string | null = null, result: "inserted" | "limit" = "inserted") =>
+    ({ root, canTake: vi.fn(() => refuse), insert: vi.fn(() => result), focus: vi.fn() });
+  let offs: (() => void)[] = [];
+  const register = (place: "canvas" | "overview", made: ReturnType<typeof composer>) => { offs.push(registerChipComposer(place, made)); render(); return made; };
+  afterEach(() => { for (const off of offs) off(); offs = []; });
+
+  test("on a canvas page the canvas panel's composer takes the chip at its caret, and its focus is handed back", async () => {
+    await start(); show(row());
+    const overview = register("overview", composer());
+    const panel = register("canvas", composer());
+    const focus = chipAdd()("/w/a", added());
+    expect(panel.insert).toHaveBeenCalledWith(anchor);
+    expect(overview.insert).not.toHaveBeenCalled();
+    expect(panel.focus).not.toHaveBeenCalled();
+    focus!();
+    expect(panel.focus).toHaveBeenCalledOnce();
+  });
+
+  test("a folded canvas panel unfolds for the chip", async () => {
+    await start({ ...workspace, rightPanel: { open: false } }); show(row());
+    const conv = () => all(tree).find(element => "data-conv" in element.props)!.props["data-conv"];
+    expect(conv()).toBe("collapsed");
+    const panel = register("canvas", composer());
+    const focus = chipAdd()("/w/a", added()); render();
+    expect(panel.insert).toHaveBeenCalledWith(anchor);
+    expect(conv()).toBeUndefined();
+    focus!();
+    expect(panel.focus).toHaveBeenCalledOnce();
+  });
+
+  test("on the Overview the Overview's composer takes the chip", async () => {
+    await start({ screen: "workspace", root: "/w/a", expanded: {}, lastByRoot: {} });
+    const panel = register("canvas", composer());
+    const overview = register("overview", composer());
+    expect(chipAdd()("/w/a", added())).not.toBeNull();
+    expect(overview.insert).toHaveBeenCalledWith(anchor);
+    expect(panel.insert).not.toHaveBeenCalled();
+  });
+
+  test("a full composer still gets focus, where its own limit line shows", async () => {
+    await start(); show(row());
+    const panel = register("canvas", composer("/w/a", null, "limit"));
+    chipAdd()("/w/a", added())!();
+    expect(panel.focus).toHaveBeenCalledOnce();
+  });
+
+  test("a composer that refuses, one of another root, or none at all takes nothing and no focus", async () => {
+    await start(); show(row());
+    expect(chipAdd()("/w/a", added())).toBeNull();
+    const refusing = register("canvas", composer("/w/a", "Finish typing first."));
+    expect(chipAdd()("/w/a", added())).toBeNull();
+    expect(refusing.insert).not.toHaveBeenCalled();
+    const other = register("canvas", composer("/w/other"));
+    expect(chipAdd()("/w/a", added())).toBeNull();
+    expect(other.insert).not.toHaveBeenCalled();
+  });
 });

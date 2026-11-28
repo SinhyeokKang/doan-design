@@ -1571,6 +1571,10 @@ describe("a canvas row dragged onto the composer", () => {
     expect(registered?.insert(ANCHOR)).toBe("inserted");
     expect(field.insertChip).toHaveBeenCalledWith(ANCHOR);
     expect(field.focus).toHaveBeenCalled();
+    // The row menu focuses it again once the menu has closed.
+    field.focus.mockClear();
+    registered?.focus();
+    expect(field.focus).toHaveBeenCalledOnce();
     for (const cleanup of cleanups) cleanup();
     cleanups = [];
     expect(chipComposer("canvas")).toBeNull();
