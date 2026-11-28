@@ -156,6 +156,12 @@ export function parseRevealRequest(kind: unknown, value: unknown): RevealPayload
       const request = record(value, ["kind", "conversationId", "anchor"]);
       return request !== null && validAuthId(request.conversationId) && validAnchor(request.anchor) ? { kind: "chip", conversationId: request.conversationId, anchor: request.anchor } : null;
     }
+    // No conversation: the main window matches the id against the playing root's own list only.
+    case "canvas": {
+      const request = record(value, ["kind", "canvas"]);
+      const anchor = request === null ? null : { canvas: request.canvas };
+      return anchor !== null && validAnchor(anchor) && anchor.canvas ? { kind: "canvas", canvas: anchor.canvas } : null;
+    }
     case "reply": {
       const request = record(value, ["kind", "conversationId", "link"]);
       const link = request === null ? null : replyLink(request.link);

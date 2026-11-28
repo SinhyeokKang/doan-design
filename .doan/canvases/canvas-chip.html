@@ -163,7 +163,7 @@ button.anchor-chip{cursor:pointer}
 .drag-image.b{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--size-control-sm);padding:0 var(--space-3);border-radius:var(--radius-pill);background:var(--surface-popover);box-shadow:var(--shadow-floating);color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
 .drag-image.b svg{width:var(--size-icon);height:var(--size-icon);color:var(--text-subtle)}
 /* Drop place A: a caret-sized accent bar where the chip will go. B: a dashed ghost chip there. */
-.drop-caret{display:inline-block;width:var(--space-half);height:var(--type-label-line-height);margin:0 var(--space-half);border-radius:var(--radius-pill);background:var(--text-accent);vertical-align:bottom}
+.drop-caret{display:inline-block;width:var(--space-half);height:var(--type-label-line-height);margin:0 calc(var(--space-half) / -2);border-radius:var(--radius-pill);background:var(--text-accent);vertical-align:bottom}
 .drop-ghost{display:inline-flex;align-items:center;gap:var(--space-1);margin:0 var(--space-half);padding:0 var(--space-1h);border-radius:var(--radius-word);box-shadow:inset 0 0 0 1px var(--text-accent);color:var(--text-accent-subtle);font-weight:var(--type-weight-medium);vertical-align:bottom;white-space:nowrap}
 .drop-ghost svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
 /* A composer that refuses the drag. A: a neutral dashed edge on the card and the reason in the composer's reason
@@ -383,7 +383,7 @@ button.anchor-chip{cursor:pointer}
 <div style="display:flex;gap:var(--space-3);align-items:flex-start">
 <span class="doan-tooltip" role="tooltip" data-doan-id="tip-open-a">Open checkout-flow<span class="tip-path">.doan/canvases/checkout-flow.html</span></span>
 <span class="doan-tooltip" role="tooltip" data-doan-id="tip-open-b">Open checkout-flow</span></div>
-<p class="note">A also covers the composer chip, whose tooltip the feature says is the path and which leaves the conversation the same way. On the open canvas’s own chip the first line is left out (nothing is left): the tooltip is the path alone.</p>
+<p class="note">A also covers the composer chip, whose tooltip the feature says is the path and which leaves the conversation the same way. On the open canvas’s own chip in the main window the first line is left out (nothing is left): the tooltip is the path alone.</p>
 <span class="doan-tooltip" role="tooltip" data-doan-id="tip-current">.doan/canvases/cart.html</span></div>
 
 <div class="tile"><p class="tile-label"><b>Canvas gone</b> · pressed after <code>checkout-flow</code> was deleted: the message’s note, as a sent frame chip’s “No longer in the canvas”.</p>
@@ -403,7 +403,7 @@ button.anchor-chip{cursor:pointer}
 <div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-duplicate"><span class="msg">Couldn’t open checkout-flow. More than one canvas in doan-web uses this ID. Run doan check in a terminal to find them.</span></div>
 <div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-reading"><span class="msg">doan-web is still being read. Try again shortly.</span></div>
 <div class="toast doan-floating doan-toast toast-tile" role="status" data-doan-id="toast-problem"><span class="msg">doan-web isn’t available. Fix it from its menu in the sidebar.</span></div>
-<p class="note">From the prototype window the press brings the main window forward and opens the canvas there (not drawn).</p></div>
+<p class="note">From the prototype window the press brings the main window forward and opens the canvas there (not drawn). There the playing canvas’s chip also shows “Open &lt;name&gt;” and the path, since the press moves the main window. A gone canvas pressed there brings the main window forward with the toast “Couldn’t open &lt;name&gt;. The canvas isn’t in &lt;project&gt;.”</p></div>
 </div>
 
 <div class="tiles">
@@ -452,7 +452,7 @@ button.anchor-chip{cursor:pointer}
 <div class="composer-tray"><span class="tray-branch"><svg><use href="#i-branch"/></svg>main</span><span class="tray-path">~/code/checkout-app</span></div></div>
 <div class="composer-reason" role="status" data-doan-id="home-switched-status"><span>2 canvas chips became plain text. Their canvases are in another project.</span></div>
 </div></div>
-<p class="note">One chip: “1 canvas chip became plain text. Its canvas is in another project.” A worktree switch: “… Their canvases are on another worktree.” Edit on Home with a message from another root shows the same line once the draft lands.</p></div>
+<p class="note">One chip: “1 canvas chip became plain text. Its canvas is in another project.” A worktree switch: “… Their canvases are on another worktree.” Edit on Home moves Home to the message’s root, so its chips stay; they become names with this line only when that root is no longer listed.</p></div>
 </div>
 </section>
 
@@ -471,13 +471,18 @@ button.anchor-chip{cursor:pointer}
 <tr><td>Reason · root reading / problem</td><td>&lt;project&gt; is still being read. · &lt;project&gt; isn’t available. Fix it from its menu in the sidebar.</td><td>Shipped (problemView.ts)</td></tr>
 <tr><td>Reason · composer takes no input</td><td>The composer’s own sentence, e.g. This canvas isn’t listed in &lt;project&gt;, so its conversation can’t continue.</td><td>Shipped; fixed by the feature to reuse pick’s and the size bubble’s</td></tr>
 <tr><td>Reason · 32 places</td><td>A message can point at up to 32 places. Remove one to add another.</td><td>Shipped (ANCHOR_LIMIT_TEXT)</td></tr>
-<tr><td>Reason · screen without a composer</td><td>Open Home, the Overview or a canvas to add this to a message.</td><td>New</td></tr>
+<tr><td>Reason · screen without a composer</td><td>Open Home, the Overview or a canvas to add this to a message.</td><td>New. The prototype window’s composer reuses it (no sidebar there)</td></tr>
+<tr><td>Reason · pick in progress</td><td>Finish or cancel the pick first.</td><td>New</td></tr>
+<tr><td>Reason · IME composition</td><td>Finish typing first.</td><td>New</td></tr>
+<tr><td>Reason · the composer is sending</td><td>Wait for the message to send.</td><td>New</td></tr>
+<tr><td>Where a menu reason shows</td><td>Under the item’s label and as its description; no tooltip</td><td>As the shipped Export… and Move to Trash</td></tr>
 <tr><td>Drag refusal line</td><td>The same reason as the menu, word for word</td><td>Fixed by the feature</td></tr>
 <tr><td>Composer chip, hidden prefix</td><td>Canvas</td><td>Fixed by the feature (as Frame, Element, Point)</td></tr>
-<tr><td>Chip tooltip</td><td>Open &lt;name&gt; ⏎ &lt;repository-relative path&gt; · the path alone on the open canvas’s chip</td><td>New (candidate A). Path fixed by the feature; “Open &lt;name&gt;” fixed for the sent chip</td></tr>
+<tr><td>Chip tooltip</td><td>Open &lt;name&gt; ⏎ &lt;repository-relative path&gt; · the path alone on the open canvas’s chip in the main window</td><td>New (candidate A). Path fixed by the feature; “Open &lt;name&gt;” fixed for the sent chip</td></tr>
 <tr><td>Sent chip button name</td><td>Open &lt;name&gt;</td><td>Fixed by the feature</td></tr>
 <tr><td>Announcement after a drop or Add to message</td><td>Added &lt;name&gt;</td><td>Shipped (ChipField)</td></tr>
 <tr><td>Canvas gone, after a press</td><td>No longer in &lt;project&gt;</td><td>Fixed by the feature</td></tr>
+<tr><td>Canvas gone, pressed in the prototype window</td><td>Couldn’t open &lt;name&gt;. The canvas isn’t in &lt;project&gt;.</td><td>Main window toast, as the prototype window’s reply and frame chips (shipped replyChipRefusal)</td></tr>
 <tr><td>Toasts · shared id / reading / problem</td><td>Couldn’t open &lt;name&gt;. More than one canvas in &lt;project&gt; uses this ID. Run doan check in a terminal to find them. · &lt;project&gt; is still being read. Try again shortly. · &lt;project&gt; isn’t available. Fix it from its menu in the sidebar.</td><td>Shipped (replyChipRefusal, unavailableCanvasMessage)</td></tr>
 <tr><td>Home · root switched</td><td>2 canvas chips became plain text. Their canvases are in another project. · 1 canvas chip became plain text. Its canvas is in another project. · … on another worktree.</td><td>New; the feature gives the first clause as its example</td></tr>
 </tbody></table></div>

@@ -68,3 +68,22 @@ describe("replyChipTarget", () => {
     expect(replyChipTarget(link("drafts"), { root: ROOT, openCanvasId: null, entry })).toBe("missing");
   });
 });
+
+// A canvas chip presses through the same rule with its anchor's id; its path is only a label.
+describe("replyChipTarget for a canvas chip", () => {
+  const press = (id: string, openCanvasId: string | null, entry: FolderEntry | undefined) => replyChipTarget({ canvas: id }, { root: ROOT, openCanvasId, entry });
+  const twin = row(".doan/canvases/drafts-copy.html", "drafts");
+
+  it("locates the open canvas, opens another, and names a missing one", () => {
+    expect(press("drafts", "drafts", list(ROOT, [drafts, checkout]))).toBe("locate");
+    expect(press("checkout", "drafts", list(ROOT, [drafts, checkout]))).toEqual({ open: checkout });
+    expect(press("checkout", null, list(ROOT, [drafts, checkout]))).toEqual({ open: checkout });
+    expect(press("gone", "drafts", list(ROOT, [drafts, checkout]))).toBe("missing");
+  });
+
+  it("refuses a shared id and a list that is being read or has a problem", () => {
+    expect(press("drafts", "checkout", list(ROOT, [drafts, checkout, twin]))).toBe("duplicate");
+    expect(press("checkout", "drafts", { path: ROOT, kind: "loading" })).toBe("unavailable");
+    expect(press("checkout", null, { path: ROOT, kind: "error", message: "bad", config: `${ROOT}/.doan/config.json` })).toBe("unavailable");
+  });
+});

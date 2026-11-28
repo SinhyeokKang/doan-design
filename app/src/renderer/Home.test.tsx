@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { Home } from "./Home";
+import { textSegments } from "./anchorField";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
@@ -96,7 +97,7 @@ test("Home's suggested prompts are the shared suggestion button", () => {
 });
 
 test("with no project the picker is Add Projects…, the tray and suggestions are gone and Send explains why", () => {
-  const html = render([], { text: "Draw a pricing page." });
+  const html = render([], { segments: textSegments("Draw a pricing page.") });
   expect(html).toContain('<button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger"><svg');
   expect(html).toContain("<span>Add Projects…</span>");
   expect(html).not.toContain("composer-tray");
@@ -105,7 +106,7 @@ test("with no project the picker is Add Projects…, the tray and suggestions ar
 });
 
 test("with no ready agent the picker says so, Send is disabled and no suggestion shows", () => {
-  const html = render([project("/code/doan-design")], { text: "Draw a pricing page.", auth: { revision: 1, providers: [] } });
+  const html = render([project("/code/doan-design")], { segments: textSegments("Draw a pricing page."), auth: { revision: 1, providers: [] } });
   expect(html).toContain('<span class="muted">No agent ready</span>');
   expect(html).not.toContain("composer-reason");
   // Unavailable but focusable, the reason in its tooltip and description rather than a native title.
@@ -117,7 +118,7 @@ test("with no ready agent the picker says so, Send is disabled and no suggestion
 
 test("a preset chip and attachments sit above the request; Send is enabled; the chip carries the preset's group icon", () => {
   const html = render([project("/code/doan-design")], {
-    text: "Turn the onboarding screens into a documented design system.", preset: PRESETS[2]!,
+    segments: textSegments("Turn the onboarding screens into a documented design system."), preset: PRESETS[2]!,
     attachments: [{ key: "a", id: "1", name: "brand-guidelines.pdf", kind: "file", pasted: false, status: "ready", size: 1258291, path: "/Users/ada/Desktop/brand-guidelines.pdf" }],
   });
   expect(html).toContain('<span class="attach-text"><b>brand-guidelines.pdf</b><small>PDF · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove brand-guidelines.pdf" data-state="closed" data-slot="tooltip-trigger">');
@@ -131,7 +132,7 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, then suggestions", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
-  const html = render(worktrees, { preset: PRESETS[3]!, text: "" });
+  const html = render(worktrees, { preset: PRESETS[3]!, segments: textSegments("") });
   // The sidebar also has a worktree selector. This order is the Home composer's.
   const stage = html.slice(html.indexOf('class="home-stage"'));
   const order = [...stage.matchAll(/<(button|div class="composer-input doan-scroll")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
@@ -144,9 +145,9 @@ test("Tab order is project, chip ×, field, toolbar, Send, worktree, then sugges
 });
 
 test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {
-  const near = render([project("/code/doan-design")], { text: "x".repeat(30000) });
+  const near = render([project("/code/doan-design")], { segments: textSegments("x".repeat(30000)) });
   expect(near).toContain('<div class="composer-count" aria-live="polite">2,768 characters left</div>');
-  const over = render([project("/code/doan-design")], { text: "x".repeat(33000) });
+  const over = render([project("/code/doan-design")], { segments: textSegments("x".repeat(33000)) });
   expect(over).toContain('<div class="composer-count over" aria-live="polite">232 characters over the limit</div>');
   expect(over).toContain("<span>Shorten the message to send it.</span>");
 });
@@ -192,7 +193,8 @@ test("Home CSS: the body panel has the white fill and container corners and no e
 test("Home CSS: the focused composer uses the field-focus border with shadow-sm; disabled Attach and Presets take the disabled ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }");
-  expect(css).not.toMatch(/\.composer-card[^{]*\{[^}]*--border-prominent/);
+  // Only a canvas row drag the composer refuses draws its card's edge in the prominent border, dashed.
+  expect(css.match(/[^{}]*\.composer-card[^{]*\{[^}]*--border-prominent[^}]*\}/g)?.map(rule => rule.trim().split("\n").at(-1))).toEqual([".docked[data-chip-refused] .composer-card, .home-composer .composer[data-chip-refused] .composer-card { outline: 1px dashed var(--border-prominent); outline-offset: -1px; }"]);
   // After the standard-ink rule, so the disabled ink wins at the same specificity.
   const standard = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }");
   const disabled = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }");
@@ -205,7 +207,7 @@ test("Home CSS: the focused composer uses the field-focus border with shadow-sm;
 test("typing keeps the suggestions' place, out of the accessibility tree and the focus order", () => {
   const empty = render([project("/code/doan-design")]);
   expect(empty).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
-  const typed = render([project("/code/doan-design")], { text: "Draw a pricing page." });
+  const typed = render([project("/code/doan-design")], { segments: textSegments("Draw a pricing page.") });
   expect(typed).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
   expect(typed.match(/class="suggestion"/g)).toHaveLength(3);
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
@@ -219,7 +221,7 @@ test("the credit line ends the stage, after the suggestions, or after the compos
   const html = render([project("/code/doan-design")]);
   expect(html).toMatch(ending);
   expect(html.indexOf('class="home-suggestions"')).toBeLessThan(html.indexOf('class="home-credit"'));
-  const none = render([], { text: "Draw a pricing page." });
+  const none = render([], { segments: textSegments("Draw a pricing page.") });
   expect(none).not.toContain("home-suggestions");
   expect(none).toMatch(ending);
   expect(none.match(/class="home-credit"/g)).toHaveLength(1);

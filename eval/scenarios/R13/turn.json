@@ -1,0 +1,6 @@
+{
+  "text": "Draw a new canvas, `checkout`, for the step after someone chooses Team on {{1}}: the same header, footer and card style as {{1}}, with one order summary card for the Team plan at its price and a Pay button. Leave {{1}} as it is.",
+  "anchors": [
+    { "canvas": { "path": ".doan/canvases/plans.html", "id": "plans" } }
+  ]
+}

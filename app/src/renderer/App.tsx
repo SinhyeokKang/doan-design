@@ -19,6 +19,8 @@ import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
 import type { AttachmentResult } from "../main/attachments";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
+import { canvasChipTarget, type CanvasChipComposer, type CanvasChipScreen } from "./canvasChip";
+import { canvasDragging, chipComposer, onCanvasChips } from "./canvasChipDrag";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView, type TrashMove } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
@@ -1829,6 +1831,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
   }
+  // A canvas chip, sent or in a composer of `root`: the canvas on screen fits with no visit, another opens as a link does
+  // (decideOpen). "missing" is the chip's own note; a shared id or an unusable list is a toast.
+  function canvasChip(root: string, canvas: NonNullable<Anchor["canvas"]>): Promise<"missing" | null> {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    const onScreen = canvasOnScreenRef.current;
+    const target = replyChipTarget({ canvas: canvas.id }, { root, openCanvasId: onScreen?.root === root ? onScreen.id : null, entry });
+    // Limit: while the open canvas is in a problem state (no frame) the Fit does nothing and the press ends silently.
+    if (target === "locate") { controller.current?.command("fit"); return Promise.resolve(null); }
+    if (target === "missing") return Promise.resolve("missing");
+    if (typeof target === "string") { live.current.toast.show(replyChipRefusal(target, canvasStem(canvas.path), live.current.projectLabel(root), entry)); return Promise.resolve(null); }
+    const decision = decideOpen({ root, canvas: target.open.path }, openPage());
+    if (decision.kind === "busy") return Promise.resolve(null);
+    cancelRestore();
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path, live.current.projectLabel(root)));
+    if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return Promise.resolve(null); }
+    controller.current?.openCanvas(root, decision.row, undefined, { unavailable, opened: () => completeNavigation(root) });
+    return Promise.resolve(null);
+  }
   // A chip, Sign in or an Open pressed in the prototype window: main checked it and brought this window forward. It
   // acts as this window's own chip or button would; a dialog, a locked page or first run stays as it is, with a toast.
   function prototypeReveal(request: PrototypeReveal) {
@@ -1849,6 +1869,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       }
       case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path, live.current.projectLabel(step.root))); return;
       case "reply": void replyChip(step.root, step.link).then(missing); return;
+      // No note in this window: a gone canvas says so as the reply chip's toast does.
+      case "canvas": void canvasChip(step.root, step.canvas).then(outcome => {
+        if (outcome === "missing") live.current.toast.show(replyChipRefusal("missing", revealName(request, entriesRef.current), live.current.projectLabel(step.root), undefined));
+      }); return;
       case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
         if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "card" });
@@ -2073,6 +2097,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The polite live region's text: the heading, when a scene shows or comes back from a read without taking focus.
   // Alternating a trailing no-break space makes the same heading read again.
   const [announcement, setAnnouncement] = useState<{ text: string; seq: number } | null>(null);
+  // A sidebar drag and a composer coming or going change which rows drag and whether the board is shielded.
+  const [, setChipsChanged] = useState(0);
+  useEffect(() => onCanvasChips(() => setChipsChanged(n => n + 1)), []);
   const announce = (text: string) => setAnnouncement(previous => ({ text, seq: (previous?.seq ?? 0) + 1 }));
   // The scene takes focus to its heading when the person arrived at it or focus was in what it covers, on the page, or
   // in the overlay; otherwise the live region reads it (PRODUCT §5 item 3 'Problem states').
@@ -2733,9 +2760,21 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
+  // The screen's composer and a canvas row are judged as the row menu judges them: a row it could not add does not drag.
+  const chipScreen: CanvasChipScreen = screen === "home" ? "home" : screen !== "workspace" ? "noComposer" : overview ? "overview" : state.open ? "canvas" : "noComposer";
+  const chipTarget = (root: string, row: CanvasRow, composer: CanvasChipComposer | null = chipScreen === "noComposer" ? null : chipComposer(chipScreen)) => canvasChipTarget({ root, canvas: row, entries }, chipScreen, composer);
+  // The row menu's Add to message, judged again at the press; a folded canvas panel keeps its composer and unfolds.
+  const addCanvasChip = (root: string, row: CanvasRow): (() => void) | null => {
+    const composer = chipScreen === "noComposer" ? null : chipComposer(chipScreen);
+    if (!composer || !row.id || chipTarget(root, row, composer) !== null) return null;
+    composer.insert({ canvas: { path: row.path, id: row.id } });
+    if (chipScreen === "canvas" && !rightPanelRef.current.open) foldPanel(true, "content");
+    return () => composer.focus();
+  };
   const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={removeProject}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
+    chipDrag={{ reason: (root, row) => chipTarget(root, row), judge: chipTarget, add: addCanvasChip }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} lockReason={lockReason} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }}
     conversations={{ list: root => run.listState(root), shown: canvasRun.current!.showing()?.conversationId ?? null, seen: run.seenPending(), now: clock, folded: conversationsFolded,
@@ -2767,7 +2806,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if ("ok" in outcome && outcome.conversationId) overviewRun.current?.store.markSent(outcome.conversationId, request.text, 0);
       return outcome;
     })} addProjects={openAddProjects}
-    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} buddy={buddySelection.shown} />}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} onCanvasChip={canvasChip} buddy={buddySelection.shown} />}
   {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} buddy={buddySelection}
     mcp={{ watch: mcpWatch.current, openAgents: provider => openSettings({ section: "agents", provider }) }} announcement={settingsAnnouncement} />}
@@ -2791,7 +2830,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling }}
-      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
+      shield={screen === "workspace" && canvasDragging()} picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
     {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton}
       items={bubbleItems({ play: false, inspectorOpen: inspectorPanel.open, inspectorFits: canvasPanels.inspectorFits })}
       inspectButton={bubbleInspectButton} focused={node => { inspectorShowFocused.current = node; }} onEscape={event => controller.current?.toolbarEscape(event)} />}
@@ -2801,7 +2840,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       list={run.listState(overview.path)} seen={run.seenPending()} composerLink={overviewComposerLink}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "card" })}
-      onReplyChip={link => replyChip(overview.path, link)} thumbnailHub={thumbnailHub}
+      onReplyChip={link => replyChip(overview.path, link)} onCanvasChip={canvas => canvasChip(overview.path, canvas)} thumbnailHub={thumbnailHub}
       onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -2823,7 +2862,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => { panelArrived.current = seq; setArrival(current => current?.seq === seq ? null : current); }}
-          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
+          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onCanvasChip={canvas => canvasChip(panelTarget.root, canvas)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} capturing={state.capturing} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenHandoff={(canvas, id) => openConversationCanvas(panelTarget.root, canvas, id, { kind: "card" })}
           onOpenOverview={id => openOverviewConversation(panelTarget.root, id)}
@@ -2922,11 +2961,13 @@ export function CanvasLoading() {
 // The window draws one canvas pane, so the failure line's id is fixed.
 const CANVAS_FAILED_ID = "doan-canvas-failed";
 
-function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
+function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, inspector, agent, shield, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   navigation: CanvasHeaderNavigation | null; viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; inspector: { open: boolean; fits: boolean; show(): void; focused(node: Element): void }; agent: AgentProps;
+  // A sidebar canvas row is dragged: the board takes no drop, and the canvas never sees the drag.
+  shield: boolean;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -2943,6 +2984,7 @@ function CanvasPane({ navigation, viewport, board, overlay, dragLayer, state, vi
     <div className="overlay" ref={overlay} />
     {/* The controller shows it for Hand and a held Space; React never changes it. */}
     <div className="drag-layer" ref={dragLayer} hidden />
+    <div className="board-shield" hidden={!shield} />
     {/* The agent notice comes first, the canvas notices stack under it. */}
     <CanvasAgent {...agent}>
       {state.error && !overlaid && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text selectable">{state.error}</span></div>}

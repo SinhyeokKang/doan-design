@@ -1,4 +1,4 @@
-import { frameTitle } from "../../renderer/canvasTree";
+import { canvasStem, frameTitle } from "../../renderer/canvasTree";
 import type { Anchor } from "./types";
 
 // Shared by main and the renderer: this module must import nothing but types and pure helpers, because a renderer value
@@ -32,7 +32,7 @@ export function splitMarkers(text: string, count: number): MessagePart[] {
 }
 
 export interface FrameName { id: string; title?: string }
-export interface ChipLabel { kind: "frame" | "element" | "point"; label: string; title: string }
+export interface ChipLabel { kind: "frame" | "element" | "point" | "canvas"; label: string; title: string }
 
 // People read roles, not tags; a class-derived name is never used.
 const ELEMENT_NAMES: Record<string, string> = {
@@ -48,6 +48,7 @@ function frameName(id: string, carried: string | undefined, frames: readonly Fra
 }
 
 export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): ChipLabel {
+  if (anchor.canvas) return { kind: "canvas", label: canvasStem(anchor.canvas.path), title: anchor.canvas.path };
   const frameId = anchor.frame?.id ?? anchor.point?.frameId;
   const inFrame = frameId === undefined ? "" : ` · in ${frameId}`;
   if (anchor.element) {

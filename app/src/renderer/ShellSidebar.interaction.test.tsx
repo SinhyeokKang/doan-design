@@ -1,7 +1,8 @@
 import { Children, isValidElement, type ReactNode } from "react";
 import { AlertIcon } from "./AlertIcon";
 import { Info, RotateCw } from "lucide-react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CANVAS_DRAG_TYPE, canvasDragging, canvasDragOf, endCanvasDrag } from "./canvasChipDrag";
 import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
@@ -574,6 +575,108 @@ it("on close, focus returns to the button unless a dialog the menu opened or ano
   } finally { vi.unstubAllGlobals(); }
 });
 
+describe("Add to message", () => {
+  const ROW = { path: CANVAS, url: "u", id: "a" };
+  // `judged`: App's judgment now; a test changes it while the menu is open.
+  function addFixture(reason: string | null = null, focus: (() => void) | null = vi.fn()) {
+    const judged = { reason, focus };
+    const chipDrag = { reason: vi.fn(() => judged.reason), judge: vi.fn(() => null), add: vi.fn(() => judged.focus) };
+    const tree = canvasMenuFixture({}, { chipDrag }, ROW);
+    tree.open();
+    const addItem = () => tree.rendered().find(item => typeof item.onSelect === "function" && text(item).includes("Add to message"))!;
+    // The open menu's state; a new object asks for a render with the menu still open.
+    const menuState = () => hooks.states.find(state => (state as { kind?: string } | null)?.kind === "canvas");
+    const content = () => tree.rendered().find(item => typeof item.onCloseAutoFocus === "function" && String(item.className).includes("shell-canvas-menu"))!;
+    // Focus sits in the menu when it closes, with no dialog open.
+    const close = () => {
+      const inMenu = Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), { closest: (selector: string) => selector.includes(".shell-canvas-menu") ? {} : null });
+      vi.stubGlobal("document", { activeElement: inMenu, body: {}, querySelector: () => null });
+      const event = { preventDefault: vi.fn() };
+      (content().onCloseAutoFocus as (event: unknown) => void)(event);
+      return event.preventDefault;
+    };
+    (tree.canvasRow().ref as (node: unknown) => void)({ contains: () => false });
+    return { tree, chipDrag, addItem, close, judged, menuState };
+  }
+  beforeEach(() => { vi.stubGlobal("HTMLElement", class {}); });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the menu's first item, above Export… and Move to Trash", () => {
+    const { tree, addItem } = addFixture();
+    expect(text(addItem())).toEqual(["Add to message"]);
+    expect(tree.items().map(text)).toEqual([["Export…"], ["Move to Trash"]]);
+    expect(addItem()["aria-disabled"]).toBeUndefined();
+  });
+
+  it("adds the row as the list holds it now, and focus goes to the composer once the menu has closed, not back to the button", () => {
+    const focus = vi.fn();
+    const { chipDrag, addItem, close } = addFixture(null, focus);
+    (addItem().onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(chipDrag.add).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS, id: "a" }));
+    // Radix's modal menu takes back focus moved while it is open, so the composer gets it on close.
+    expect(focus).not.toHaveBeenCalled();
+    expect(close()).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
+    // The next close (Escape) goes back to the trigger as before.
+    expect(close()).not.toHaveBeenCalled();
+    expect(focus).toHaveBeenCalledOnce();
+  });
+
+  it("Escape without a choice returns focus to the row's button", () => {
+    const { chipDrag, close } = addFixture();
+    expect(close()).not.toHaveBeenCalled();
+    expect(chipDrag.add).not.toHaveBeenCalled();
+  });
+
+  it("an add App refuses at the press keeps the menu open and shows the reason now, not the one it opened with", () => {
+    const { tree, addItem, close, judged, menuState } = addFixture();
+    // The composer started a pick while the menu was open.
+    judged.reason = "Finish or cancel the pick first."; judged.focus = null;
+    const opened = menuState();
+    const event = { preventDefault: vi.fn() };
+    (addItem().onSelect as (event: unknown) => void)(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(menuState()).toEqual(opened);
+    expect(menuState()).not.toBe(opened);
+    // A later close (Escape) is Escape's: no composer focus is left waiting.
+    expect(close()).not.toHaveBeenCalled();
+    tree.render();
+    expect(tree.canvasRoot().open).toBe(true);
+    const item = addItem();
+    expect(item["aria-disabled"]).toBe(true);
+    expect(tree.rendered().find(element => element.id === item["aria-describedby"])).toMatchObject({ children: "Finish or cancel the pick first." });
+  });
+
+  it("an item unavailable when the menu opened adds the row once App takes it at the press", () => {
+    const focus = vi.fn();
+    const { chipDrag, addItem, close, judged } = addFixture("Finish typing first.", focus);
+    expect(addItem()["aria-disabled"]).toBe(true);
+    // The composition ended while the menu was open.
+    judged.reason = null;
+    const event = { preventDefault: vi.fn() };
+    (addItem().onSelect as (event: unknown) => void)(event);
+    expect(chipDrag.add).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS, id: "a" }));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(close()).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
+  });
+
+  it("unavailable: stays reachable by arrows, its reason under the label and as its description, and adds nothing", () => {
+    const reason = "Only canvases in demo can go in this message.";
+    const { tree, chipDrag, addItem } = addFixture(reason, null);
+    const item = addItem();
+    expect(chipDrag.reason).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }));
+    expect(item).toMatchObject({ "aria-disabled": true, "aria-label": "Add to message", className: "doan-menu-item shell-menu-reasoned" });
+    expect(item.disabled).toBeUndefined();
+    expect(tree.rendered().find(element => element.id === item["aria-describedby"])).toMatchObject({ className: "shell-menu-reason", children: reason });
+    const event = { preventDefault: vi.fn() };
+    (item.onSelect as (event: unknown) => void)(event);
+    // App judges the press again and refuses: the menu stays open on the reason.
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(chipDrag.add).toHaveBeenCalledOnce();
+  });
+});
+
 // PRODUCT §5 item 2 'Canvas header': on the canvas page an open row menu keeps every printable key, while a row that
 // only has focus leaves V and H to the canvas tools.
 it("V, H and Space pressed in an open row menu never switch the canvas tool; a focused row with no menu open keeps them", () => {
@@ -1080,5 +1183,101 @@ describe("the viewed canvas's conversation list", () => {
       rendered = render(props, PRICING);
       expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
     });
+  });
+});
+
+// A canvas row drags as a canvas chip only where the row menu could add it, with
+// only Doan's marker on the transfer; the tree's click, arrows and typeahead stay as they are.
+describe("dragging a canvas row", () => {
+  const ROW = { path: ".doan/canvases/checkout.html", url: "checkout", id: "checkout" };
+  function dragFixture(reason: string | null = null, extra: Record<string, unknown> = {}) {
+    const { props } = fixture();
+    props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [ROW, { path: ".doan/canvases/pricing.html", url: "pricing", id: "pricing" }] };
+    const chipDrag = { reason: vi.fn(() => reason), judge: vi.fn(() => "judged") };
+    hooks.cursor = 0; hooks.refs = [];
+    const all = { ...props, canvas: undefined, chipDrag, ...extra };
+    const rendered = elements(ShellSidebar(all as never));
+    const rows = rendered.filter(item => item["aria-level"] === 3);
+    const row = (name: string) => rows.find(item => item["aria-label"] === name)!;
+    return { props: all, rendered, rows, row, chipDrag };
+  }
+  const transfer = () => ({ types: [] as string[], setData(type: string) { this.types.push(type); }, setDragImage: vi.fn(), effectAllowed: "uninitialized" });
+  // No document here: the drag image, drawn in the row's own document, is the Chromium probe's to see.
+  const dragStart = (row: Record<string, unknown>) => {
+    const event = { dataTransfer: transfer(), preventDefault: vi.fn(), stopPropagation: vi.fn(), currentTarget: {}, target: {} };
+    (row.onDragStart as (event: unknown) => void)(event);
+    return event;
+  };
+  afterEach(() => endCanvasDrag());
+
+  it("drags a row the menu could add, and no row while the page is locked or the menu gives a reason", () => {
+    expect(dragFixture().row("checkout").draggable).toBe(true);
+    expect(dragFixture("Only canvases in demo can go in this message.").row("checkout").draggable).toBe(false);
+    expect(dragFixture(null, { locked: true }).row("checkout").draggable).toBe(false);
+    expect(dragFixture().rendered.find(item => item["data-key"] === "common")!.draggable).toBeUndefined();
+  });
+
+  it("asks the row's own root and row for the reason", () => {
+    const { chipDrag } = dragFixture();
+    expect(chipDrag.reason).toHaveBeenCalledWith("/a", ROW);
+  });
+
+  it("never drags the menu trigger or the conversation chevron", () => {
+    const listed = { conversationId: "c1", canvas: { path: ROW.path, id: ROW.id }, title: "Title c1", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-14T12:00:00.000Z", preview: "" };
+    // The list shows under its canvas row from two conversations on.
+    const conversations = { list: () => [listed, { ...listed, conversationId: "c2", title: "Title c2" }], shown: "c1", seen: new Set<string>(), now: 0, folded: false, bare: new Map(), fold: vi.fn(), open: vi.fn(), remove: vi.fn() };
+    const { rendered } = dragFixture(null, { canvas: ROW.path, conversations });
+    const triggers = rendered.filter(item => item.className === "doan-icon-button shell-more" && ["checkout menu", "pricing menu"].includes(item["aria-label"] as string));
+    expect(triggers).toHaveLength(2);
+    for (const trigger of triggers) expect(trigger.draggable).toBe(false);
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    expect(chevron.draggable).toBe(false);
+  });
+
+  it("keeps the drag in memory with the row's root, path and id, judged by App, and does not open the row", () => {
+    const { props, row, chipDrag } = dragFixture();
+    const event = dragStart(row("checkout"));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.dataTransfer.types).toEqual([CANVAS_DRAG_TYPE]);
+    expect(event.dataTransfer.effectAllowed).toBe("copy");
+    const drag = canvasDragOf({ types: [CANVAS_DRAG_TYPE] } as unknown as DataTransfer);
+    expect(drag).toMatchObject({ root: "/a", path: ROW.path, id: "checkout" });
+    const composer = { root: "/a", canTake: () => null };
+    expect(drag !== null && drag !== "foreign" && drag.judge(composer)).toBe("judged");
+    expect(chipDrag.judge).toHaveBeenCalledWith("/a", ROW, composer);
+    expect(props.open).not.toHaveBeenCalled();
+    (row("checkout").onDragEnd as () => void)();
+    expect(canvasDragging()).toBe(false);
+  });
+
+  it("cancels a drag start the menu now refuses, or one on a locked page", () => {
+    const cases: [string | null, Record<string, unknown>][] = [["Finish typing first.", {}], [null, { locked: true }]];
+    for (const [reason, extra] of cases) {
+      const { row } = dragFixture(reason, extra);
+      const event = dragStart(row("checkout"));
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(event.dataTransfer.types).toEqual([]);
+      expect(canvasDragging()).toBe(false);
+    }
+  });
+
+  it("leaves the row's click, arrows and typeahead as they were after a drag", () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    try {
+      const { props, rows, row } = dragFixture();
+      const nodes = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
+      const host = hooks.refs.find(ref => ref.current === null)!;
+      host.current = { querySelectorAll: () => nodes };
+      dragStart(row("checkout"));
+      (row("checkout").onDragEnd as () => void)();
+      key(row("checkout"), "ArrowDown");
+      expect(nodes[1]!.focus).toHaveBeenCalledOnce();
+      // "c" alone matches the Canvases head first.
+      key(row("pricing"), "c"); key(row("pricing"), "h");
+      expect(nodes[0]!.focus).toHaveBeenCalledOnce();
+      expect(props.open).not.toHaveBeenCalled();
+      (row("pricing").onClick as () => void)();
+      expect(props.open).toHaveBeenCalledWith("/a", expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+    } finally { now.mockRestore(); }
   });
 });

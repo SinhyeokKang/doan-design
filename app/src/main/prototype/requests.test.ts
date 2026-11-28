@@ -337,6 +337,16 @@ describe("parseRevealRequest", () => {
     expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1", anchor: {} })).toBeNull();
     expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1" })).toBeNull();
   });
+  // A canvas chip names no conversation: the main window matches its id against the playing root's own list.
+  test("a canvas chip: a valid canvas anchor's path and id, nothing else", () => {
+    const canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
+    expect(parseRevealRequest("prototype", { kind: "canvas", canvas })).toEqual({ kind: "canvas", canvas });
+    expect(parseRevealRequest("main", { kind: "canvas", canvas })).toBeNull();
+    for (const bad of [{ path: ".doan/canvases/checkout.html" }, { path: "../x.html", id: "x" }, { path: "src/x.html", id: "x" }, { path: ".doan/canvases/x.HTML", id: "x" }, { ...canvas, extra: 1 }, "checkout"]) {
+      expect(parseRevealRequest("prototype", { kind: "canvas", canvas: bad }), JSON.stringify(bad)).toBeNull();
+    }
+    expect(parseRevealRequest("prototype", { kind: "canvas", canvas, conversationId: "c-1" })).toBeNull();
+  });
   test("an answer's chip: a reply link as the thread parsed it", () => {
     expect(parseRevealRequest("prototype", { kind: "reply", conversationId: "c-1", link: { canvas: "proto", kind: "element", id: "pay button" } }))
       .toEqual({ kind: "reply", conversationId: "c-1", link: { canvas: "proto", kind: "element", id: "pay button" } });

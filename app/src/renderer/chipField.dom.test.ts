@@ -37,7 +37,7 @@ beforeAll(async () => {
     await writeFile(entry, [
       `export { ChipField, moveFocus, focusFieldEnd } from ${JSON.stringify(here("./chipField.ts"))};`,
       `export { slashKey } from ${JSON.stringify(here("./homeComposer.ts"))};`,
-      `export { posFromUnit as posOf } from ${JSON.stringify(here("./fieldDoc.ts"))};`,
+      `export { posFromUnit as posOf, unitFromPos as unitOf } from ${JSON.stringify(here("./fieldDoc.ts"))};`,
     ].join("\n"));
     const result = await build({ configFile: false, logLevel: "silent", root: dir, build: { write: false, minify: false, lib: { entry, formats: ["iife"], name: "Probe", fileName: "probe" } } });
     bundle = ((Array.isArray(result) ? result[0] : result) as Rolldown.RolldownOutput).output[0].code;
@@ -51,7 +51,13 @@ const el = document.getElementById("f");
 let changes = 0;
 const announced = [];
 const clicked = [];
-const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => "canvas",
+// The host's answer for a sidebar canvas drag (canvasChipDrag.ts canvasDropDecision): the chip, or a refusal.
+const dragHost = { take: true };
+const DRAGGED = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+// The field's canvas and root; an Overview field has a root and no canvas.
+const chipHost = { scope: "canvas", root: "/code/doan-web" };
+const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => chipHost.scope, root: () => chipHost.root,
+  chipDrag: data => !Array.from(data.types).includes("application/x-doan-canvas-row") ? null : dragHost.take ? DRAGGED : "refused",
   skillNames: () => new Set(["copy-check"]), commandNames: () => new Set(), onChipClick(anchor, chip) { clicked.push([anchor, chip.className]); } }, []);
 let draft = 0;
 // ComposerField's keydown, registered after the field's own as React's is: the host's onKey first (Home's \`/\` list
@@ -183,6 +189,35 @@ const probe = window.probe = {
   },
   menu(inputType) { return probe.input(inputType); },
   insertChip: anchor => field.insertChip(anchor),
+  takeDrags(take) { dragHost.take = take; },
+  // A canvas renamed or moved: every canvas chip takes \`path\`.
+  refresh(path) { return field.refreshChips(anchor => anchor.canvas ? { canvas: { ...anchor.canvas, path } } : anchor); },
+  tips: () => Array.from(el.querySelectorAll(".anchor-chip")).map(chip => chip.dataset.tip),
+  setChipHost(patch) { Object.assign(chipHost, patch); },
+  // Drag events at unit \`unit\`'s drawn place, \`dx\` px to its right, each with a DataTransfer of \`types\` ("Files" a file):
+  // dragenter, dragover and, with \`drop\`, drop. The drop place is read as the unit the field draws it at.
+  dragAt(unit, types, drop, dx = 1) {
+    const r = field.view.coordsAtPos(Probe.posOf(field.view.state.doc, unit));
+    const x = r.left + dx, y = (r.top + r.bottom) / 2;
+    const fire = (type, target = document.elementFromPoint(x, y), init = {}) => {
+      const data = new DataTransfer();
+      for (const t of types) { if (t === "Files") data.items.add(new File(["x"], "a.txt", { type: "text/plain" })); else data.setData(t, ""); }
+      // A constructed DataTransfer ignores dropEffect writes (only a real drag's takes them), so the write is recorded.
+      let effect = "none";
+      Object.defineProperty(data, "dropEffect", { get: () => effect, set: value => { effect = value; } });
+      const e = new DragEvent(type, { dataTransfer: data, clientX: x, clientY: y, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(e);
+      return { prevented: e.defaultPrevented, effect: data.dropEffect };
+    };
+    fire("dragenter");
+    const over = fire("dragover");
+    const mark = el.querySelector(".drop-caret");
+    const out = { over, place: mark ? Probe.unitOf(field.view.state.doc, field.view.posAtDOM(mark, 0)) : null };
+    if (drop === "leave") { fire("dragleave", el, { relatedTarget: document.getElementById("after") }); out.after = el.querySelector(".drop-caret") !== null; }
+    else if (drop === "end") { window.dispatchEvent(new DragEvent("dragend", { bubbles: true })); out.after = el.querySelector(".drop-caret") !== null; }
+    else if (drop) { out.drop = fire("drop"); out.after = el.querySelector(".drop-caret") !== null; }
+    return out;
+  },
   focusEnd() { Probe.focusFieldEnd(el); },
   fieldFocusEnd() { field.focus(true); },
   // App focuses a composer by selector with the element's own focus().
@@ -968,7 +1003,7 @@ test("a chip clipboard copies its JSON and pastes its chips at an empty line and
   await call("place", 2, 11);
   const [plainCopy, json] = await call<string[]>("copy");
   expect(plainCopy).toBe("see Hero now");
-  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", segments: [plain("see "), chip(), plain(" now")] });
+  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", root: "/code/doan-web", segments: [plain("see "), chip(), plain(" now")] });
   const clipboard = JSON.stringify({ v: 1, scope: "canvas", segments: [chip(), plain(" x")] });
   // On an empty line the chip starts the line, so the line gets its filler; joining the line removes it again.
   await open("a\n\nb");
@@ -991,6 +1026,35 @@ test("a chip clipboard copies its JSON and pastes its chips at an empty line and
   expect(await consistent()).toBe(true);
   await press("Meta+z");
   expect(await text()).toBe("- \n- b");
+});
+
+// Each chip on its own: a canvas chip stays one only in a field of its root, a frame chip only in a field of its canvas.
+test("a canvas chip's clipboard carries the root; pasted in the same root it stays a chip, elsewhere it is its name", { timeout: 60_000 }, async () => {
+  const flow = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+  await open([plain("Use "), chip(flow), plain(" for "), chip()]);
+  await call("place", 0, 11);
+  const [plainCopy, json] = await call<string[]>("copy");
+  expect(plainCopy).toBe("Use checkout-flow for Hero");
+  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", root: "/code/doan-web", segments: [plain("Use "), chip(flow), plain(" for "), chip()] });
+  // Same root, another canvas (the Overview's field): the canvas chip stays, the frame chip becomes its name.
+  await open("");
+  await call("setChipHost", { scope: null });
+  await call("paste", plainCopy, json);
+  expect(await call("segments")).toEqual([plain("Use "), chip(flow), plain(" for Hero")]);
+  // The Overview's field copies its canvas chips with its root although it has no canvas.
+  await call("place", 0, 14);
+  expect(JSON.parse((await call<string[]>("copy"))[1]!)).toEqual({ v: 1, scope: null, root: "/code/doan-web", segments: [plain("Use "), chip(flow), plain(" for Hero")] });
+  // Another root: names only.
+  await open("");
+  await call("setChipHost", { root: "/code/other" });
+  await call("paste", plainCopy, json);
+  expect(await call("segments")).toEqual([plain("Use checkout-flow for "), chip()]);
+});
+
+test("a canvas chip carries its id for the tooltip; a frame chip does not", { timeout: 60_000 }, async () => {
+  await open([chip({ canvas: { path: ".doan/canvases/flows/checkout-flow.html", id: "checkout" } }), plain(" "), chip()]);
+  expect(await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => [node.dataset.canvas, node.dataset.tip])))
+    .toEqual([["checkout", ".doan/canvases/flows/checkout-flow.html"], [undefined, "Frame · hero"]]);
 });
 
 test("the host's value right after a composition ends wins: a send empties the field, a returned draft fills it", { timeout: 60_000 }, async () => {
@@ -1047,4 +1111,113 @@ test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a 
     await moveFocus(backward);
     expect(await focused()).toBe(expected);
   }
+});
+
+test("a canvas chip reads “Canvas”, names the canvas, shows its path as the tip and the sidebar row's icon", { timeout: 60_000 }, async () => {
+  await open([chip({ canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout-flow" } }), plain(" and "), chip({ canvas: { path: ".doan/ds/buttons.html", id: "buttons" } })]);
+  const chips = await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => ({
+    kind: node.dataset.kind, tip: node.dataset.tip, text: node.textContent,
+    shapes: Array.from(node.querySelector("svg")!.children).map(shape => shape.outerHTML),
+  })));
+  expect(chips.map(({ kind, tip, text }) => ({ kind, tip, text }))).toEqual([
+    { kind: "canvas", tip: ".doan/canvases/checkout-flow.html", text: "Canvas checkout-flow" },
+    { kind: "canvas", tip: ".doan/ds/buttons.html", text: "Canvas buttons" },
+  ]);
+  // lucide panels-top-left (the sidebar's canvas row) and swatch-book (its design-system row).
+  expect(chips[0]!.shapes.join("")).toContain('d="M3 9h18"');
+  expect(chips[1]!.shapes.join("")).toContain('d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"');
+});
+
+const CANVAS_DRAG = ["application/x-doan-canvas-row"];
+const DROPPED = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+// The caret as drawn stands at or past the chip's right edge.
+async function caretAfterChip(index = 0): Promise<boolean> {
+  const box = await call<{ x: number; w: number }>("box", ".anchor-chip", index);
+  return (await caret()).x >= box.x + box.w - 1;
+}
+
+// A chip spliced into a line carries a line-start filler in its slice; a caret placed before the filler fix takes it out
+// lands before the chip.
+test("a chip the host inserts leaves the caret right after it, mid-line and at the field's end", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like and keep the totals");
+  await call("place", 23);
+  expect(await call("insertChip", CHIP)).toBe("inserted");
+  expect(await text()).toBe("Make the cart look like￼ and keep the totals");
+  expect(await sel()).toEqual({ anchor: 24, focus: 24 });
+  expect(await caretAfterChip()).toBe(true);
+  await open("Intro");
+  await call("fieldFocusEnd");
+  expect(await call("insertChip", CHIP)).toBe("inserted");
+  expect(await sel()).toEqual({ anchor: 6, focus: 6 });
+  expect(await caretAfterChip()).toBe(true);
+});
+
+test("a dropped canvas chip goes where it is dropped, with focus and the caret right after it, and one undo takes it out", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like and keep the totals");
+  await call("blur");
+  const out = await call<{ over: { prevented: boolean; effect: string }; place: number | null; drop: { prevented: boolean }; after: boolean }>("dragAt", 23, CANVAS_DRAG, true);
+  expect(out.over).toEqual({ prevented: true, effect: "copy" });
+  expect(out.place).toBe(23);
+  expect(out.drop.prevented).toBe(true);
+  expect(out.after).toBe(false);
+  expect(await call("segments")).toEqual([plain("Make the cart look like"), chip(DROPPED), plain(" and keep the totals")]);
+  expect(await focused()).toBe("f");
+  expect(await sel()).toEqual({ anchor: 24, focus: 24 });
+  expect(await caretAfterChip()).toBe(true);
+  expect(await call("announced")).toContain("Added checkout-flow");
+  await press("Meta+z");
+  expect(await text()).toBe("Make the cart look like and keep the totals");
+});
+
+test("a drop at a list item's line start goes to the item's body, never before its marker", { timeout: 60_000 }, async () => {
+  await open("Intro\n- item one");
+  const out = await call<{ place: number | null }>("dragAt", 6, CANVAS_DRAG, true);
+  expect(out.place).toBe(8);
+  expect(await text()).toBe("Intro\n- ￼item one");
+  expect(await call("spans")).toEqual(['field-mark:ul "-"']);
+  expect(await sel()).toEqual({ anchor: 9, focus: 9 });
+});
+
+test("a refused canvas drag shows no drop place, says none and drops nothing; a file drag is left to the composer", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like");
+  await call("takeDrags", false);
+  const refused = await call<{ over: { prevented: boolean; effect: string }; place: number | null }>("dragAt", 4, CANVAS_DRAG, true);
+  expect(refused.over).toEqual({ prevented: false, effect: "none" });
+  expect(refused.place).toBeNull();
+  expect(await text()).toBe("Make the cart look like");
+  await call("takeDrags", true);
+  const files = await call<{ place: number | null }>("dragAt", 4, ["Files"], true);
+  expect(files.place).toBeNull();
+  expect(await text()).toBe("Make the cart look like");
+});
+
+test("the drop place goes when the drag leaves the field or ends elsewhere", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like");
+  for (const how of ["leave", "end"]) {
+    const out = await call<{ place: number | null; after: boolean }>("dragAt", 4, CANVAS_DRAG, how);
+    expect(out.place, how).toBe(4);
+    expect(out.after, how).toBe(false);
+  }
+  expect(await text()).toBe("Make the cart look like");
+});
+
+test("a chip refreshed for a moved canvas changes in place, keeping the caret and the undo history; not while composing", { timeout: 60_000 }, async () => {
+  const MOVED = ".doan/canvases/flows/checkout-flow.html";
+  await open([plain("Follow "), chip(DROPPED), plain(" now")]);
+  await call("place", 12);
+  await press("x");
+  await call("place", 3);
+  const changes = await call<number>("changes");
+  expect(await call("refresh", MOVED)).toBe(true);
+  expect(await sel()).toEqual({ anchor: 3, focus: 3 });
+  expect(await call("tips")).toEqual([MOVED]);
+  expect(await call("segments")).toEqual([plain("Follow "), chip({ canvas: { ...DROPPED.canvas, path: MOVED } }), plain(" nowx")]);
+  // The host already has the new value; the field tells it nothing.
+  expect(await call("changes")).toBe(changes);
+  await press("Meta+z");
+  expect(await call("segments")).toEqual([plain("Follow "), chip({ canvas: { ...DROPPED.canvas, path: MOVED } }), plain(" now")]);
+  await call("compose", "compositionstart");
+  expect(await call("refresh", ".doan/canvases/elsewhere.html")).toBe(false);
+  expect(await call("tips")).toEqual([MOVED]);
+  await call("compose", "compositionend");
 });

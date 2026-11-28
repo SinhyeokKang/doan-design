@@ -194,6 +194,16 @@ describe("main-window-only buttons go to main as reveals", () => {
     ]);
   });
 
+  // Every canvas chip press here moves the main window, the playing canvas's chip too, so none Fits in place: its tooltip
+  // says Open like any other canvas chip's.
+  test("a canvas chip, the playing canvas's included, goes to main as a canvas reveal and never Fits in place", async () => {
+    await playing();
+    const panel = props(render());
+    await expect(panel.onCanvasChip!(CHECKOUT as never)).resolves.toBeNull();
+    expect(calls.reveal).toHaveBeenCalledExactlyOnceWith({ kind: "canvas", canvas: CHECKOUT });
+    expect(panel.canvasChipFits).toBe(false);
+  });
+
   // "Sign in to an agent" and "Manage agents" name no provider: Settings > Agents opens at its top.
   test("a Settings action without a provider still goes to the main window", async () => {
     await playing();

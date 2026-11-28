@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="plans-2025">
+  <meta name="doan:width" content="1200">
+  <title>Plans (2025, retired)</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-8); background: var(--color-surface); color: var(--color-text); font: 16px/1.5 var(--font-body); }
+    [data-doan-frame] { box-sizing: border-box; width: 1136px; background: var(--color-panel); }
+    .site-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--color-line); }
+    .brand { font-weight: 700; color: var(--color-subtle); }
+    main { display: flex; gap: var(--space-6); padding: var(--space-8); }
+    .plan-card { flex: 1; padding: var(--space-6); border: 1px solid var(--color-line); border-radius: var(--radius-card); }
+    .plan-card h2 { margin: 0 0 var(--space-2); font-size: 20px; line-height: 28px; }
+    .price { margin: 0 0 var(--space-4); font-size: 28px; line-height: 36px; font-weight: 700; }
+    .plan-card button { font: inherit; padding: var(--space-2) var(--space-4); border: 0; border-radius: 8px; background: var(--color-subtle); color: var(--color-on-brand); }
+    .site-footer { padding: var(--space-4) var(--space-8); border-top: 1px solid var(--color-line); color: var(--color-subtle); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="pricing" data-doan-title="Pricing">
+    <header class="site-header">
+      <span class="brand" data-doan-id="brand">Northwind Classic</span>
+      <nav data-doan-id="nav">Product · Pricing · Docs</nav>
+    </header>
+    <main>
+      <article class="plan-card" data-doan-id="plan-starter">
+        <h2>Starter</h2>
+        <p class="price">$0 per month</p>
+        <button>Start free</button>
+      </article>
+      <article class="plan-card" data-doan-id="plan-team">
+        <h2>Team</h2>
+        <p class="price">$19 per seat / month</p>
+        <button data-doan-id="choose-team">Choose Team</button>
+      </article>
+      <article class="plan-card" data-doan-id="plan-enterprise">
+        <h2>Enterprise</h2>
+        <p class="price">Contact sales</p>
+        <button>Talk to us</button>
+      </article>
+    </main>
+    <footer class="site-footer" data-doan-id="footer">Questions? help@classic.example</footer>
+  </section>
+</body>
+</html>

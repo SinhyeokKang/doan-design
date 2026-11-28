@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
+import { textSegments, type FieldSegment } from "./anchorField";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 import {
   permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest,
@@ -49,30 +50,45 @@ test("the removal question names the card, and one worktree of several by its br
 
 const CRITIQUE: PresetSummary = { id: "critique", title: "Critique the design", description: "d", scope: "s", group: "review" };
 const file = (name: string): AttachmentDraft => ({ key: name, id: `id-${name}`, name, kind: "file", pasted: false, status: "ready", size: 10, path: `/Users/ada/${name}` });
-const LAST: LastRequest = { root: "/r/doan", text: "Critique the onboarding.", preset: CRITIQUE, attachments: [file("a.png")], provider: "claude", model: "opus", effort: "high" };
+const LAST: LastRequest = { root: "/r/doan", segments: textSegments("Critique the onboarding."), preset: CRITIQUE, attachments: [file("a.png")], provider: "claude", model: "opus", effort: "high" };
 
 test("the last request is kept per root, and a newer send replaces it", () => {
   const first = rememberRequest(new Map(), LAST);
-  const other = rememberRequest(first, { ...LAST, root: "/r/malmoi", text: "Other." });
-  const newer = rememberRequest(other, { ...LAST, text: "Newer." });
+  const other = rememberRequest(first, { ...LAST, root: "/r/malmoi", segments: textSegments("Other.") });
+  const newer = rememberRequest(other, { ...LAST, segments: textSegments("Newer.") });
   expect([...newer.keys()]).toEqual(["/r/doan", "/r/malmoi"]);
-  expect(newer.get("/r/doan")?.text).toBe("Newer.");
+  expect(newer.get("/r/doan")?.segments).toEqual(textSegments("Newer."));
   expect(first.get("/r/malmoi")).toBeUndefined();
 });
 
 // main re-checks every attachment when the start is accepted, so the renderer needs no check-by-path call.
 test("Edit on Home fills an empty composer without asking; main checks the attachments again on send", () => {
-  const result = restoreRequest({ text: "  ", preset: null, attachments: [] }, LAST, "doan-design");
+  const result = restoreRequest({ segments: textSegments("  "), preset: null, attachments: [] }, LAST, "doan-design");
   expect(result.confirm).toBeNull();
   expect(result.request).toEqual(LAST);
 });
 
 test("a different draft asks before it is replaced; the same request does not", () => {
   const dialog = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent to doan-design.", cancel: "Keep draft", confirm: "Replace" };
-  expect(restoreRequest({ text: "Draw an empty state for the billing page.", preset: null, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
-  expect(restoreRequest({ text: "", preset: CRITIQUE, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
-  expect(restoreRequest({ text: "", preset: null, attachments: [file("b.pdf")] }, LAST, "doan-design").confirm).toEqual(dialog);
-  expect(restoreRequest({ text: LAST.text, preset: CRITIQUE, attachments: [file("a.png")] }, LAST, "doan-design").confirm).toBeNull();
+  expect(restoreRequest({ segments: textSegments("Draw an empty state for the billing page."), preset: null, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
+  expect(restoreRequest({ segments: [], preset: CRITIQUE, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
+  expect(restoreRequest({ segments: [], preset: null, attachments: [file("b.pdf")] }, LAST, "doan-design").confirm).toEqual(dialog);
+  expect(restoreRequest({ segments: LAST.segments, preset: CRITIQUE, attachments: [file("a.png")] }, LAST, "doan-design").confirm).toBeNull();
+});
+
+const CHECKOUT = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+const withChip = (anchor = CHECKOUT): FieldSegment[] => [{ kind: "text", text: "Follow " }, { kind: "chip", anchor }, { kind: "text", text: " for the layout." }];
+
+test("a draft that holds only a canvas chip is not empty, and chips count in the comparison", () => {
+  const dialog = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent to doan-design.", cancel: "Keep draft", confirm: "Replace" };
+  const last: LastRequest = { ...LAST, segments: withChip() };
+  expect(restoreRequest({ segments: [{ kind: "chip", anchor: CHECKOUT }], preset: null, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
+  expect(restoreRequest({ segments: withChip(), preset: CRITIQUE, attachments: [file("a.png")] }, last, "doan-design").confirm).toBeNull();
+  // The same words around another canvas are another draft.
+  expect(restoreRequest({ segments: withChip({ canvas: { path: ".doan/canvases/cart.html", id: "cart" } }), preset: CRITIQUE, attachments: [file("a.png")] }, last, "doan-design").confirm).toEqual(dialog);
+  // A chip's name in plain text is not the chip.
+  expect(restoreRequest({ segments: textSegments("Follow checkout-flow for the layout."), preset: CRITIQUE, attachments: [file("a.png")] }, last, "doan-design").confirm).toEqual(dialog);
+  expect(restoreRequest({ segments: [], preset: null, attachments: [] }, last, "doan-design").request.segments).toEqual(withChip());
 });
 
 // App wiring rules stay pure so App's event handlers stay thin.

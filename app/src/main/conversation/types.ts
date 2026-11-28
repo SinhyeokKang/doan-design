@@ -16,6 +16,8 @@ export interface Anchor {
   // anchor always has one, and validAnchor rejects one without.
   element?: { doanId?: string; selector?: string; text?: string; tag?: string };
   point?: { frameId?: string; dx: number; dy: number };
+  // Another canvas, alone: never with frame, element or point. path is repo-relative.
+  canvas?: { path: string; id: string };
 }
 // model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
 // The store reads a turn end only with one of these values (store.ts payload).

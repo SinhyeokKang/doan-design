@@ -1,0 +1,11 @@
+[
+  [
+    "handoff",
+    ".doan/canvases/checkout.html",
+    "--message",
+    "Request: a new checkout canvas for the step after choosing Team on plans, in the same header, footer and card style, with an order summary for Team and a Pay button; plans stays as it is. Done: checkout.html has the Northwind Cloud header and footer and one order summary card at $24 per seat / month with Pay. Left: nothing asked yet.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

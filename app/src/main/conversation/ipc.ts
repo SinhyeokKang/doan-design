@@ -1,4 +1,5 @@
 import { anchorTokens, LIMITS, validAnchor } from "./prompt";
+import { sendCanvasAnchors } from "./canvasAnchors";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
 import { validProvider, type Provider } from "../agentAuth/types";
@@ -24,6 +25,11 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
   const anchors: unknown[] = raw.anchors === undefined ? [] : Array.isArray(raw.anchors) ? [...raw.anchors] : [undefined];
   if (!anchors.every(validAnchor) || anchorTokens(raw.text, anchors) === null) return null;
   return { text: raw.text, anchors };
+}
+// Canvas anchors checked against root's list now; a root that is no list lists none. Queued and scheduled messages are
+// checked when they go out instead (service.ts flush), since the agent may be rewriting the canvas when they are queued.
+function listedMessage(input: { text: string; anchors: Anchor[] }, projects: () => Project[], root: string): { text: string; anchors: Anchor[] } {
+  return sendCanvasAnchors(input.text, input.anchors, projects().find(p => p.path === root)?.canvases ?? []);
 }
 // The shape and limits of an answer only; whether it fits its question is the runner's check (questionAnswer).
 // Only the answer's own fields go on.
@@ -198,7 +204,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (raw.runtime !== undefined && !validProvider(raw.runtime)) throw new Error("bad_request");
         if (raw.mode !== "resume" && !raw.runtime) throw new Error("no_agent");
         const mode = raw.mode; if (mode !== "resume" && mode !== "new" && mode !== "newDesign") throw new Error("bad_request");
-        const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
+        const request: StartRequest = { root: raw.root, mode, ...listedMessage(input, projects, raw.root), ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
         let attachments: unknown[] = [];
         if (raw.subject !== undefined) throw new Error("bad_request");
         if (mode === "newDesign" || mode === "new") {
@@ -233,7 +239,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           return undefined;
         }
         case "send": {
-          const input = message(raw); if (!input) throw new Error("bad_request");
+          const sent = message(raw); if (!sent) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
           // While its usage limit holds, the message waits in main as a queued one does, and takes no picker change.
           if (service.scheduling(raw.conversationId)) {
@@ -241,11 +247,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
             const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
             const ids = extras.ids.map(item => (item as { id: string }).id);
             if (store && ids.length) store.markSent(extras.ids);
-            const scheduled = service.schedule(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+            const scheduled = service.schedule(raw.conversationId, { ...sent, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
             if (store && ids.length) store.consume(extras.ids);
             return { scheduled } satisfies ScheduledSend;
           }
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home, target), store = home.attachments;
+          const input = listedMessage(sent, projects, target.root);
           // The turn's model without an effort still names the model's default level (models.ts defaultEffort).
           const model = extras.model ?? target.model, effort = extras.model !== undefined ? extras.effort : target.effort;
           const defaultEffort = model !== undefined && effort === undefined ? home.models?.defaultEffort(target.root, target.provider, model) : undefined;
@@ -260,14 +267,14 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         case "queue": {
           // Text, anchors and attachments only: the turn the queue goes out in keeps the conversation's model and effort,
           // and takes the mode and Fast stored when it is flushed (setPermissionMode).
-          const input = message(raw); if (!input || raw.model !== undefined || raw.effort !== undefined || raw.fast !== undefined || raw.permissionMode !== undefined) throw new Error("bad_request");
+          const sent = message(raw); if (!sent || raw.model !== undefined || raw.effort !== undefined || raw.fast !== undefined || raw.permissionMode !== undefined) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
           const ids = extras.ids.map(item => (item as { id: string }).id);
           // The marker that keeps a paste through a restart can fail; it is written before the item is accepted, so a refusal
           // leaves nothing queued and the files with the renderer. Nothing after the acceptance can fail.
           if (store && ids.length) store.markSent(extras.ids);
-          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+          const queued = service.queue(raw.conversationId, { ...sent, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
           if (store && ids.length) store.consume(extras.ids);
           return queued;
         }

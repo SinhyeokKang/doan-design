@@ -4,7 +4,10 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { textSegments } from "./anchorField";
+import type { Anchor } from "../main/conversation/types";
+import { textSegments, type FieldSegment } from "./anchorField";
+import { CANVAS_CHIP_SENDING } from "./canvasChip";
+import { beginCanvasDrag, CANVAS_DRAG_TYPE, chipComposer, endCanvasDrag } from "./canvasChipDrag";
 import * as Parts from "./ComposerParts";
 import { tabKey } from "./ComposerParts";
 import { modelsKey } from "./dockedSupport";
@@ -90,7 +93,7 @@ const key = (name: string, extra: Record<string, unknown> = {}) => ({ key: name,
 const call = (props: Record<string, unknown>, handler: string, event: unknown) => (props[handler] as (event: unknown) => void)(event);
 
 test("/ at the start opens a combobox on the field; arrows move, Enter picks and clears /query, focus stays in the field", () => {
-  const { box, render } = setup({ text: "/c" });
+  const { box, render } = setup({ segments: textSegments("/c") });
   let tree = render();
   const textarea = field(tree);
   expect(textarea).toMatchObject({ role: "combobox", "aria-expanded": true, "aria-controls": "id-slash", "aria-autocomplete": "list", "aria-activedescendant": "id-s-0" });
@@ -103,39 +106,39 @@ test("/ at the start opens a combobox on the field; arrows move, Enter picks and
   expect(field(tree)["aria-activedescendant"]).toBe("id-s-1");
   call(field(render()), "onKeyDown", key("Enter"));
   expect(box.current.preset?.id).toBe("critique");
-  expect(box.current.text).toBe("");
+  expect(box.current.segments).toEqual(textSegments(""));
   expect(focus).toHaveBeenCalled();
 });
 
 test("a preset read that fails, or an older CLI, shows its notice on the panel surface: the popover is glass over Home's gradient", () => {
   const older = { v: 1, ok: false, error: { code: "usage_error", message: "unknown command", nextSteps: [] } } as unknown as PresetListReply;
   const failed = { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "The doan CLI stopped without a result.", nextSteps: [] } } as unknown as PresetListReply;
-  const notice = (presets: PresetListReply) => find(setup({ text: "/", presets }).render(), props => typeof props.className === "string" && props.className.startsWith("doan-notice"));
+  const notice = (presets: PresetListReply) => find(setup({ segments: textSegments("/"), presets }).render(), props => typeof props.className === "string" && props.className.startsWith("doan-notice"));
   expect(notice(older).className).toBe("doan-notice doan-panel");
   expect(notice(failed).className).toBe("doan-notice error doan-panel");
 });
 
 test("Enter while an IME composes neither picks a preset nor sends", () => {
-  const { box, start, render } = setup({ text: "/cri" });
+  const { box, start, render } = setup({ segments: textSegments("/cri") });
   call(field(render()), "onKeyDown", key("Enter", { nativeEvent: { isComposing: true } }));
   expect(box.current.preset).toBeNull();
-  const plain = setup({ text: "안녕" });
+  const plain = setup({ segments: textSegments("안녕") });
   call(field(plain.render()), "onKeyDown", key("Enter", { keyCode: 229 }));
   expect(start).not.toHaveBeenCalled();
   expect(plain.start).not.toHaveBeenCalled();
 });
 
 test("Escape closes the / list and it does not open again until the field is empty; Tab closes it too", () => {
-  const { box, render } = setup({ text: "/cri" });
+  const { box, render } = setup({ segments: textSegments("/cri") });
   const escape = key("Escape");
   call(field(render()), "onKeyDown", escape);
   expect(escape.preventDefault).toHaveBeenCalled();
   expect(field(render()).role).toBe("textbox");
-  box.current = { ...box.current, text: "/crit" };
+  box.current = { ...box.current, segments: textSegments("/crit") };
   expect(field(render()).role).toBe("textbox");
-  box.current = { ...box.current, text: "" };
+  box.current = { ...box.current, segments: textSegments("") };
   render(); for (const effect of hooks.effects) effect();
-  box.current = { ...box.current, text: "/" };
+  box.current = { ...box.current, segments: textSegments("/") };
   expect(field(render()).role).toBe("combobox");
   const tab = key("Tab");
   call(field(render()), "onKeyDown", tab);
@@ -281,46 +284,46 @@ test("dragging files over the composer shows the drop target and stops the windo
 
 test("Send starts the composed request; a refusal keeps the draft and shows the code's wording; a moved file marks its chip", async () => {
   const attachments = [{ key: "a", id: "id-a", name: "a.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/a.pdf" }];
-  const { box, start, render } = setup({ text: "Critique the doan-onboarding canvas.", preset: PRESETS[2]!, attachments });
+  const { box, start, render } = setup({ segments: textSegments("Critique the doan-onboarding canvas."), preset: PRESETS[2]!, attachments });
   start.mockResolvedValueOnce({ error: "not_logged_in" } as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the Doan design preset `critique` (Critique the design).\n\nCritique the doan-onboarding canvas.", attachments: [{ id: "id-a" }] });
   await vi.waitFor(() => expect(box.current.notice?.text).toBe("Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
-  expect(box.current.text).toBe("Critique the doan-onboarding canvas.");
+  expect(box.current.segments).toEqual(textSegments("Critique the doan-onboarding canvas."));
   start.mockResolvedValueOnce({ error: "attachment_missing", missing: ["id-a"] } as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(box.current.attachments[0]?.status).toBe("missing"));
   start.mockResolvedValueOnce({ ok: true });
   box.current = { ...box.current, attachments: [] };
   call(field(render()), "onKeyDown", key("Enter"));
-  await vi.waitFor(() => expect(box.current).toMatchObject({ text: "", preset: null, attachments: [] }));
+  await vi.waitFor(() => expect(box.current).toMatchObject({ segments: textSegments(""), preset: null, attachments: [] }));
 });
 
 test("Edit on Home asks before replacing a different draft, and fills an empty one at once", () => {
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
-  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ segments: textSegments("Another idea") }, { restore: { request: last, seq: 1 } });
   busy.render(); for (const effect of hooks.effects) effect();
   expect(hooks.states.some(state => (state as { title?: string } | null)?.title === "Replace your draft?")).toBe(true);
-  expect(busy.box.current.text).toBe("Another idea");
+  expect(busy.box.current.segments).toEqual(textSegments("Another idea"));
   // Its two actions take the default size, as every confirmation does.
   const shown = busy.render(), actions = shown.slice(shown.findIndex(props => props.className === "doan-dialog-actions") + 1).filter(props => props.className === "doan-button");
   expect(actions.length).toBeGreaterThanOrEqual(2);
   expect(actions.slice(0, 2).map(props => props["data-ui-size"])).toEqual([undefined, undefined]);
   const empty = setup({}, { restore: { request: last, seq: 1 } });
   empty.render(); for (const effect of hooks.effects) effect();
-  expect(empty.box.current.text).toBe("Polish it.");
+  expect(empty.box.current.segments).toEqual(textSegments("Polish it."));
   // The same request is not applied again on a later visit.
-  empty.box.current = { ...empty.box.current, text: "" };
+  empty.box.current = { ...empty.box.current, segments: textSegments("") };
   empty.render(); for (const effect of hooks.effects) effect();
-  expect(empty.box.current.text).toBe("");
+  expect(empty.box.current.segments).toEqual(textSegments(""));
 });
 
 // Home's Replace your draft? is an alertdialog named by its title and described by its body, as the other
 // confirmations (POSTMORTEM 2026-10-30: focus guards find a confirmation by this role).
 test("Home's Replace your draft? is an alertdialog named by its title and described by its body", () => {
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
-  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ segments: textSegments("Another idea") }, { restore: { request: last, seq: 1 } });
   busy.render(); for (const effect of hooks.effects) effect();
   const shown = busy.render();
   const dialog = find(shown, props => typeof props.className === "string" && props.className.startsWith("doan-dialog ") && typeof props.onCancel === "function");
@@ -335,8 +338,8 @@ test("Home's Replace your draft? is an alertdialog named by its title and descri
 
 // Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
 test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and focus returns to the field", () => {
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
-  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ segments: textSegments("Another idea") }, { restore: { request: last, seq: 1 } });
   busy.render(); for (const effect of hooks.effects) effect();
   const focus = vi.fn();
   hooks.refs[0]!.current = { focus };
@@ -345,7 +348,7 @@ test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and 
   call(dialog, "onCancel", event);
   expect(event.preventDefault).toHaveBeenCalled();
   expect(hooks.states.some(state => (state as { title?: string } | null)?.title === "Replace your draft?")).toBe(false);
-  expect(busy.box.current.text).toBe("Another idea");
+  expect(busy.box.current.segments).toEqual(textSegments("Another idea"));
   expect(focus).toHaveBeenCalled();
 });
 
@@ -363,7 +366,7 @@ const runEffects = () => { for (const effect of hooks.effects) effect(); };
 const pending = () => { let resolve!: (value: { ok: true } | { error: string }) => void; const promise = new Promise<{ ok: true } | { error: string }>(r => { resolve = r; }); return { promise, resolve }; };
 
 test("first run's project is chosen once; the person's later choice wins and the request goes there", async () => {
-  const { box, start, render } = setup({ text: "Draw a pricing page." }, { entries: [ENTRY, B], select: { root: "/code/doan-design", seq: 1 } });
+  const { box, start, render } = setup({ segments: textSegments("Draw a pricing page.") }, { entries: [ENTRY, B], select: { root: "/code/doan-design", seq: 1 } });
   render(); runEffects();
   expect(box.current.root).toBe("/code/doan-design");
   const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
@@ -377,9 +380,9 @@ test("first run's project is chosen once; the person's later choice wins and the
 // A first message a quit stopped before main accepted it comes back after what is typed, for the picked project, once.
 test("Home takes the picked project's start message a quit stopped, after the typed text, and asks once", async () => {
   doan.takeStartDraft!.mockResolvedValueOnce({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
-  const { box, render } = setup({ text: "Also" });
+  const { box, render } = setup({ segments: textSegments("Also") });
   render(); runEffects();
-  await vi.waitFor(() => expect(box.current.text).toBe("Also\n\nDraw a pricing page."));
+  await vi.waitFor(() => expect(box.current.segments).toEqual(textSegments("Also\n\nDraw a pricing page.")));
   expect(doan.takeStartDraft).toHaveBeenCalledWith({ root: "/code/doan-design" });
   render(); runEffects();
   expect(doan.takeStartDraft).toHaveBeenCalledTimes(1);
@@ -390,11 +393,11 @@ test.each(["take reply", "attachment issuance", "send settlement"])("Remove inva
   const reply = deferred<unknown>(), issued = deferred<unknown>();
   doan.takeStartDraft!.mockReturnValueOnce(reply.promise);
   doan.attachmentsFromPaths!.mockReturnValueOnce(issued.promise);
-  const { box, render } = setup({ text: "Keep", attachments: [{ key: "kept", id: "owned", name: "kept", status: "ready", kind: "file", pasted: false }] });
+  const { box, render } = setup({ segments: textSegments("Keep"), attachments: [{ key: "kept", id: "owned", name: "kept", status: "ready", kind: "file", pasted: false }] });
   render(); runEffects();
   const returned = { text: "Removed", attachments: [record], anchors: [], reason: "restarted" };
   const files = [{ ok: true, attachment: { ...record, id: "old", pasted: false } }];
-  if (stage === "send settlement") box.current.sending = { generation: 0, text: "Keep", preset: null, keys: ["kept"] };
+  if (stage === "send settlement") box.current.sending = { generation: 0, segments: textSegments("Keep"), preset: null, keys: ["kept"] };
   if (stage !== "take reply") {
     reply.resolve(returned);
     await vi.waitFor(() => expect(doan.attachmentsFromPaths).toHaveBeenCalledOnce());
@@ -409,7 +412,7 @@ test.each(["take reply", "attachment issuance", "send settlement"])("Remove inva
   if (stage === "take reply") reply.resolve(returned);
   else if (stage === "attachment issuance") issued.resolve(files);
   await new Promise(resolve => setTimeout(resolve, 0));
-  expect(box.current.text).toBe("Keep");
+  expect(box.current.segments).toEqual(textSegments("Keep"));
   expect(box.current.attachments.map(chip => chip.id)).toEqual(["owned"]);
   if (stage === "take reply") expect(doan.attachmentsFromPaths).not.toHaveBeenCalled();
   expect(doan.removeAttachment!.mock.calls).toEqual(stage === "take reply" ? [] : [["old"]]);
@@ -426,7 +429,7 @@ test("a start message that arrives after another project was picked brings its o
   render(); runEffects();
   expect(box.current.root).toBe("/code/acme");
   reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
-  await vi.waitFor(() => expect(box.current.text).toBe("Draw a pricing page."));
+  await vi.waitFor(() => expect(box.current.segments).toEqual(textSegments("Draw a pricing page.")));
   expect(box.current.root).toBe("/code/doan-design");
 });
 
@@ -440,16 +443,16 @@ test("a start message that arrives while a send to another project is out lands 
   const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
   (projects.onValueChange as (key: string) => void)("/code/acme/.git");
   render(); runEffects();
-  box.current = { ...box.current, text: "Draw a dashboard." };
+  box.current = { ...box.current, segments: textSegments("Draw a dashboard.") };
   const sent = pending();
   start.mockReturnValueOnce(sent.promise as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
   reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
   await new Promise(resolve => setTimeout(resolve, 0));
-  expect(box.current).toMatchObject({ text: "Draw a dashboard.", root: "/code/acme" });
+  expect(box.current).toMatchObject({ segments: textSegments("Draw a dashboard."), root: "/code/acme" });
   sent.resolve({ ok: true });
-  await vi.waitFor(() => expect(box.current.text).toBe("Draw a pricing page."));
+  await vi.waitFor(() => expect(box.current.segments).toEqual(textSegments("Draw a pricing page.")));
   expect(box.current.root).toBe("/code/doan-design");
   expect(box.current.sending).toBeNull();
 });
@@ -477,7 +480,7 @@ test("a take of the picked project's start message that failed is asked again wh
 // A refused start can answer after the person switched away; activation then restores the element focused before
 // (POSTMORTEM 2026-11-17 'Window activation put focus on Hide sidebar'), so the field takes focus again.
 test("a start refused with the window in the background focuses the field again on activation", async () => {
-  const { start, render } = setup({ text: "Draw a pricing page." });
+  const { start, render } = setup({ segments: textSegments("Draw a pricing page.") });
   const reply = pending();
   start.mockReturnValueOnce(reply.promise as never);
   const focus = vi.fn();
@@ -495,7 +498,7 @@ test("a start refused with the window in the background focuses the field again 
 });
 
 test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
-  const first = setup({ text: "Draw a pricing page." });
+  const first = setup({ segments: textSegments("Draw a pricing page.") });
   const reply = pending();
   first.start.mockReturnValueOnce(reply.promise as never);
   call(field(first.render()), "onKeyDown", key("Enter"));
@@ -512,15 +515,15 @@ test("a pending start keeps Home locked on a later visit, and a late reply clear
   call(field(tree), "onPaste", paste);
   expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
   // The draft changed meanwhile (Edit on Home): the late success leaves it alone and unlocks Send.
-  first.box.current = { ...first.box.current, text: "A newer idea" };
+  first.box.current = { ...first.box.current, segments: textSegments("A newer idea") };
   reply.resolve({ ok: true });
   await vi.waitFor(() => expect(first.box.current.sending).toBeNull());
-  expect(first.box.current.text).toBe("A newer idea");
+  expect(first.box.current.segments).toEqual(textSegments("A newer idea"));
 });
 
 // The refusal reason is text a user may copy; its Retry is a button and stays unselectable.
 test("selectable: the composer notice's text, not its Retry button", () => {
-  const { render } = setup({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  const { render } = setup({ segments: textSegments("Draw a pricing page."), notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
   const tree = render();
   const text = find(tree, props => props.className === "grow-text selectable" || props.className === "grow-text");
   expect(text.className).toBe("grow-text selectable");
@@ -529,13 +532,13 @@ test("selectable: the composer notice's text, not its Retry button", () => {
 });
 
 test("a late refusal after leaving Home is shown on the next visit and keeps the draft", async () => {
-  const { box, start, render } = setup({ text: "Draw a pricing page." });
+  const { box, start, render } = setup({ segments: textSegments("Draw a pricing page.") });
   const reply = pending();
   start.mockReturnValueOnce(reply.promise as never);
   call(field(render()), "onKeyDown", key("Enter"));
   reply.resolve({ error: "busy" });
   await vi.waitFor(() => expect(box.current.sending).toBeNull());
-  expect(box.current).toMatchObject({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  expect(box.current).toMatchObject({ segments: textSegments("Draw a pricing page."), notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
   expect(render().some(props => props.className === "doan-notice error doan-panel composer-notice")).toBe(true);
 });
 
@@ -594,7 +597,7 @@ test("a group tab's ←/→ selects the next tab and focuses it once drawn, with
 
 test("Edit on Home checks the restored attachments again at once: checking, then ready or moved", async () => {
   const sent = ["a.pdf", "b.pdf"].map(name => ({ key: name, id: `id-${name}`, name, kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: `/u/${name}` }));
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: sent, provider: "claude", model: null, effort: null };
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: sent, provider: "claude", model: null, effort: null };
   let finish!: (value: unknown) => void;
   doan.recheckAttachments = vi.fn(() => new Promise(resolve => { finish = resolve; }));
   const { box, render } = setup({}, { restore: { request: last, seq: 1 } });
@@ -615,12 +618,12 @@ test("Edit on Home's Replace gives back the replaced draft's files and thumbnail
   const kept = { key: "k-kept", id: "id-kept", name: "kept.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 1, path: "/u/kept.pdf" };
   const pasted = { key: "k-paste", id: "id-paste", name: "paste.png", kind: "image" as const, pasted: true, status: "ready" as const, size: 1, path: "/u/paste.png" };
   const root = "/code/doan-design";
-  const last: LastRequest = { root, text: "Polish it.", preset: null, attachments: [kept], provider: "claude", model: null, effort: null };
-  const { box, render } = setup({ text: "Another idea", attachments: [pasted, kept], thumbnails: { "k-paste": "blob:paste", "k-kept": "blob:kept" }, lastKeys: { [root]: ["k-kept"] }, lastIds: { [root]: ["id-kept"] } }, { restore: { request: last, seq: 1 } });
+  const last: LastRequest = { root, segments: textSegments("Polish it."), preset: null, attachments: [kept], provider: "claude", model: null, effort: null };
+  const { box, render } = setup({ segments: textSegments("Another idea"), attachments: [pasted, kept], thumbnails: { "k-paste": "blob:paste", "k-kept": "blob:kept" }, lastKeys: { [root]: ["k-kept"] }, lastIds: { [root]: ["id-kept"] } }, { restore: { request: last, seq: 1 } });
   render(); runEffects();
   const replace = find(render(), props => props["data-ui-variant"] === "prominent" && props.children === "Replace");
   call(replace, "onClick", {});
-  expect(box.current.text).toBe("Polish it.");
+  expect(box.current.segments).toEqual(textSegments("Polish it."));
   await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-paste"]));
   expect(doan.removeAttachment).toHaveBeenCalledExactlyOnceWith("id-paste");
   expect(revoke).toHaveBeenCalledExactlyOnceWith("blob:paste");
@@ -629,7 +632,7 @@ test("Edit on Home's Replace gives back the replaced draft's files and thumbnail
 
 test("a request rebuilt after a reload brings its image thumbnails into the composer's object URLs", () => {
   const shot = { key: "k-shot", id: "id-shot", name: "shot.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/shot.png" };
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [shot], provider: "claude", model: null, effort: null, thumbnails: { "k-shot": new Uint8Array([1, 2, 3]) } };
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [shot], provider: "claude", model: null, effort: null, thumbnails: { "k-shot": new Uint8Array([1, 2, 3]) } };
   const create = vi.spyOn(URL, "createObjectURL").mockImplementation(() => "blob:shot");
   doan.recheckAttachments = vi.fn(() => new Promise(() => {}));
   const { box, render } = setup({}, { restore: { request: last, seq: 1 } });
@@ -650,7 +653,7 @@ function mount(props: HeroComposerProps, redraw: () => void) {
 }
 
 test("a refusal that arrives after leaving and coming back redraws the Home now on screen, with the notice and the field unlocked", async () => {
-  const { box, start, props } = setup({ text: "Draw a pricing page." });
+  const { box, start, props } = setup({ segments: textSegments("Draw a pricing page.") });
   const reply = pending();
   start.mockReturnValueOnce(reply.promise as never);
   const first = mount(props, vi.fn());
@@ -684,17 +687,17 @@ test("a last request's thumbnail and sent id stay while any root's last request 
   doan.releaseAttachments = vi.fn(async () => true);
   const shot = { key: "shot", id: "id-shot", name: "shot.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/shot.png" };
   const other = { ...shot, key: "other", id: "id-other", name: "other.png", path: "/u/other.png" };
-  const { box, start, render } = setup({ text: "A", attachments: [shot], thumbnails: { shot: "blob:shot", other: "blob:other" } }, { entries: [ENTRY, B] });
+  const { box, start, render } = setup({ segments: textSegments("A"), attachments: [shot], thumbnails: { shot: "blob:shot", other: "blob:other" } }, { entries: [ENTRY, B] });
   const send = async () => { const calls = start.mock.calls.length; call(field(render()), "onKeyDown", key("Enter")); await vi.waitFor(() => expect(start.mock.calls.length).toBe(calls + 1)); await vi.waitFor(() => expect(box.current.sending).toBeNull()); };
   await send();                                                                    // A's last request uses shot
-  box.current = { ...box.current, root: "/code/acme", text: "B", attachments: [shot] }; // restored, sent in B
+  box.current = { ...box.current, root: "/code/acme", segments: textSegments("B"), attachments: [shot] }; // restored, sent in B
   await send();
-  box.current = { ...box.current, root: "/code/doan-design", text: "A again", attachments: [other] };
+  box.current = { ...box.current, root: "/code/doan-design", segments: textSegments("A again"), attachments: [other] };
   await send();                                                                    // A's last request is replaced
   expect(revoke).not.toHaveBeenCalledWith("blob:shot");
   expect(box.current.thumbnails.shot).toBe("blob:shot");
   expect(doan.releaseAttachments).not.toHaveBeenCalledWith(expect.arrayContaining(["id-shot"]));
-  box.current = { ...box.current, root: "/code/acme", text: "B again", attachments: [] };
+  box.current = { ...box.current, root: "/code/acme", segments: textSegments("B again"), attachments: [] };
   await send();                                                                    // B's last request is replaced too
   expect(revoke).toHaveBeenCalledWith("blob:shot");
   expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-shot"]);
@@ -751,7 +754,7 @@ test("settings action: with no agent able to run, Sign in to an agent sits under
 
 test("settings action: the fixed default starts each input; a pick lasts until a successful send, then the default returns", async () => {
   doan.listConversationModels = vi.fn(async () => ({ models: [{ id: "gpt-y", label: "GPT Y", default: true }, { id: "gpt-x", label: "GPT X", default: false, efforts: ["low", "high"] }] }));
-  const { box, start, render } = setup({ text: "One", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } },
+  const { box, start, render } = setup({ segments: textSegments("One"), auth: { revision: 1, providers: [dto("claude"), dto("codex")] } },
     { prefs: { lastProvider: "claude", models: { codex: { model: "gpt-y" } } }, defaults: { provider: "codex", model: "gpt-x", effort: "high" } });
   render();
   for (const effect of hooks.effects) effect();
@@ -761,15 +764,15 @@ test("settings action: the fixed default starts each input; a pick lasts until a
   const effort = find(render(), props => typeof props.onValueChange === "function" && props.value === "high");
   (effort.onValueChange as (value: string) => void)("low");
   expect(await send()).toMatchObject({ runtime: "codex", model: "gpt-x", effort: "low" });
-  box.current = { ...box.current, text: "Two" };
+  box.current = { ...box.current, segments: textSegments("Two") };
   expect(await send()).toMatchObject({ runtime: "codex", model: "gpt-x", effort: "high" });
   // Claude picked from the agent menu (its group is the empty radio group): kept until sent, then back to Codex.
   const claude = find(render(), props => typeof props.onValueChange === "function" && props.value === "");
   (claude.onValueChange as (value: string) => void)("default");
-  box.current = { ...box.current, text: "Three" };
+  box.current = { ...box.current, segments: textSegments("Three") };
   expect((await send()).runtime).toBe("claude");
   expect(box.current).toMatchObject({ provider: null, models: {}, efforts: {} });
-  box.current = { ...box.current, text: "Four" };
+  box.current = { ...box.current, segments: textSegments("Four") };
   expect((await send()).runtime).toBe("codex");
 });
 
@@ -789,7 +792,7 @@ test("settings action: a changed default waits for the next input; the draft kee
   await vi.waitFor(() => expect(box.current.sending).toBeNull());
   render();
   for (const effect of hooks.effects) effect();
-  box.current = { ...box.current, text: "Next" };
+  box.current = { ...box.current, segments: textSegments("Next") };
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
   expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
@@ -805,7 +808,7 @@ function withDoany(tree: Record<string, unknown>[]) {
 const sendButton = (tree: Record<string, unknown>[]) => find(tree, props => props["aria-label"] === "Send");
 
 test("Doany does not hop when Send or the submit key cannot start a send", () => {
-  const { start, render } = setup({ text: "" });
+  const { start, render } = setup({ segments: textSegments("") });
   const tree = render();
   const doany = withDoany(tree);
   expect(sendButton(tree).disabled).toBe(true);
@@ -816,19 +819,19 @@ test("Doany does not hop when Send or the submit key cannot start a send", () =>
 });
 
 test("Doany hops once when Send, the submit key or the notice's Retry starts a send", async () => {
-  const button = setup({ text: "Draw a pricing page." });
+  const button = setup({ segments: textSegments("Draw a pricing page.") });
   let tree = button.render();
   const doany = withDoany(tree);
   call(sendButton(tree), "onClick", {});
   expect(doany.hop).toHaveBeenCalledTimes(1);
   await vi.waitFor(() => expect(button.start).toHaveBeenCalledTimes(1));
-  const submit = setup({ text: "Draw a pricing page." });
+  const submit = setup({ segments: textSegments("Draw a pricing page.") });
   tree = submit.render();
   const keyed = withDoany(tree);
   call(field(tree), "onKeyDown", key("Enter"));
   expect(keyed.hop).toHaveBeenCalledTimes(1);
   await vi.waitFor(() => expect(submit.start).toHaveBeenCalledTimes(1));
-  const retry = setup({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  const retry = setup({ segments: textSegments("Draw a pricing page."), notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
   tree = retry.render();
   const again = withDoany(tree);
   call(find(tree, props => props.children === "Retry" && typeof props.onClick === "function"), "onClick", {});
@@ -848,7 +851,7 @@ test("input in the field, an IME composition's included, draws Doany's gaze", ()
 });
 
 test("while a start is pending, Send, the submit key and the notice's Retry neither start again nor hop again", async () => {
-  const { box, start, render } = setup({ text: "Draw a pricing page." });
+  const { box, start, render } = setup({ segments: textSegments("Draw a pricing page.") });
   start.mockReturnValueOnce(new Promise(() => {}) as never);
   let tree = render();
   const doany = withDoany(tree);
@@ -875,7 +878,7 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
 // pick alone, and the send carries it; after a send the next input starts from the remembered mode again.
 test("the permission pick is remembered at once and sent with the start", async () => {
   const onRemember = vi.fn();
-  const { box, start, render } = setup({ text: "One" }, { prefs: { lastProvider: "claude", permissions: { claude: "plan" } }, onRemember });
+  const { box, start, render } = setup({ segments: textSegments("One") }, { prefs: { lastProvider: "claude", permissions: { claude: "plan" } }, onRemember });
   const trigger = find(render(), props => props.className === "composer-permission doan-button");
   expect(trigger["aria-label"]).toBe("Permission: Plan (read-only)");
   const picker = find(render(), props => typeof props.onValueChange === "function" && props.value === "plan");
@@ -916,7 +919,7 @@ test("a press outside the / list closes it until the field is empty; a press in 
     addEventListener: (type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { if (type === "pointerdown" && capture) listeners.push(listener); },
     removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { const at = listeners.indexOf(listener); if (at >= 0) listeners.splice(at, 1); },
   });
-  const { box, render } = setup({ text: "/cri" });
+  const { box, render } = setup({ segments: textSegments("/cri") });
   const text = {}, row = {}, chip = {};
   const tree = render();
   hooks.refs[0]!.current = { focus: vi.fn(), element: () => ({ contains: (node: unknown) => node === text }) };
@@ -930,8 +933,8 @@ test("a press outside the / list closes it until the field is empty; a press in 
   expect(field(render()).role).toBe("combobox");
   press(chip);
   expect(field(render()).role).toBe("textbox");
-  expect(box.current.text).toBe("/cri");
-  box.current = { ...box.current, text: "/crit" };
+  expect(box.current.segments).toEqual(textSegments("/cri"));
+  box.current = { ...box.current, segments: textSegments("/crit") };
   expect(field(render()).role).toBe("textbox");
   expect(listeners).toHaveLength(1);
   for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
@@ -940,9 +943,9 @@ test("a press outside the / list closes it until the field is empty; a press in 
   render(); const closed = hooks.effects.map(effect => effect());
   expect(listeners).toHaveLength(0);
   for (const cleanup of closed) if (typeof cleanup === "function") cleanup();
-  box.current = { ...box.current, text: "" };
+  box.current = { ...box.current, segments: textSegments("") };
   render(); for (const effect of hooks.effects) effect();
-  box.current = { ...box.current, text: "/" };
+  box.current = { ...box.current, segments: textSegments("/") };
   expect(field(render()).role).toBe("combobox");
 });
 
@@ -976,7 +979,7 @@ test("Home marks the model as picked only when the person picked it", () => {
 test("a model restored by Edit on Home is not marked as picked; picking it again is", () => {
   const onRemember = vi.fn();
   const effortful = { [modelsKey("/code/doan-design", "claude", 1)]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
   const { render } = setup({ lists: effortful }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
   render(); runEffects(); render(); runEffects();
   expect(onRemember).toHaveBeenCalled();
@@ -1001,7 +1004,7 @@ function runChanged(previous: (unknown[] | undefined)[]) {
 test("re-picking the model or level Edit on Home restored remembers it as picked", () => {
   const onRemember = vi.fn();
   const lists = { [modelsKey("/code/doan-design", "claude", 1)]: { models: [{ id: "opus", label: "Opus 5.5", default: true, efforts: ["low", "high"] }, { id: "sonnet", label: "Sonnet 5.5", default: false }] } };
-  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
+  const last: LastRequest = { root: "/code/doan-design", segments: textSegments("Polish it."), preset: null, attachments: [], provider: "claude", model: "opus", effort: "high" };
   const { render } = setup({ lists }, { prefs: { lastProvider: "claude" }, defaults: { provider: "claude" }, restore: { request: last, seq: 1 }, onRemember });
   render(); runEffects(); render(); runEffects();
   let tree = render(); runEffects();
@@ -1024,7 +1027,7 @@ test.each([true, false])("skill replies remain with their root in either complet
   const a = deferred<{ skills: { name: string; description: string }[] }>();
   const b = deferred<{ skills: { name: string; description: string }[] }>();
   doan.listConversationSkills!.mockImplementation(({ root }) => root === ENTRY.path ? a.promise : b.promise);
-  const { box, render } = setup({ text: "/deploy", root: ENTRY.path }, { entries: [ENTRY, B] });
+  const { box, render } = setup({ segments: textSegments("/deploy"), root: ENTRY.path }, { entries: [ENTRY, B] });
   render(); await runEffects();
   box.current = { ...box.current, root: B.path };
   render(); await runEffects();
@@ -1038,7 +1041,7 @@ test.each([true, false])("skill replies remain with their root in either complet
 test("exact skill Enter sends the displayed word and refreshes after a turn ends", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
-  const { render, start, props } = setup({ text: "/deploy" });
+  const { render, start, props } = setup({ segments: textSegments("/deploy") });
   render(); await runEffects(); await flush();
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy" });
@@ -1053,7 +1056,7 @@ test("exact skill Enter sends the displayed word and refreshes after a turn ends
 test("switching to Cursor removes skills from both the field and sent request", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
-  const { render, box, start } = setup({ text: "/deploy", auth: { revision: 1, providers: [dto("claude"), dto("cursor")] } });
+  const { render, box, start } = setup({ segments: textSegments("/deploy"), auth: { revision: 1, providers: [dto("claude"), dto("cursor")] } });
   render(); await runEffects(); await flush();
   expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
   box.current = { ...box.current, provider: "cursor" };
@@ -1065,7 +1068,7 @@ test("switching to Cursor removes skills from both the field and sent request", 
 test("a refreshed list changes both highlighted names and fixed send lines", async () => {
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn(), hasFocus: () => true, querySelectorAll: () => [] });
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "deploy", description: "Deploy" }] });
-  const { render, start } = setup({ text: "/deploy /review" });
+  const { render, start } = setup({ segments: textSegments("/deploy /review") });
   render(); await runEffects(); await flush();
   expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "review", description: "Review" }] });
@@ -1081,7 +1084,7 @@ test("a refreshed list changes both highlighted names and fixed send lines", asy
 // DESIGN 'Busy action' (the list Retry's model): the notice and its Retry stay while the send Retry started is out.
 test("the notice's Retry keeps the notice while its send is out, busy and described by the notice; the reply decides what stays", async () => {
   const text = "Claude Code is finishing a previous run. Try again in a moment.";
-  const { box, start, render } = setup({ text: "Draw a pricing page.", notice: { text, retry: true } });
+  const { box, start, render } = setup({ segments: textSegments("Draw a pricing page."), notice: { text, retry: true } });
   let answer!: (outcome: unknown) => void;
   start.mockReturnValueOnce(new Promise(resolve => { answer = resolve; }) as never);
   let tree = render();
@@ -1145,10 +1148,10 @@ const sendTip = (tree: Record<string, unknown>[]) => {
 test.each([
   ["no project", "Add a project to send.", {}, { entries: [] }],
   ["no ready agent", "No agent is ready to run.", { auth: { revision: 1, providers: [] } }, {}],
-  ["text over the limit", "Shorten the message to send it.", { text: "x".repeat(33000) }, {}],
+  ["text over the limit", "Shorten the message to send it.", { segments: textSegments("x".repeat(33000)) }, {}],
   ["attachments being checked", "Checking attachments", { attachments: [{ key: "a", id: "1", name: "brief.pdf", kind: "file", pasted: false, status: "checking", size: 10, path: "/Users/ada/brief.pdf" }] }, {}],
 ] as [string, string, Partial<ComposerMemory>, Partial<HeroComposerProps>][])("with %s Send stays focusable and carries the reason as its tooltip and description", (_name, reason, memory, props) => {
-  const tree = setup({ text: "Draw a pricing page.", ...memory }, props).render();
+  const tree = setup({ segments: textSegments("Draw a pricing page."), ...memory }, props).render();
   const send = find(tree, item => item["aria-label"] === "Send");
   expect(send).toMatchObject({ "aria-disabled": true, "data-disabled": "" });
   expect(send.disabled).toBeUndefined();
@@ -1169,11 +1172,11 @@ function pasteHome(memory: Partial<ComposerMemory> = {}) {
 test("long pasted text keeps the selected field text, checks a file chip, blocks Send, then announces its lines", async () => {
   let saved!: (result: unknown) => void;
   doan.addPastedText!.mockReturnValueOnce(new Promise(resolve => { saved = resolve; }));
-  const { box, render, start } = pasteHome({ text: "Keep this selected request" });
+  const { box, render, start } = pasteHome({ segments: textSegments("Keep this selected request") });
   const event = pastedTextEvent("Checkout spec\r\n" + "x".repeat(1000));
   call(field(render()), "onPaste", event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
-  expect(box.current.text).toBe("Keep this selected request");
+  expect(box.current.segments).toEqual(textSegments("Keep this selected request"));
   expect(box.current.attachments).toEqual([expect.objectContaining({ name: "Pasted text", kind: "file", pasted: true, status: "checking", lines: 2, excerpt: "Checkout spec" })]);
   call(field(render()), "onKeyDown", key("Enter"));
   expect(start).not.toHaveBeenCalled();
@@ -1213,9 +1216,9 @@ test("removing a Checking pasted text chip deletes the file when the save eventu
 
 test.each(["command", "chip", "composing", "readOnly", "sending"])("long text in %s leaves the host paste alone and creates no IPC", async mode => {
   if (mode === "command") doan.listConversationSkills!.mockResolvedValue({ skills: [{ kind: "command", name: "compact", description: "Compact" }] });
-  const { box, render } = pasteHome({ text: mode === "command" ? "/compact " : "Keep" });
+  const { box, render } = pasteHome({ segments: textSegments(mode === "command" ? "/compact " : "Keep") });
   if (mode === "command") await Promise.resolve();
-  if (mode === "sending") box.current.sending = { generation: 1, text: "Keep", preset: null, keys: [] };
+  if (mode === "sending") box.current.sending = { generation: 1, segments: textSegments("Keep"), preset: null, keys: [] };
   if (mode === "composing" || mode === "readOnly") hooks.refs[0]!.current = { composing: () => mode === "composing", element: () => ({ isContentEditable: mode !== "readOnly" }) };
   const event = pastedTextEvent(undefined, mode === "chip" ? ["text/plain", "application/x-doan-field+json"] : undefined);
   call(field(render()), "onPaste", event);
@@ -1252,4 +1255,163 @@ test("pasted text checks the normalized UTF-8 50 MB boundary before saving", asy
   call(field(render()), "onPaste", pastedTextEvent("é".repeat(cap / 2) + "x"));
   expect(doan.addPastedText).toHaveBeenCalledOnce();
   expect(box.current.notice?.text).toBe("This text is over 50 MB, so it wasn’t attached.");
+});
+
+// Canvas chips: Home's composer holds segments and anchors, of the root chosen above it.
+const CANVAS: Anchor = { canvas: { path: ".doan/canvases/doan-onboarding.html", id: "doan-onboarding" } };
+const OTHER_CANVAS: Anchor = { canvas: { path: ".doan/canvases/pricing.html", id: "pricing" } };
+const chipped = (anchor: Anchor = CANVAS): FieldSegment[] => [{ kind: "text", text: "Follow " }, { kind: "chip", anchor }, { kind: "text", text: " for the layout." }];
+const NAMED = textSegments("Follow doan-onboarding for the layout.");
+const WORKTREE: FolderEntry = { kind: "list", path: "/code/doan-wt", servedRev: 0, canvases: [], git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: "feat", worktrees: [] } };
+// The line under the composer: a drag's refusal, the chip notice or the send reason.
+function reasonLine(tree: Record<string, unknown>[]): unknown {
+  const line = tree.find(props => props.className === "composer-reason");
+  return line ? (line.children as { props: { children: unknown } }).props.children : null;
+}
+const pickProject = (render: () => Record<string, unknown>[], from: string, to: string) => {
+  const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === from);
+  (projects.onValueChange as (key: string) => void)(to);
+};
+
+test("a Home start carries its canvas chips as anchors, and the last request keeps the chips", async () => {
+  const { start, render } = setup({ segments: chipped(), root: ENTRY.path, chipRoot: ENTRY.path });
+  render(); runEffects();
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalled());
+  expect(start.mock.calls[0]![0]).toMatchObject({ root: ENTRY.path, text: "Follow {{1}} for the layout.", anchors: [CANVAS] });
+  expect(start.mock.calls[0]![1]).toMatchObject({ root: ENTRY.path, segments: chipped() });
+});
+
+test("Home's field takes canvas chips of its root, shows their Open tooltip, and a press opens the canvas through App", () => {
+  const onCanvasChip = vi.fn(async () => null);
+  const { render } = setup({ segments: chipped(), root: ENTRY.path, chipRoot: ENTRY.path }, { onCanvasChip });
+  const props = input(render());
+  expect(props).toMatchObject({ chipRoot: ENTRY.path, canvasOpen: { id: null } });
+  expect(props.chipDrag).toBeTypeOf("function");
+  (props.onChipClick as (anchor: Anchor, chip: unknown) => void)(CANVAS, { isConnected: true, getBoundingClientRect: () => ({ left: 0, bottom: 0 }) });
+  expect(onCanvasChip).toHaveBeenCalledWith(ENTRY.path, CANVAS.canvas);
+});
+
+test("Home registers its composer for canvas rows at Home's root, and refuses a chip while its start is out", () => {
+  const { box, render } = setup({ root: ENTRY.path });
+  render(); runEffects();
+  const composer = chipComposer("home")!;
+  expect(composer.root).toBe(ENTRY.path);
+  expect(composer.canTake(CANVAS)).toBeNull();
+  box.current = { ...box.current, sending: { generation: 1, segments: [], preset: null, keys: [] } };
+  render();
+  expect(composer.canTake(CANVAS)).toBe(CANVAS_CHIP_SENDING);
+});
+
+test("switching Home's project turns the old root's chips into their names with one notice; switching back keeps the names", () => {
+  const { box, render } = setup({ segments: chipped(), root: ENTRY.path, chipRoot: ENTRY.path }, { entries: [ENTRY, B] });
+  render(); runEffects();
+  expect(box.current.segments).toEqual(chipped());
+  pickProject(render, "/code/doan-design/.git", "/code/acme/.git");
+  render(); runEffects();
+  expect(box.current.segments).toEqual(NAMED);
+  expect(reasonLine(render())).toBe("1 canvas chip became plain text. Its canvas is in another project.");
+  // Said once: drawing again changes nothing, and the next edit takes the line away.
+  render(); runEffects();
+  expect(reasonLine(render())).toBe("1 canvas chip became plain text. Its canvas is in another project.");
+  (input(render()).onChange as (value: FieldSegment[]) => void)(textSegments("Follow doan-onboarding for the layout!"));
+  expect(reasonLine(render())).toBeNull();
+  pickProject(render, "/code/acme/.git", "/code/doan-design/.git");
+  render(); runEffects();
+  expect(box.current.segments).toEqual(textSegments("Follow doan-onboarding for the layout!"));
+  expect(reasonLine(render())).toBeNull();
+});
+
+test("switching Home's worktree says the chips' canvases are on another worktree", () => {
+  const { box, render } = setup({ segments: [{ kind: "chip", anchor: CANVAS }, { kind: "text", text: " and " }, { kind: "chip", anchor: OTHER_CANVAS }], root: ENTRY.path, chipRoot: ENTRY.path }, { entries: [ENTRY, WORKTREE] });
+  render(); runEffects();
+  const other = find(render(), props => props.className === "doan-menu-item shell-worktree" && props["aria-current"] === "false");
+  (other.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  render(); runEffects();
+  expect(box.current).toMatchObject({ root: WORKTREE.path, segments: textSegments("doan-onboarding and pricing") });
+  expect(reasonLine(render())).toBe("2 canvas chips became plain text. Their canvases are on another worktree.");
+});
+
+test("Edit on Home brings the request's chips back with its root; a request whose project left Home's list keeps only their names", () => {
+  const last: LastRequest = { root: ENTRY.path, segments: chipped(), preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const kept = setup({ root: B.path }, { entries: [ENTRY, B], restore: { request: last, seq: 1 } });
+  for (let i = 0; i < 3; i++) { kept.render(); runEffects(); }
+  expect(kept.box.current).toMatchObject({ root: ENTRY.path, segments: chipped() });
+  expect(reasonLine(kept.render())).toBeNull();
+  const gone = setup({ root: B.path }, { entries: [ENTRY, B], restore: { request: { ...last, root: "/code/gone" }, seq: 1 } });
+  for (let i = 0; i < 3; i++) { gone.render(); runEffects(); }
+  expect(gone.box.current.segments).toEqual(NAMED);
+  expect(reasonLine(gone.render())).toBe("1 canvas chip became plain text. Its canvas is in another project.");
+});
+
+test("a start message a quit stopped comes back to Home with its canvas chips", async () => {
+  doan.takeStartDraft!.mockResolvedValueOnce({ text: "Follow {{1}} for the layout.", anchors: [CANVAS], attachments: [], reason: "restarted" });
+  const { box, render } = setup({ segments: textSegments("Also") });
+  render(); runEffects();
+  await vi.waitFor(() => expect(box.current.segments).toEqual([{ kind: "text", text: "Also\n\nFollow " }, { kind: "chip", anchor: CANVAS }, { kind: "text", text: " for the layout." }]));
+});
+
+test("a chip follows its canvas by id when the canvas moves", () => {
+  const moved: FolderEntry = { ...ENTRY, canvases: [{ ...row("doan-onboarding"), path: ".doan/canvases/flows/onboarding.html" }] } as FolderEntry;
+  const { box, render } = setup({ segments: chipped(), root: ENTRY.path, chipRoot: ENTRY.path }, { entries: [moved] });
+  render(); runEffects();
+  expect(box.current.segments[1]).toEqual({ kind: "chip", anchor: { canvas: { path: ".doan/canvases/flows/onboarding.html", id: "doan-onboarding" } } });
+});
+
+test("a refused canvas row drag over Home shows its reason in Home's reason place", () => {
+  vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  const data = { types: [CANVAS_DRAG_TYPE], setData: vi.fn(), effectAllowed: "", dropEffect: "" } as unknown as DataTransfer;
+  beginCanvasDrag({ root: B.path, path: ".doan/canvases/cart.html", id: "cart", judge: () => "Only canvases in doan-design can go in this message." }, data);
+  try {
+    const { render } = setup({ root: ENTRY.path });
+    call(find(render(), props => props.className === "composer"), "onDragEnter", { dataTransfer: data, target: null, preventDefault: vi.fn() });
+    const tree = render();
+    expect(reasonLine(tree)).toBe("Only canvases in doan-design can go in this message.");
+    expect(find(tree, props => props.className === "composer")["data-chip-refused"]).toBe("");
+  } finally { endCanvasDrag(); }
+});
+
+// The default root (the loaded project, the last one) can change without the person touching Home; the chips stay.
+test("a canvas chip pins Home's default root, so a draft whose project was never picked keeps its chips when the default changes", () => {
+  const { box, render, props } = setup({}, { entries: [ENTRY, B], loaded: ENTRY.path });
+  render(); runEffects();
+  expect(box.current.root).toBeNull();
+  (input(render()).onChange as (value: FieldSegment[]) => void)(chipped());
+  expect(box.current.root).toBe(ENTRY.path);
+  props.loaded = B.path;
+  render(); runEffects(); render(); runEffects();
+  expect(box.current).toMatchObject({ root: ENTRY.path, segments: chipped(), chipNotice: null });
+  expect(reasonLine(render())).toBeNull();
+});
+
+test("a draft with text only keeps following the default root", () => {
+  const { box, render, props } = setup({}, { entries: [ENTRY, B], loaded: ENTRY.path });
+  render(); runEffects();
+  (input(render()).onChange as (value: FieldSegment[]) => void)(textSegments("Draw a pricing page."));
+  expect(box.current.root).toBeNull();
+  props.loaded = B.path;
+  render(); runEffects();
+  expect(find(render(), props => typeof props["aria-label"] === "string" && (props["aria-label"] as string).startsWith("Project: "))["aria-label"]).toBe("Project: acme");
+});
+
+// A returned start that waited for a send lands under its own root: chips the field holds for another root become names.
+test("a returned start that waited out a send turns the other root's chips into names when it lands", async () => {
+  const reply = deferred<unknown>();
+  doan.takeStartDraft!.mockReturnValueOnce(reply.promise as never);
+  const { box, start, render } = setup({}, { entries: [ENTRY, B] });
+  render(); runEffects();
+  pickProject(render, "/code/doan-design/.git", "/code/acme/.git");
+  render(); runEffects();
+  const cart: Anchor = { canvas: { path: ".doan/canvases/cart.html", id: "cart" } };
+  box.current = { ...box.current, segments: chipped(cart), chipRoot: B.path };
+  const sent = pending();
+  start.mockReturnValueOnce(sent.promise as never);
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+  reply.resolve({ text: "Draw a pricing page.", anchors: [], attachments: [], reason: "restarted" });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(box.current.segments).toEqual(chipped(cart));
+  sent.resolve({ error: "busy" });
+  await vi.waitFor(() => expect(box.current.segments).toEqual(textSegments("Follow cart for the layout.\n\nDraw a pricing page.")));
+  expect(box.current).toMatchObject({ root: ENTRY.path, chipRoot: ENTRY.path, chipNotice: "1 canvas chip became plain text. Its canvas is in another project." });
 });

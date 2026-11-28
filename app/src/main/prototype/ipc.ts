@@ -200,10 +200,12 @@ export interface PanelRequest {
   width?: number;
 }
 
-// `prototype:reveal`, from the prototype window: a person's chip, an answer's chip, Sign in, a notice's Open, and a
-// handoff line's or card's Open.
+type CanvasAnchor = NonNullable<Anchor["canvas"]>;
+// `prototype:reveal`, from the prototype window: a person's chip, a person's canvas chip, an answer's chip, Sign in, a
+// notice's Open, and a handoff line's or card's Open.
 export type RevealPayload =
   | { kind: "chip"; conversationId: string; anchor: Anchor }
+  | { kind: "canvas"; canvas: CanvasAnchor }
   | { kind: "reply"; conversationId: string; link: ReplyAnchor }
   | { kind: "settings"; provider?: Provider }
   | { kind: "conversation"; conversationId: string }
@@ -213,6 +215,7 @@ export type RevealPayload =
 // The main window decides whether it can show it now (a dialog, a page lock or first run keeps everything, with a toast).
 export type PrototypeReveal =
   | { kind: "chip"; root: string; canvas: Canvas; conversationId: string; anchor: Anchor }
+  | { kind: "canvas"; root: string; canvas: CanvasAnchor }
   | { kind: "reply"; root: string; conversationId: string; link: ReplyAnchor }
   | { kind: "settings"; provider?: Provider }
   | { kind: "conversation"; root: string; conversationId: string; canvas?: Canvas }

@@ -45,6 +45,8 @@ const violetAllowed = [
   ".preset-popover .group-tabs button svg",
   ".home-composer .composer",
   ".drop-target",
+  // Where a dragged canvas chip will land in a composer.
+  ".drop-caret",
   ".row-slot.permission",
   ".row-slot.unseen i",
   ".row-slot.ended",

@@ -32,6 +32,30 @@ for (const pressable of [false, true]) {
   });
 }
 
+// POSTMORTEM 2026-11-22 and 2026-11-08: a canvas chip copies as its visible name only, not its "Open <name>" button
+// name, and puts no line break around it.
+for (const pressable of [false, true]) {
+  test(`a sent canvas chip copies as its name, inline (${pressable ? "button" : "span"})`, async () => {
+    const texts = ["Use {{1}} - and {{2}}", "- Like {{1}}\n  * then {{2}} end"];
+    const props: ConversationThreadProps = {
+      items: texts.map((text, i) => ({ kind: "user", key: `u${i}`, seq: i + 1, preset: null, attachments: [],
+        anchors: [{ canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } }, { canvas: { path: ".doan/ds/buttons.html", id: "buttons" } }],
+        parts: text.split(/(\{\{[12]\}\})/).map(part => part === "{{1}}" ? { anchor: 1 } : part === "{{2}}" ? { anchor: 2 } : { text: part }) })),
+      conversationId: "copy", provider: "claude", project: "copy", liveAfter: 0, canvasListed: () => true,
+      visibility: { onWindowVisible: () => noop }, now: 0, onAnswer: noop, onStop: noop, onEditAndResend: noop,
+      onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true,
+      ...(pressable ? { onCanvasChip: async () => null } : {}),
+    };
+    const frame = await dom.load(`<style>${css}</style>${renderToStaticMarkup(<TooltipProvider><ConversationThread {...props} /></TooltipProvider>)}`);
+    const selected = await frame.evaluate(() => [...document.querySelectorAll(".bubble")].map(bubble => {
+      const range = document.createRange(); range.selectNodeContents(bubble);
+      const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+      return selection.toString();
+    }));
+    expect(selected).toEqual(texts.map(text => text.replaceAll("{{1}}", "checkout-flow").replaceAll("{{2}}", "buttons")));
+  });
+}
+
 test("a copied edit step gives its verb, path and counts on their own lines, without the counts' spoken name", async () => {
   const markup = renderToStaticMarkup(<div className="conversation-thread"><Steps id="s" steps={[
     { key: "s1", kind: "edit", verb: "Edited", path: "a.ts", lines: { added: 12, removed: 3 } },

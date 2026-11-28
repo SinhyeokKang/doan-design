@@ -1,9 +1,13 @@
-import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, FileText, Folder, Frame, Gauge, Info, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
+import type { CanvasRow } from "../main/view";
+import { refreshCanvasAnchor } from "../main/conversation/canvasAnchors";
+import { CANVAS_CHIP_SENDING, chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
+import { useCanvasChipDrop, type ChipComposerPlace } from "./canvasChipDrag";
 import { fieldSkillRuns } from "./skillWords";
 import { classifyFirstWord, commandCard, commandLists, planSend, PRESET_NOTICE, queuedCommand, STALE_MODE_CARD, type CommandCard, type CommandLists } from "./commandView";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -26,7 +30,7 @@ import { slashKey, pasteAction } from "./HomeComposerView";
 import { CLIPBOARD_TYPE, type ChipInsert } from "./chipField";
 import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
-import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
+import { pressChip, useLocateNote, type CanvasChipPress, type LocateOutcome } from "./ConversationThread";
 import {
   pasteAsAttachment, pastedTextMeta, pastedTextLabel, MAX_ATTACHMENTS, MAX_PASTED_BYTES, attachRefusal, composeRequest, followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
@@ -74,6 +78,11 @@ export interface DockedComposerProps {
   suggestion?: string | null | undefined;
   // The canvas whose chips the field takes (the canvas panel's); none in Overview, where a pasted chip reads as text.
   chipScope?: string | null;
+  // The root whose canvas chips the composer takes from a sidebar row, the place it registers as with App, and that
+  // root's canvas rows, by whose ids the chips' paths stay current before send. Absent: it takes none.
+  canvasChips?: { place: ChipComposerPlace; root: string; canvases: readonly CanvasRow[] };
+  // A canvas capture runs (the canvas panel's): chips wait for it, as the size bubble's Add to message does.
+  capturing?: boolean;
   // Drafts by draftKey(mode), kept by the host so a switch between conversations, or leaving the screen, keeps each.
   drafts: ReadonlyMap<string, DockedDraft>;
   onDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void;
@@ -150,6 +159,9 @@ export interface DockedComposerProps {
   // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
   canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
+  // A canvas chip's press, as a sent one's (ConversationThread onCanvasChip); fitCanvasId: the canvas whose chip Fits.
+  onCanvasChip?: CanvasChipPress | undefined;
+  fitCanvasId?: string | null;
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
@@ -207,9 +219,9 @@ export function DockedComposer(props: DockedComposerProps) {
   // The 32-place line, for the draft it was refused on; the next edit drops it.
   const [limitAt, setLimitAt] = useState<string | null>(null);
   const [missing, showMissing] = useLocateNote(() => field.current?.element() ?? null);
-  // "No longer in the canvas" by the composer chip that was not found: an overlay placed
-  // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
-  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
+  // The note by the composer chip that was not found: an overlay placed under the chip, outside the field's DOM, and the
+  // chip described by it like a thread chip.
+  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number; text: string } | null>(null);
   // Draws again when a reset passes, so the status line and the Queue tooltip follow the clock.
   const [resetTick, setResetPassed] = useState(0);
   // A draft already pointing at the limit's number of places takes no more from the canvas, so the canvas panel's
@@ -409,12 +421,12 @@ export function DockedComposer(props: DockedComposerProps) {
     link.current = mine;
     return () => { if (link.current === mine) link.current = null; };
   }, [props.link]);
-  const locate = (anchor: Anchor, chip: HTMLElement) => {
-    void props.onLocate?.(anchor).then(outcome => {
+  const press = (anchor: Anchor, chip: HTMLElement) => {
+    void pressChip(anchor, props.project, { onLocate: props.onLocate, onCanvasChip: props.onCanvasChip })?.then(text => {
       const box = root.current?.getBoundingClientRect();
-      if (outcome !== "missing" || !box || !chip.isConnected) return;
+      if (text === null || !box || !chip.isConnected) return;
       const at = chip.getBoundingClientRect();
-      setMissingAt({ chip, left: at.left - box.left, top: at.bottom - box.top });
+      setMissingAt({ chip, left: at.left - box.left, top: at.bottom - box.top, text });
       showMissing();
     });
   };
@@ -546,6 +558,22 @@ export function DockedComposer(props: DockedComposerProps) {
     setAnnouncement(`${card.title}. ${card.body}`);
   }, [props.card]);
 
+  const canvasChips = props.canvasChips ?? null;
+  const chipDrop = useCanvasChipDrop({ place: canvasChips?.place ?? null, root: canvasChips?.root ?? null, field, onLimit: () => setLimitAt(shownKey.current),
+    // A chip taken while sending would stay in the field after the send settles, as dropped files and pastes would.
+    takes: anchor => chipFieldTakes({ blocked: props.canvasGone || refusal?.kind === "gone" ? canvasGoneText(props.project) : locked ? props.unavailable ?? null : isSending ? CANVAS_CHIP_SENDING : null, capturing: !!props.capturing,
+      picking: !!props.pick?.pressed, composing: field.current?.composing() ?? false, segments: draft.segments, ...(reserved ? { reserved } : {}) }, anchor) });
+  // A canvas renamed or moved since its chip went in: the chip follows it by id, in the field first so its caret and undo
+  // history stay (a new value would rebuild it). While an IME composes the field refuses, and the commit's change comes
+  // back here. Only while the draft is still the one read.
+  const canvases = canvasChips?.canvases, onDrafts = props.onDrafts;
+  useEffect(() => {
+    if (!canvases) return;
+    const segments = draft.segments, next = refreshCanvasSegments(segments, canvases);
+    if (next === segments || field.current?.refreshChips(anchor => refreshCanvasAnchor(anchor, canvases)) === false) return;
+    onDrafts(drafts => { const current = drafts.get(key); return current?.segments === segments ? new Map(drafts).set(key, { ...current, segments: next }) : drafts; });
+  }, [key, draft.segments, canvases, onDrafts]);
+
   if (props.canvasGone || refusal?.kind === "gone") return <div className="doan-notice" role="status"><AlertIcon /><span className="grow-text selectable">{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
   // Once the usage limit's state shows, the Queue tooltip says what an earlier usage-limit refusal said.
@@ -554,7 +582,9 @@ export function DockedComposer(props: DockedComposerProps) {
   // A locked field takes no message, so the frame it would send no longer describes it.
   const playingShown = playing !== null && !locked;
   const describedBy = [reason && !reason.tipOnly ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
-  return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
+  // A canvas row drag is never a file drag, so each set leaves the other's events alone.
+  const dragHandlers = Object.fromEntries((["onDragEnter", "onDragOver", "onDragLeave", "onDrop"] as const).map(name => [name, (event: DragEvent<HTMLDivElement>) => { drop.handlers[name](event); chipDrop.handlers[name](event); }]));
+  return <div className="docked" data-shape={shape} ref={root} data-chip-refused={chipDrop.refusal !== null ? "" : undefined} {...dragHandlers}>
     <QueueRows key={key} handle={queueRows} items={commandProvider ? props.queued.map(item => queuedCommand(commandProvider, queuedRequest(item), props.passthrough ?? []) ? { ...item, command: true } : item) : props.queued} homeDirectory={props.homeDirectory} sendNow={sendNowShown} blocked={sendNowBlocked} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
@@ -572,7 +602,8 @@ export function DockedComposer(props: DockedComposerProps) {
         attachments={draft.attachments} preset={presetHeld ? null : draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} commandNames={commandNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
-        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
+        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} chipRoot={canvasChips?.root ?? null} chipDrag={chipDrop.fieldDrag} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate || props.onCanvasChip ? press : undefined}
+        canvasOpen={props.onCanvasChip ? { id: props.fitCanvasId ?? null } : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
@@ -605,6 +636,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {props.context && <ContextRing key={mode.kind === "existing" ? mode.conversationId : ""} context={props.context} provider={mode.kind === "existing" ? mode.provider : null}
         usage={props.usage} canvasPress={props.canvasPress} onLost={() => field.current?.focus()} />}
     </div>
+    {chipDrop.refusal !== null && <div className="composer-reason docked-reason chip-drag-reason" role="status"><span>{chipDrop.refusal}</span></div>}
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
         <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
@@ -616,7 +648,7 @@ export function DockedComposer(props: DockedComposerProps) {
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
-    {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
+    {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{missingAt.text}</span>}
     {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}
     {playingShown && <span className="sr-only" id={playingId}>{playing.description}</span>}
     <div className="sr-only" role="status">{announcement}</div>

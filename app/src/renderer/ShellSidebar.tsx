@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Clock, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Clock, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, MessageSquarePlus, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
@@ -17,6 +17,8 @@ import type { PanelBounds } from "./rightPanelSize";
 import { displayPath } from "./projectDisplay";
 import { slotKey } from "./homeConversations";
 import { canvasStem } from "./canvasRowMessages";
+import type { CanvasChipComposer } from "./canvasChip";
+import { beginCanvasDrag, endCanvasDrag } from "./canvasChipDrag";
 import { canvasExportReason } from "./canvasRowMenu";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import { settingsSectionsShown, type SettingsSection } from "./settingsSections";
@@ -75,6 +77,10 @@ interface Props {
   // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
+  // A canvas row drags as a chip only where the row menu could add it (reason null); judge is App's reason for that row
+  // against a composer the drag reaches. add: the menu's Add to message, returning the composer's focus for after the
+  // menu closes, or null when nothing went in.
+  chipDrag?: { reason(root: string, row: CanvasRow): string | null; judge(root: string, row: CanvasRow, composer: CanvasChipComposer): string | null; add(root: string, row: CanvasRow): (() => void) | null };
   // The viewed canvas's conversations under its row (PRODUCT §5 item 1).
   conversations?: SidebarConversations;
 }
@@ -185,6 +191,9 @@ interface RowMenu {
   current(): CanvasRow | undefined;
   // Focus for a menu whose row left the tree while it was open.
   lostFocus(): void;
+  // Add to message's reason and action (Props `chipDrag`); `afterClose` holds the composer's focus for the menu's close.
+  chip: { reason: string | null; add(current: CanvasRow): (() => void) | null } | null;
+  afterClose: { current: (() => void) | null };
 }
 // Canvas row menu: unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows reach them and their reason is read
 // (docs/design/onboarding.md 'Locked Back'). While locked its button is unavailable too, unlike the project menu's.
@@ -192,24 +201,35 @@ function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
   const exportReason = canvasExportReason(row, menu.exporting(root, row.path), false);
   const trashReason = menu.blocked(root, row) ? "An agent is working on this canvas." : null;
-  const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => void) =>
+  // pressJudged: the reason shown may be stale, so the press goes to `act`, which returns false to keep the menu open.
+  const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => boolean | void, pressJudged = false) =>
     <DropdownMenu.Item className={`doan-menu-item${reason ? " shell-menu-reasoned" : ""}`} aria-label={reason ? label : undefined} aria-disabled={reason ? true : undefined} aria-describedby={reason ? id : undefined} onSelect={event => {
-      if (reason) { event.preventDefault(); return; }
+      if (reason && !pressJudged) { event.preventDefault(); return; }
       const current = args.current();
-      if (current) act(current);
+      if (current && act(current) === false) event.preventDefault();
     }}><Icon aria-hidden="true" />{reason ? <span className="shell-menu-text"><span>{label}</span><small id={id} className="shell-menu-reason">{reason}</small></span> : label}</DropdownMenu.Item>;
   return <DropdownMenu.Root open={args.open} onOpenChange={open => { if (!open || !locked) args.setOpen(open); }}>
     {/* The unavailable state sits on Radix's trigger, the tooltip trigger's direct child, so the tooltip keeps the
         reason as the button's only description (components/ui/tooltip.tsx 'OwnDescription'). */}
-    <Tooltip><TooltipTrigger asChild><DropdownMenu.Trigger asChild aria-disabled={locked || undefined} aria-describedby={locked && args.lock ? args.lock.id : undefined}><button className="doan-icon-button shell-more" aria-label={`${args.name} menu`} tabIndex={args.tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger></TooltipTrigger>
+    <Tooltip><TooltipTrigger asChild><DropdownMenu.Trigger asChild aria-disabled={locked || undefined} aria-describedby={locked && args.lock ? args.lock.id : undefined}><button className="doan-icon-button shell-more" aria-label={`${args.name} menu`} tabIndex={args.tabIndex} draggable={false} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger></TooltipTrigger>
       <TooltipContent>{locked && args.lock ? args.lock.reason : "Canvas menu"}</TooltipContent></Tooltip>
     <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-canvas-menu shell-side-menu" data-ui-size="compact" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
+      const after = args.afterClose.current;
+      args.afterClose.current = null;
+      if (after) { event.preventDefault(); after(); return; }
       // A dialog the menu opened owns focus (App returns it to this button when it closes), as does a control focus
       // already moved to (POSTMORTEM 2026-10-30: a dialog is found by its rendered element, not a styling class).
       const active = document.activeElement;
       if (document.querySelector('[role="dialog"], dialog[open], .ob-overlay') || (active instanceof HTMLElement && active !== document.body && !active.closest(".shell-canvas-menu, .shell-more"))) event.preventDefault();
       else if (!args.rowNode()) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-canvas-menu")) args.lostFocus(); }
     }}>
+      {/* App judges the press again; a refusal keeps the menu open and draws it again with the reason now. */}
+      {args.chip && item("Add to message", MessageSquarePlus, args.chip.reason, `${args.reasonId}-add`, current => {
+        args.afterClose.current = args.chip?.add(current) ?? null;
+        if (args.afterClose.current) return;
+        args.setOpen(true);
+        return false;
+      }, true)}
       {item("Export…", Download, exportReason, `${args.reasonId}-export`, current => menu.exportCanvas(root, current))}
       {item("Move to Trash", Trash2, trashReason, `${args.reasonId}-trash`, current => menu.trash(root, current, args.rowNode()?.querySelector<HTMLElement>(".shell-more") ?? null))}
     </DropdownMenu.Content></DropdownMenu.Portal>
@@ -251,6 +271,7 @@ export function ShellSidebar(props: Props) {
   // later move to the same canvas never reuses it.
   const pressedRow = useRef<{ key: string; arrived: boolean } | null>(null);
   const drawn = useRef<string[] | null>(null);
+  const canvasMenuAfter = useRef<(() => void) | null>(null);
   const rows: { key: string; parent?: string; canvas?: boolean; conversation?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed canvas row on screen, for the conversation list placed under one of them.
   const canvasRows = new Map<string, { root: string; row: CanvasRow; canvases: readonly CanvasRow[] }>();
@@ -351,6 +372,13 @@ export function ShellSidebar(props: Props) {
   const conversationKeys = placedRow && listShown ? listItems.map(c => conversationRowKey(placedRow.root, placedRow.row.path, c.conversationId)) : [];
   listFirst = conversationKeys[0];
   // Read at press time, when the list's place is settled; `listed` goes only to a row whose list shows.
+  const chipDrag = props.chipDrag;
+  const draggable = (root: string, row: CanvasRow) => !props.locked && !!chipDrag && !!row.id && chipDrag.reason(root, row) === null;
+  // The reason can change after the draw (the composer's draft, an IME), so the start asks again.
+  const startDrag = (event: DragEvent<HTMLElement>, root: string, row: CanvasRow) => {
+    if (!chipDrag || !row.id || !draggable(root, row)) { event.preventDefault(); return; }
+    beginCanvasDrag({ root, path: row.path, id: row.id, judge: composer => chipDrag.judge(root, row, composer) }, event.dataTransfer, event.currentTarget.ownerDocument);
+  };
   function openCanvasRow(root: string, row: CanvasRow, key: string) { if (key === listAt && listShown) props.open(root, row, true); else props.open(root, row); }
   const openConversation = (c: SidebarConversation) => { if (!props.locked && placedRow) conversations?.open(placedRow.root, placedRow.row, c.conversationId); };
   if (listAt !== null && conversationKeys.length) {
@@ -515,14 +543,16 @@ export function ShellSidebar(props: Props) {
                   // the signals the list's rows carry. The chevron never takes focus, so it cannot drop it to the page.
                   const here = key === listAt, folded = !!conversations?.folded;
                   const slot = here && conversations ? canvasRowMark(props.slots ?? new Map(), conversations.bare, key, !folded) : props.slots?.get(slotKey(entry.path, row.path));
-                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}>
-                    {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button ref={chevronRef(key)} type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
+                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}
+                    draggable={draggable(entry.path, row)} onDragStart={event => startDrag(event, entry.path, row)} onDragEnd={endCanvasDrag}>
+                    {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button ref={chevronRef(key)} type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1} draggable={false}
                       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); conversations?.fold(!folded); }}><ChevronDown aria-hidden="true" /></button></span> : <Icon aria-hidden="true" />}
                     <NameTip text={name}><span>{name}</span></NameTip><SlotMark slot={slot} />
                     {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, lock, tabIndex: active === key ? 0 : -1,
                       setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
-                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error"><AlertIcon /><div>{problem.sentence}<ErrorDetails detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div></div>}</div>
+                      lostFocus: () => focus(canvasMenuFocus.current), afterClose: canvasMenuAfter,
+                      chip: chipDrag ? { reason: chipDrag.reason(entry.path, row), add: current => chipDrag.add(entry.path, current) } : null })}</div>{problem && <div id={descriptionId} className="shell-canvas-error"><AlertIcon /><div>{problem.sentence}<ErrorDetails detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div></div>}</div>
                     {/* The list is the canvas row's sibling, so the row's own focus rules and press never reach it. */}
                     {here && listShown && <div role="group" className="shell-conv-list" aria-label="Conversations" onPointerEnter={() => setListPointer(key)} onPointerLeave={() => setListPointer(null)}
                       onFocus={() => setListFocus(key)} onBlur={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) setListFocus(null); }}>{listItems.map(conversationRow)}</div>}

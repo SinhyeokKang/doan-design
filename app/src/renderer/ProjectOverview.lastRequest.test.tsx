@@ -6,7 +6,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState } from "../main/agentAuth/types";
 import type { FolderEntry } from "../main/view";
-import { textSegments } from "./anchorField";
+import { textSegments, type FieldSegment } from "./anchorField";
 import type { DockedRequest } from "./DockedComposer";
 import { EMPTY_DRAFT } from "./dockedRules";
 import { DockedSupport, modelsKey } from "./dockedSupport";
@@ -29,7 +29,7 @@ const FILE = { key: "k1", id: "att-1", name: "a.png", kind: "image", pasted: tru
 beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), onAgentUsage: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []), listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
 afterEach(() => vi.unstubAllGlobals());
 
-function render(onStart: ProjectOverviewProps["onStart"]) {
+function render(onStart: ProjectOverviewProps["onStart"], segments: readonly FieldSegment[] = textSegments("/compact")) {
   const host: OverviewRunHost = {
     list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
@@ -37,7 +37,7 @@ function render(onStart: ProjectOverviewProps["onStart"]) {
   const run = new OverviewRun(host, window.doan);
   run.show(ROOT);
   run.select(ROOT, null);
-  run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, { ...EMPTY_DRAFT, segments: textSegments("/compact"), preset: POLISH, attachments: [FILE] }));
+  run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, { ...EMPTY_DRAFT, segments, preset: POLISH, attachments: [FILE] }));
   const support = new DockedSupport(() => {}, window.doan);
   support.auth = AUTH;
   support.presets = { v: 1, ok: true, result: { version: "1", presets: [] } };
@@ -56,7 +56,18 @@ function render(onStart: ProjectOverviewProps["onStart"]) {
 test("a command start remembers only the command's text; a message start remembers the draft", async () => {
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true as const }));
   await render(start).onSend({ text: "/compact", anchors: [], attachments: [], command: true });
-  expect(start.mock.calls.at(-1)![1]).toMatchObject({ root: ROOT, text: "/compact", preset: null, attachments: [], provider: "claude" });
+  expect(start.mock.calls.at(-1)![1]).toMatchObject({ root: ROOT, segments: textSegments("/compact"), preset: null, attachments: [], provider: "claude" });
   await render(start).onSend({ text: "Polish it", anchors: [], attachments: [{ id: "att-1" }] });
-  expect(start.mock.calls.at(-1)![1]).toMatchObject({ root: ROOT, text: "/compact", preset: POLISH, attachments: [FILE] });
+  expect(start.mock.calls.at(-1)![1]).toMatchObject({ root: ROOT, segments: textSegments("/compact"), preset: POLISH, attachments: [FILE] });
+});
+
+// main checks a start's canvas anchors against the root's list, so the {{n}} the text carries needs its anchors.
+test("a message start carries its canvas anchors, and the last request keeps the draft's chips for Edit on Home", async () => {
+  const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true as const }));
+  const canvas = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+  const segments: FieldSegment[] = [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: canvas }];
+  const docked = render(start, segments);
+  await docked.onSend({ text: "Follow {{1}}", anchors: [canvas], attachments: [] });
+  expect(start.mock.calls.at(-1)![0]).toMatchObject({ root: ROOT, text: "Follow {{1}}", anchors: [canvas] });
+  expect(start.mock.calls.at(-1)![1]).toMatchObject({ root: ROOT, segments });
 });

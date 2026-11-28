@@ -44,6 +44,8 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
       reveal({ kind: "chip", conversationId, anchor });
       return "shown";
     }}
+    // A canvas chip needs no conversation: the main window matches its id against the playing root's list.
+    onCanvasChip={async canvas => { reveal({ kind: "canvas", canvas }); return null; }} canvasChipFits={false}
     onReplyChip={async link => {
       const conversationId = shownId();
       if (conversationId !== null) reveal({ kind: "reply", conversationId, link });

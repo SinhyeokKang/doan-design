@@ -1,12 +1,17 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { FolderEntry } from "../main/view";
+import { CANVAS_CHIP_COMPOSING, CANVAS_CHIP_PICKING, CANVAS_CHIP_SENDING, canvasChipTarget } from "./canvasChip";
+import { beginCanvasDrag, CANVAS_DRAG_TYPE, chipComposer, endCanvasDrag } from "./canvasChipDrag";
+import { ADD_TO_MESSAGE_CAPTURING, ANCHOR_LIMIT_TEXT } from "./canvasPicker";
+import type { Anchor } from "../main/conversation/types";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import { plainText, textSegments, type FieldSegment } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { DockedComposer, QueueRows, SEND_NOW_REFUSED_TEXT, type DockedComposerProps, type DockedOutcome } from "./DockedComposer";
-import { draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
+import { canvasGoneText, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import { emptyComposer, HeroComposer } from "./HomeComposerView";
 import type { ModelPickerView } from "./homeComposer";
 import { localClock, queueButtonHint, queueStatusLine } from "./limitReset";
@@ -846,7 +851,7 @@ test("the preset list handles Control+Enter before the steer shortcut", () => {
 
 
 test("Home Control+Enter still sends through its actual ComposerField", async () => {
-  const memory = { current: { ...emptyComposer(), auth: AUTH, text: "Draw a page" } };
+  const memory = { current: { ...emptyComposer(), auth: AUTH, segments: textSegments("Draw a page") } };
   const start = vi.fn(async () => ({ ok: true as const }));
   const tree = elements(HeroComposer({
     entries: [{ kind: "list", path: "/project", servedRev: 0, canvases: [] }], homeDirectory: null,
@@ -1410,4 +1415,235 @@ test("once the request ends, Send now and Queue work again", async () => {
   await flush();
   expect(props.onSendQueuedNow).toHaveBeenCalledWith("q1");
   expect(queue).toHaveBeenCalledOnce();
+});
+
+// A canvas row dragged from the sidebar (canvasChipDrag.ts): the composer takes it as a chip where its root and its own
+// state allow, and otherwise says why under the card in the row menu's words.
+describe("a canvas row dragged onto the composer", () => {
+  const WEB = "/code/doan-web", SHOP = "/code/checkout-app";
+  const checkout = { path: ".doan/canvases/checkout-flow.html", url: "u", id: "checkout" };
+  const cart = { path: ".doan/canvases/cart.html", url: "u", id: "cart" };
+  const entries: FolderEntry[] = [
+    { path: WEB, kind: "list", servedRev: 0, canvases: [checkout] },
+    { path: SHOP, kind: "list", servedRev: 0, canvases: [cart] },
+  ];
+  const CHIPS = { place: "canvas" as const, root: WEB, canvases: [checkout] };
+  const ANCHOR = { canvas: { path: checkout.path, id: "checkout" } };
+  const start = (root = WEB, row = checkout) => beginCanvasDrag({ root, path: row.path, id: row.id, judge: composer => canvasChipTarget({ root, canvas: row, entries }, "canvas", composer) },
+    { setData: () => {}, setDragImage: () => {}, effectAllowed: "" } as unknown as DataTransfer);
+  // Drag targets are DOM nodes: the composer tells its field's text from the rest by them.
+  class FakeNode {}
+  const inside = new FakeNode(), outside = new FakeNode();
+  beforeEach(() => vi.stubGlobal("Node", FakeNode));
+  const handle = (composing = false) => ({ insertChip: vi.fn(() => "inserted"), focus: vi.fn(), composing: () => composing, element: () => ({ contains: (node: unknown) => node === inside }) });
+  const dragEvent = (target: unknown, types = [CANVAS_DRAG_TYPE]) => ({ target, preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types, files: [], items: [], dropEffect: "" } });
+  const root = (node: ReactNode) => (node as ReactElement<Record<string, unknown>>).props;
+  const fire = (node: ReactNode, name: "onDragEnter" | "onDragOver" | "onDragLeave" | "onDrop", event: ReturnType<typeof dragEvent>) => (root(node)[name] as (event: unknown) => void)(event);
+  const reasonLine = (tree: Record<string, unknown>[]) => tree.find(item => item.className === "composer-reason docked-reason chip-drag-reason");
+  const lineText = (tree: Record<string, unknown>[]) => { const line = reasonLine(tree); return line ? (line.children as { props: { children: string } }).props.children : null; };
+  let cleanups: (() => void)[] = [];
+  const runEffects = () => { for (const effect of hooks.effects) { const cleanup = effect(); if (typeof cleanup === "function") cleanups.push(cleanup as () => void); } };
+  afterEach(() => { endCanvasDrag(); for (const cleanup of cleanups) cleanup(); cleanups = []; });
+
+  test("dropped outside the text it goes in at the caret, focused; the field gets the root and the drop decision; no file cover shows", () => {
+    const { draw, render } = setup({ canvasChips: CHIPS }, [["conversation:a", draft("Make the cart look like")]]);
+    start();
+    draw();
+    const field = handle();
+    hooks.refs[2]!.current = field;
+    const over = dragEvent(outside);
+    fire(draw(), "onDragEnter", over);
+    fire(draw(), "onDragOver", over);
+    expect(over.preventDefault).toHaveBeenCalled();
+    expect(over.dataTransfer.dropEffect).toBe("copy");
+    const tree = render();
+    expect(tree.some(item => item.className === "drop-target")).toBe(false);
+    expect(reasonLine(tree)).toBeUndefined();
+    expect(input(tree).chipRoot).toBe(WEB);
+    expect((input(tree).chipDrag as (data: unknown) => unknown)({ types: [CANVAS_DRAG_TYPE] })).toEqual(ANCHOR);
+    expect((input(tree).chipDrag as (data: unknown) => unknown)({ types: ["Files"] })).toBeNull();
+    const drop = dragEvent(outside);
+    fire(draw(), "onDrop", drop);
+    expect(drop.preventDefault).toHaveBeenCalled();
+    expect(field.insertChip).toHaveBeenCalledWith(ANCHOR);
+    expect(field.focus).toHaveBeenCalled();
+  });
+
+  test("over and on the text it leaves the transfer and the drop to the field", () => {
+    const { draw } = setup({ canvasChips: CHIPS }, [["conversation:a", draft("Make the cart look like")]]);
+    start();
+    draw();
+    const field = handle();
+    hooks.refs[2]!.current = field;
+    const over = dragEvent(inside);
+    fire(draw(), "onDragOver", over);
+    expect(over.preventDefault).not.toHaveBeenCalled();
+    expect(over.dataTransfer.dropEffect).toBe("");
+    fire(draw(), "onDrop", dragEvent(inside));
+    expect(field.insertChip).not.toHaveBeenCalled();
+  });
+
+  test("refused for another root, an IME composition, a read-only composer, a pick and a capture, with the menu's reason under the card", () => {
+    const unlisted = "This canvas isn’t listed in doan-web, so its conversation can’t continue.";
+    const cases: [string, Partial<DockedComposerProps>, () => void, boolean, string][] = [
+      ["another root", {}, () => start(SHOP, cart), false, "Only canvases in doan-web can go in this message."],
+      ["IME", {}, () => start(), true, CANVAS_CHIP_COMPOSING],
+      ["read-only", { unavailable: unlisted, locked: true }, () => start(), false, unlisted],
+      ["pick", { pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } }, () => start(), false, CANVAS_CHIP_PICKING],
+      ["capture", { capturing: true }, () => start(), false, ADD_TO_MESSAGE_CAPTURING],
+    ];
+    for (const [name, patch, begin, composing, reason] of cases) {
+      hooks.states = []; hooks.refs = [];
+      const { draw, render } = setup({ canvasChips: CHIPS, ...patch }, [["conversation:a", draft("Make the cart look like")]]);
+      begin();
+      draw();
+      const field = handle(composing);
+      hooks.refs[2]!.current = field;
+      const over = dragEvent(outside);
+      fire(draw(), "onDragEnter", over);
+      fire(draw(), "onDragOver", over);
+      expect(over.preventDefault, name).not.toHaveBeenCalled();
+      expect(over.dataTransfer.dropEffect, name).toBe("none");
+      expect((input(render()).chipDrag as (data: unknown) => unknown)({ types: [CANVAS_DRAG_TYPE] }), name).toBe("refused");
+      expect(lineText(render()), name).toBe(reason);
+      expect(root(draw())["data-chip-refused"], name).toBe("");
+      fire(draw(), "onDrop", dragEvent(outside));
+      expect(field.insertChip, name).not.toHaveBeenCalled();
+      expect(lineText(render()), name).toBeNull();
+      endCanvasDrag();
+    }
+  });
+
+  test("the reason line goes when the drag leaves the composer or ends", () => {
+    const { draw, render } = setup({ canvasChips: CHIPS }, [["conversation:a", draft("Make the cart look like")]]);
+    start(SHOP, cart);
+    draw();
+    hooks.refs[2]!.current = handle();
+    runEffects();
+    fire(draw(), "onDragEnter", dragEvent(outside));
+    fire(draw(), "onDragOver", dragEvent(outside));
+    expect(lineText(render())).not.toBeNull();
+    fire(draw(), "onDragLeave", dragEvent(outside));
+    expect(lineText(render())).toBeNull();
+    fire(draw(), "onDragEnter", dragEvent(outside));
+    expect(lineText(render())).not.toBeNull();
+    endCanvasDrag();
+    expect(lineText(render())).toBeNull();
+  });
+
+  test("a marker with no drag in memory is refused without a line, and a composer without canvas chips refuses every one", () => {
+    const { draw, render } = setup({ canvasChips: CHIPS }, [["conversation:a", draft("Make the cart look like")]]);
+    draw();
+    const field = handle();
+    hooks.refs[2]!.current = field;
+    const over = dragEvent(outside);
+    fire(draw(), "onDragEnter", over);
+    fire(draw(), "onDragOver", over);
+    expect(over.dataTransfer.dropEffect).toBe("none");
+    expect(lineText(render())).toBeNull();
+    fire(draw(), "onDrop", dragEvent(outside));
+    expect(field.insertChip).not.toHaveBeenCalled();
+    hooks.states = []; hooks.refs = [];
+    const none = setup({}, [["conversation:a", draft("Make the cart look like")]]);
+    start();
+    expect((input(none.render()).chipDrag as (data: unknown) => unknown)({ types: [CANVAS_DRAG_TYPE] })).toBe("refused");
+    expect(input(none.render()).chipRoot ?? null).toBeNull();
+  });
+
+  test("a file drag keeps its cover and attaches while canvas chips are on", () => {
+    const onFiles = vi.fn();
+    const { draw, render } = setup({ canvasChips: CHIPS, onFiles }, [["conversation:a", draft("Make the cart look like")]]);
+    fire(draw(), "onDragEnter", fileEvent() as never);
+    expect(render().some(item => item.className === "drop-target")).toBe(true);
+    fire(draw(), "onDrop", fileEvent() as never);
+    expect(onFiles).toHaveBeenCalledOnce();
+  });
+
+  test("registers with App as its place's composer while it takes canvas chips; App's insert puts the chip at the caret and focuses", () => {
+    const { draw } = setup({ canvasChips: CHIPS }, [["conversation:a", draft("Make the cart look like")]]);
+    draw();
+    const field = handle();
+    hooks.refs[2]!.current = field;
+    runEffects();
+    const registered = chipComposer("canvas");
+    expect(registered?.root).toBe(WEB);
+    expect(registered?.canTake(ANCHOR)).toBeNull();
+    expect(registered?.insert(ANCHOR)).toBe("inserted");
+    expect(field.insertChip).toHaveBeenCalledWith(ANCHOR);
+    expect(field.focus).toHaveBeenCalled();
+    // The row menu focuses it again once the menu has closed.
+    field.focus.mockClear();
+    registered?.focus();
+    expect(field.focus).toHaveBeenCalledOnce();
+    for (const cleanup of cleanups) cleanup();
+    cleanups = [];
+    expect(chipComposer("canvas")).toBeNull();
+  });
+
+  test("counts the draft's places for App: a full draft refuses a new canvas with the limit sentence", () => {
+    const full = Array.from({ length: 32 }, (_, i) => ({ kind: "chip" as const, anchor: { frame: { id: `f${i}` } } }));
+    const { draw } = setup({ canvasChips: CHIPS }, [["conversation:a", { ...EMPTY_DRAFT, segments: full, shape: "box" }]]);
+    draw();
+    hooks.refs[2]!.current = handle();
+    runEffects();
+    expect(chipComposer("canvas")?.canTake(ANCHOR)).toBe(ANCHOR_LIMIT_TEXT);
+  });
+
+  test("a chip whose canvas moved takes its current path before send", async () => {
+    const moved = { ...checkout, path: ".doan/canvases/flows/checkout-flow.html" };
+    const segments: FieldSegment[] = [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: ANCHOR }];
+    const { store, draw, send, render } = setup({ canvasChips: { ...CHIPS, canvases: [moved] } }, [["conversation:a", { ...EMPTY_DRAFT, segments, shape: "box" }]]);
+    draw();
+    hooks.refs[2]!.current = { ...handle(), focus: vi.fn(), refreshChips: () => true };
+    runEffects();
+    expect(store.current.get("conversation:a")?.segments).toEqual([{ kind: "text", text: "Follow " }, { kind: "chip", anchor: { canvas: { path: moved.path, id: "checkout" } } }]);
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    await flush();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ anchors: [{ canvas: { path: moved.path, id: "checkout" } }] }));
+  });
+  test("a composer that is sending refuses a canvas chip with its reason, and nothing goes in", () => {
+    const { draw, render } = setup({ canvasChips: CHIPS, onSend: vi.fn(() => new Promise<DockedOutcome>(() => {})) }, [["conversation:a", draft("Make the cart look like")]]);
+    render();
+    const box = handle();
+    hooks.refs[2]!.current = box;
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    start();
+    draw();
+    runEffects();
+    expect(chipComposer("canvas")?.canTake(ANCHOR)).toBe(CANVAS_CHIP_SENDING);
+    const over = dragEvent(outside);
+    fire(draw(), "onDragEnter", over);
+    fire(draw(), "onDragOver", over);
+    expect(over.dataTransfer.dropEffect).toBe("none");
+    expect(lineText(render())).toBe("Wait for the message to send.");
+    fire(draw(), "onDrop", dragEvent(outside));
+    expect(box.insertChip).not.toHaveBeenCalled();
+  });
+
+  test("a composer showing that its canvas is gone after a refused send refuses a canvas chip with that sentence", async () => {
+    const { draw, render } = setup({ canvasChips: CHIPS, onSend: vi.fn(async (): Promise<DockedOutcome> => ({ error: "canvas_not_found" })) }, [["conversation:a", draft("Make the cart look like")]]);
+    render();
+    hooks.refs[2]!.current = handle();
+    (field(render()).onKeyDown as (event: unknown) => void)(enter());
+    await flush();
+    draw();
+    runEffects();
+    expect(chipComposer("canvas")?.canTake(ANCHOR)).toBe(canvasGoneText("doan-design"));
+  });
+
+  test("a renamed canvas's chip is refreshed in the field in place; while the field composes, the draft waits for the commit", () => {
+    const moved = { ...checkout, path: ".doan/canvases/flows/checkout-flow.html" };
+    const segments: FieldSegment[] = [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: ANCHOR }];
+    for (const composing of [false, true]) {
+      hooks.states = []; hooks.refs = [];
+      const { store, draw } = setup({ canvasChips: { ...CHIPS, canvases: [moved] } }, [["conversation:a", { ...EMPTY_DRAFT, segments, shape: "box" }]]);
+      draw();
+      const refreshChips = vi.fn((update: (anchor: Anchor) => Anchor) => { update(ANCHOR); return !composing; });
+      hooks.refs[2]!.current = { ...handle(), refreshChips };
+      runEffects();
+      expect(refreshChips, String(composing)).toHaveBeenCalledOnce();
+      expect(refreshChips.mock.calls[0]![0](ANCHOR)).toEqual({ canvas: { path: moved.path, id: "checkout" } });
+      expect(store.current.get("conversation:a")?.segments, String(composing)).toEqual(composing ? segments : [{ kind: "text", text: "Follow " }, { kind: "chip", anchor: { canvas: { path: moved.path, id: "checkout" } } }]);
+    }
+  });
 });

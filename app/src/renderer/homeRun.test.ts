@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent, EventPayload } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { textSegments } from "./anchorField";
 import { HomeRun, type HomeRunHost } from "./homeRun";
 import type { StartInput } from "./HomeComposerView";
 import type { LastRequest } from "./homeConversations";
@@ -13,7 +14,7 @@ const ROOT = "/code/doan", OTHER = "/code/acme";
 const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
 const list = (path: string, names: string[]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: names.map(row) });
 const REQUEST: StartInput = { root: ROOT, mode: "newDesign", runtime: "claude", text: "Draw a pricing page." };
-const LAST: LastRequest = { root: ROOT, text: "Draw a pricing page.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
+const LAST: LastRequest = { root: ROOT, segments: textSegments("Draw a pricing page."), preset: null, attachments: [], provider: "claude", model: null, effort: null };
 let seq = 0;
 const event = (conversationId: string, payload: EventPayload, turnId = "t1"): ConversationEvent => ({ v: 1, conversationId, seq: ++seq, turnId, at: "2026-10-29T00:00:00Z", ...payload } as ConversationEvent);
 
@@ -782,12 +783,25 @@ test("Edit on Home after a reload rebuilds the request from the record and the i
   expect(doan.attachmentsFromPaths).toHaveBeenCalledWith(["/Users/ada/a.md", "/Users/ada/gone.png"], [{ lines: 2, excerpt: "first" }, {}]);
   expect(h.host.goHome).toHaveBeenCalled();
   expect(h.run.restore?.request).toMatchObject({
-    root: ROOT, text: "Tighten the header.", preset: { id: "polish", title: "Polish the details" }, provider: "codex", model: "gpt-5.5", effort: "high",
+    root: ROOT, segments: textSegments("Tighten the header."), preset: { id: "polish", title: "Polish the details" }, provider: "codex", model: "gpt-5.5", effort: "high",
     attachments: [{ id: "new-a", name: "a.md", status: "ready", lines: 2, excerpt: "first" }, { name: "gone.png", status: "missing" }],
   });
   expect(h.run.restore?.request.attachments[1]).not.toHaveProperty("id");
 });
 
+test("Edit on Home after a reload keeps the message's canvas chips where its markers stood", async () => {
+  lists({ [ROOT]: [summary({ unseen: true, provider: "claude" })] });
+  const canvas = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+  doan.readConversation!.mockResolvedValue({ events: [
+    event("c1", { type: "user.message", text: "Use the Doan design preset `polish` (Polish the details).\n\nFollow {{1}} for the layout.", anchors: [canvas] }),
+    event("c1", { type: "turn.started" }), event("c1", { type: "turn.failed", code: "process_exited" }),
+  ], lastSeq: 3, turn: "failed" });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.editOnHome("c1");
+  expect(h.run.restore?.request.segments).toEqual([{ kind: "text", text: "Follow " }, { kind: "chip", anchor: canvas }, { kind: "text", text: " for the layout." }]);
+});
 test.each(["navigation", "provider gone"])("Edit on Home discards only the newly issued files when its rebuild loses its destination (%s)", async cause => {
   lists({ [ROOT]: [summary({ fromHome: false })] });
   const file = { name: "brief.md", size: 4, kind: "file" as const, path: "/files/brief.md" };
