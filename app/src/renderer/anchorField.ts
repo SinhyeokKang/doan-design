@@ -1,3 +1,4 @@
+import { canvasKind } from "../formats/canvasPath";
 import { chipLabel, LIMITS, splitMarkers } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 
@@ -141,8 +142,9 @@ export function isLineStart(segments: readonly FieldSegment[], unit: number): bo
   return false;
 }
 // A typed {{1}} next to a chip must come back as typed text, which a marker string cannot tell apart.
-export function writeFieldClipboard(scope: string, segments: readonly FieldSegment[]): string {
-  return JSON.stringify({ v: 1, scope, segments });
+// root: the field's root, which canvas chips are judged by; scope is null in a field that takes no frame chips.
+export function writeFieldClipboard(scope: string | null, segments: readonly FieldSegment[], root: string | null = null): string {
+  return JSON.stringify({ v: 1, scope, ...(root === null ? {} : { root }), segments });
 }
 // null makes the caller paste the plain text. main checks anchors again on send.
 export function readFieldClipboard(raw: string, scope: string): FieldSegment[] | null {
@@ -156,6 +158,31 @@ export function readFieldClipboard(raw: string, scope: string): FieldSegment[] |
     return segment.kind === "text" ? typeof segment.text === "string" : segment.kind === "chip" && isAnchor(segment.anchor);
   });
   return valid ? normalize(segments as FieldSegment[]) : null;
+}
+
+// Each chip alone: a canvas chip stays one in a field of its root, any other in a field of its canvas, and a new place
+// past LIMITS.anchors with `kept` (what the field keeps, reserved chips included) becomes its name. A canvas path is
+// checked here because isAnchor checks types only. null: paste the plain text.
+export function pasteFieldClipboard(raw: string, here: { scope: string | null; root: string | null }, kept: readonly FieldSegment[]): FieldSegment[] | null {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return null; }
+  if (!isObject(value)) return null;
+  const { v, scope, root, segments } = value;
+  if (v !== 1 || (scope !== null && typeof scope !== "string") || (root !== undefined && typeof root !== "string") || !Array.isArray(segments)) return null;
+  const valid = segments.every((segment: unknown) => {
+    if (!isObject(segment)) return false;
+    return segment.kind === "text" ? typeof segment.text === "string" : segment.kind === "chip" && isAnchor(segment.anchor);
+  });
+  if (!valid) return null;
+  const places = new Set(kept.flatMap(segment => (segment.kind === "chip" ? [targetKey(segment.anchor)] : [])));
+  return normalize((segments as FieldSegment[]).map(segment => {
+    if (segment.kind === "text") return segment;
+    const { canvas } = segment.anchor;
+    const fits = canvas ? here.root !== null && root === here.root && canvasKind(canvas.path) !== null : here.scope !== null && scope === here.scope;
+    const key = targetKey(segment.anchor);
+    if (fits && (places.has(key) || places.size < LIMITS.anchors)) { places.add(key); return segment; }
+    return { kind: "text", text: chipLabel(segment.anchor).label };
+  }));
 }
 
 type Fields = Record<string, unknown>;

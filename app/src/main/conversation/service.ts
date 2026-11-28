@@ -13,6 +13,7 @@ import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, SETTLE_MS, settleDeadline } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued, nextQueued } from "./queue";
+import { sendCanvasAnchors } from "./canvasAnchors";
 import { DraftStore, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
@@ -1003,6 +1004,8 @@ export class ConversationService {
     const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
     let attached: StartAttachments | undefined, prompt: string | null;
     let attachments: AttachmentRecord[];
+    // Checked against the list as it is now, when the message goes out (ipc.ts listedMessage checked it when queued).
+    const checked = sendCanvasAnchors(item.text, item.anchors, this.canvases(m.root));
     try {
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
@@ -1010,11 +1013,11 @@ export class ConversationService {
       // a turn that asked already may still hand off to its other new canvases.
       const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
       const handoff = handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
-      prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
+      prompt = turnPrompt(checked.anchors, checked.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
     } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
     const turnId = live.turnId, messageId = randomUUID();
     this.markTranscript(live);
-    const message: EventPayload = { type: "user.message", text: item.text, anchors: item.anchors, ...(attachments.length ? { attachments } : {}) };
+    const message: EventPayload = { type: "user.message", text: checked.text, anchors: checked.anchors, ...(attachments.length ? { attachments } : {}) };
     return new Promise<void>((resolve, reject) => {
       // Registered before the request: Codex may report the read before its answer to the request.
       const steer: Steer = { id, itemId, live, turnId, message, ids, ...(attached ? { attached } : {}), answered: false, resolve, reject };
@@ -1505,7 +1508,9 @@ export class ConversationService {
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
         // The Fast stored now, judged for the model the queue goes out on.
         const fastTurn = m.fast === true && m.owner.kind === "doan" && this.queueOptions.fast?.(m.root, m.session.runtime, m.model) === true;
-        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) }, attached);
+        // Checked again as it goes out: a canvas may have moved or gone since the messages were queued.
+        const checked = sendCanvasAnchors(combined.text, combined.anchors, this.canvases(m.root));
+        await this.submit(id, checked.text, checked.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(fastTurn ? { fastTurn: true as const } : {}) }, attached);
         const sent = items.map(item => item.itemId);
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
