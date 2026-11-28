@@ -23,6 +23,7 @@
 14. 프로토타입 창에서 재생 중인 캔버스의 칩도 tooltip이 "Open <name>"과 경로 두 줄이다. 누르면 메인 창이 움직이기 때문이다(conductor 판단 — spec 완료 조건 5 "지금 대화를 떠난다는 것을 tooltip이 말한다").
 15. 프로토타입 창에서 없는 캔버스의 칩을 누르면 메인 창을 앞으로 가져와 토스트 "Couldn’t open <name>. The canvas isn’t in <project>."를 띄운다. spec 완료 조건 5의 칩 옆 문구 대신이다. 프로토타입 창의 답 칩·프레임 칩과 같은 방식이다(사람, AskUserQuestion). 승격 때 PRODUCT §5 item 2 'Toward the main window'에 적는다.
 16. Edit on Home은 Home을 그 메시지의 root로 옮기므로 칩이 남는다. 그 root가 목록에서 빠졌을 때만 이름으로 바꾸고 알림을 띄운다(conductor 판단 — spec 완료 조건 7의 "지금 Home의 root와 다르면"은 옮긴 뒤의 root와 비교한 것이다. 다른 root를 가리키는 칩은 생기지 않는다). H가 드래프트 `home` 프레임의 메모를 이 규칙으로 고친다.
+17. 최종 eval 회차는 앱 대화 턴(`turn.json`)을 쓰는 시나리오 6개(R8d, R9b, R10, R11, R12, R13)를 두 에이전트로 돈다. 전체 라운드는 돌지 않는다(사람). 이 기능은 안내, CLI 출력, `doan check` 규칙, 스킬 stub을 바꾸지 않고, 에이전트에게 닿는 곳은 앱 프롬프트의 앵커뿐이다.
 7. T6의 실제 eval 회차는 개발용 실제 로그인을 복사본으로 쓴다(AGENTS 'Real agent sign-ins').
 
 ## batch
@@ -39,7 +40,7 @@
 | G | T6 | `eval/` 새 시나리오, `docs/usability-eval/rounds-2026-11.md` | A | Opus medium — 시나리오 설계와 실제 회차 | tasks T6 검증 | 통합 `396214630`–`e1f4ac61e`. 리뷰 1회, 수정 1회. 새 시나리오 R13, 회차 `canvas-chip-r13-261128`에서 Claude·Codex 통과. 수정한 검사는 남긴 transcript에 손으로 다시 돌려 두 agent 모두 참이다(새 회차는 돌리지 않았다) |
 | H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 진행 중 (base `fbc514e0b`, 통합 HEAD `verify.mjs` PASS) |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
-| G2 | 최종 eval 회차 | `docs/usability-eval/rounds-2026-11.md` | H | Opus medium — 정해진 시나리오를 다시 돌리고 기록한다 | 최종 HEAD 패키지로 `node eval/run.ts --scenarios R13,R12 --round <name>`에서 R13이 Claude·Codex 통과, 회차 기록. push 직전 `verify.mjs --eval` | 대기 |
+| G2 | 최종 eval 회차 | `docs/usability-eval/rounds-2026-11.md` | H | Opus medium — 정해진 시나리오를 다시 돌리고 기록한다 | 최종 HEAD 패키지로 `node eval/run.ts --scenarios R8d,R9b,R10,R11,R12,R13 --round <name>`에서 R13이 Claude·Codex 통과, 나머지는 이전 회차와 비교, 회차 기록. push 직전 `verify.mjs --eval` | 대기 |
 | Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
 
 ## 파일 겹침과 순서
