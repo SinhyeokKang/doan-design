@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { combineQueued } from "../main/conversation/queue";
 import type { Anchor } from "../main/conversation/types";
 import {
-  chipAt, distinctTargets, FILLER, fromMessage, hardLine, hasContent, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sameTarget,
+  chipAt, distinctTargets, FILLER, fromMessage, hardLine, hasContent, isLineStart, normalize, pasteFieldClipboard, plainText, readFieldClipboard, sameSegments, sameTarget,
   sliceUnits, spliceUnits, textSegments, toMessage, typedText, unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
 import { draftProblem } from "./homeComposer";
@@ -190,5 +190,68 @@ describe("canvas chips", () => {
     expect(read({ canvas: { path: ".doan/canvases/a.html", id: 7 } })).toBeNull();
     expect(read({ canvas: ".doan/canvases/a.html" })).toBeNull();
     expect(read({ ...checkout, frame: { id: "hero" } })).toBeNull();
+  });
+});
+
+// Each chip on the clipboard is judged on its own: a canvas chip by root, any other chip by canvas, and places past 32
+// with what the field keeps become names.
+describe("pasteFieldClipboard", () => {
+  const ROOT = "/code/doan-web";
+  const flow: Anchor = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+  const ds: Anchor = { canvas: { path: ".doan/ds/buttons.html", id: "buttons" } };
+  const copied = [text("Follow "), chip(flow), text(" near "), chip(frame), text(" with "), chip(ds)];
+  const raw = writeFieldClipboard("canvas:a", copied, ROOT);
+
+  test("a field of the same canvas keeps every chip", () => {
+    expect(pasteFieldClipboard(raw, { scope: "canvas:a", root: ROOT }, [])).toEqual(copied);
+  });
+
+  test("a field of the same root on another canvas or without one keeps canvas chips and names the rest", () => {
+    const named = [text("Follow "), chip(flow), text(" near Payment with "), chip(ds)];
+    expect(pasteFieldClipboard(raw, { scope: "canvas:b", root: ROOT }, [])).toEqual(named);
+    expect(pasteFieldClipboard(raw, { scope: null, root: ROOT }, [])).toEqual(named);
+  });
+
+  test("a field of another root names canvas chips", () => {
+    expect(pasteFieldClipboard(raw, { scope: null, root: "/code/checkout-app" }, [])).toEqual([text("Follow checkout-flow near Payment with buttons")]);
+    expect(pasteFieldClipboard(raw, { scope: null, root: null }, [])).toEqual([text("Follow checkout-flow near Payment with buttons")]);
+  });
+
+  test("a clipboard from a field without a canvas still carries its canvas chips by root", () => {
+    const home = writeFieldClipboard(null, [chip(flow)], ROOT);
+    expect(pasteFieldClipboard(home, { scope: "canvas:a", root: ROOT }, [])).toEqual([chip(flow)]);
+    expect(pasteFieldClipboard(home, { scope: null, root: "/elsewhere" }, [])).toEqual([text("checkout-flow")]);
+  });
+
+  test("a clipboard written before roots names its canvas chips and keeps same-canvas frame chips", () => {
+    const old = JSON.stringify({ v: 1, scope: "canvas:a", segments: [chip(flow), chip(frame)] });
+    expect(pasteFieldClipboard(old, { scope: "canvas:a", root: ROOT }, [])).toEqual([text("checkout-flow"), chip(frame)]);
+  });
+
+  test("a canvas chip whose path is not a listed canvas path becomes its name", () => {
+    for (const path of [".doan/other/a.html", "../a.html", ".doan/canvases/A.HTML", ".doan/canvases/.hidden/a.html", "/abs/.doan/canvases/a.html"]) {
+      const bad = writeFieldClipboard(null, [chip({ canvas: { path, id: "a" } })], ROOT);
+      const out = pasteFieldClipboard(bad, { scope: null, root: ROOT }, []);
+      expect(out).toHaveLength(1);
+      expect(out![0]!.kind).toBe("text");
+    }
+  });
+
+  test("places past 32 with what the field keeps become names; a place it already has stays a chip", () => {
+    const kept = Array.from({ length: 31 }, (_, i) => chip({ frame: { id: `f${i}` } }));
+    const more = [chip(flow), text(" "), chip(ds), text(" "), chip({ frame: { id: "f0" } }), text(" "), chip(flow)];
+    expect(pasteFieldClipboard(writeFieldClipboard("canvas:a", more, ROOT), { scope: "canvas:a", root: ROOT }, kept))
+      .toEqual([chip(flow), text(" buttons "), chip({ frame: { id: "f0" } }), text(" "), chip(flow)]);
+    const full = [...kept, chip({ frame: { id: "f31" } })];
+    expect(pasteFieldClipboard(writeFieldClipboard("canvas:a", [chip(flow)], ROOT), { scope: "canvas:a", root: ROOT }, full)).toEqual([text("checkout-flow")]);
+  });
+
+  test("anything but a well-formed clipboard pastes as plain text", () => {
+    const here = { scope: "canvas:a", root: ROOT };
+    expect(pasteFieldClipboard("{", here, [])).toBeNull();
+    expect(pasteFieldClipboard(JSON.stringify({ v: 2, scope: "canvas:a", root: ROOT, segments: [] }), here, [])).toBeNull();
+    expect(pasteFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", root: 7, segments: [] }), here, [])).toBeNull();
+    expect(pasteFieldClipboard(JSON.stringify({ v: 1, scope: 7, segments: [] }), here, [])).toBeNull();
+    expect(pasteFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", root: ROOT, segments: [{ kind: "chip", anchor: { canvas: { path: ".doan/canvases/a.html" } } }] }), here, [])).toBeNull();
   });
 });
