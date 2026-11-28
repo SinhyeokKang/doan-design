@@ -1557,3 +1557,82 @@ describe("a send", () => {
     expect(h.resolutions(s)).toMatchObject([{ outcome: "sent" }]);
   });
 });
+
+// chain_one and chain_limit are refused on the socket and also written to the asking turn's history as a request and its
+// refused resolution, so the source's canvas card words them as it words chain_return.
+describe("a chain refusal's record", () => {
+  const e = { path: ".doan/canvases/e.html", id: "e" }, f = { path: ".doan/canvases/f.html", id: "f" }, d = { path: ".doan/canvases/d.html", id: "d" };
+  const handoffLines = (h: ReturnType<typeof fixture>, id: string) => h.store.read(id).filter(event => event.type === "handoff.requested" || event.type === "handoff.resolved")
+    .map(({ v: _v, conversationId: _c, seq: _s, at: _a, ...rest }) => rest);
+  it("writes a step-1 turn's second request as requested and refused chain_one, once per canvas, never as a taken request", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const s = await h.start(); h.send(h.key(0), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    const x = h.on(b)!.conversationId, turnId = h.turnOf(x);
+    expect(h.ask(h.key(1), c.path)).toBeNull();
+    expect(h.send(h.key(1), a.path, "Back to you")).toBe("chain_one");
+    expect(h.send(h.key(1), a.path, "Back to you")).toBe("chain_one");
+    expect(h.send(h.key(1), d.path, "   ")).toBe("chain_one");
+    expect(handoffLines(h, x)).toEqual([
+      { type: "handoff.requested", canvas: { path: c.path }, text: "The person wants a checkout flow; the cart is next.", via: "handoff", turnId },
+      { type: "handoff.requested", canvas: { path: a.path }, text: "Back to you", via: "send", turnId },
+      { type: "handoff.resolved", canvas: { path: a.path }, via: "send", outcome: "refused", reason: "chain_one", turnId },
+    ]);
+    expect(foldConversation(h.store.read(x), x, false).handoffs[turnId]).toMatchObject([{ canvas: { path: c.path }, outcome: "pending" }, { canvas: { path: a.path }, via: "send", outcome: "refused", reason: "chain_one" }]);
+    // Only the taken request is judged; the queue and working follow it alone.
+    h.service.receive(x, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(2));
+    expect(h.resolutions(x).at(-1)).toMatchObject({ canvas: { path: c.path }, outcome: "started" });
+    expect(h.service.list("/repo").find(row => row.conversationId === x)?.working).toBe(false);
+  });
+  it("leaves a chain-refused request out of the judgement: nothing held for it, no missed line", async () => {
+    const h = fixture({ listed: [a, b, c] });
+    const s = await h.start(); h.send(h.key(0), b.path);
+    h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    const x = h.on(b)!.conversationId;
+    expect(h.ask(h.key(1), c.path)).toBeNull();
+    expect(h.ask(h.key(1), d.path)).toBe("chain_one");
+    h.edit(x, `/repo/${d.path}`); h.listed.push(d);
+    h.service.queue(x, { text: "after", anchors: [] });
+    h.service.receive(x, { type: "turn.done" });
+    // The one taken handoff decides the queue: it follows the work, as for a turn with no other request.
+    await vi.waitFor(() => expect(h.resolutions(x)).toHaveLength(2));
+    expect(h.drafts.queued(h.on(c)!.conversationId).map(item => item.text)).toEqual(["after"]);
+    h.service.refreshed("/repo");
+    expect(h.missed(x)).toEqual([]);
+    expect(h.service.list("/repo").find(row => row.conversationId === x)?.working).toBe(false);
+  });
+  it("writes a step-5 turn's request as requested and refused chain_limit", async () => {
+    const h = fixture({ listed: [a, b, c, d, e, f] });
+    let id = await h.start();
+    // Each hop starts a conversation on the next canvas from the turn the previous message started.
+    for (const [runner, next] of [b, c, d, e, f].entries()) {
+      expect(h.send(h.key(runner), next.path, `to ${next.id}`)).toBeNull();
+      h.service.receive(id, { type: "turn.done" });
+      await vi.waitFor(() => expect(h.on(next)).toBeDefined());
+      id = h.on(next)!.conversationId;
+    }
+    expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", origin: { chain: expect.arrayContaining([]) } });
+    const first = h.store.read(id)[0]!;
+    expect(first.type === "user.message" && first.origin?.chain).toHaveLength(5);
+    expect(h.prompt(5)).not.toContain(RECEIVED_GUIDANCE);
+    expect(h.send(h.key(5), a.path, "Past the end")).toBe("chain_limit");
+    expect(handoffLines(h, id)).toEqual([
+      { type: "handoff.requested", canvas: { path: a.path }, text: "Past the end", via: "send", turnId: h.turnOf(id) },
+      { type: "handoff.resolved", canvas: { path: a.path }, via: "send", outcome: "refused", reason: "chain_limit", turnId: h.turnOf(id) },
+    ]);
+    h.service.receive(id, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.resolutions(id)).toHaveLength(1);
+  });
+  it("writes nothing for the other refusals, which are the CLI's to report", async () => {
+    const h = fixture({ listed: [a, b] });
+    const s = await h.start();
+    const before = h.store.read(s).length;
+    expect(h.send(h.key(0), a.path)).toBe("same_canvas");
+    expect(h.ask(h.key(0), b.path, "/other")).toBe("root_mismatch");
+    expect(h.store.read(s)).toHaveLength(before);
+  });
+});

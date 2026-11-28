@@ -34,7 +34,7 @@ test("v5 validates schema, then token, then registered root, before the conversa
 });
 
 test("each refusal of the conversation service is a v5 refusal with its code", async () => {
-  for (const code of ["not_app_conversation", "root_mismatch", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas"] as const) {
+  for (const code of ["not_app_conversation", "root_mismatch", "not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas", "chain_limit", "chain_one"] as const) {
     const answer = valid(await answerLine(JSON.stringify(request), token, state(() => code)));
     expect(answer, code).toEqual({ v: 5, ok: false, error: { code, message: expect.any(String) } });
   }
@@ -42,6 +42,7 @@ test("each refusal of the conversation service is a v5 refusal with its code", a
 
 test("names a second request for the same canvas, since a turn may hand off to each new canvas once", async () => {
   expect(valid(await answerLine(JSON.stringify(request), token, state(() => "already_requested")))).toEqual({ v: 5, ok: false, error: { code: "already_requested", message: "This turn already handed off to this canvas." } });
+  expect(valid(await answerLine(JSON.stringify(request), token, state(() => "chain_one")))).toEqual({ v: 5, ok: false, error: { code: "chain_one", message: "A turn started by a message can send only once." } });
 });
 
 test("every shared invalid v5 request fixture is refused as a v5 bad request, and every valid one reaches the service", async () => {
@@ -73,7 +74,8 @@ test("other versions never reach the handoff service, and an unknown version kee
   const service = state();
   for (const v of [1, 2, 3, 4, 6]) await answerLine(JSON.stringify({ ...request, v }), token, service);
   expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 6, ok: false, error: { code: "bad_request" } });
-  expect(await answerLine(JSON.stringify({ ...request, v: 8 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 8 }), token, service)).toMatchObject({ v: 8, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 9 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "5" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.handoff).not.toHaveBeenCalled();
 });

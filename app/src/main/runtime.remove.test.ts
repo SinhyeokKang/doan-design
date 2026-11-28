@@ -87,7 +87,7 @@ test("v1 to v6 never reach the removal and keep their own replies; an unknown ve
     { v: 6, token, root, path, frame: "f", mark: "390x844" },
   ];
   for (const value of versions) expect(Reflect.get(await answerLine(JSON.stringify(value), token, service), "v"), String(value.v)).toBe(value.v);
-  expect(await answerLine(JSON.stringify({ ...request, v: 8 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 9 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "7" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.remove).not.toHaveBeenCalled();
 });
