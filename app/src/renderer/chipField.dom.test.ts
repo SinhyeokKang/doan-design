@@ -54,7 +54,9 @@ const clicked = [];
 // The host's answer for a sidebar canvas drag (canvasChipDrag.ts canvasDropDecision): the chip, or a refusal.
 const dragHost = { take: true };
 const DRAGGED = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
-const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => "canvas", root: () => "/code/doan-web",
+// The field's canvas and root; an Overview field has a root and no canvas.
+const chipHost = { scope: "canvas", root: "/code/doan-web" };
+const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => chipHost.scope, root: () => chipHost.root,
   chipDrag: data => !Array.from(data.types).includes("application/x-doan-canvas-row") ? null : dragHost.take ? DRAGGED : "refused",
   skillNames: () => new Set(["copy-check"]), commandNames: () => new Set(), onChipClick(anchor, chip) { clicked.push([anchor, chip.className]); } }, []);
 let draft = 0;
@@ -191,6 +193,7 @@ const probe = window.probe = {
   // A canvas renamed or moved: every canvas chip takes \`path\`.
   refresh(path) { return field.refreshChips(anchor => anchor.canvas ? { canvas: { ...anchor.canvas, path } } : anchor); },
   tips: () => Array.from(el.querySelectorAll(".anchor-chip")).map(chip => chip.dataset.tip),
+  setChipHost(patch) { Object.assign(chipHost, patch); },
   // Drag events at unit \`unit\`'s drawn place, \`dx\` px to its right, each with a DataTransfer of \`types\` ("Files" a file):
   // dragenter, dragover and, with \`drop\`, drop. The drop place is read as the unit the field draws it at.
   dragAt(unit, types, drop, dx = 1) {
@@ -1000,7 +1003,7 @@ test("a chip clipboard copies its JSON and pastes its chips at an empty line and
   await call("place", 2, 11);
   const [plainCopy, json] = await call<string[]>("copy");
   expect(plainCopy).toBe("see Hero now");
-  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", segments: [plain("see "), chip(), plain(" now")] });
+  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", root: "/code/doan-web", segments: [plain("see "), chip(), plain(" now")] });
   const clipboard = JSON.stringify({ v: 1, scope: "canvas", segments: [chip(), plain(" x")] });
   // On an empty line the chip starts the line, so the line gets its filler; joining the line removes it again.
   await open("a\n\nb");
@@ -1023,6 +1026,35 @@ test("a chip clipboard copies its JSON and pastes its chips at an empty line and
   expect(await consistent()).toBe(true);
   await press("Meta+z");
   expect(await text()).toBe("- \n- b");
+});
+
+// Each chip on its own: a canvas chip stays one only in a field of its root, a frame chip only in a field of its canvas.
+test("a canvas chip's clipboard carries the root; pasted in the same root it stays a chip, elsewhere it is its name", { timeout: 60_000 }, async () => {
+  const flow = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+  await open([plain("Use "), chip(flow), plain(" for "), chip()]);
+  await call("place", 0, 11);
+  const [plainCopy, json] = await call<string[]>("copy");
+  expect(plainCopy).toBe("Use checkout-flow for Hero");
+  expect(JSON.parse(json!)).toEqual({ v: 1, scope: "canvas", root: "/code/doan-web", segments: [plain("Use "), chip(flow), plain(" for "), chip()] });
+  // Same root, another canvas (the Overview's field): the canvas chip stays, the frame chip becomes its name.
+  await open("");
+  await call("setChipHost", { scope: null });
+  await call("paste", plainCopy, json);
+  expect(await call("segments")).toEqual([plain("Use "), chip(flow), plain(" for Hero")]);
+  // The Overview's field copies its canvas chips with its root although it has no canvas.
+  await call("place", 0, 14);
+  expect(JSON.parse((await call<string[]>("copy"))[1]!)).toEqual({ v: 1, scope: null, root: "/code/doan-web", segments: [plain("Use "), chip(flow), plain(" for Hero")] });
+  // Another root: names only.
+  await open("");
+  await call("setChipHost", { root: "/code/other" });
+  await call("paste", plainCopy, json);
+  expect(await call("segments")).toEqual([plain("Use checkout-flow for "), chip()]);
+});
+
+test("a canvas chip carries its id and name for the tooltip; a frame chip carries neither", { timeout: 60_000 }, async () => {
+  await open([chip({ canvas: { path: ".doan/canvases/flows/checkout-flow.html", id: "checkout" } }), plain(" "), chip()]);
+  expect(await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => [node.dataset.canvas, node.dataset.name, node.dataset.tip])))
+    .toEqual([["checkout", "checkout-flow", ".doan/canvases/flows/checkout-flow.html"], [undefined, undefined, "Frame · hero"]]);
 });
 
 test("the host's value right after a composition ends wins: a send empties the field, a returned draft fills it", { timeout: 60_000 }, async () => {

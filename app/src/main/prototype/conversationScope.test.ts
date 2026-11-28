@@ -272,6 +272,13 @@ describe("prototypeRevealRequest", () => {
       .toEqual({ kind: "chip", root: "/r", canvas: { id: "proto", path: PROTO }, conversationId: "c-proto", anchor: { frame: { id: "checkout", title: "Checkout" } } });
   });
 
+  test("a canvas chip goes to the playing root, with or without a shown conversation", () => {
+    const canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
+    expect(reveal({ kind: "canvas", canvas })).toEqual({ kind: "canvas", root: "/r", canvas });
+    expect(reveal({ kind: "canvas", canvas }, null)).toBeNull();
+    expect(reveal({ kind: "canvas", canvas }, PLAYING, [list("/r", [row(LOOSE)])])).toBeNull();
+  });
+
   test("an answer's chip keeps its link", () => {
     expect(reveal({ kind: "reply", conversationId: "c-proto", link: { canvas: "other", kind: "frame", id: "card" } }))
       .toEqual({ kind: "reply", root: "/r", conversationId: "c-proto", link: { canvas: "other", kind: "frame", id: "card" } });

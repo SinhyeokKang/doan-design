@@ -55,6 +55,23 @@ describe("a person's chip", () => {
   });
 });
 
+// A canvas chip is never located: the main window presses it as its own canvas chip (fit, open, note or toast).
+describe("a canvas chip", () => {
+  const canvas = { path: checkout.path, id: "checkout" };
+  test("goes to the main window's canvas chip press with its root, the canvas on screen included", () => {
+    expect(revealDecision({ kind: "canvas", root: ROOT, canvas }, state())).toEqual({ kind: "canvas", root: ROOT, canvas });
+    const own = { path: drafts.path, id: "drafts" };
+    expect(revealDecision({ kind: "canvas", root: ROOT, canvas: own }, state())).toEqual({ kind: "canvas", root: ROOT, canvas: own });
+  });
+
+  test("is held as every kind is, named by its row's name now", () => {
+    const moved: CanvasRow = { path: ".doan/canvases/flows/pay-step.html", id: "checkout", url: "u-m" };
+    expect(revealDecision({ kind: "canvas", root: ROOT, canvas }, state({ dialog: true, entries: [list(ROOT, [moved])] })))
+      .toEqual({ kind: "blocked", text: `Couldn’t show pay-step. ${REVEAL_DIALOG}` });
+    expect(revealName({ kind: "canvas", root: ROOT, canvas }, [])).toBe("checkout");
+  });
+});
+
 describe("the main window cannot act now", () => {
   const request = chip({ path: checkout.path, id: "checkout" });
   test("a dialog stays open and the toast names the chip", () => {

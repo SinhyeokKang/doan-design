@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { PanelsTopLeft, SwatchBook } from "lucide-react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, metaNameKeep, openReplyLink, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffBubble, httpsUrl, metaNameKeep, openReplyLink, pressChip, SentChip, Steps, type CardContext, type ConversationThreadProps } from "./ConversationThread";
 import type { ThumbnailState } from "./thumbnails";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
@@ -429,6 +430,98 @@ describe("sent message chips", () => {
     const other = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
       missing: { key: "m-1", shownFor: "m-0", show: () => {} } });
     expect(other.props["aria-describedby"]).toBeUndefined();
+  });
+});
+
+// A canvas chip in a sent message: named by its canvas's row now, pressed through onCanvasChip (decision: open, fit, note).
+describe("sent canvas chips", () => {
+  const rows: CanvasRow[] = [
+    { path: ".doan/canvases/flows/pay-step.html", url: "u-c", id: "checkout" },
+    { path: ".doan/canvases/drafts.html", url: "u-d", id: "drafts" },
+    { path: ".doan/ds/buttons.html", url: "u-b", id: "buttons" },
+  ];
+  const moved: Anchor = { canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
+  const own: Anchor = { canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } };
+  const ds: Anchor = { canvas: { path: ".doan/ds/buttons.html", id: "buttons" } };
+  const gone: Anchor = { canvas: { path: ".doan/canvases/gone.html", id: "gone" } };
+  const frame: Anchor = { frame: { id: "payment", title: "Payment" } };
+  const user = (anchors: readonly Anchor[]): ThreadItem => ({
+    kind: "user", key: "u1", seq: 1, preset: null, attachments: [], anchors,
+    parts: anchors.flatMap((_, i) => [{ text: " and " }, { anchor: i + 1 }]),
+  });
+  const press = async () => null;
+  const base = { marker: 1, frames: undefined, disabled: false, onLocate: undefined, rows, openCanvasId: "drafts", project: "doan-web" };
+  type Chip = ReactElement<{ onClick(): void; "aria-label"?: string; children: ReactNode }>;
+  const tip = (args: Parameters<typeof SentChip>[0]) => renderToStaticMarkup(<>{(SentChip(args) as ReactElement<{ detail: ReactNode }>).props.detail}</>);
+
+  test("the button is named Open and its canvas's name now, by id, the open canvas's chip too", () => {
+    const out = html([user([moved, own, gone])], { onCanvasChip: press, canvasRows: rows, openCanvasId: "drafts" });
+    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open pay-step"[^>]*><svg[^>]*><\/svg><span>pay-step<\/span><\/button>/);
+    expect(out).toContain('aria-label="Open drafts"');
+    // A canvas the list no longer has keeps the name it was sent with.
+    expect(out).toContain('aria-label="Open gone"');
+  });
+
+  test("the tooltip says where the press goes, then the path; on the open canvas's chip the path alone", () => {
+    expect(tip({ ...base, anchor: moved, onCanvasChip: press })).toBe('<span class="tip-line">Open pay-step</span><span class="tip-line">.doan/canvases/flows/pay-step.html</span>');
+    expect(tip({ ...base, anchor: own, onCanvasChip: press })).toBe(".doan/canvases/drafts.html");
+    // Not pressable: the path alone.
+    expect(tip({ ...base, anchor: moved })).toBe(".doan/canvases/flows/pay-step.html");
+  });
+
+  test("a design-system canvas takes the sidebar's design-system icon, any other the canvas icon", () => {
+    const icon = (anchor: Anchor) => ((sentChip({ ...base, anchor, onCanvasChip: press }) as unknown as Chip).props.children as ReactElement[])[0]!.type;
+    expect(icon(ds)).toBe(SwatchBook);
+    expect(icon(moved)).toBe(PanelsTopLeft);
+  });
+
+  test("a press hands the canvas, at its path now, to onCanvasChip and never locates; missing shows the project note", async () => {
+    const asked: unknown[] = [], located: unknown[] = [], shown: [string, string][] = [];
+    const chip = sentChip({ ...base, anchor: moved, onLocate: async anchor => { located.push(anchor); return "shown"; },
+      onCanvasChip: async canvas => { asked.push(canvas); return "missing"; }, missing: { key: "m-0", shownFor: null, show: (key, text) => shown.push([key, text]) } });
+    chip.props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(asked).toEqual([{ path: ".doan/canvases/flows/pay-step.html", id: "checkout" }]);
+    expect(located).toEqual([]);
+    expect(shown).toEqual([["m-0", "No longer in doan-web"]]);
+  });
+
+  test("a press that opened, fitted or toasted shows no note; a canvas that cannot locate still presses", async () => {
+    const shown: unknown[] = [];
+    const chip = sentChip({ ...base, anchor: moved, disabled: true, onCanvasChip: async () => null, missing: { key: "m-0", shownFor: null, show: key => shown.push(key) } });
+    chip.props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(shown).toEqual([]);
+  });
+
+  test("a frame chip's note keeps the canvas's words", async () => {
+    const shown: [string, string][] = [];
+    const chip = sentChip({ ...base, anchor: frame, onLocate: async () => "missing", missing: { key: "m-0", shownFor: null, show: (key, text) => shown.push([key, text]) } });
+    chip.props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(shown).toEqual([["m-0", "No longer in the canvas"]]);
+  });
+
+  // The composer's chip press (DockedComposer) is the same function as the sent chip's.
+  test("pressChip: a canvas chip asks onCanvasChip, any other onLocate; null when its kind has no handler", async () => {
+    const located: unknown[] = [], asked: unknown[] = [];
+    const hosts = { onLocate: async (anchor: Anchor) => { located.push(anchor); return "missing" as const; }, onCanvasChip: async (canvas: unknown) => { asked.push(canvas); return "missing" as const; } };
+    await expect(pressChip(moved, "doan-web", hosts)).resolves.toBe("No longer in doan-web");
+    await expect(pressChip(frame, "doan-web", hosts)).resolves.toBe("No longer in the canvas");
+    expect(asked).toEqual([moved.canvas]);
+    expect(located).toEqual([frame]);
+    expect(pressChip(moved, "doan-web", { onLocate: hosts.onLocate })).toBeNull();
+    expect(pressChip(frame, "doan-web", { onCanvasChip: hosts.onCanvasChip })).toBeNull();
+    await expect(pressChip(moved, "doan-web", { onCanvasChip: async () => null })).resolves.toBeNull();
+    await expect(pressChip(frame, "doan-web", { onLocate: async () => "shown" })).resolves.toBeNull();
+  });
+
+  // The Overview has no canvas to locate in: its frame chips stay plain while its canvas chips open.
+  test("without onCanvasChip a canvas chip is plain; with it and without onLocate only canvas chips are buttons", () => {
+    expect(html([user([moved])], { onLocate: async () => "shown", canvasRows: rows })).toContain('<span class="anchor-chip" data-kind="canvas"');
+    const overview = html([user([moved, frame])], { onCanvasChip: press, canvasRows: rows, openCanvasId: null });
+    expect(overview).toContain('<button type="button" class="anchor-chip" data-kind="canvas" aria-label="Open pay-step"');
+    expect(overview).toContain('<span class="anchor-chip" data-kind="frame"');
   });
 });
 

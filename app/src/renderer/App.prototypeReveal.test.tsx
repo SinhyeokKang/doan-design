@@ -225,6 +225,42 @@ test("an open dialog stays open: the toast names the chip and the reason inside 
   expect(find(SettingsPage)).toHaveLength(0);
 });
 
+// A canvas chip from the prototype window is never located: the main window presses it as its own canvas chip.
+test("a canvas chip opens another canvas in the main window as a deep link does, with one visit for Back", async () => {
+  await onDrafts();
+  clearController();
+  await reveal({ kind: "canvas", root: "/w/a", canvas: { path: C, id: "checkout" } });
+  const [root, row, to, options] = lastOpen();
+  expect([root, row.path, to]).toEqual(["/w/a", C, undefined]);
+  harness.controller!.destination!.mockReturnValue({ root: "/w/a", canvas: C });
+  showCanvas(checkout);
+  options.opened(); render();
+  expect(back()).toBe(true);
+  expect(harness.controller!.locate).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+test("a canvas chip of the canvas on screen fits its board, with no move and no visit", async () => {
+  await onDrafts();
+  clearController();
+  const backBefore = back();
+  await reveal({ kind: "canvas", root: "/w/a", canvas: { path: D, id: "drafts" } });
+  expect(harness.controller!.command).toHaveBeenCalledExactlyOnceWith("fit");
+  for (const name of ["openCanvas", "locate", "showOverview", "openWorkspace"]) expect(harness.controller![name], name).not.toHaveBeenCalled();
+  expect(back()).toBe(backBefore);
+});
+
+test("a canvas chip whose canvas is gone, or whose id is shared, says so in the main window and moves nowhere", async () => {
+  await onDrafts();
+  clearController();
+  await reveal({ kind: "canvas", root: "/w/a", canvas: { path: ".doan/canvases/gone.html", id: "gone" } });
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Couldn’t open gone. The canvas isn’t in a.");
+  harness.toast.show.mockClear();
+  await reveal({ kind: "canvas", root: "/w/a", canvas: { path: ".doan/canvases/x.html", id: "dup" } });
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Couldn’t open x. More than one canvas in a uses this ID. Run doan check in a terminal to find them.");
+  for (const name of ["openCanvas", "locate", "command"]) expect(harness.controller![name], name).not.toHaveBeenCalled();
+});
+
 test("an answer's chip takes the reply chip path", async () => {
   await onDrafts();
   clearController();
