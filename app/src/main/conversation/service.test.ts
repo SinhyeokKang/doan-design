@@ -284,7 +284,7 @@ it("resolves unique stable IDs and refuses missing, changed or ambiguous binding
   const original = { id: "a", path: ".doan/canvases/a.html" };
   expect(resolveListedCanvas(original, [{ id: "a", path: ".doan/canvases/moved.html" }])).toEqual({ id: "a", path: ".doan/canvases/moved.html" });
   for (const rows of [[], [{ id: "b", path: original.path }], [original, { ...original, path: ".doan/canvases/other.html" }]]) expect(() => resolveListedCanvas(original, rows)).toThrow("canvas_not_found");
-  expect(resolveListedCanvas({ path: original.path }, [original])).toEqual({ path: original.path });
+  expect(resolveListedCanvas({ path: original.path }, [original])).toEqual(original);
   expect(() => resolveListedCanvas({ path: original.path }, [{ id: "a", path: ".doan/canvases/moved.html" }])).toThrow("canvas_not_found");
 });
 
