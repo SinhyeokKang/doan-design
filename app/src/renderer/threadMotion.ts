@@ -141,25 +141,15 @@ export function followBand(height: number): number {
   return Math.max(120, height / 3);
 }
 
-// inputAt: the last wheel or scroll key; trackpad inertia may still be moving the view. pressed: a pointer held on the
-// scroller (its scrollbar). origin: set only by the input that unpinned the follow, until a frame judges it once that
-// input is over: the scrollTop where it began (with scroll anchoring off, growth never moves scrollTop, so the person's
-// own move is origin.top − top) and whether the content grew since. scroll: a scroll key's or an item's scroll, awaited
-// and then running until its scrollend (Chromium animates a key for about 150 ms, past WHEEL_HOLD_MS), or until no
-// scroll has come for WHEEL_HOLD_MS since scrolledAt, should the scrollend be lost. item: that scroll is the thread's
-// own, not the person's. floor: the scrollTop of the bottom when a scroll of the person's last ended within BOTTOM while
-// unpinned, so growth after it never keeps the view away.
+// origin: where the input that unpinned the follow began, until a frame judges it. floor: the bottom's scrollTop when the
+// person's last scroll ended near it, so growth never keeps the view away (ARCHITECTURE §7 'Follow').
 export interface FollowOrigin { top: number; grew: boolean }
 export interface FollowState {
   pinned: boolean; selecting: boolean; pressed: boolean; inputAt: number; origin: FollowOrigin | null;
   scroll: "idle" | "awaited" | "running"; scrolledAt: number; item: boolean; floor: number | null;
 }
-// The composer is outside the thread. scroll: one the follow loop did not write. A pointer's release comes from the
-// window, since a scrollbar drag often ends outside the scroller. top: the scroller's scrollTop. clamp: the browser
-// lowered scrollTop by `by` to a scroll extent that shrank (content or the end inset), which is no move of the person's.
-// A key's bottom: the scrollTop of the bottom when it was pressed, where End or PageDown head even as a reply grows; it
-// counts as touched, so ending within BOTTOM of it follows again. item: the thread scrolls to an item, not following. moved: the scroll changed scrollTop since the last read,
-// and not by a clamp (only the person's own move reaches the bottom).
+// clamp: the browser lowered scrollTop to a shrunk extent, never the person's move. A key's bottom: where End or PageDown
+// head as a reply grows (ARCHITECTURE §7 'Follow').
 export type FollowEvent =
   | { type: "input"; kind: "wheel"; at: number; top: number }
   | { type: "input"; kind: "key"; key: string; at: number; top: number; bottom: number }
