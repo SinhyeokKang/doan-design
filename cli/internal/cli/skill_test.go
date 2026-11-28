@@ -503,7 +503,7 @@ func TestSkillGuideFrameLinks(t *testing.T) {
 }
 
 // Rules 11 and 14 tell an agent how a marked frame is laid out while it plays, so it writes a window-height app
-// layout once instead of guessing; rule F bounds how far it builds the interactions.
+// layout once instead of guessing.
 func TestSkillGuidePrototypeLayout(t *testing.T) {
 	rule := func(prefix string) string {
 		for _, l := range strings.Split(skillBody, "\n") {
@@ -541,8 +541,70 @@ func TestSkillGuidePrototypeLayout(t *testing.T) {
 	if strings.Contains(r14, "The frame fills the viewport and elements outside it are hidden, so keep modals inside it.") {
 		t.Error("rule 14 still has the old one-line layout")
 	}
-	if r := rule("F. "); r != "F. Prototypes: build the interactions the request names, ask only when scope changes the result, and say which are not wired." {
-		t.Errorf("rule F: %q", r)
+}
+
+// Ordinary clicks on the board select and never reach the canvas, so rule F keeps click controls off the board, limits
+// board motion to loops and :hover, and sends click behavior and one-shot motion to a marked frame, where it bounds
+// how far the agent builds the interactions.
+func TestSkillGuideBoardInteraction(t *testing.T) {
+	var rule string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "F. ") {
+			rule = l
+		}
+	}
+	at := 0
+	for _, required := range []string{
+		"F. Ordinary board clicks only select: no click-operated controls there;",
+		// :hover reaches the canvas under the Select tool, not under Hand.
+		"board motion loops or uses `:hover` (Select tool).",
+		// The board sizes the canvas to its document, so scroll-driven motion does not run there either.
+		"Put click behavior and one-shot or scroll-driven motion in a `data-doan-prototype` frame",
+		// Asked to add them to an existing frame, the agent marks it instead of drawing it twice.
+		"marking an existing frame, not a copy;",
+		"there, build the interactions the request names, ask only when scope changes the result, and say which are not wired.",
+	} {
+		i := strings.Index(rule[at:], required)
+		if i < 0 {
+			t.Fatalf("rule F misses %q in order: %q", required, rule)
+		}
+		at += i + len(required)
+	}
+}
+
+// These lines were shortened for the output budget; each still states the condition its longer wording did.
+func TestSkillGuideShortenedLinesKeepConditions(t *testing.T) {
+	first := func(prefix string) string {
+		for _, l := range strings.Split(skillBody, "\n") {
+			if strings.HasPrefix(l, prefix) {
+				return l
+			}
+		}
+		t.Fatalf("no line starts with %q", prefix)
+		return ""
+	}
+	for _, c := range []struct {
+		prefix   string
+		required []string
+	}{
+		{"Keep project files in `.doan/`", []string{"Settings are never served to canvases."}},
+		// Token CSS is linked relative to the canvas; the worked example carries that rule.
+		{"For `.doan/canvases/home.html`", []string{"`../../styles/tokens.css` for that repository file", "Recalculate relative links for nested canvases."}},
+		{"1. ", []string{"in `.doan/assets/` and link them relatively", "Create it only when needed; it is served without config."}},
+		{"2. ", []string{"The id must match `^[a-z0-9]+(-[a-z0-9]+)*$`."}},
+		{"11. ", []string{"When a linked stylesheet uses them on something the canvas shows, override that property in the canvas in px."}},
+		{"12. ", []string{"copy its `<symbol>` elements into the canvas"}},
+		{"13. ", []string{"or register it with `@property` giving `syntax: \"<url>\"`, `inherits` and an `initial-value`."}},
+		{"14. ", []string{"add `data-doan-prototype=\"390x844\"` (px, 1-99999, lowercase x)", "W×H is the target screen's viewport"}},
+		{"  - A frame id may be missing from `doan ls`", []string{"the app also lists frames a canvas script draws at runtime."}},
+		{"`doan onboarding cancel ", []string{"It does not sign out.", "A cancelling operation stays `running` with `cancelling: true` until cleanup ends.", "Exiting the CLI does not cancel anything."}},
+	} {
+		l := first(c.prefix)
+		for _, r := range c.required {
+			if !strings.Contains(l, r) {
+				t.Errorf("%q line misses %q: %q", c.prefix, r, l)
+			}
+		}
 	}
 }
 

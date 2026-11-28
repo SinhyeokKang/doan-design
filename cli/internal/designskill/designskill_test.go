@@ -621,6 +621,9 @@ func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 		{"document", "state samples name their tokens", []string{"labeled with its state and the token variables it uses"}},
 		{"distill", "sameness comes from what is shown", []string{"do not assume a difference nothing shows"}},
 		{"generate", "behavior claims come from supplied truth", []string{"product behavior (defaults, timing, what a user can change later)"}},
+		// Ordinary clicks on the board select, so motion there loops or uses :hover and the rest goes in a prototype frame.
+		{"animate", "board motion needs no click", []string{"an ordinary click selects instead of reaching the canvas", "a looping animation or a `:hover` trigger (it works under the Select tool)", "needs a click, runs once, or is scroll-driven", "frame marked `data-doan-prototype` (Doan guide convention 14)", "mark that frame instead of drawing a copy", "Put no replay button or other click trigger on the board.", "name that frame in your answer as the one to Play", "`doan open <canvas path> --frame <id> --prototype`", "already-visible default", "reduced-motion alternative"}},
+		{"delight", "board moments need no click", []string{"an ordinary click selects instead of reaching the canvas", "a looping animation or a `:hover` trigger (it works under the Select tool)", "needs a click, runs once, or is scroll-driven", "frame marked `data-doan-prototype` (Doan guide convention 14)", "mark that frame instead of drawing a copy", "Put no replay button or other click trigger on the board.", "name that frame in your answer as the one to Play", "`doan open <canvas path> --frame <id> --prototype`", "reduced-motion or muted alternative"}},
 	} {
 		b, err := os.ReadFile(filepath.Join("presets", c.preset+".md"))
 		if err != nil {
@@ -630,6 +633,11 @@ func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 		for _, p := range c.phrases {
 			if !strings.Contains(body, p) {
 				t.Errorf("%s preset lost %s: missing %q", c.preset, c.issue, p)
+			}
+		}
+		for _, gone := range []string{"replay control", "visible trigger"} {
+			if strings.Contains(strings.ToLower(body), gone) {
+				t.Errorf("%s preset still suggests a %s", c.preset, gone)
 			}
 		}
 	}
