@@ -60,7 +60,7 @@ type Flags struct {
 	// Frames keeps every --frame so a repeated one is an error rather than the last one winning.
 	Frames []string
 	Note   string
-	// Message is handoff's --message; Given tells an empty one from an absent one.
+	// Message is handoff's and send's --message; Given tells an empty one from an absent one.
 	Message string
 
 	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
@@ -88,6 +88,8 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   work done [<canvas path>...]
   open <canvas path> [--frame <id> [--prototype]]
   handoff <canvas path> --message <text|->
+      (Doan app conversations only)
+  send <canvas path> --message <text|->
       (Doan app conversations only)
   remove
       (removes this project from Doan's list; files stay. Only when the user asks)
@@ -137,7 +139,7 @@ func findRepository(ctx Context, f Flags) (repo.Repository, *Error, string) {
 	return r, nil, ""
 }
 
-// runtimePath is resolved only for active, work, open, handoff, remove and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active, work, open, handoff, send, remove and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -216,7 +218,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		case "open":
 			allowed["frame"] = true
 			allowed["prototype"] = true
-		case "handoff":
+		case "handoff", "send":
 			allowed["message"] = true
 		case "work":
 			if len(pos) > 1 && pos[1] == "update" {
@@ -317,6 +319,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						ctx.Input = reader
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
 							o, failure = Handoff(ctx, f, pos[1:])
+						}
+					case "send":
+						ctx.Handoff = handoffKey(os.Getenv("DOAN_HANDOFF"))
+						ctx.Input = reader
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+							o, failure = Send(ctx, f, pos[1:])
 						}
 					case "remove":
 						if appConversation() {
