@@ -29,7 +29,7 @@ export function measuredFrame(value: unknown, boardWidth: number): Rect | null {
 }
 
 // The scrolled frame's viewport rectangle to a capture rectangle in host coordinates inside the window's content, or
-// null. Height stops at the width: a narrow frame scaled to 480 px would make a very tall PNG; slots show its top.
+// null. Height stops at 16:10: image-sized slots keep today's height and a narrow frame makes no very tall PNG.
 export function thumbnailRect(value: unknown, viewport: Rect, window: Size): Rect | null {
   const frame = rect(value);
   if (!frame || !withinBoard(frame, viewport.width) || frame.height > MAX_FRAME_BOTTOM) return null;
@@ -39,5 +39,5 @@ export function thumbnailRect(value: unknown, viewport: Rect, window: Size): Rec
   const bottom = Math.round(Math.min(viewport.y + Math.min(viewport.height, frame.y + frame.height), window.height));
   const width = right - left;
   if (width < 1 || bottom - top < 1) return null;
-  return { x: left, y: top, width, height: Math.min(bottom - top, width) };
+  return { x: left, y: top, width, height: Math.min(bottom - top, Math.round((width * 10) / 16)) };
 }

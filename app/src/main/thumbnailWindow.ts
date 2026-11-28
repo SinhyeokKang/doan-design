@@ -69,10 +69,12 @@ function outerFrame(contents: WebContents, outerFrameId: number | undefined): We
 // One limit for all of a job's canvas scripts; a script still running at the limit is abandoned.
 function measurement(outer: WebFrameMain | undefined, limitMs: number) {
   let timer: NodeJS.Timeout | undefined;
-  const limit = new Promise<typeof NO_ANSWER>((resolve) => { timer = setTimeout(() => resolve(NO_ANSWER), limitMs); });
+  let over = false;
+  const limit = new Promise<typeof NO_ANSWER>((resolve) => { timer = setTimeout(() => { over = true; resolve(NO_ANSWER); }, limitMs); });
   return {
+    // Past the limit nothing more is sent to the canvas.
     run(script: string): Promise<unknown> {
-      if (!outer) return Promise.resolve(NO_ANSWER);
+      if (!outer || over) return Promise.resolve(NO_ANSWER);
       let answer: Promise<unknown>;
       try {
         answer = outer.executeJavaScript(script);
@@ -86,7 +88,7 @@ function measurement(outer: WebFrameMain | undefined, limitMs: number) {
 }
 
 export interface Capturer {
-  // A 480 px wide PNG of the canvas's first top-level frame, cut to the viewport and at most as tall as it is wide,
+  // A 480 px wide PNG of the canvas's first top-level frame, cut to the viewport and at most 16:10,
   // else of its first 16:10 screen; null when it could not be taken ("Preview unavailable").
   capture(url: string, width: number): Promise<Buffer | null>;
   // For good: later captures fail without opening a window.
@@ -170,10 +172,11 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS, measureLimitMs =
         const [contentWidth = 0, contentHeight = 0] = target.getContentSize();
         const area = thumbnailRect(scrolled, rect, { width: contentWidth, height: contentHeight });
         if (area) {
-          const framed = await contents.capturePage(area);
+          // A copy can fail while the surface is briefly gone; the first screen stands then.
+          const framed = await contents.capturePage(area).catch(() => null);
           // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is captured
           if (!current() || frameFailed) return null;
-          if (!framed.isEmpty()) image = framed;
+          if (framed && !framed.isEmpty()) image = framed;
         }
       }
       return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
