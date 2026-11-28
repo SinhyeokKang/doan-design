@@ -37,7 +37,7 @@ beforeAll(async () => {
     await writeFile(entry, [
       `export { ChipField, moveFocus, focusFieldEnd } from ${JSON.stringify(here("./chipField.ts"))};`,
       `export { slashKey } from ${JSON.stringify(here("./homeComposer.ts"))};`,
-      `export { posFromUnit as posOf } from ${JSON.stringify(here("./fieldDoc.ts"))};`,
+      `export { posFromUnit as posOf, unitFromPos as unitOf } from ${JSON.stringify(here("./fieldDoc.ts"))};`,
     ].join("\n"));
     const result = await build({ configFile: false, logLevel: "silent", root: dir, build: { write: false, minify: false, lib: { entry, formats: ["iife"], name: "Probe", fileName: "probe" } } });
     bundle = ((Array.isArray(result) ? result[0] : result) as Rolldown.RolldownOutput).output[0].code;
@@ -51,7 +51,11 @@ const el = document.getElementById("f");
 let changes = 0;
 const announced = [];
 const clicked = [];
-const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => "canvas",
+// The host's answer for a sidebar canvas drag (canvasChipDrag.ts canvasDropDecision): the chip, or a refusal.
+const dragHost = { take: true };
+const DRAGGED = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+const field = new Probe.ChipField(el, { onChange() { changes++; }, onInput() {}, onAnnounce(text) { announced.push(text); }, scope: () => "canvas", root: () => "/code/doan-web",
+  chipDrag: data => !Array.from(data.types).includes("application/x-doan-canvas-row") ? null : dragHost.take ? DRAGGED : "refused",
   skillNames: () => new Set(["copy-check"]), commandNames: () => new Set(), onChipClick(anchor, chip) { clicked.push([anchor, chip.className]); } }, []);
 let draft = 0;
 // ComposerField's keydown, registered after the field's own as React's is: the host's onKey first (Home's \`/\` list
@@ -183,6 +187,28 @@ const probe = window.probe = {
   },
   menu(inputType) { return probe.input(inputType); },
   insertChip: anchor => field.insertChip(anchor),
+  takeDrags(take) { dragHost.take = take; },
+  // Drag events at unit \`unit\`'s drawn place, \`dx\` px to its right, each with a DataTransfer of \`types\` ("Files" a file):
+  // dragenter, dragover and, with \`drop\`, drop. The drop place is read as the unit the field draws it at.
+  dragAt(unit, types, drop, dx = 1) {
+    const r = field.view.coordsAtPos(Probe.posOf(field.view.state.doc, unit));
+    const x = r.left + dx, y = (r.top + r.bottom) / 2;
+    const fire = (type, target = document.elementFromPoint(x, y), init = {}) => {
+      const data = new DataTransfer();
+      for (const t of types) { if (t === "Files") data.items.add(new File(["x"], "a.txt", { type: "text/plain" })); else data.setData(t, ""); }
+      const e = new DragEvent(type, { dataTransfer: data, clientX: x, clientY: y, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(e);
+      return { prevented: e.defaultPrevented, effect: data.dropEffect };
+    };
+    fire("dragenter");
+    const over = fire("dragover");
+    const mark = el.querySelector(".drop-caret");
+    const out = { over, place: mark ? Probe.unitOf(field.view.state.doc, field.view.posAtDOM(mark, 0)) : null };
+    if (drop === "leave") { fire("dragleave", el, { relatedTarget: document.getElementById("after") }); out.after = el.querySelector(".drop-caret") !== null; }
+    else if (drop === "end") { window.dispatchEvent(new DragEvent("dragend", { bubbles: true })); out.after = el.querySelector(".drop-caret") !== null; }
+    else if (drop) { out.drop = fire("drop"); out.after = el.querySelector(".drop-caret") !== null; }
+    return out;
+  },
   focusEnd() { Probe.focusFieldEnd(el); },
   fieldFocusEnd() { field.focus(true); },
   // App focuses a composer by selector with the element's own focus().
@@ -1062,4 +1088,77 @@ test("a canvas chip reads “Canvas”, names the canvas, shows its path as the 
   // lucide panels-top-left (the sidebar's canvas row) and swatch-book (its design-system row).
   expect(chips[0]!.shapes.join("")).toContain('d="M3 9h18"');
   expect(chips[1]!.shapes.join("")).toContain('d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"');
+});
+
+const CANVAS_DRAG = ["application/x-doan-canvas-row"];
+const DROPPED = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout" } };
+// The caret as drawn stands at or past the chip's right edge.
+async function caretAfterChip(index = 0): Promise<boolean> {
+  const box = await call<{ x: number; w: number }>("box", ".anchor-chip", index);
+  return (await caret()).x >= box.x + box.w - 1;
+}
+
+// A chip spliced into a line carried a line-start filler in its slice, and the caret was placed before the filler fix
+// took it out, so it landed before the chip (canvas-chip PoC).
+test("a chip the host inserts leaves the caret right after it, mid-line and at the field's end", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like and keep the totals");
+  await call("place", 23);
+  expect(await call("insertChip", CHIP)).toBe("inserted");
+  expect(await text()).toBe("Make the cart look like￼ and keep the totals");
+  expect(await sel()).toEqual({ anchor: 24, focus: 24 });
+  expect(await caretAfterChip()).toBe(true);
+  await open("Intro");
+  await call("fieldFocusEnd");
+  expect(await call("insertChip", CHIP)).toBe("inserted");
+  expect(await sel()).toEqual({ anchor: 6, focus: 6 });
+  expect(await caretAfterChip()).toBe(true);
+});
+
+test("a dropped canvas chip goes where it is dropped, with focus and the caret right after it, and one undo takes it out", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like and keep the totals");
+  await call("blur");
+  const out = await call<{ over: { prevented: boolean; effect: string }; place: number | null; drop: { prevented: boolean }; after: boolean }>("dragAt", 23, CANVAS_DRAG, true);
+  expect(out.over).toEqual({ prevented: true, effect: "copy" });
+  expect(out.place).toBe(23);
+  expect(out.drop.prevented).toBe(true);
+  expect(out.after).toBe(false);
+  expect(await call("segments")).toEqual([plain("Make the cart look like"), chip(DROPPED), plain(" and keep the totals")]);
+  expect(await focused()).toBe("f");
+  expect(await sel()).toEqual({ anchor: 24, focus: 24 });
+  expect(await caretAfterChip()).toBe(true);
+  expect(await call("announced")).toContain("Added checkout-flow");
+  await press("Meta+z");
+  expect(await text()).toBe("Make the cart look like and keep the totals");
+});
+
+test("a drop at a list item's line start goes to the item's body, never before its marker", { timeout: 60_000 }, async () => {
+  await open("Intro\n- item one");
+  const out = await call<{ place: number | null }>("dragAt", 6, CANVAS_DRAG, true);
+  expect(out.place).toBe(8);
+  expect(await text()).toBe("Intro\n- ￼item one");
+  expect(await call("spans")).toEqual(['field-mark:ul "-"']);
+  expect(await sel()).toEqual({ anchor: 9, focus: 9 });
+});
+
+test("a refused canvas drag shows no drop place, says none and drops nothing; a file drag is left to the composer", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like");
+  await call("takeDrags", false);
+  const refused = await call<{ over: { prevented: boolean; effect: string }; place: number | null }>("dragAt", 4, CANVAS_DRAG, true);
+  expect(refused.over).toEqual({ prevented: false, effect: "none" });
+  expect(refused.place).toBeNull();
+  expect(await text()).toBe("Make the cart look like");
+  await call("takeDrags", true);
+  const files = await call<{ place: number | null }>("dragAt", 4, ["Files"], true);
+  expect(files.place).toBeNull();
+  expect(await text()).toBe("Make the cart look like");
+});
+
+test("the drop place goes when the drag leaves the field or ends elsewhere", { timeout: 60_000 }, async () => {
+  await open("Make the cart look like");
+  for (const how of ["leave", "end"]) {
+    const out = await call<{ place: number | null; after: boolean }>("dragAt", 4, CANVAS_DRAG, how);
+    expect(out.place, how).toBe(4);
+    expect(out.after, how).toBe(false);
+  }
+  expect(await text()).toBe("Make the cart look like");
 });

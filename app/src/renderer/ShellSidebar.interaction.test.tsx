@@ -1,7 +1,8 @@
 import { Children, isValidElement, type ReactNode } from "react";
 import { AlertIcon } from "./AlertIcon";
 import { Info, RotateCw } from "lucide-react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CANVAS_DRAG_TYPE, canvasDragging, canvasDragOf, endCanvasDrag } from "./canvasChipDrag";
 import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
@@ -1080,5 +1081,96 @@ describe("the viewed canvas's conversation list", () => {
       rendered = render(props, PRICING);
       expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
     });
+  });
+});
+
+// A canvas row drags as a canvas chip (PRODUCT §5 item 6 after canvas-chip): only where the row menu could add it, with
+// only Doan's marker on the transfer; the tree's click, arrows and typeahead stay as they are.
+describe("dragging a canvas row", () => {
+  const ROW = { path: ".doan/canvases/checkout.html", url: "checkout", id: "checkout" };
+  function dragFixture(reason: string | null = null, extra: Record<string, unknown> = {}) {
+    const { props } = fixture();
+    props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [ROW, { path: ".doan/canvases/pricing.html", url: "pricing", id: "pricing" }] };
+    const chipDrag = { reason: vi.fn(() => reason), judge: vi.fn(() => "judged") };
+    hooks.cursor = 0; hooks.refs = [];
+    const all = { ...props, canvas: undefined, chipDrag, ...extra };
+    const rendered = elements(ShellSidebar(all as never));
+    const rows = rendered.filter(item => item["aria-level"] === 3);
+    const row = (name: string) => rows.find(item => item["aria-label"] === name)!;
+    return { props: all, rendered, rows, row, chipDrag };
+  }
+  const transfer = () => ({ types: [] as string[], setData(type: string) { this.types.push(type); }, setDragImage: vi.fn(), effectAllowed: "uninitialized" });
+  const dragStart = (row: Record<string, unknown>) => {
+    const event = { dataTransfer: transfer(), preventDefault: vi.fn(), stopPropagation: vi.fn(), currentTarget: {}, target: {} };
+    (row.onDragStart as (event: unknown) => void)(event);
+    return event;
+  };
+  afterEach(() => endCanvasDrag());
+
+  it("drags a row the menu could add, and no row while the page is locked or the menu gives a reason", () => {
+    expect(dragFixture().row("checkout").draggable).toBe(true);
+    expect(dragFixture("Only canvases in demo can go in this message.").row("checkout").draggable).toBe(false);
+    expect(dragFixture(null, { locked: true }).row("checkout").draggable).toBe(false);
+    expect(dragFixture().rendered.find(item => item["data-key"] === "common")!.draggable).toBeUndefined();
+  });
+
+  it("asks the row's own root and row for the reason", () => {
+    const { chipDrag } = dragFixture();
+    expect(chipDrag.reason).toHaveBeenCalledWith("/a", ROW);
+  });
+
+  it("never drags the menu trigger or the conversation chevron", () => {
+    const conversations = { list: () => [], shown: null, seen: new Set<string>(), now: 0, folded: false, bare: new Map(), fold: vi.fn(), open: vi.fn(), remove: vi.fn() };
+    const { rendered } = dragFixture(null, { canvas: ROW.path, conversations });
+    const triggers = rendered.filter(item => item.className === "doan-icon-button shell-more");
+    expect(triggers.length).toBeGreaterThan(1);
+    for (const trigger of triggers) expect(trigger.draggable).toBe(false);
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    expect(chevron.draggable).toBe(false);
+  });
+
+  it("keeps the drag in memory with the row's root, path and id, judged by App, and does not open the row", () => {
+    const { props, row, chipDrag } = dragFixture();
+    const event = dragStart(row("checkout"));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.dataTransfer.types).toEqual([CANVAS_DRAG_TYPE]);
+    expect(event.dataTransfer.effectAllowed).toBe("copy");
+    const drag = canvasDragOf({ types: [CANVAS_DRAG_TYPE] } as unknown as DataTransfer);
+    expect(drag).toMatchObject({ root: "/a", path: ROW.path, id: "checkout" });
+    const composer = { root: "/a", canTake: () => null };
+    expect(drag !== null && drag !== "foreign" && drag.judge(composer)).toBe("judged");
+    expect(chipDrag.judge).toHaveBeenCalledWith("/a", ROW, composer);
+    expect(props.open).not.toHaveBeenCalled();
+    (row("checkout").onDragEnd as () => void)();
+    expect(canvasDragging()).toBe(false);
+  });
+
+  it("cancels a drag start the menu now refuses, or one on a locked page", () => {
+    for (const fixtureArgs of [["Finish typing first."], [null, { locked: true }]] as const) {
+      const { row } = dragFixture(...(fixtureArgs as [string | null, Record<string, unknown>?]));
+      const event = dragStart(row("checkout"));
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(event.dataTransfer.types).toEqual([]);
+      expect(canvasDragging()).toBe(false);
+    }
+  });
+
+  it("leaves the row's click, arrows and typeahead as they were after a drag", () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    try {
+      const { props, rows, row } = dragFixture();
+      const nodes = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
+      const host = hooks.refs.find(ref => ref.current === null)!;
+      host.current = { querySelectorAll: () => nodes };
+      dragStart(row("checkout"));
+      (row("checkout").onDragEnd as () => void)();
+      key(row("checkout"), "ArrowDown");
+      expect(nodes[1]!.focus).toHaveBeenCalledOnce();
+      key(row("pricing"), "c");
+      expect(nodes[0]!.focus).toHaveBeenCalledOnce();
+      expect(props.open).not.toHaveBeenCalled();
+      (row("pricing").onClick as () => void)();
+      expect(props.open).toHaveBeenCalledWith("/a", expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+    } finally { now.mockRestore(); }
   });
 });
