@@ -1,7 +1,7 @@
 import { doanInvocations } from "./call-log.ts";
 import { doanCommand } from "./transcript.ts";
 import { contentHash } from "./work.ts";
-import type { Check, CheckContext } from "./types.ts";
+import type { Check, CheckContext, HandoffExchange, SendExchange } from "./types.ts";
 
 // The `doan handoff` commands the agent ran, as their words. A command is evidence of the ask only; the fake app's v5
 // log (ctx.handoff()) is evidence of what arrived.
@@ -43,4 +43,14 @@ export function handoffsForCanvases(ctx: Pick<CheckContext, "handoff" | "read">,
     }), detail: `hashes at requests: ${JSON.stringify(accepted.map(e => ({ path: e.request.path, hashes: e.hashes })))}` },
     { id: "handoff_messages_not_empty", pass: accepted.length > 0 && accepted.every(e => e.request.text.trim().length > 0), detail: JSON.stringify(accepted.map(e => ({ path: e.request.path, message: [...e.request.text].slice(0, 300).join("") }))) },
   ];
+}
+
+// Every request the app received and accepted, v5 then v8, whatever command made it.
+export function acceptedRequests(ctx: Pick<CheckContext, "handoff" | "send">): (HandoffExchange | SendExchange)[] {
+  return [...ctx.handoff(), ...ctx.send()].filter(e => e.response.ok);
+}
+
+// Each request the app received, refused ones included, as the detail a count check shows.
+export function requestSummary(ctx: Pick<CheckContext, "handoff" | "send">): string {
+  return JSON.stringify([...ctx.handoff(), ...ctx.send()].map(e => ({ v: e.request.v, path: e.request.path, ok: e.response.ok, error: e.response.ok ? undefined : e.response.error.code })));
 }

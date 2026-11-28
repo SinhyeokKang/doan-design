@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
-import { handoffCommands, noHandoff, sendCommands } from "./handoff.ts";
+import { acceptedRequests, handoffCommands, noHandoff, requestSummary, sendCommands } from "./handoff.ts";
 import { openCalls } from "./open.ts";
 import { startFakeApp, validHandoffRequest, validHandoffResponse, validSendRequest, validSendResponse } from "./socket.ts";
 import { toolCalls } from "./transcript.ts";
@@ -258,4 +258,13 @@ test("a turn started by a received message gets chain_one for a second accepted 
       assert.equal(code(await ask(8, { path: b })), "ok");
     });
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("acceptedRequests joins the accepted v5 and v8 requests and requestSummary lists every request with its version", () => {
+  const handoff: HandoffExchange = { request: { v: 5, root: "/r", handoff: key, path, text: "x" }, response: { v: 5, ok: true, requested: true }, at: "", hashes: {} };
+  const refused: SendExchange = { request: { v: 8, root: "/r", handoff: key, path, text: "x" }, response: { v: 8, ok: false, error: { code: "chain_one", message: "m" } }, at: "", hashes: {} };
+  const sent: SendExchange = { ...refused, response: { v: 8, ok: true, requested: true } };
+  const ctx = { handoff: () => [handoff], send: () => [refused, sent] };
+  assert.deepEqual(acceptedRequests(ctx), [handoff, sent]);
+  assert.deepEqual(JSON.parse(requestSummary(ctx)), [{ v: 5, path, ok: true }, { v: 8, path, ok: false, error: "chain_one" }, { v: 8, path, ok: true }]);
 });
