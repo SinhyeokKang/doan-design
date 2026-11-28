@@ -148,3 +148,47 @@ describe("line-start chips and the chip clipboard", () => {
     expect(read(point)).toEqual([chip(point)]);
   });
 });
+
+describe("canvas chips", () => {
+  const checkout: Anchor = { canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout-flow" } };
+  const buttons: Anchor = { canvas: { path: ".doan/ds/buttons.html", id: "buttons" } };
+
+  test("two canvases are two places; the same canvas id again is one, even at a moved path", () => {
+    const moved: Anchor = { canvas: { path: ".doan/canvases/archive/checkout-flow.html", id: "checkout-flow" } };
+    expect(sameTarget(checkout, buttons)).toBe(false);
+    expect(sameTarget(checkout, moved)).toBe(true);
+    expect(sameTarget(checkout, frame)).toBe(false);
+    expect(toMessage([chip(checkout), text(" with "), chip(buttons), text(" and "), chip(moved)]))
+      .toEqual({ text: "{{1}} with {{2}} and {{1}}", anchors: [checkout, buttons] });
+  });
+
+  test("canvas chips count toward the 32 places with frame chips", () => {
+    const canvases = Array.from({ length: 31 }, (_, i): Anchor => ({ canvas: { path: `.doan/canvases/c${i}.html`, id: `c${i}` } }));
+    const full = [...canvases, frame].map(chip);
+    expect(distinctTargets(full)).toBe(32);
+    expect(toMessage(full)?.anchors).toHaveLength(32);
+    expect(toMessage([...full, chip({ canvas: { path: ".doan/canvases/c31.html", id: "c31" } })])).toBeNull();
+  });
+
+  test("combineQueued renumbers canvas anchors and the field redraws them as the same chips", () => {
+    const combined = combineQueued([
+      { text: "Use {{1}}", anchors: [checkout], attachments: [] },
+      { text: "with {{1}} and {{2}}", anchors: [buttons, checkout], attachments: [] },
+    ]);
+    if (!combined.ok) throw new Error("combined");
+    expect(combined.text).toBe("Use {{1}}\n\nwith {{2}} and {{3}}");
+    const segments = fromMessage(combined.text, combined.anchors);
+    expect(segments).toEqual([text("Use "), chip(checkout), text("\n\nwith "), chip(buttons), text(" and "), chip(checkout)]);
+    expect(toMessage(segments)).toEqual({ text: "Use {{1}}\n\nwith {{2}} and {{1}}", anchors: [checkout, buttons] });
+  });
+
+  test("the clipboard keeps a canvas chip and refuses a malformed or mixed one", () => {
+    const read = (anchor: unknown) => readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor }] }), "canvas:a");
+    expect(read(checkout)).toEqual([chip(checkout)]);
+    expect(read({ canvas: { path: ".doan/canvases/a.html" } })).toBeNull();
+    expect(read({ canvas: { path: 7, id: "a" } })).toBeNull();
+    expect(read({ canvas: { path: ".doan/canvases/a.html", id: 7 } })).toBeNull();
+    expect(read({ canvas: ".doan/canvases/a.html" })).toBeNull();
+    expect(read({ ...checkout, frame: { id: "hero" } })).toBeNull();
+  });
+});

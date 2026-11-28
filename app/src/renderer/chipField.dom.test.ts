@@ -1048,3 +1048,18 @@ test("Ctrl+Tab's focus move reaches the same stop as native Tab, passing over a 
     expect(await focused()).toBe(expected);
   }
 });
+
+test("a canvas chip reads “Canvas”, names the canvas, shows its path as the tip and the sidebar row's icon", { timeout: 60_000 }, async () => {
+  await open([chip({ canvas: { path: ".doan/canvases/checkout-flow.html", id: "checkout-flow" } }), plain(" and "), chip({ canvas: { path: ".doan/ds/buttons.html", id: "buttons" } })]);
+  const chips = await frame.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>(".anchor-chip")).map(node => ({
+    kind: node.dataset.kind, tip: node.dataset.tip, text: node.textContent,
+    shapes: Array.from(node.querySelector("svg")!.children).map(shape => shape.outerHTML),
+  })));
+  expect(chips.map(({ kind, tip, text }) => ({ kind, tip, text }))).toEqual([
+    { kind: "canvas", tip: ".doan/canvases/checkout-flow.html", text: "Canvas checkout-flow" },
+    { kind: "canvas", tip: ".doan/ds/buttons.html", text: "Canvas buttons" },
+  ]);
+  // lucide panels-top-left (the sidebar's canvas row) and swatch-book (its design-system row).
+  expect(chips[0]!.shapes.join("")).toContain('d="M3 9h18"');
+  expect(chips[1]!.shapes.join("")).toContain('d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"');
+});
