@@ -82,3 +82,4 @@
 - E(design-sync) 끝: 커밋을 통합하고 push했다(`b9c092080`까지). 패널 1757행 중 74, Overview 658행 중 20 차이를 `docs/design/conversation.md`에 기록했다. C 리뷰 🟡 5는 대화별 유예로 고쳤고 실제 시작으로는 runtime probe에서 본다.
 - F 1차 회차 `cm-f-scoped-1` 무효: Claude 사용량 한도(R14–R17), Codex 판정자 judge_error(R12–R17), real-state의 `sessions.jsonl` 변경(사용자의 실행 중인 Doan). 리셋 뒤 실패한 실행만 반복 회차로 돌리라고 답했다.
 - runtime probe(tasks 8)를 워커에 맡겼다: `ctx_c104c5d84e42`(Opus medium, 컨덕터 checkout에서 `.scratch`만 씀). 항목 9개에 canvas-chip의 패널 경로 재작성 확인을 넣었다.
+- lead 알림(#429 머지)으로 `origin/develop`을 merge했다(`8d0b63c06`, rebase 아님). 충돌 둘을 풀었다: `service.ts` import 합치기, ARCHITECTURE 'Canvas lifecycle'(develop의 `adoptListedId` 문장 + 이 branch의 "canvases")와 'Handoff' 머리줄(이 branch). typecheck 깨끗, service 테스트 3파일 400 통과. runtime probe 워커에는 merge 전 빌드면 다시 빌드하라고 보냈다(턴 끝에 전달되므로 보고서의 HEAD로 확인한다).
