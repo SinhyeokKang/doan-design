@@ -60,6 +60,8 @@ code, kbd { font-family: var(--type-family); }
 .drag-layer[data-grabbing] { cursor: grabbing; }
 /* Hand over canvas text and through its text drag (the canvas answers text-at). */
 .drag-layer[data-text] { cursor: text; }
+/* Over the board for a sidebar canvas row drag: it takes no drop, so neither the board nor the canvas gets one. */
+.board-shield { position: absolute; inset: 0; z-index: 0; }
 /* Same layer as the drag layer, so the canvas chrome stays clickable. The controller toggles it and the marquee with
    `hidden`, so neither rule sets display. */
 .capture-layer { position: absolute; inset: 0; z-index: 0; cursor: crosshair; }
@@ -679,6 +681,12 @@ body:has(.shell-top) { background: transparent; }
 .anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The kind prefix is unselectable, so Electron's selectionText (the Look Up menu item) holds only the visible name. */
 .anchor-chip .sr-only { user-select: none; }
+/* Where a dragged canvas chip will land. It takes no width: text it pushed aside would move the drop place under the
+   pointer on the next dragover. */
+.drop-caret { display: inline-block; width: var(--space-half); height: var(--type-label-line-height); margin: 0 calc(var(--space-half) / -2); border-radius: var(--radius-pill); background: var(--text-accent); vertical-align: bottom; }
+/* The sidebar row's drag image: drawn off screen for setDragImage, padded so the shadow is inside the snapshot. */
+.chip-drag-image { position: fixed; top: 0; left: -10000px; padding: var(--space-3); pointer-events: none; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.chip-drag-image .anchor-chip { margin: 0; box-shadow: var(--shadow-floating); }
 .composer-card.readonly .composer-input { color: var(--text-subtle); }
 .composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 .composer-count.over { color: var(--text-danger); }
@@ -865,6 +873,8 @@ body:has(.shell-top) { background: transparent; }
 @container (max-width: 383px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+/* A canvas row drag this composer refuses: a neutral edge, never the accent, with the reason under the card. */
+.docked[data-chip-refused] .composer-card { outline: 1px dashed var(--border-prominent); outline-offset: -1px; }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
 /* Larger than a chip so queued messages read easily; the inset-shadow border keeps the row's height and padding. */
 .queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-pill); background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }

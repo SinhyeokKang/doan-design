@@ -30,6 +30,11 @@ export interface ChipFieldHooks {
   onAnnounce(text: string): void;
   // null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
+  // The root whose canvas chips the field takes; null or absent takes none.
+  root?(): string | null;
+  // A drag over the field: the chip it would drop, "refused" for a chip drag it takes no chip from now, null for any other
+  // drag (files, text), which the host handles.
+  chipDrag?(data: DataTransfer): Anchor | "refused" | null;
   skillNames?(): ReadonlySet<string>;
   // Highlighted only as the field's first word.
   commandNames?(): ReadonlySet<string>;
@@ -42,9 +47,8 @@ export interface ChipFieldHooks {
 interface Selection { anchor: number; focus: number }
 type Press = { kind: "break" } | { kind: "indent"; dir: 1 | -1 };
 
-// lucide Frame, SquareMousePointer and MapPin.
+// lucide Frame, SquareMousePointer and MapPin; canvas and ds are the sidebar rows' icons (panels-top-left, swatch-book).
 const SVG = "http://www.w3.org/2000/svg";
-// canvas and ds are the sidebar rows' icons (lucide panels-top-left, swatch-book).
 const ICONS: Record<"frame" | "element" | "point" | "canvas" | "ds", [string, Record<string, string>][]> = {
   frame: [["line", { x1: "22", x2: "2", y1: "6", y2: "6" }], ["line", { x1: "22", x2: "2", y1: "18", y2: "18" }], ["line", { x1: "6", x2: "6", y1: "2", y2: "22" }], ["line", { x1: "18", x2: "18", y1: "2", y2: "22" }]],
   element: [["path", { d: "M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z" }], ["path", { d: "M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" }]],
@@ -74,7 +78,9 @@ export class ChipField {
   private closeNext = false;
   private readonly widths = new Map<string, number>();
   private ruler: HTMLElement | null = null;
-  private drawn: { doc: PMNode; names: ReadonlySet<string>; widths: number; set: DecorationSet } | null = null;
+  // The unit a dragged chip would land at, drawn while the drag is over the text.
+  private dropAt: number | null = null;
+  private drawn: { doc: PMNode; names: ReadonlySet<string>; widths: number; drop: number | null; set: DecorationSet } | null = null;
   private widthsVersion = 0;
   private cache: { doc: PMNode; segments: FieldSegment[] } | null = null;
   private readonly cleanups: (() => void)[] = [];
@@ -100,9 +106,11 @@ export class ChipField {
         cut: (_view, event) => this.onCopy(event, true),
         // ComposerField hands paste to the host first and then to paste() below; ProseMirror's own would run before both.
         paste: () => true,
-        // Dragging text or a chip out, or dropping into the field, would bypass the segments.
+        // Dragging text or a chip out, or any drop but a chip's, would bypass the segments.
         dragstart: (_view, event) => { event.preventDefault(); return true; },
-        drop: (_view, event) => { event.preventDefault(); return true; },
+        dragover: (_view, event) => this.onDragOver(event),
+        dragleave: (_view, event) => { if (!(event.relatedTarget instanceof Node && el.contains(event.relatedTarget))) this.showDrop(null); return false; },
+        drop: (_view, event) => { event.preventDefault(); this.onDrop(event); return true; },
         pointerdown: () => { this.pointer = true; return false; },
         // A keyboard or code focus puts the caret back where it was; a click places its own caret.
         focus: view => { if (!this.pointer) view.focus(); this.pointer = false; return false; },
@@ -127,6 +135,11 @@ export class ChipField {
     const loaded = () => { this.widths.clear(); this.widthsVersion++; if (!this.disposed) this.view.updateState(this.view.state); };
     fonts?.addEventListener("loadingdone", loaded);
     this.cleanups.push(() => fonts?.removeEventListener("loadingdone", loaded));
+    // A drag that ends elsewhere or is cancelled may send the field no dragleave.
+    const window = el.ownerDocument.defaultView;
+    const ended = () => this.showDrop(null);
+    for (const type of ["dragend", "drop"]) window?.addEventListener(type, ended);
+    this.cleanups.push(() => { for (const type of ["dragend", "drop"]) window?.removeEventListener(type, ended); });
     this.markEmpty();
     this.announceSkills(false);
   }
@@ -212,7 +225,7 @@ export class ChipField {
 
   // "limit": more than LIMITS.anchors places; "refused": this field takes no chips.
   insertChip(anchor: Anchor): ChipInsert {
-    if (this.hooks.scope() === null) return "refused";
+    if ((anchor.canvas ? this.hooks.root?.() ?? null : this.hooks.scope()) === null) return "refused";
     // Counted on the result of replacing the selection, so a chip may replace chips in a full field; a waiting chip is
     // counted again where it lands (flushPending calls back here).
     const [start, end] = ordered(this.readSelection());
@@ -336,11 +349,12 @@ export class ChipField {
     this.view.dispatch(tr);
   }
 
-  // In place, so the change stays where typing was and its undo step can join it.
+  // In place, so the change stays where typing was and its undo step can join it. The caret maps past the inserted
+  // content: a slice starting with a chip carries a line-start filler, which counts as a unit until the filler fix.
   private replace(start: number, end: number, inserted: readonly FieldSegment[], kind: "own" | "typing"): void {
-    const doc = this.view.state.doc;
-    const tr = this.view.state.tr.replace(posFromUnit(doc, start), posFromUnit(doc, end), sliceFromSegments(inserted));
-    tr.setSelection(TextSelection.create(tr.doc, posFromUnit(tr.doc, start + unitLength(inserted)))).scrollIntoView();
+    const doc = this.view.state.doc, to = posFromUnit(doc, end);
+    const tr = this.view.state.tr.replace(posFromUnit(doc, start), to, sliceFromSegments(inserted));
+    tr.setSelection(TextSelection.create(tr.doc, tr.mapping.map(to, 1))).scrollIntoView();
     if (kind === "own") tr.setMeta(OWN, "own");
     this.view.dispatch(tr);
   }
@@ -591,6 +605,41 @@ export class ChipField {
     for (const anchor of waiting) this.insertChip(anchor);
   }
 
+  private onDragOver(event: DragEvent): boolean {
+    const data = event.dataTransfer, take = data ? this.hooks.chipDrag?.(data) ?? null : null;
+    if (take === null || !data) return false;
+    if (take === "refused") { data.dropEffect = "none"; this.showDrop(null); return true; }
+    event.preventDefault();
+    data.dropEffect = "copy";
+    this.showDrop(this.dropUnit(event));
+    return true;
+  }
+
+  private onDrop(event: DragEvent): void {
+    const data = event.dataTransfer, take = data ? this.hooks.chipDrag?.(data) ?? null : null;
+    const at = this.dropUnit(event);
+    this.showDrop(null);
+    if (take === null || take === "refused") return;
+    // Off the text (the field's padding) it goes in at the caret.
+    if (at !== null) this.placeCaret({ anchor: at, focus: at });
+    if (this.insertChip(take) === "inserted") this.focus(false);
+  }
+
+  // Never inside a list item's marker or before it: a drop at the item's line start goes to its body.
+  private dropUnit(event: DragEvent): number | null {
+    const hit = this.view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (!hit) return null;
+    const unit = unitFromPos(this.view.state.doc, hit.pos);
+    const item = fieldListItems(this.segments).find(entry => unit >= entry.start && unit < entry.start + entry.body);
+    return item ? item.start + item.body : unit;
+  }
+
+  private showDrop(unit: number | null): void {
+    if (unit === this.dropAt || this.disposed) return;
+    this.dropAt = unit;
+    this.view.updateState(this.view.state);
+  }
+
   // The caret cannot enter a chip, so a click puts it right after it. The document never changes here.
   private onChipClick(view: EditorView, node: PMNode, nodePos: number): boolean {
     if (node.type !== fieldSchema.nodes.chip || this.composing()) return false;
@@ -647,11 +696,11 @@ export class ChipField {
 
   private decorations(doc: PMNode): DecorationSet {
     const drawn = this.drawn;
-    if (drawn && drawn.doc === doc && drawn.names === this.names && drawn.widths === this.widthsVersion) return drawn.set;
+    if (drawn && drawn.doc === doc && drawn.names === this.names && drawn.widths === this.widthsVersion && drawn.drop === this.dropAt) return drawn.set;
     const segments = segmentsFromDoc(doc);
     const runs = fieldRuns(segments, this.hooks.skillNames?.() ?? new Set(), this.hooks.commandNames?.() ?? new Set());
-    const set = fieldDecorations(doc, segments, runs, this.measure);
-    this.drawn = { doc, names: this.names, widths: this.widthsVersion, set };
+    const set = fieldDecorations(doc, segments, runs, this.measure, this.dropAt);
+    this.drawn = { doc, names: this.names, widths: this.widthsVersion, drop: this.dropAt, set };
     return set;
   }
 
@@ -731,25 +780,25 @@ export function focusFieldEnd(node: HTMLElement | null): void {
 
 // A screen reader reads the kind prefix in the sentence's flow; the prefix is never selected (styles.css), so Look
 // Up and the selected text name only the label.
-function chipNode(anchor: Anchor): HTMLElement {
+export function chipNode(anchor: Anchor, doc: Document = document): HTMLElement {
   const { kind, label, title } = chipLabel(anchor);
-  const node = document.createElement("span");
+  const node = doc.createElement("span");
   node.className = "anchor-chip";
   node.contentEditable = "false";
   node.dataset.kind = kind;
   // Shown by the field's shared tooltip (ComposerParts FieldChipTip), never a native title.
   node.dataset.tip = title;
-  const hidden = document.createElement("span");
+  const hidden = doc.createElement("span");
   hidden.className = "sr-only";
   hidden.textContent = `${KIND_PREFIX[kind]} `;
-  const icon = document.createElementNS(SVG, "svg");
+  const icon = doc.createElementNS(SVG, "svg");
   for (const [name, value] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) icon.setAttribute(name, value);
   for (const [tag, attributes] of ICONS[anchor.canvas && canvasKind(anchor.canvas.path) === "ds" ? "ds" : kind]) {
-    const shape = document.createElementNS(SVG, tag);
+    const shape = doc.createElementNS(SVG, tag);
     for (const [name, value] of Object.entries(attributes)) shape.setAttribute(name, value);
     icon.append(shape);
   }
-  const text = document.createElement("span");
+  const text = doc.createElement("span");
   text.textContent = label;
   node.append(hidden, icon, text);
   return node;

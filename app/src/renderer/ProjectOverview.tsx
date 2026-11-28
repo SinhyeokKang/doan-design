@@ -456,7 +456,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </div>
     <div className="ov-foot"><div className="ov-col">
       <DockedComposer {...(props.composerLink ? { link: props.composerLink } : {})} skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => run.store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined}
-        drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
+        drafts={run.drafts} onDrafts={update => run.setDrafts(update)} canvasChips={{ place: "overview", root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
         onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined, fast: undefined } : {}),

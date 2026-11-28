@@ -620,7 +620,7 @@ describe("the viewed canvas's conversation list", () => {
     const html = markup();
     const row = html.match(/<div class="shell-canvas-row row"[^>]*aria-label="checkout"[^>]*>/)![0];
     expect(row).toContain('aria-expanded="true"');
-    expect(html).toMatch(/<span class="shell-lead canvas-lead"><svg[^>]*class="[^"]*canvas-icon[^"]*"[\s\S]*?<button type="button" class="shell-disclosure" aria-label="Collapse checkout" tabindex="-1">/);
+    expect(html).toMatch(/<span class="shell-lead canvas-lead"><svg[^>]*class="[^"]*canvas-icon[^"]*"[\s\S]*?<button type="button" class="shell-disclosure" aria-label="Collapse checkout" tabindex="-1" draggable="false">/);
     const folded = markup({ folded: true });
     expect(folded).toMatch(/aria-label="checkout"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="checkout"/);
     expect(folded).toContain('aria-label="Expand checkout"');

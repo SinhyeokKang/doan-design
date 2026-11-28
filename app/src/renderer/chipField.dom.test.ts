@@ -196,6 +196,9 @@ const probe = window.probe = {
     const fire = (type, target = document.elementFromPoint(x, y), init = {}) => {
       const data = new DataTransfer();
       for (const t of types) { if (t === "Files") data.items.add(new File(["x"], "a.txt", { type: "text/plain" })); else data.setData(t, ""); }
+      // A constructed DataTransfer ignores dropEffect writes (only a real drag's takes them), so the write is recorded.
+      let effect = "none";
+      Object.defineProperty(data, "dropEffect", { get: () => effect, set: value => { effect = value; } });
       const e = new DragEvent(type, { dataTransfer: data, clientX: x, clientY: y, bubbles: true, cancelable: true, ...init });
       target.dispatchEvent(e);
       return { prevented: e.defaultPrevented, effect: data.dropEffect };

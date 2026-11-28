@@ -34,7 +34,8 @@ export function fieldDraws(segments: readonly FieldSegment[], runs: readonly Fie
   return { lines, inlines };
 }
 
-export function fieldDecorations(doc: PMNode, segments: readonly FieldSegment[], runs: readonly FieldRun[], measure: Measure): DecorationSet {
+// drop: the unit a dragged chip would land at, drawn as a bar there.
+export function fieldDecorations(doc: PMNode, segments: readonly FieldSegment[], runs: readonly FieldRun[], measure: Measure, drop: number | null = null): DecorationSet {
   const { lines, inlines } = fieldDraws(segments, runs, measure);
   // Marker widths: the line's padding and the marker's letter-spacing read them (styles.css).
   const marks = new Map(lines.map(line => [line.line, line.markWidth]));
@@ -51,7 +52,15 @@ export function fieldDecorations(doc: PMNode, segments: readonly FieldSegment[],
     else if (draw.kind === "mark") decorations.push(Decoration.inline(from, to, { class: "field-mark", "data-kind": draw.list, "data-mark": px(marks.get(doc.resolve(from).index(0))!), "data-chars": String(draw.end - draw.start) }));
     else decorations.push(Decoration.inline(from, to, { class: "field-depth", style: `word-spacing: ${px(-draw.spaceWidth)}` }));
   }
+  if (drop !== null) decorations.push(Decoration.widget(posFromUnit(doc, drop), dropMark, { side: -1, key: "drop", ignoreSelection: true }));
   return DecorationSet.create(doc, decorations);
+}
+
+function dropMark(view: { dom: HTMLElement }): HTMLElement {
+  const mark = view.dom.ownerDocument.createElement("span");
+  mark.className = "drop-caret";
+  mark.setAttribute("aria-hidden", "true");
+  return mark;
 }
 
 const px = (value: number) => `${Math.round(value * 1000) / 1000}px`;

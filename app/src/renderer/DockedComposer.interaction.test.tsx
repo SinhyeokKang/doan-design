@@ -1430,7 +1430,10 @@ describe("a canvas row dragged onto the composer", () => {
   const ANCHOR = { canvas: { path: checkout.path, id: "checkout" } };
   const start = (root = WEB, row = checkout) => beginCanvasDrag({ root, path: row.path, id: row.id, judge: composer => canvasChipTarget({ root, canvas: row, entries }, "canvas", composer) },
     { setData: () => {}, setDragImage: () => {}, effectAllowed: "" } as unknown as DataTransfer);
-  const inside = { inside: true }, outside = { outside: true };
+  // Drag targets are DOM nodes: the composer tells its field's text from the rest by them.
+  class FakeNode {}
+  const inside = new FakeNode(), outside = new FakeNode();
+  beforeEach(() => vi.stubGlobal("Node", FakeNode));
   const handle = (composing = false) => ({ insertChip: vi.fn(() => "inserted"), focus: vi.fn(), composing: () => composing, element: () => ({ contains: (node: unknown) => node === inside }) });
   const dragEvent = (target: unknown, types = [CANVAS_DRAG_TYPE]) => ({ target, preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types, files: [], items: [], dropEffect: "" } });
   const root = (node: ReactNode) => (node as ReactElement<Record<string, unknown>>).props;

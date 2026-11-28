@@ -141,6 +141,9 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   commandNames?: ReadonlySet<string>;
   // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
   chipScope?: string | null;
+  // The root whose canvas chips the field takes, and its answer for a drag over the text (chipField chipDrag).
+  chipRoot?: string | null;
+  chipDrag?: (data: DataTransfer) => Anchor | "refused" | null;
   // Chips sent with every message from outside the field, counted against its place limit.
   reserved?: readonly FieldSegment[];
   // The `/` preset list while it is open: the field is its combobox.
@@ -167,6 +170,8 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       onInput: () => latest.current.onInput?.(),
       onAnnounce: text => latest.current.onAnnounce?.(text),
       scope: () => latest.current.chipScope ?? null,
+      root: () => latest.current.chipRoot ?? null,
+      chipDrag: data => latest.current.chipDrag?.(data) ?? null,
       reserved: () => latest.current.reserved ?? [],
       skillNames: () => latest.current.skillNames ?? new Set(),
       commandNames: () => latest.current.commandNames ?? new Set(),

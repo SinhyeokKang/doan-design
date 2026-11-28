@@ -192,7 +192,8 @@ test("Home CSS: the body panel has the white fill and container corners and no e
 test("Home CSS: the focused composer uses the field-focus border with shadow-sm; disabled Attach and Presets take the disabled ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }");
-  expect(css).not.toMatch(/\.composer-card[^{]*\{[^}]*--border-prominent/);
+  // Only a canvas row drag the composer refuses draws its card's edge in the prominent border, dashed.
+  expect(css.match(/[^{}]*\.composer-card[^{]*\{[^}]*--border-prominent[^}]*\}/g)?.map(rule => rule.trim().split("\n").at(-1))).toEqual([".docked[data-chip-refused] .composer-card { outline: 1px dashed var(--border-prominent); outline-offset: -1px; }"]);
   // After the standard-ink rule, so the disabled ink wins at the same specificity.
   const standard = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }");
   const disabled = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }");

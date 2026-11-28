@@ -1100,6 +1100,7 @@ describe("dragging a canvas row", () => {
     return { props: all, rendered, rows, row, chipDrag };
   }
   const transfer = () => ({ types: [] as string[], setData(type: string) { this.types.push(type); }, setDragImage: vi.fn(), effectAllowed: "uninitialized" });
+  // No document here: the drag image, drawn in the row's own document, is the Chromium probe's to see.
   const dragStart = (row: Record<string, unknown>) => {
     const event = { dataTransfer: transfer(), preventDefault: vi.fn(), stopPropagation: vi.fn(), currentTarget: {}, target: {} };
     (row.onDragStart as (event: unknown) => void)(event);
@@ -1120,10 +1121,12 @@ describe("dragging a canvas row", () => {
   });
 
   it("never drags the menu trigger or the conversation chevron", () => {
-    const conversations = { list: () => [], shown: null, seen: new Set<string>(), now: 0, folded: false, bare: new Map(), fold: vi.fn(), open: vi.fn(), remove: vi.fn() };
+    const listed = { conversationId: "c1", canvas: { path: ROW.path, id: ROW.id }, title: "Title c1", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-14T12:00:00.000Z", preview: "" };
+    // The list shows under its canvas row from two conversations on.
+    const conversations = { list: () => [listed, { ...listed, conversationId: "c2", title: "Title c2" }], shown: "c1", seen: new Set<string>(), now: 0, folded: false, bare: new Map(), fold: vi.fn(), open: vi.fn(), remove: vi.fn() };
     const { rendered } = dragFixture(null, { canvas: ROW.path, conversations });
-    const triggers = rendered.filter(item => item.className === "doan-icon-button shell-more");
-    expect(triggers.length).toBeGreaterThan(1);
+    const triggers = rendered.filter(item => item.className === "doan-icon-button shell-more" && ["checkout menu", "pricing menu"].includes(item["aria-label"] as string));
+    expect(triggers).toHaveLength(2);
     for (const trigger of triggers) expect(trigger.draggable).toBe(false);
     const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
     expect(chevron.draggable).toBe(false);
@@ -1146,8 +1149,9 @@ describe("dragging a canvas row", () => {
   });
 
   it("cancels a drag start the menu now refuses, or one on a locked page", () => {
-    for (const fixtureArgs of [["Finish typing first."], [null, { locked: true }]] as const) {
-      const { row } = dragFixture(...(fixtureArgs as [string | null, Record<string, unknown>?]));
+    const cases: [string | null, Record<string, unknown>][] = [["Finish typing first.", {}], [null, { locked: true }]];
+    for (const [reason, extra] of cases) {
+      const { row } = dragFixture(reason, extra);
       const event = dragStart(row("checkout"));
       expect(event.preventDefault).toHaveBeenCalled();
       expect(event.dataTransfer.types).toEqual([]);
@@ -1166,7 +1170,8 @@ describe("dragging a canvas row", () => {
       (row("checkout").onDragEnd as () => void)();
       key(row("checkout"), "ArrowDown");
       expect(nodes[1]!.focus).toHaveBeenCalledOnce();
-      key(row("pricing"), "c");
+      // "c" alone matches the Canvases head first.
+      key(row("pricing"), "c"); key(row("pricing"), "h");
       expect(nodes[0]!.focus).toHaveBeenCalledOnce();
       expect(props.open).not.toHaveBeenCalled();
       (row("pricing").onClick as () => void)();

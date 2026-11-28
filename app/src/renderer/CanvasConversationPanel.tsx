@@ -101,6 +101,8 @@ export interface CanvasConversationProps {
   // The composer's Pick from canvas, and the page's way into its field (pick results); a host without a board has neither.
   pick?: DockedPicker;
   composerLink?: MutableRefObject<DockedFieldLink | null>;
+  // A canvas capture runs: the composer takes no canvas chip until it ends.
+  capturing?: boolean;
   // Sign in and the composer's settings actions.
   onSettings(target: SettingsTarget): void;
   onNotice(text: string): void;
@@ -573,7 +575,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     </div>
     <div className="cp-foot">
       <DockedComposer skills={projectSkills.skills} passthrough={projectSkills.passthrough} onSkillsWanted={projectSkills.read} onCard={next => store.showCard(key, next)} card={card} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
-        {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
+        {...(props.pick ? { pick: props.pick } : {})} capturing={!!props.capturing} canvasChips={{ place: "canvas", root: target.root, canvases: props.entry.kind === "list" ? props.entry.canvases : NO_ROWS }} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
