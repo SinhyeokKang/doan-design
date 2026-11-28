@@ -29,13 +29,15 @@ function setup() {
   const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
   const listed: Canvas[] = [{ path: OLD, id: "checkout" }];
   const drafts = new DraftStore(join(dir, "conversations"));
-  const service = new ConversationService(store, prepare, open, () => {}, undefined, 10_000, () => listed, () => {}, { drafts });
+  let unreadable = false;
+  const service = new ConversationService(store, prepare, open, () => {}, undefined, 10_000, () => { if (unreadable) throw new Error("unknown"); return listed; }, () => {}, { drafts });
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: listed }]);
   const move = (to: string) => { listed.splice(0, listed.length, { path: to, id: "checkout" }); };
   const userMessages = (id: string) => store.read(id).filter(e => e.type === "user.message");
   const prompts = () => runners.flatMap(r => vi.mocked(r.send).mock.calls.map(call => call[0]));
   const start = async (text = "x", anchors: Anchor[] = []) => (await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text, anchors }) as { conversationId: string }).conversationId;
-  return { service, store, handle, open, runners, listed, move, userMessages, prompts, start };
+  const failList = (on: boolean) => { unreadable = on; };
+  return { service, store, handle, open, runners, listed, move, userMessages, prompts, start, failList };
 }
 
 describe("send-time canvas anchors", () => {
@@ -98,6 +100,19 @@ describe("send-time canvas anchors", () => {
     h.open.mock.calls[0]![0].steerConsumed!(steer.mock.calls[0]![2]);
     await sent;
     expect(h.userMessages(id).at(-1)).toMatchObject({ text: "now {{1}} and pricing", anchors: [ref(NEW)] });
+  });
+
+  it("leaves a message sent now queued, not marked sending, when its list cannot be read", async () => {
+    const h = setup();
+    const id = await h.start();
+    const steer = vi.fn(async (_prompt: string, _turnId: string, _messageId: string) => {});
+    h.runners[0]!.steer = steer;
+    const queued = await h.handle(true, "queue", { conversationId: id, text: "now {{1}}", anchors: [ref(OLD)] }) as { itemId: string };
+    h.failList(true);
+    await expect(h.service.sendNow(id, queued.itemId)).rejects.toThrow("unknown");
+    h.failList(false);
+    void h.service.sendNow(id, queued.itemId).catch(() => {});
+    await vi.waitFor(() => expect(steer).toHaveBeenCalledOnce());
   });
 
   it("still reads a conversation whose canvas anchor's canvas was deleted later", async () => {

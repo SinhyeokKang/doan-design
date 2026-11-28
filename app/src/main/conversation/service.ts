@@ -1003,10 +1003,10 @@ export class ConversationService {
     if (!item || !this.drafts.markOneSending(id, itemId)) throw new Error("stale");
     const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
     let attached: StartAttachments | undefined, prompt: string | null;
-    let attachments: AttachmentRecord[];
-    // Checked against the list as it is now, when the message goes out (ipc.ts listedMessage checked it when queued).
-    const checked = sendCanvasAnchors(item.text, item.anchors, this.canvases(m.root));
+    let attachments: AttachmentRecord[], checked: { text: string; anchors: Anchor[] };
     try {
+      // Checked against the list as it is now, when the message goes out (ipc.ts listedMessage checked it when queued).
+      checked = sendCanvasAnchors(item.text, item.anchors, this.canvases(m.root));
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
       // The prompt a send of this message would carry. A message steered into a handoff's first turn does not lift its limit;

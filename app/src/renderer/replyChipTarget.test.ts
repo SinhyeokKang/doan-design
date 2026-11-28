@@ -69,7 +69,7 @@ describe("replyChipTarget", () => {
   });
 });
 
-// A canvas chip presses through the same rule with its anchor's id (design '누르기'); its path is only a label.
+// A canvas chip presses through the same rule with its anchor's id; its path is only a label.
 describe("replyChipTarget for a canvas chip", () => {
   const press = (id: string, openCanvasId: string | null, entry: FolderEntry | undefined) => replyChipTarget({ canvas: id }, { root: ROOT, openCanvasId, entry });
   const twin = row(".doan/canvases/drafts-copy.html", "drafts");
