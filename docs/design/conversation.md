@@ -594,12 +594,12 @@ Reference: `.doan/canvases/canvas-chip.html` (frames `chip`, `drag`, `menu`, `se
 
 - **Sent chip letter-spacing in the canvas panel.** The app's chip inherits the bubble's body-sm tracking (-0.035px at 14 px), as every sent anchor chip does; the draft's canvas `button` reset leaves the user-agent `normal` on buttons, so its chips measure 0.46 px wider. The bubble text around the chip has the same tracking in both.
 - **Hidden prefix in the drag image.** The drag image is built from the composer chip (`chipNode`), so it keeps the clipped, `user-select: none` "Canvas " prefix; the wrapper is `aria-hidden` and the prefix draws nothing. The draft's drag image has no prefix.
+- **Home's notice under the kept suggestions.** Home draws the chip notice and a drag's refusal in its shared reason line's place, after the suggestions. Once typing hides the suggestions (`inert`, `visibility: hidden`) they keep their area, so the line sits under it: composer bottom 495, suggestions 527–611, reason top 623 (128 below the composer) at 1280 × 800. The draft draws Home without suggestions, where the line is 12 under the composer, as measured in that state. The shared reason line keeps its place (Home 'Composer stays put').
 
 Context, not differences: names, project names and reason sentences differ between the draft's examples and the probe's fixtures (text widths follow); the draft draws icons with `<use>`, so its SVGs have no child shapes (the shapes were compared through the symbols); containers inherit the board's 14 / 20 and the window's `100vw` where the app's inherit 13 / normal and 1280; the menu item measured with a `:focus-visible` ring after the probe's hover, from the shared `.doan-menu-item` rule.
 
 ### Not verified
 
-- Home's reason line, the chip notice included, while the suggestions keep their reserved area: it sits under that area (composer bottom 495, suggestions 527–611 hidden, reason top 623), not 12 under the composer as the draft draws it. This is the shared reason line's place (`HomeComposerView` renders the chip line in the same slot); the measured row is the state without suggestions, where the gap is 12 as drawn.
 - The drag image as the operating system draws it, and the disabled menu item's hover.
 
 ### Regression pointers
