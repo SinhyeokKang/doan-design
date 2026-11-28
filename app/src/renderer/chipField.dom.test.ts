@@ -1101,8 +1101,8 @@ async function caretAfterChip(index = 0): Promise<boolean> {
   return (await caret()).x >= box.x + box.w - 1;
 }
 
-// A chip spliced into a line carried a line-start filler in its slice, and the caret was placed before the filler fix
-// took it out, so it landed before the chip (canvas-chip PoC).
+// A chip spliced into a line carries a line-start filler in its slice; a caret placed before the filler fix takes it out
+// lands before the chip.
 test("a chip the host inserts leaves the caret right after it, mid-line and at the field's end", { timeout: 60_000 }, async () => {
   await open("Make the cart look like and keep the totals");
   await call("place", 23);

@@ -1084,7 +1084,7 @@ describe("the viewed canvas's conversation list", () => {
   });
 });
 
-// A canvas row drags as a canvas chip (PRODUCT §5 item 6 after canvas-chip): only where the row menu could add it, with
+// A canvas row drags as a canvas chip only where the row menu could add it, with
 // only Doan's marker on the transfer; the tree's click, arrows and typeahead stay as they are.
 describe("dragging a canvas row", () => {
   const ROW = { path: ".doan/canvases/checkout.html", url: "checkout", id: "checkout" };
