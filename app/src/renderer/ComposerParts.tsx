@@ -124,6 +124,8 @@ export interface ComposerFieldHandle {
   // The caret stands at the very start with nothing selected (chipRemoval's Backspace).
   caretAtStart(): boolean;
   insertChip(anchor: Anchor): ChipInsert;
+  // Chips for a renamed or moved canvas, in place (chipField refreshChips); false while an IME composes.
+  refreshChips(update: (anchor: Anchor) => Anchor): boolean;
   insertText(text: string): void;
   insertSkill(name: string, fromSlash?: boolean): void;
   // Tab (1) or Shift+Tab (-1) on a list item; false when nothing moved and the key should move focus.
@@ -185,6 +187,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     focus: caret => field.current?.focus(caret === "end"),
     caretAtStart: () => field.current?.caretAtStart() ?? true,
     insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
+    refreshChips: update => field.current?.refreshChips(update) ?? true,
     insertText: text => field.current?.insertText(text),
     insertSkill: (name, fromSlash) => field.current?.insertSkill(name, fromSlash),
     indent: dir => field.current?.indent(dir) ?? false,

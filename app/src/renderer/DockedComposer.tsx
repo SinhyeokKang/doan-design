@@ -5,6 +5,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ClaudeRunMode, PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor, SkillSummary } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
+import { refreshCanvasAnchor } from "../main/conversation/canvasAnchors";
 import { CANVAS_CHIP_SENDING, chipFieldTakes, refreshCanvasSegments } from "./canvasChip";
 import { useCanvasChipDrop, type ChipComposerPlace } from "./canvasChipDrag";
 import { fieldSkillRuns } from "./skillWords";
@@ -559,12 +560,15 @@ export function DockedComposer(props: DockedComposerProps) {
     // A chip taken while sending would stay in the field after the send settles, as dropped files and pastes would.
     takes: anchor => chipFieldTakes({ blocked: props.canvasGone || refusal?.kind === "gone" ? canvasGoneText(props.project) : locked ? props.unavailable ?? null : isSending ? CANVAS_CHIP_SENDING : null, capturing: !!props.capturing,
       picking: !!props.pick?.pressed, composing: field.current?.composing() ?? false, segments: draft.segments, ...(reserved ? { reserved } : {}) }, anchor) });
-  // A canvas renamed or moved since its chip went in: the chip follows it by id. Only while the draft is still the one read.
+  // A canvas renamed or moved since its chip went in: the chip follows it by id, in the field first so its caret and undo
+  // history stay (a new value would rebuild it). While an IME composes the field refuses, and the commit's change comes
+  // back here. Only while the draft is still the one read.
   const canvases = canvasChips?.canvases, onDrafts = props.onDrafts;
   useEffect(() => {
     if (!canvases) return;
     const segments = draft.segments, next = refreshCanvasSegments(segments, canvases);
-    if (next !== segments) onDrafts(drafts => { const current = drafts.get(key); return current?.segments === segments ? new Map(drafts).set(key, { ...current, segments: next }) : drafts; });
+    if (next === segments || field.current?.refreshChips(anchor => refreshCanvasAnchor(anchor, canvases)) === false) return;
+    onDrafts(drafts => { const current = drafts.get(key); return current?.segments === segments ? new Map(drafts).set(key, { ...current, segments: next }) : drafts; });
   }, [key, draft.segments, canvases, onDrafts]);
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="doan-notice" role="status"><AlertIcon /><span className="grow-text selectable">{canvasGoneText(props.project)}</span></div>;

@@ -238,6 +238,21 @@ export class ChipField {
     return "inserted";
   }
 
+  // A canvas renamed or moved: its chips change in place, so the caret and the undo history stay; the change is no undo
+  // step and the host hears nothing, since it holds the new value already. false while an IME composes: the host tries
+  // again on the commit's change.
+  refreshChips(update: (anchor: Anchor) => Anchor): boolean {
+    if (this.composing()) return false;
+    const tr = this.view.state.tr;
+    this.view.state.doc.descendants((node, pos) => {
+      if (node.type !== fieldSchema.nodes.chip) return;
+      const anchor = update(node.attrs.anchor as Anchor);
+      if (anchor !== node.attrs.anchor) tr.setNodeMarkup(pos, undefined, { anchor });
+    });
+    if (tr.docChanged) this.view.dispatch(tr.setMeta("addToHistory", false).setMeta(QUIET, true));
+    return true;
+  }
+
   // A command is marked apart, since a skill of its name differs.
   private highlightNames(): Set<string> {
     return new Set([...this.hooks.skillNames?.() ?? [], ...[...this.hooks.commandNames?.() ?? []].map(name => `\0${name}`)]);
@@ -300,8 +315,9 @@ export class ChipField {
 
   private dispatch(tr: Transaction): void {
     const before = this.view.state;
-    // A filler put in for a composition changes no unit: no undo step, no caret move, nothing for the host.
-    if (tr.getMeta(FILLER_ONLY)) { this.view.updateState(before.apply(tr)); return; }
+    // A filler put in for a composition changes no unit: no undo step, no caret move, nothing for the host. Nor does a
+    // chip refresh, whose value the host already has.
+    if (tr.getMeta(FILLER_ONLY) || tr.getMeta(QUIET)) { this.view.updateState(before.apply(tr)); return; }
     const ours = tr.getMeta(OWN) as string | undefined;
     if (tr.docChanged) {
       // Typing within a second merges into one step, as in a textarea; the field ends a group where the caret moved or
@@ -754,6 +770,7 @@ export class ChipField {
 // Marks the field's own transactions: "own" is an undo step of its own, "undo" a history step.
 const OWN = "doanFieldEdit";
 const FILLER_ONLY = "doanFieldFiller";
+const QUIET = "doanFieldQuiet";
 
 // For the Ctrl+Tab that Chromium leaves alone.
 const TABBABLE = 'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex], [contenteditable="true"]';
