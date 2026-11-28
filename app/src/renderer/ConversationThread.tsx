@@ -797,7 +797,10 @@ export function cardBanners(items: readonly ThreadItem[], rows: readonly CanvasR
 }
 // Reports the paths with a banner on screen in `field`, again whenever that set changes, and [] once stopped. Several
 // cards can show one canvas, so a path stays visible while any of its banners is.
-export function watchBanners(field: HTMLElement, report: (paths: readonly string[]) => void, Observer: typeof IntersectionObserver = IntersectionObserver): () => void {
+// The scroller may extend behind the panel header by a negative top margin; the root excludes that strip.
+export function watchBanners(field: HTMLElement, report: (paths: readonly string[]) => void, Observer: typeof IntersectionObserver = IntersectionObserver,
+  style: typeof getComputedStyle = getComputedStyle): () => void {
+  const inset = Math.max(0, -parseFloat(style(field).marginBlockStart) || 0);
   const shown = new Map<Element, string>();
   let reported = "";
   const observer = new Observer(changes => {
@@ -809,7 +812,7 @@ export function watchBanners(field: HTMLElement, report: (paths: readonly string
     if (paths.join("\n") === reported) return;
     reported = paths.join("\n");
     report(paths);
-  }, { root: field });
+  }, { root: field, rootMargin: `${inset ? -inset : 0}px 0px 0px` });
   for (const banner of field.querySelectorAll<HTMLElement>(".cc-banner[data-path]")) observer.observe(banner);
   return () => { observer.disconnect(); report([]); };
 }
@@ -1154,11 +1157,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (top !== was) ownEnd.current = true;
     distance.current = bottomOf(node) - node.scrollTop;
   };
-  // The person's scroll never shrinks the extent, so an extent now below the last scrollTop read means the browser
-  // clamped it (content or the end inset shrank), even if growth since keeps the view off the bottom. The frame, a scroll
-  // event or the observer may read it first; seenTop makes it count once. A move of the person's that no read saw
-  // before the clamp counts as clamp too (accepted).
-  // Says whether scrollTop moved since the last read by anything but a clamp.
+  // Whether scrollTop moved since the last read by anything but a clamp; seenTop counts a clamp once (ARCHITECTURE §7 'Follow').
   const clampSeen = (node: HTMLElement): boolean => {
     const top = node.scrollTop, last = seenTop.current;
     seenTop.current = top;
@@ -1365,16 +1364,11 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (!node) return;
     const from = seenTop.current, moved = clampSeen(node);
     distance.current = bottomOf(node) - node.scrollTop;
-    // The follow's own write comes back by the next frame, maybe a pixel off what it read back (fractional writes land
-    // rounded); it only ever writes toward the bottom, so a move up from it is someone else's. A person's first move of
-    // 2 px or less right after a write counts as the follow's (accepted).
+    // The follow's own write reads back up to 2 px off and only ever moves down (ARCHITECTURE §7 'Follow').
     const mine = echo.current && wrote.current !== null && node.scrollTop > wrote.current - 2;
     echo.current = false;
     if (!mine) {
-      // A key is this thread's only when this scroll moved it (not a clamp or a re-read) and the key came after any scroll
-      // to an item (an older key never takes the item's own scroll; a newer one interrupts it). Either way this scroll
-      // settles the key: a later move is never its. Its move starts where this scroll started. A key pressed elsewhere
-      // during an item scroll can claim that item's next step (accepted).
+      // A key owns this scroll only if it moved scrollTop and came after any item scroll; either way the key is settled.
       const pressed = keyDown.current, now = performance.now();
       keyDown.current = null;
       if (pressed && moved && now - pressed.at < WHEEL_HOLD_MS && (!follow.current.item || pressed.at >= itemAt.current)) {

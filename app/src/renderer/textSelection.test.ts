@@ -19,3 +19,8 @@ test.each([".conversation-thread .bubble", ".conversation-thread .msg-agent", "i
   expect(values.at(-1)).toBe("text");
   expect(values).not.toContain("none");
 });
+
+// A drag up from a received handoff's text must not pick up its source name, time or Open button.
+test(".conversation-thread .ho-meta turns selection back off inside the bubble", () => {
+  expect(selections(".conversation-thread .ho-meta").at(-1)).toBe("none");
+});

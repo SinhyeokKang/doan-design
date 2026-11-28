@@ -46,18 +46,19 @@ class FakeObserver {
   static last: FakeObserver | null = null;
   observed: Element[] = [];
   disconnected = false;
-  constructor(readonly callback: (changes: { target: Element; isIntersecting: boolean }[]) => void) { FakeObserver.last = this; }
+  constructor(readonly callback: (changes: { target: Element; isIntersecting: boolean }[]) => void, readonly options?: IntersectionObserverInit) { FakeObserver.last = this; }
   observe(target: Element) { this.observed.push(target); }
   disconnect() { this.disconnected = true; }
 }
 const banner = (path: string) => ({ dataset: { path } }) as unknown as HTMLElement;
+const styled = (marginBlockStart: string) => (() => ({ marginBlockStart })) as unknown as typeof getComputedStyle;
 
 describe("watchBanners", () => {
   test("watches every banner and reports a path while any of its banners shows", () => {
     const older = banner(X.path), newer = banner(X.path), other = banner(Y.path);
     const field = { querySelectorAll: () => [older, newer, other] } as unknown as HTMLElement;
     const reports: string[][] = [];
-    const stop = watchBanners(field, paths => reports.push([...paths].sort()), FakeObserver as unknown as typeof IntersectionObserver);
+    const stop = watchBanners(field, paths => reports.push([...paths].sort()), FakeObserver as unknown as typeof IntersectionObserver, styled("0px"));
     const observer = FakeObserver.last!;
     expect(observer.observed).toEqual([older, newer, other]);
     // The newer card is off screen while the older one shows: x is still visible.
@@ -70,5 +71,13 @@ describe("watchBanners", () => {
     stop();
     expect(observer.disconnected).toBe(true);
     expect(reports.at(-1)).toEqual([]);
+  });
+  // The scroller extends behind the panel header by a negative top margin; a banner under the header is not on screen.
+  test("insets the root's top by how far the scroller extends behind the header, and not at all where it does not", () => {
+    const field = { querySelectorAll: () => [] } as unknown as HTMLElement;
+    watchBanners(field, () => {}, FakeObserver as unknown as typeof IntersectionObserver, styled("-48px"));
+    expect(FakeObserver.last!.options).toEqual({ root: field, rootMargin: "-48px 0px 0px" });
+    watchBanners(field, () => {}, FakeObserver as unknown as typeof IntersectionObserver, styled("0px"));
+    expect(FakeObserver.last!.options).toEqual({ root: field, rootMargin: "0px 0px 0px" });
   });
 });

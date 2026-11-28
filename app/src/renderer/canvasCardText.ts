@@ -98,7 +98,7 @@ function folderOf(path: string, root: string): string | null {
   return relative.slice(0, Math.max(0, relative.lastIndexOf("/"))) || null;
 }
 
-// row: undefined once the canvas is gone, and for an Overview source. drawing: the image and frame count wait.
+// row: undefined once the canvas is gone. drawing: the image and frame count wait.
 export function canvasCardMeta(row: CanvasRow | undefined, thumbnail: ThumbnailState | undefined, now: number, root: string,
   { drawing = false, handedOffAt }: { drawing?: boolean; handedOffAt?: string } = {}): CanvasCardMeta {
   const handedOff = handedOffAt === undefined ? null : cardTime("Handed off", Date.parse(handedOffAt), now);
