@@ -56,7 +56,7 @@ import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { dropAttachment } from "./conversationStore";
 import { NameTip } from "./NameTip";
-import { listedTitle } from "./canvasCardText";
+import { listedConversation, listedTitle } from "./canvasCardText";
 
 // The project conversation screen. OverviewRun decides which conversation shows; this component draws it and makes the calls to
 // main the thread and composer ask for.
@@ -434,7 +434,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root, summary?.stopping === true, turnId => commands && commandTurnLabel(provider, commands, turnId)) : null}
         card={card} onCardAction={cardAction} onCardDismiss={dismissCard}
         background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice?.(failed); return failed === null; })} canvasListed={canvasListed}
-        conversationListed={id => !Array.isArray(props.list) || props.list.some(c => c.conversationId === id)} conversationTitle={id => listedTitle(props.list, id)}
+        conversationListed={id => listedConversation(props.list, id, run.listReading(root))} conversationTitle={id => listedTitle(props.list, id)}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}

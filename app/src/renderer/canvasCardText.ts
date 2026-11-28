@@ -87,6 +87,12 @@ export function listedTitle(list: readonly { conversationId: string; title: stri
   return list.find(c => c.conversationId === conversationId)?.title.replace(/\s+/g, " ").trim() || null;
 }
 
+// Whether a send card's or a received send's conversation still exists. main lists a conversation it just made, then
+// writes the resolution naming it, so a list read still under way counts it as there, as an unread list does.
+export function listedConversation(list: readonly { conversationId: string }[] | "loading" | "error", conversationId: string, reading: boolean): boolean {
+  return reading || !Array.isArray(list) || list.some(c => c.conversationId === conversationId);
+}
+
 // `title` is the local time for the tooltip.
 export interface CardTime { lead: "Edited" | "Handed off"; text: string; dateTime: string; title: string }
 export interface CanvasCardMeta {
