@@ -1,4 +1,5 @@
-import { BrowserWindow, webFrameMain, type FrameCreatedDetails } from "electron";
+import { BrowserWindow, webFrameMain, type FrameCreatedDetails, type WebContents, type WebFrameMain } from "electron";
+import { measuredFrame, thumbnailRect, type Rect } from "./thumbnailRect";
 
 // An ordinary hidden window (`show: false`), not `offscreen`: it captures the same cases with less memory.
 export const THUMBNAIL_WIDTH = 480;
@@ -7,6 +8,8 @@ export const THUMBNAIL_WIDTH = 480;
 export const SETTLE_MS = 500;
 export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;
+// Both canvas scripts together; past it the job captures the first screen, never a failure.
+export const MEASURE_LIMIT_MS = 1000;
 // Tells the capture window apart from app windows (runtime/windows.ts) from the
 // moment it exists, before its host page has loaded.
 export const CAPTURE_WINDOW_TITLE = "Doan thumbnails";
@@ -40,15 +43,59 @@ export function frameScript(url: string): string {
 })`;
 }
 
+// Run in the job's outer canvas frame's main world, where the page can fake what they read (main checks the answer,
+// thumbnailRect.ts). Async arrows and string joins keep the answer a short string the page's globals cannot replace.
+export const READ_FRAME = `(async () => { try { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
+  const r = frame.getBoundingClientRect(); const x = +r.x + +scrollX, y = +r.y + +scrollY, width = +r.width, height = +r.height;
+  return x + " " + y + " " + width + " " + height; } catch { return null; } })()`;
+// Two frames after the scroll, or the hidden window can capture the paint from before it.
+export const SCROLL_TO_FRAME = `(async () => { try { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
+  frame.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const r = frame.getBoundingClientRect(); const x = +r.x, y = +r.y, width = +r.width, height = +r.height;
+  return x + " " + y + " " + width + " " + height; } catch { return null; } })()`;
+
+const NO_ANSWER = Symbol("no answer");
+
+// Found again after load: a redirect can replace the frame-created object's renderer. A frame gone by now throws.
+function outerFrame(contents: WebContents, outerFrameId: number | undefined): WebFrameMain | undefined {
+  try {
+    return contents.mainFrame.frames.find((frame) => frame.frameTreeNodeId === outerFrameId);
+  } catch {
+    return undefined;
+  }
+}
+
+// One limit for all of a job's canvas scripts; a script still running at the limit is abandoned.
+function measurement(outer: WebFrameMain | undefined, limitMs: number) {
+  let timer: NodeJS.Timeout | undefined;
+  let over = false;
+  const limit = new Promise<typeof NO_ANSWER>((resolve) => { timer = setTimeout(() => { over = true; resolve(NO_ANSWER); }, limitMs); });
+  return {
+    // Past the limit nothing more is sent to the canvas.
+    run(script: string): Promise<unknown> {
+      if (!outer || over) return Promise.resolve(NO_ANSWER);
+      let answer: Promise<unknown>;
+      try {
+        answer = outer.executeJavaScript(script);
+      } catch {
+        return Promise.resolve(NO_ANSWER);
+      }
+      return Promise.race([answer.catch(() => NO_ANSWER), limit]);
+    },
+    end() { clearTimeout(timer); },
+  };
+}
+
 export interface Capturer {
-  // A 480 px wide PNG of the canvas's first 16:10 screen, or null when it
-  // could not be taken ("Preview unavailable").
+  // A 480 px wide PNG of the canvas's first top-level frame, cut to the viewport and at most 16:10,
+  // else of its first 16:10 screen; null when it could not be taken ("Preview unavailable").
   capture(url: string, width: number): Promise<Buffer | null>;
   // For good: later captures fail without opening a window.
   close(): void;
 }
 
-export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
+export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS, measureLimitMs = MEASURE_LIMIT_MS): Capturer {
   let window: BrowserWindow | undefined;
   // For good: quit closes the window before will-quit, and a capture window
   // opened after that keeps the app from quitting.
@@ -109,10 +156,33 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
     const rect: unknown = await contents.executeJavaScript(frameScript(url));
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page script runs
     if (!current() || frameFailed || !isRect(rect)) return null;
-    const image = await contents.capturePage(rect);
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page is captured
-    if (!current() || frameFailed || image.isEmpty()) return null;
-    return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
+    const measure = measurement(outerFrame(contents, outerFrameId), measureLimitMs);
+    try {
+      const read = await measure.run(READ_FRAME);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is read
+      if (!current() || frameFailed) return null;
+      // Taken before any scroll: it is the image whenever the frame's cannot be.
+      let image = await contents.capturePage(rect);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page is captured
+      if (!current() || frameFailed || image.isEmpty()) return null;
+      if (measuredFrame(read, rect.width)) {
+        const scrolled = await measure.run(SCROLL_TO_FRAME);
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame scrolls
+        if (!current() || frameFailed) return null;
+        const [contentWidth = 0, contentHeight = 0] = target.getContentSize();
+        const area = thumbnailRect(scrolled, rect, { width: contentWidth, height: contentHeight });
+        if (area) {
+          // A copy can fail while the surface is briefly gone; the first screen stands then.
+          const framed = await contents.capturePage(area).catch(() => null);
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is captured
+          if (!current() || frameFailed) return null;
+          if (framed && !framed.isEmpty()) image = framed;
+        }
+      }
+      return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
+    } finally {
+      measure.end();
+    }
   };
 
   return {
@@ -144,8 +214,6 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
     },
   };
 }
-
-interface Rect { x: number; y: number; width: number; height: number }
 
 function isRect(value: unknown): value is Rect {
   if (typeof value !== "object" || value === null) return false;
