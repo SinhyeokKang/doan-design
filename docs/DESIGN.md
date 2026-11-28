@@ -50,6 +50,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | `--text-accent-subtle` | Same chip's text |
   | `--size-icon-sm` | Icon inside chips, triggers and tabs |
   | `--size-icon-xs` | A colour swatch inside a token chip (the canvas inspector, draft `canvas-inspector-panel`) |
+  | `--size-icon-2xs` | The canvas frame label's Play mark (10 px in the 16 px label); drawn in `.doan/canvases/canvas-frame-label.html` |
   | `--size-icon-lg` | Project thumbnail in a picker, Settings row icon |
   | `--size-control-xs` | `xs` icon button (a chip's remove button) |
   | `--affordance-panel-hover` | Hover fill of the `panel` button variant, one step darker than the inset fill |
