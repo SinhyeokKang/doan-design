@@ -387,6 +387,9 @@
   --type-caption-size: 12px;
   --type-caption-line-height: 16px;
   --type-caption-letter-spacing: 0.0133em;
+  --type-caption-sm-size: 11px;
+  --type-caption-sm-line-height: 16px;
+  --type-caption-sm-letter-spacing: 0.02em;
   --type-body-sm-size: 14px;
   --type-body-sm-line-height: 20px;
   --type-body-sm-letter-spacing: -0.0025em;

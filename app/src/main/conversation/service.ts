@@ -14,7 +14,7 @@ import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, SETTLE_MS, settleDeadline } from "./project";
 import { clampSeen, conversationSummary, type AgentQueueRow, type ConversationSummary } from "./summary";
 import { combineQueued, nextQueued } from "./queue";
-import { sendCanvasAnchors } from "./canvasAnchors";
+import { canvasById, sendCanvasAnchors } from "./canvasAnchors";
 import { DraftStore, personRows, type QueuedItem, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
@@ -988,6 +988,7 @@ export class ConversationService {
   refreshed(root: string): void {
     for (const [id, turn] of [...this.handoffTurns]) if (turn.root === root && turn.state === "judging") this.judgeHandoff(id, true);
     for (const [turnId, watch] of [...this.drawWatches]) if (watch.root === root) this.judgeDrawn(turnId);
+    this.adoptCanvasIds(root);
   }
   // A message sent while its conversation works waits in main, in drafts.json, until the turn ends. ids: attachment ids
   // held until it goes out. The queue goes out in the mode stored when it is flushed, not one of its messages'.
@@ -1727,6 +1728,22 @@ export class ConversationService {
     this.changed(metadata.root);
     return refreshed;
   }
+  // A conversation stored by path before its canvas had an ID would lose the canvas on a move.
+  private adoptCanvasIds(root: string): void {
+    const listed = this.canvases(root), entries = this.store.list(), adopted = new Map<string, Canvas>();
+    const next = entries.map(m => {
+      if (m.root !== root || !m.canvas) return m;
+      const canvas = adoptListedId(m.canvas, listed);
+      if (canvas === m.canvas) return m;
+      adopted.set(m.conversationId, canvas);
+      return { ...m, canvas };
+    });
+    if (!adopted.size) return;
+    this.store.save(next);
+    // The cached turn follows the save (POSTMORTEM 2026-11-15).
+    for (const [id, canvas] of adopted) { const turn = this.live.get(id)?.turnOf; if (turn) turn.canvas = canvas; }
+    this.changed(root);
+  }
   // After a plan approval the mode Claude reported becomes the conversation's, unless the person picked another during the
   // turn; the Ask first run mode is kept beside it (claudeRunMode). Both go in one save, so one change is announced.
   private modeReported(id: string, live: Live, turnId: string, sent: PermissionModeId, report: ClaudeModeReport, turnInit: string | undefined, previous: string | undefined): void {
@@ -2131,5 +2148,13 @@ export function resolveListedCanvas(canvas: Canvas, listed: readonly Canvas[]): 
   const matches = listed.filter(row => canvas.id ? row.id === canvas.id : row.path === canvas.path);
   const match = matches.length === 1 ? matches[0] : undefined;
   if (!match) throw new Error("canvas_not_found");
-  return canvas.id ? { id: canvas.id, path: match.path } : { path: canvas.path };
+  return canvas.id ? { id: canvas.id, path: match.path } : adoptListedId(canvas, listed);
+}
+// A canvas held by path takes the ID of the one listed row at that path, unless another row shares it, so a later
+// move follows it by ID.
+export function adoptListedId(canvas: Canvas, listed: readonly Canvas[]): Canvas {
+  if (canvas.id !== undefined) return canvas;
+  const matches = listed.filter(row => row.path === canvas.path);
+  const id = matches.length === 1 ? matches[0]!.id : undefined;
+  return id !== undefined && canvasById(listed, id) !== "duplicate" ? { id, path: canvas.path } : canvas;
 }

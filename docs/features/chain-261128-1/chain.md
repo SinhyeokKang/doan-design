@@ -43,9 +43,10 @@
 
 | 링크 | 세션·worktree | 시작 | PR·머지 | 상태 |
 |---|---|---|---|---|
-| canvas-message | — | — | — | 대기(canvas-chip 머지 대기) |
+| canvas-message | 컨덕터 Claude · `canvas-message-orch`(`feat/canvas-message`) | 2026-11-28, 0ef551850 | — | 진행 |
 | subagent-progress | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-28 lead: chain 파일을 썼다. 사용자가 "chain으로 지금 묶어놓고, 시작할 차례되면 알아서 띄워줘"라고 해서, 시작 조건이 차면 각 링크를 따로 묻지 않고 시작한다.
+- 2026-11-28 lead: canvas-chip이 PR #428로 머지됐다(0ef551850). 미검증 표면은 BACKLOG 'Canvas chips'에 있고, lead가 develop에서 확인한다. 링크 1(canvas-message) 컨덕터를 시작했고, 브리프에 canvas-chip이 바꾼 `conversation/` 큐·전송 경로(`canvasAnchors.ts`)를 적었다.
