@@ -13,7 +13,10 @@
 
 ## 확정한 결정 (사용자)
 
-- 드로어의 구조를 바꿔 탭이 늘어도 좌우로 커지지 않게 한다. 어떤 구조로 바꿀지는 드래프트에 후보를 그려 고른다.
+- 탭은 최대 네 개다: Suggested, Doan presets, Project, Commands. Project와 Commands는 지금처럼 항목이 있을 때만 보인다.
+- Doan presets 탭은 지금의 그룹 다섯 개(Start, Review, Refine, Content, Explore)를 섹션 머리로 묶은 한 스크롤 목록이다. 섹션은 접지 않고, 섹션 머리는 스크롤 중 위에 붙는다(sticky).
+- 드로어 폭은 탭 수와 관계없이 고정이다(값은 드래프트에서).
+- 검색은 지금처럼 탭을 넘어 전체를 찾고, 결과는 같은 섹션 머리로 묶는다.
 - 검색 입력을 한 단계 크게, MCP Server URL 입력 모달의 입력과 같은 크기로 한다.
 
 ## 바꾸지 않는 것
@@ -23,7 +26,7 @@
 ## 완료 조건
 
 1. 드로어 폭이 스킬이나 명령의 유무와 관계없이 같다(값은 드래프트에서 정한다).
-2. 모든 분류(Suggested, 그룹 다섯 개, Project, Commands)에 지금처럼 갈 수 있고, 키보드로도 갈 수 있다(지금의 탭 키보드 동작과 같은 수준).
+2. 탭이 Suggested, Doan presets, (있으면) Project, (있으면) Commands이고, 키보드 동작은 지금 탭과 같다. Doan presets 탭은 그룹 다섯 개를 섹션 머리로 묶은 한 목록이고, 섹션 머리가 sticky다.
 3. 검색 입력의 높이·글자·안쪽 여백이 MCP Server URL 입력과 같다(computed style).
 4. 검색 중 동작(분류를 넘는 결과, 결과 없음 문구)이 지금과 같다.
 5. Home, Overview, 캔버스 대화 패널, 프로토타입 창의 composer에서 같은 드로어가 열린다.

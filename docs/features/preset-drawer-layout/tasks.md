@@ -4,14 +4,14 @@
 
 ## T1. 드래프트
 
-- `/design-draft preset-drawer-layout`: 먼저 `options`와 `search`를 그려 사용자가 구조를 고르고, 고른 구조로 `states`와 `composers`를 그린다. 사용자가 앱에서 확정한다.
-- 검증: `doan check <드래프트 경로>`가 통과하고, `doan ls`의 프레임 id가 요청과 같다. 고른 구조와 확정한 모습이 design.md에 적혀 있다.
+- `/design-draft preset-drawer-layout`: `structure`, `states`, `search`, `composers`를 그린다. 사용자가 앱에서 확정한다.
+- 검증: `doan check <드래프트 경로>`가 통과하고, `doan ls`의 프레임 id가 요청과 같다. 확정한 모습이 design.md에 적혀 있다.
 - `[commit]` 드래프트와 design.md
 
 ## T2. 순수 함수
 
-- 분류 view 함수와 키보드 규칙(design.md '순수 함수').
-- 검증: `npm --prefix app test`에서 표 테스트가 먼저 실패(red)를 보이고 나서 통과한다. 경우: 스킬·명령 없음, 스킬만, 명령만, 둘 다, 검색 중, 처음과 끝에서의 키 이동.
+- 탭 view 함수, Doan presets 섹션 목록과 검색 결과 묶기, 키보드 규칙(design.md '순수 함수').
+- 검증: `npm --prefix app test`에서 표 테스트가 먼저 실패(red)를 보이고 나서 통과한다. 경우: 스킬·명령 없음(탭 둘), 스킬만, 명령만, 둘 다(탭 넷), 섹션 순서, 빈 그룹, 검색 결과의 섹션 묶기, 섹션 머리를 건너뛰는 키 이동, 처음과 끝.
 - `[commit]` `test:` → `feat:`
 
 ## T3. UI
