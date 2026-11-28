@@ -175,7 +175,9 @@ export type HandoffErrorCode =
   | "plan_mode"
   | "handoff_turn"
   | "already_requested"
-  | "same_canvas";
+  | "same_canvas"
+  | "chain_one"
+  | "chain_limit";
 export type HandoffResponse = { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: HandoffErrorCode; message: string } };
 
 export type PrototypeRequest = { v: 6; token: string; root: string; path: string; frame: string; mark: string };
@@ -187,5 +189,5 @@ export type RemoveErrorCode = "bad_request" | "bad_token" | "project_not_open" |
 export type RemoveResponse = { v: 7; ok: true; removed: true; project: string; roots: string[] } | { v: 7; ok: false; error: { code: RemoveErrorCode; message: string } };
 
 export type SendRequest = { v: 8; token: string; root: string; handoff: string; path: string; text: string };
-export type SendErrorCode = HandoffErrorCode | "chain_one" | "chain_limit";
+export type SendErrorCode = HandoffErrorCode;
 export type SendResponse = { v: 8; ok: true; requested: true } | { v: 8; ok: false; error: { code: SendErrorCode; message: string } };
