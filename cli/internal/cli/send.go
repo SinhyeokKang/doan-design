@@ -5,7 +5,6 @@ package cli
 func Send(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	return messageCommand{
 		name:    "send",
-		version: 8,
 		request: sendRequest,
 		fail:    sendFailure,
 		reply:   sendReply,

@@ -342,8 +342,8 @@ func TestHandoffFailureSteps(t *testing.T) {
 		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other canvas once"},
 		// Existing canvases are targets now, so no step asks for a new one.
 		"same_canvas": {"another canvas"},
-		"chain_one":   {"one request", "do not send or hand off again"},
-		"chain_limit": {"fifth", "do not send or hand off"},
+		"chain_one":   {"A turn started by a message can send only once.", "Do not run `doan handoff` or `doan send` again in this turn"},
+		"chain_limit": {"This chain reached 5 steps.", "This turn cannot hand off or send"},
 		// A project of the same name already in Doan may be another checkout or worktree at another path.
 		"project_not_open": {"File > Add Projects…", "Project Settings", "another checkout or worktree"},
 	} {
@@ -390,5 +390,28 @@ func TestHandoffNotOpenNamesTheRoot(t *testing.T) {
 	// A handoff is not repeated on request, so its steps never ask the user to ask again.
 	if strings.Contains(strings.Join(failure.NextSteps, "\n"), "ask again") {
 		t.Fatal(failure.NextSteps)
+	}
+}
+
+// The agent-facing wording of every `doan handoff` refusal, pinned so a shared-code change cannot reword one
+// silently. Where an existing canvas is a target now, the old "new canvas" wording is deliberately gone.
+func TestHandoffFailureStepsExact(t *testing.T) {
+	const ready = "tell the user the canvas is ready to open in Doan"
+	for code, want := range map[string][]string{
+		"canvas_not_found":        {"Write the canvas first, then run `doan handoff` with its path; check the path with `doan ls`"},
+		"not_app_conversation":    {"`doan handoff` works only in a conversation in the Doan app; tell the user to open the canvas in Doan and start a conversation there"},
+		"root_mismatch":           {"Run `doan handoff` from the conversation's working directory without --repo"},
+		"not_running":             {"Run `doan handoff` only during a running turn; " + ready},
+		"not_canvas_conversation": {"Only a canvas conversation hands off; " + ready},
+		"plan_mode":               {"A conversation in Plan mode cannot hand off; " + ready},
+		"handoff_turn":            {"A turn started by a handoff cannot hand off again; " + ready},
+		"already_requested":       {"This turn already requested a handoff to this canvas; hand off each other canvas once", "A handoff and a send to the same canvas count together"},
+		"same_canvas":             {"Hand off only to another canvas, not this conversation's own canvas"},
+		"chain_one":               {"A turn started by a message can send only once.", "Do not run `doan handoff` or `doan send` again in this turn; " + ready},
+		"chain_limit":             {"This chain reached 5 steps.", "This turn cannot hand off or send; " + ready},
+	} {
+		if got := handoffFailure(code, "m").NextSteps; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %q; want %q", code, got, want)
+		}
 	}
 }

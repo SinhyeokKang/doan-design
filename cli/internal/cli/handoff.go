@@ -6,7 +6,6 @@ package cli
 func Handoff(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	return messageCommand{
 		name:    "handoff",
-		version: 5,
 		request: handoffRequest,
 		fail:    handoffFailure,
 		reply:   handoffReply,

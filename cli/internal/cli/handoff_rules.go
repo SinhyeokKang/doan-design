@@ -65,7 +65,7 @@ func handoffRequest(root, path, key, text string) (map[string]any, *Error) {
 	return messageRequest(5, root, path, key, text)
 }
 
-// messageRequest builds a canvas-message request of one protocol version, v5 and v8 alike. The byte check is on
+// messageRequest builds a request of one protocol version, v5 and v8 alike. The byte check is on
 // json.Marshal's output because it writes < > & U+2028 U+2029 as six bytes each, so the code-point limit alone does
 // not bound the line.
 func messageRequest(version int, root, path, key, text string) (map[string]any, *Error) {
@@ -89,16 +89,20 @@ func handoffFailure(code, message string) *Error { return messageFailure("handof
 func messageFailure(command, code, message string) *Error {
 	ctl := "`doan " + command + "`"
 	ready := "tell the user the canvas is ready to open in Doan"
+	verb, noun := "hand off", "handoff"
 	once := "hand off each other canvas once"
 	other := "Hand off only to another canvas, not this conversation's own canvas"
 	notApp := ctl + " works only in a conversation in the Doan app; tell the user to open the canvas in Doan and start a conversation there"
 	missing := "Write the canvas first, then run " + ctl + " with its path; check the path with `doan ls`"
+	notCanvas := "Only a canvas conversation hands off; " + ready
 	if command == "send" {
 		ready = "tell the user what you meant to send"
+		verb, noun = "send", "message"
 		once = "send to each other canvas once"
 		other = "Send only to another canvas, not this conversation's own canvas"
 		notApp = ctl + " works only in a conversation in the Doan app; tell the user what you meant to send"
 		missing = ctl + " sends to a canvas that exists; check the path with `doan ls`"
+		notCanvas = "Only a canvas conversation sends; " + ready
 	}
 	steps := map[string][]string{
 		"app_not_running":         unreachableSteps(ctl),
@@ -108,13 +112,13 @@ func messageFailure(command, code, message string) *Error {
 		"not_app_conversation":    {notApp},
 		"root_mismatch":           {"Run " + ctl + " from the conversation's working directory without --repo"},
 		"not_running":             {"Run " + ctl + " only during a running turn; " + ready},
-		"not_canvas_conversation": {"Only a canvas conversation can do this; " + ready},
-		"plan_mode":               {"A conversation in Plan mode cannot " + command + "; " + ready},
+		"not_canvas_conversation": {notCanvas},
+		"plan_mode":               {"A conversation in Plan mode cannot " + verb + "; " + ready},
 		"handoff_turn":            {"A turn started by a handoff cannot hand off again; " + ready},
-		"already_requested":       {"This turn already requested a " + command + " to this canvas; " + once},
+		"already_requested":       {"This turn already requested a " + noun + " to this canvas; " + once, "A handoff and a send to the same canvas count together"},
 		"same_canvas":             {other},
-		"chain_one":               {"A turn that received a message makes one request; do not send or hand off again from this turn; " + ready},
-		"chain_limit":             {"This conversation is the fifth in a chain of messages, which stops there; do not send or hand off from it; " + ready},
+		"chain_one":               {"A turn started by a message can send only once.", "Do not run `doan handoff` or `doan send` again in this turn; " + ready},
+		"chain_limit":             {"This chain reached 5 steps.", "This turn cannot hand off or send; " + ready},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
 }
@@ -176,7 +180,6 @@ func messageReply(version int, validate func(any) error, fail func(code, message
 // come first, so a terminal agent is refused at once and a bad message never reaches the socket.
 type messageCommand struct {
 	name    string // handoff or send
-	version int
 	request func(root, path, key, text string) (map[string]any, *Error)
 	fail    func(code, message string) *Error
 	reply   func(line []byte, root, path string) (map[string]any, *Error)

@@ -195,10 +195,10 @@ func TestSendFailureSteps(t *testing.T) {
 		"not_app_conversation": {"`doan send` works only in a conversation in the Doan app"},
 		"root_mismatch":        {"`doan send`", "without --repo"},
 		"canvas_not_found":     {"`doan send`", "`doan ls`"},
-		"already_requested":    {"send to each other canvas once"},
+		"already_requested":    {"This turn already requested a message to this canvas; send to each other canvas once", "A handoff and a send to the same canvas count together"},
 		"same_canvas":          {"another canvas", "own canvas"},
-		"chain_one":            {"one request", "do not send or hand off again"},
-		"chain_limit":          {"fifth", "do not send or hand off"},
+		"chain_one":            {"A turn started by a message can send only once.", "Do not run `doan handoff` or `doan send` again in this turn"},
+		"chain_limit":          {"This chain reached 5 steps.", "This turn cannot hand off or send"},
 		"project_not_open":     {"File > Add Projects…", "Project Settings", "another checkout or worktree"},
 	} {
 		steps := strings.Join(sendFailure(code, "m").NextSteps, "\n")
@@ -207,7 +207,7 @@ func TestSendFailureSteps(t *testing.T) {
 				t.Errorf("%s: %q missing from %q", code, word, steps)
 			}
 		}
-		if strings.Contains(steps, "doan handoff") {
+		if strings.Contains(steps, "doan handoff") && code != "chain_one" && code != "chain_limit" {
 			t.Errorf("%s: names `doan handoff`: %q", code, steps)
 		}
 	}
@@ -215,5 +215,23 @@ func TestSendFailureSteps(t *testing.T) {
 		if len(sendFailure(code, "m").NextSteps) == 0 {
 			t.Errorf("%s: no nextSteps", code)
 		}
+	}
+}
+
+// The grammar is per command: a send never says it "hands off", and the already-requested reply names a message.
+func TestSendFailureVerbs(t *testing.T) {
+	const ready = "tell the user what you meant to send"
+	for code, want := range map[string]string{
+		"plan_mode":               "A conversation in Plan mode cannot send; " + ready,
+		"not_canvas_conversation": "Only a canvas conversation sends; " + ready,
+		"same_canvas":             "Send only to another canvas, not this conversation's own canvas",
+	} {
+		if got := sendFailure(code, "m").NextSteps; len(got) != 1 || got[0] != want {
+			t.Errorf("%s: %q; want %q", code, got, want)
+		}
+	}
+	_, failure := sendReply(sendFixture(t, "valid", "error-already-requested.json"), "/Users/me/repo", ".doan/canvases/a.html")
+	if failure == nil || failure.Message != "This turn already requested a message to this canvas" {
+		t.Fatal(failure)
 	}
 }
