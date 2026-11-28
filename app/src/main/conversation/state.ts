@@ -1,8 +1,9 @@
 import type { QuestionOutcome } from "./question";
-import type { Canvas, ConversationEvent, TurnState } from "./types";
+import type { Canvas, ConversationEvent, HandoffVia, TurnState } from "./types";
 // A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run. missed: a new canvas
 // the turn edited and asked no handoff for.
-export interface HandoffFold { canvas: Canvas; outcome: "pending" | "started" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
+// via: absent on an earlier build's line, a handoff. queued: a sent one waited behind its target's turn.
+export interface HandoffFold { canvas: Canvas; via?: HandoffVia; outcome: "pending" | "started" | "sent" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; queued?: boolean; reason?: string }
 export type TurnAction = "send" | "output" | "permission" | "resolved" | "done" | "exit" | "interrupt";
 export function turnState(state: TurnState, action: TurnAction): { state: TurnState; error?: "busy" } {
   const running = state === "starting" || state === "streaming" || state === "waitingPermission";
@@ -47,14 +48,14 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
     // Before the turn checks: the resolution comes after the turn's end, also after an earlier build's archive line.
-    if (event.type === "handoff.requested") { (state.handoffs[event.turnId] ??= []).push({ canvas: { path: event.canvas.path }, outcome: "pending" }); continue; }
+    if (event.type === "handoff.requested") { (state.handoffs[event.turnId] ??= []).push({ canvas: { path: event.canvas.path }, ...(event.via ? { via: event.via } : {}), outcome: "pending" }); continue; }
     if (event.type === "handoff.missed") { (state.handoffs[event.turnId] ??= []).push({ canvas: event.canvas, outcome: "missed" }); continue; }
     if (event.type === "handoff.resolved") {
       // A line without a canvas was written when a turn could ask only once.
       const asked = state.handoffs[event.turnId]?.filter(h => h.outcome !== "missed") ?? [];
       const request = event.canvas ? asked.find(h => h.canvas.path === event.canvas!.path) : asked.length === 1 ? asked[0] : undefined;
       if (request?.outcome === "pending") Object.assign(request, { outcome: event.outcome,
-        ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) });
+        ...(event.outcome === "started" ? { target: event.target } : event.outcome === "sent" ? { target: event.target, queued: event.queued } : event.outcome === "refused" ? { reason: event.reason } : {}) });
       continue;
     }
     // An earlier build archived a conversation with this line; it now only expires the open requests, so the turn's later

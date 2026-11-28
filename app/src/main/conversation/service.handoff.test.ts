@@ -188,11 +188,11 @@ describe("the end of a turn that asked", () => {
     await timed.settled();
     expect(timed.last(other)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_listed" });
   });
-  it("refuses a canvas that existed when the turn was accepted, and adds a conversation to a new one that already has one", async () => {
+  it("starts a canvas that existed when the turn was accepted, and adds a conversation to a new one that already has one", async () => {
     const old = fixture({ listed: [a, b] }); const id = await old.start();
     old.ask(old.key(0), b.path); old.service.receive(id, { type: "turn.done" });
     await old.settled();
-    expect(old.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "refused", reason: "not_new" });
+    expect(old.last(id)).toMatchObject({ type: "handoff.resolved", via: "handoff", outcome: "started", target: { conversationId: old.on(b)!.conversationId, canvas: b } });
 
     const taken = fixture(); const source = await taken.start();
     taken.ask(taken.key(0), b.path); taken.listed.push(b);
@@ -419,19 +419,25 @@ describe("the conversation a handoff started", () => {
     await h.settled();
     return { h, id, target: h.on(b)!.conversationId };
   }
-  it("cannot hand off again in its first turn, even after a steered message, and can once the person sends", async () => {
-    const { h, target } = await handedOff();
-    expect(h.ask(h.key(1), c.path)).toBe("handoff_turn");
+  it("hands off once in its first turn, even after a steered message, carrying the chain on, and freely once the person sends", async () => {
+    const { h, id, target } = await handedOff();
+    h.listed.push(c);
+    expect(h.ask(h.key(1), c.path)).toBeNull();
+    expect(h.ask(h.key(1), a.path)).toBe("chain_one");
     const { itemId } = h.service.queue(target, { text: "also this", anchors: [] });
     const sent = h.service.sendNow(target, itemId);
     await vi.waitFor(() => expect(h.runners[1]!.steer).toHaveBeenCalledOnce());
     h.open.mock.calls[1]![0].steerConsumed!(vi.mocked(h.runners[1]!.steer).mock.calls[0]![2]);
     await sent;
-    expect(h.ask(h.key(1), c.path)).toBe("handoff_turn");
+    expect(h.ask(h.key(1), a.path)).toBe("chain_one");
     h.service.receive(target, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(target)).toHaveLength(1));
+    const onC = h.on(c)!.conversationId;
+    expect(h.store.read(onC)[0]).toMatchObject({ type: "user.message", origin: { kind: "handoff", conversationId: target, canvas: b, via: "handoff", chain: [id, target], provider: "codex" } });
     await h.service.send(target, "Now make the cart", []);
     expect(h.prompt(1, 1)).toContain(HANDOFF_GUIDANCE);
-    expect(h.ask(h.key(1), c.path)).toBeNull();
+    expect(h.ask(h.key(1), a.path)).toBeNull();
+    expect(h.ask(h.key(1), ".doan/canvases/d.html")).toBeNull();
   });
 });
 
@@ -451,7 +457,7 @@ describe("a project conversation's handoff", () => {
     const target = h.on(b)!;
     expect(target).toMatchObject({ root: "/repo", canvas: b, model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: provider } });
     expect(target).not.toHaveProperty("fromHome");
-    expect(h.store.read(target.conversationId)[0]).toEqual(expect.objectContaining({ type: "user.message", text: "Continue the checkout.", anchors: [], origin: { kind: "handoff", conversationId: id } }));
+    expect(h.store.read(target.conversationId)[0]).toEqual(expect.objectContaining({ type: "user.message", text: "Continue the checkout.", anchors: [], origin: { kind: "handoff", conversationId: id, via: "handoff", chain: [id], provider } }));
     expect(JSON.parse(h.prompt(1).split("\n\n")[1]!)).toEqual({ context: { root: "/repo", canvas: b }, handoffText: "Continue the checkout." });
     expect(h.prompt(1)).not.toContain(HANDOFF_GUIDANCE);
     expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "started", target: { conversationId: target.conversationId, canvas: b }, turnId: requestedIn });

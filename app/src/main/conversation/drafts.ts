@@ -6,11 +6,13 @@ import { canonicalDirectory, openRegular, readRegular } from "./io";
 import { combineQueued } from "./queue";
 import { anchorTokens, LIMITS } from "./prompt";
 import { absolutePath, object } from "./sessions";
-import { validAttachment, validCanvas, validId } from "./store";
-import type { Anchor, AttachmentRecord, Canvas } from "./types";
+import { validAttachment, validCanvas, validId, validOrigin } from "./store";
+import type { Anchor, AttachmentRecord, Canvas, HandoffOrigin } from "./types";
 // A message sent while its conversation worked, waiting to go out with the others after the turn. sending: its send has
 // started and is not accepted yet; it stays on disk until then, so a crash returns it as a draft instead of losing it.
-export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; sending?: true }
+// origin: an agent's message (a send), which carries no anchors or files, is never read for {{n}} markers, never joins the
+// person's rows or a draft, and stays queued through failures, give-backs, moves and restarts.
+export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; sending?: true; origin?: HandoffOrigin }
 // Queued messages that did not go out (the turn failed or stopped, the send was refused, or the app ended first), joined
 // into one draft for the person to edit. reason: "turn_failed", "interrupted", "restarted" or the refused send's code.
 export interface ReturnedDraft { text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; reason: string }
@@ -34,10 +36,17 @@ function parts(value: unknown): value is DraftParts {
   return object(value) && text(value.text) && Array.isArray(value.anchors) && anchorTokens(value.text, [...value.anchors]) !== null &&
     Array.isArray(value.attachments) && value.attachments.length <= MAX_ATTACHMENTS && [...value.attachments].every(validAttachment);
 }
+// An agent row is checked apart from the person's: its text as the history keeps an origin message's.
+function agentParts(value: Record<string, unknown>): boolean {
+  return validOrigin(value.origin) && text(value.text) && Array.isArray(value.anchors) && value.anchors.length === 0 && Array.isArray(value.attachments) && value.attachments.length === 0;
+}
 function queuedItems(value: unknown): value is QueuedItem[] {
   return Array.isArray(value) && [...value].every(item => object(item) && typeof item.itemId === "string" && item.itemId.length > 0 && item.itemId.length <= 64 &&
-    (item.sending === undefined || item.sending === true) && parts(item));
+    (item.sending === undefined || item.sending === true) && (item.origin === undefined ? parts(item) : agentParts(item)));
 }
+// The person's rows, which a give-back joins into the draft; agent rows stay queued.
+export function personRows(items: readonly QueuedItem[]): QueuedItem[] { return items.filter(item => !item.origin); }
+function agentRows(items: readonly QueuedItem[]): QueuedItem[] { return items.filter(item => !!item.origin); }
 function returnedDraft(value: unknown): value is ReturnedDraft {
   return object(value) && typeof value.reason === "string" && /^[a-z_]{1,64}$/.test(value.reason) && parts(value);
 }
@@ -70,7 +79,7 @@ function parse(raw: unknown): { file: DraftsFile; unread: { queued: Record<strin
   for (const id of new Set([...Object.keys(raw.queued), ...Object.keys(raw.returned)])) {
     const items = raw.queued[id], draft = raw.returned[id];
     const ok = validId(id) && (items === undefined || queuedItems(items)) && (draft === undefined || returnedDraft(draft)) &&
-      fits(joined([...(draft === undefined ? [] : [draft as ReturnedDraft]), ...(items === undefined ? [] : items as QueuedItem[])]));
+      fits(joined([...(draft === undefined ? [] : [draft as ReturnedDraft]), ...(items === undefined ? [] : personRows(items as QueuedItem[]))]));
     if (ok) { if (items !== undefined) file.queued[id] = items as QueuedItem[]; if (draft !== undefined) file.returned[id] = draft as ReturnedDraft; continue; }
     console.error("doan: conversation drafts of one conversation unreadable; kept as they are", id.slice(0, 64));
     if (items !== undefined) unread.queued[id] = items;
@@ -135,12 +144,16 @@ export class DraftStore {
     this.file.sending = {};
     // A send held behind its queue (handoffWait), or a queue written before held sends were counted, can pass one message,
     // which the start after this one could not read; so a queued item that does not fit is dropped, as a held send is.
-    for (const [id, items] of left) for (const { text, anchors, attachments } of items) {
+    for (const [id, items] of left) for (const { text, anchors, attachments } of personRows(items)) {
       const earlier = this.file.returned[id];
       if (fits(joined([...earlier ? [earlier] : [], { text, anchors, attachments }]))) this.merge(id, { text, anchors, attachments }, "restarted");
       else console.error("doan: a queued message does not fit its conversation's draft; dropped");
     }
-    this.file.queued = {};
+    // Agent rows wait for the conversation's next done turn, one that was on its way out included.
+    this.file.queued = Object.fromEntries(left.flatMap(([id, items]) => {
+      const kept = agentRows(items).map(({ sending: _sending, ...item }) => item);
+      return kept.length ? [[id, kept]] : [];
+    }));
     this.save();
   }
   // The messages still waiting, without those whose send has started.
@@ -149,6 +162,8 @@ export class DraftStore {
   // when the queue cannot be saved. first: ahead of the waiting ones (a usage-limited turn's own message).
   add(id: string, item: QueuedItem, first = false): void {
     if (this.broken || id in this.unread.queued || id in this.unread.returned) throw new Error("Conversation drafts are damaged");
+    // The reader would leave such a conversation unread.
+    if (item.origin && !agentParts({ ...item })) throw new Error("bad_request");
     const before = this.file.queued[id], after = first ? [item, ...before ?? []] : [...before ?? [], item];
     if (!this.fitsQueue(id, after)) throw new Error("queue_limit");
     this.file.queued[id] = after;
@@ -200,10 +215,11 @@ export class DraftStore {
   // A handoff's queue: the waiting messages go behind the conversation that took the work over, in one write. Those on
   // their way out stay with their send. One that would not fit there as add() judges (the person may have used the
   // target since its start) joins the source's returned draft instead, which the source's own bound already covers.
+  // Agent rows stay with the conversation they were sent to.
   move(from: string, to: string): { moved: QueuedItem[]; returned: QueuedItem[] } {
-    const items = this.queued(from);
+    const items = personRows(this.queued(from));
     if (!items.length) return { moved: [], returned: [] };
-    const left = (this.file.queued[from] ?? []).filter(item => item.sending);
+    const left = (this.file.queued[from] ?? []).filter(item => item.sending || item.origin);
     if (left.length) this.file.queued[from] = left; else delete this.file.queued[from];
     const moved: QueuedItem[] = [], returned: QueuedItem[] = [];
     const damaged = this.broken || to in this.unread.queued || to in this.unread.returned;
@@ -220,12 +236,14 @@ export class DraftStore {
     this.save();
     return { moved, returned };
   }
-  // The whole queue back as one draft (messages on their way out first, as queued), in one write; false when empty.
+  // The person's queued messages back as one draft (those on their way out first, as queued), in one write; false when
+  // there are none. Agent rows stay queued, one on its way out waiting again.
   giveBackQueued(id: string, reason: string): boolean {
-    const items = this.file.queued[id] ?? [];
-    if (!items.length) return false;
-    delete this.file.queued[id];
-    this.merge(id, joined(items), reason);
+    const items = this.file.queued[id] ?? [], mine = personRows(items);
+    if (!mine.length) return false;
+    const kept = agentRows(items).map(({ sending: _sending, ...item }) => item);
+    if (kept.length) this.file.queued[id] = kept; else delete this.file.queued[id];
+    this.merge(id, joined(mine), reason);
     this.save();
     return true;
   }
@@ -284,7 +302,7 @@ export class DraftStore {
   private fitsQueue(id: string, queue: readonly QueuedItem[]): boolean {
     const earlier = this.file.returned[id];
     const held = Object.values(this.file.sending).filter(message => "conversationId" in message && message.conversationId === id);
-    return fits(joined([...(earlier ? [earlier] : []), ...held, ...queue]));
+    return fits(joined([...(earlier ? [earlier] : []), ...held, ...personRows(queue)]));
   }
   private restore(id: string, items: QueuedItem[] | undefined): void { if (items) this.file.queued[id] = items; else delete this.file.queued[id]; }
   private save(): void { try { this.write(); } catch (error) { console.error("doan: conversation drafts could not be saved", error); } }
@@ -309,7 +327,9 @@ export class DraftStore {
       // "id": plus the comma that follows a member.
       const key = size(id) + 2;
       const asQueue = (items.length ? key + size(items.map(item => ({ ...item, sending: true }))) : 0) + (earlier ? key + size({ ...earlier, reason }) : 0);
-      const asDraft = key + size({ ...joined([...(earlier ? [earlier] : []), ...items]), reason });
+      // Agent rows never join the draft: they stay a queue beside it.
+      const agents = agentRows(items), asDraft = key + size({ ...joined([...(earlier ? [earlier] : []), ...personRows(items)]), reason }) +
+        (agents.length ? key + size(agents.map(item => ({ ...item, sending: true }))) : 0);
       total += Math.max(asQueue, asDraft);
     }
     return total;

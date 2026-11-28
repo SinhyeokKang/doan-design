@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
 import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
+import type { HandoffOrigin } from "./types";
 const hooks = vi.hoisted(() => ({ failRename: false, shortWrite: false, failClose: false, closing: null as number | null, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
@@ -497,7 +498,7 @@ describe("handoff events in event v1", () => {
   // A new build's origin adds via, chain and provider; the chain runs from step 0 to the sender (ARCHITECTURE §7 'Handoff').
   it("round-trips an origin with via, chain and provider, and a send's sent resolution, and rejects malformed ones", () => {
     const f = seed(); const store = new ConversationStore(f.root);
-    const linked = { kind: "handoff", conversationId: "s", canvas: { path: ".doan/canvases/a.html", id: "a" }, via: "send", chain: ["p", "s"], provider: "codex" } as const;
+    const linked: HandoffOrigin = { kind: "handoff", conversationId: "s", canvas: { path: ".doan/canvases/a.html", id: "a" }, via: "send", chain: ["p", "s"], provider: "codex" };
     const saved = [
       store.append("c", "t", { type: "user.message", text: "Use {{1}}", anchors: [], origin: linked }),
       store.append("c", "t", { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "x", via: "send" }),

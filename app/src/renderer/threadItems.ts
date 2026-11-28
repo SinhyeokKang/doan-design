@@ -222,7 +222,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         const asked = (turnCards.get(event.turnId) ?? []).filter(item => item.handoff);
         const item = event.canvas ? cards.get(`${event.turnId}:${event.canvas.path}`) : asked.length === 1 ? asked[0] : undefined;
         if (item?.handoff?.outcome !== "pending") continue;
-        item.handoff = event.outcome === "started" ? { outcome: "started", target: event.target } : event.outcome === "refused" ? { outcome: "refused", reason: event.reason } : { outcome: event.outcome };
+        item.handoff = event.outcome === "started" || event.outcome === "sent" ? { outcome: "started", target: event.target } : event.outcome === "refused" ? { outcome: "refused", reason: event.reason } : { outcome: event.outcome };
         continue;
       }
       case "handoff.missed": {

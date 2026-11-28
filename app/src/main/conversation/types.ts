@@ -36,12 +36,18 @@ export interface QuestionResolved { type: "question.resolved"; requestId: string
 // A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
 // never walks it to count one.
 export type AttachmentRecord = ({ name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string }) & { lines?: number; excerpt?: string };
-// A handoff-started conversation's first message: the earlier conversation and its canvas (absent for a project one).
-// Its text is that agent's handoff, never read for {{n}} markers. An earlier build reads only an origin with a canvas.
-export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas }
+// handoff: a new conversation takes the work over; send: a message to the canvas's latest conversation.
+export type HandoffVia = "handoff" | "send";
+// A message another conversation's agent sent: the sending conversation and its canvas (absent for a project one). Its
+// text is that agent's, never read for {{n}} markers. via, chain, provider: absent in an earlier build's record, which
+// reads as a handoff whose chain is its sender alone (handoff.ts originLink). chain: 1 to 5 conversation ids from the
+// step-0 conversation to the sender, so its length is the receiving turn's step. provider: the sender's, for its logo.
+// An earlier build reads only an origin with a canvas.
+export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas; via?: HandoffVia; chain?: string[]; provider?: import("../agentAuth/types").Provider }
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
-// because the event's envelope already has a conversationId, the history's own.
-export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
+// because the event's envelope already has a conversationId, the history's own. sent: a send reached target, at once or
+// queued behind its turn. An earlier build cannot read a history that holds a sent line.
+export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "sent"; target: { conversationId: string; canvas: Canvas }; queued: boolean } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
 // A row of the conversation "skills" method: a project skill or a built-in command Doan runs (providerCommands.ts).
 // Type-only here, since the renderer imports it; the parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }
@@ -77,10 +83,11 @@ export type EventPayload =
   | { type: "conversation.restored" }
   // The turn asked for a handoff (in that turn); its resolution comes once the turn ended and was judged, with the
   // requesting turn's id. A request a restart finds unresolved reads as cancelled.
-  | { type: "handoff.requested"; canvas: { path: string }; text: string }
+  // via: absent on a line an earlier build wrote, a handoff.
+  | { type: "handoff.requested"; canvas: { path: string }; text: string; via?: HandoffVia }
   // canvas: the path of the request it resolves, since a turn may ask for several. A line written before that has none
   // and resolves the turn's only request.
-  | ({ type: "handoff.resolved"; canvas?: { path: string } } & HandoffResolution)
+  | ({ type: "handoff.resolved"; canvas?: { path: string }; via?: HandoffVia } & HandoffResolution)
   // A new canvas the guided turn edited and asked no handoff for, with the turn's id; Doan starts nothing on it. The ID
   // tells later whether that canvas is gone or was renamed.
   | { type: "handoff.missed"; canvas: Canvas }

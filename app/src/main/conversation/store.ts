@@ -9,8 +9,9 @@ import { validAuthId, validOwner } from "../agentAuth/metadata";
 import { claudeRunModeId, permissionModeId, type ClaudeRunMode, type PermissionModeId } from "./permissionMode";
 import { QUESTION_LIMITS } from "./question";
 import { CANVAS_ID } from "./replyAnchor";
-import type { ConversationOwner, Provider } from "../agentAuth/types";
-import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type Runtime } from "./types";
+import { validProvider, type ConversationOwner, type Provider } from "../agentAuth/types";
+import { CHAIN_STEPS } from "./handoff";
+import { FAILURE_CODES, FAST_UNUSED_REASONS, INTERRUPT_REASONS, type AttachmentRecord, type Canvas, type ConversationEvent, type EventPayload, type HandoffOrigin, type Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
 // canvasesAtStart: an earlier build's, still read, never written. fromHome: a Home newDesign whose turns carry Home's
@@ -107,12 +108,13 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "conversation.bound": return validCanvas(value.canvas);
     // A handoff's first message holds the earlier agent's text as written, so its markers are not anchor tokens.
     case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) &&
-      (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : origin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
+      (value.origin === undefined ? anchorTokens(value.text, value.anchors) !== null : validOrigin(value.origin) && value.anchors.length === 0 && bounded(value.text, LIMITS.text)) &&
       (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(validAttachment)));
-    case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
+    case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text) && via(value.via);
     case "handoff.resolved":
-      if (value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) return false;
+      if ((value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) || !via(value.via)) return false;
       if (value.outcome === "started") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas);
+      if (value.outcome === "sent") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas) && typeof value.queued === "boolean";
       if (value.outcome === "refused") return bounded(value.reason, LIMITS.label);
       return value.outcome === "cancelled";
     case "handoff.missed": case "canvas.drawn": return validCanvas(value.canvas);
@@ -158,9 +160,14 @@ export function validAttachment(value: unknown): value is AttachmentRecord {
   if (value.kind === "directory") return !("size" in value);
   return typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 && (value.kind === "image" || value.kind === "file");
 }
-function origin(value: unknown): boolean {
-  return object(value) && value.kind === "handoff" && bounded(value.conversationId, LIMITS.label) && (value.canvas === undefined || validCanvas(value.canvas));
+// drafts.ts reads an agent's queued message's origin with this check too. chain: 1 to 5 ids ending with the sender's.
+export function validOrigin(value: unknown): value is HandoffOrigin {
+  if (!object(value) || value.kind !== "handoff" || !bounded(value.conversationId, LIMITS.label) || (value.canvas !== undefined && !validCanvas(value.canvas))) return false;
+  const chain = value.chain;
+  return via(value.via) && (value.provider === undefined || validProvider(value.provider)) && (chain === undefined ||
+    (Array.isArray(chain) && chain.length >= 1 && chain.length <= CHAIN_STEPS && chain.every(id => bounded(id, LIMITS.label)) && chain.at(-1) === value.conversationId));
 }
+function via(value: unknown): boolean { return value === undefined || value === "handoff" || value === "send"; }
 function event(value: unknown, id: string, seq: number): value is ConversationEvent {
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&
     typeof value.at === "string" && Number.isFinite(Date.parse(value.at)) && payload(value);

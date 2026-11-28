@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { Canvas } from "./types";
 import { CHAIN_STEPS, HANDOFF_TEXT_LIMIT, canvasesAt, handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, latestConversation, missedHandoffs, nextOrigin, originLink, type HandoffAsker, type HandoffJudgement, type MissedInput, type SendCandidate } from "./handoff";
 
 // The request-time order, the judgement and the prompt condition (ARCHITECTURE §4 'Handoff over app-socket v5' 'Dispatch',
@@ -87,7 +88,7 @@ describe("latestConversation", () => {
     expect(latestConversation("/repo", b, rows.slice(1))).toBeNull();
   });
   it("skips another root's conversations and project conversations", () => {
-    expect(latestConversation("/repo", b, [row("other", "2026-11-28T00:00:00.000Z", { root: "/repo-wt" }), row("p", "2026-11-28T00:00:00.000Z", { canvas: undefined })])).toBeNull();
+    expect(latestConversation("/repo", b, [row("other", "2026-11-28T00:00:00.000Z", { root: "/repo-wt" }), (({ canvas: _canvas, ...project }) => project)(row("p", "2026-11-28T00:00:00.000Z"))])).toBeNull();
   });
   it("matches a renamed canvas by its ID, and an ID-less canvas by its path", () => {
     expect(latestConversation("/repo", { path: ".doan/canvases/renamed.html", id: "b" }, [row("x", "2026-11-28T00:00:00.000Z")])).toBe("x");
@@ -270,7 +271,7 @@ describe("handoffQueueOutcome", () => {
 describe("handoffNoticeKind", () => {
   const from = { conversationId: "s", canvas: source };
   const b = { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } }, c = { conversationId: "c", canvas: { path: ".doan/canvases/c.html" } };
-  const handed = (target: typeof b) => ({ ...target, via: "handoff" as const }), sent = (target: typeof b) => ({ ...target, via: "send" as const });
+  const handed = (target: { conversationId: string; canvas: Canvas }) => ({ ...target, via: "handoff" as const }), sent = (target: { conversationId: string; canvas: Canvas }) => ({ ...target, via: "send" as const });
   it("sends nothing when no request started or sent", () => {
     expect(handoffNoticeKind({ root: "/repo", source: from, step: 0, started: [] })).toBeNull();
     expect(handoffNoticeKind({ root: "/repo", source: from, step: 2, started: [] })).toBeNull();
