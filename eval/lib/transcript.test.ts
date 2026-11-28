@@ -511,17 +511,22 @@ test("DOAN_COMMAND_FLAGS is run.go's per-command flag table", () => {
   assert.ok(start > 0, "run.go's flag table needs reading here");
   const read: Record<string, string[]> = {};
   const cases = table.split(/^\s*case "/m).slice(1);
+  let names = 0;
   for (const block of cases) {
-    const name = block.slice(0, block.indexOf('"'));
+    // A case may name several commands (`case "a", "b":`), which share its flags.
+    const commands = [...block.slice(0, block.indexOf(":")).matchAll(/"?([\w-]+)"?/g)].map(m => m[1]!);
+    names += commands.length;
     const flags = [...block.matchAll(/allowed\["([\w-]+)"\] = true/g)].map(m => m[1]!);
-    if (/pos\[1\] == "update"/.test(block)) read[`${name} update`] = flags;
-    else if (/allowed = map\[string\]bool\{"json": true\}/.test(block) && /range onboardingFlags/.test(block)) {
-      const onboarding = readFileSync(new URL("../../cli/internal/cli/onboarding.go", import.meta.url), "utf8");
-      const map = /var onboardingFlags = map\[string\]string\{([^}]*)\}/.exec(onboarding)?.[1] ?? "";
-      read[name] = [...map.matchAll(/"([\w-]+)":/g)].map(m => m[1]!);
-    } else read[name] = flags;
+    for (const name of commands) {
+      if (/pos\[1\] == "update"/.test(block)) read[`${name} update`] = flags;
+      else if (/allowed = map\[string\]bool\{"json": true\}/.test(block) && /range onboardingFlags/.test(block)) {
+        const onboarding = readFileSync(new URL("../../cli/internal/cli/onboarding.go", import.meta.url), "utf8");
+        const map = /var onboardingFlags = map\[string\]string\{([^}]*)\}/.exec(onboarding)?.[1] ?? "";
+        read[name] = [...map.matchAll(/"([\w-]+)":/g)].map(m => m[1]!);
+      } else read[name] = flags;
+    }
   }
-  assert.equal(cases.length, Object.keys(read).length);
+  assert.equal(names, Object.keys(read).length);
   // Every entry is a literal name, or onboarding's loop over its own table.
   assert.equal([...table.matchAll(/allowed\[/g)].length, [...table.matchAll(/allowed\["/g)].length + [...table.matchAll(/allowed\[name\] = true/g)].length, "every allowed flag is read here");
   const model = Object.fromEntries(Object.entries(DOAN_COMMAND_FLAGS).map(([name, flags]) => [name, [...flags].sort()]));
