@@ -344,7 +344,6 @@ export function presetBody(view: PresetView, slash: boolean, options: PresetBody
     </div>
   </>;
 }
-// The drawer's field is the default doan-input size; the `/` list keeps sm.
 function SearchField({ value, slash, listId, onChange, label = "Search presets" }: { label?: string; value: string; slash: boolean; listId: string; onChange?(value: string): void }) {
   return <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size={slash ? "sm" : undefined} placeholder={label} aria-label={label} value={value}
     readOnly={slash} tabIndex={slash ? -1 : undefined} aria-hidden={slash || undefined}
@@ -397,7 +396,7 @@ export function PresetsButton(props: {
     }
   }, [open, tab, query, selected]);
   // Set before the new tab is drawn into the same list element.
-  const chooseTab = (key: string) => { const list = content.current?.querySelector<HTMLElement>('[role="listbox"]'); if (list) list.scrollTop = 0; setTab(key); };
+  const chooseTab = (key: string) => { const list = content.current?.querySelector<HTMLElement>('[role="listbox"]'); if (list && key !== selected) list.scrollTop = 0; setTab(key); };
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   // A read that answers with the list takes the line and its Retry away; focus that was on the Retry goes to the search
   // box, the popover's first control, instead of falling to <body>.

@@ -788,8 +788,7 @@ body:has(.shell-top) { background: transparent; }
 .group-tabs.shell-modes { position: static; transform: none; display: flex; width: max-content; max-width: 100%; margin: var(--space-1) var(--space-1) var(--space-2); }
 .group-tabs.shell-modes button { gap: var(--space-1h); padding: 0 var(--space-3); }
 .group-tabs.shell-modes svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* The drawer stays 500 whatever its tabs (the `/` list keeps 600); a short window caps it at Radix's room and the list
-   gives up height first. */
+/* The drawer stays 500 whatever its tabs (the `/` list keeps 600); a short window caps it at Radix's room. */
 .preset-popover:not(.slash-popover) { display: flex; flex-direction: column; width: 500px; max-height: var(--radix-popover-content-available-height); }
 /* Only the list gives up height: a notice or the search field that shrank would clip its own text. */
 .preset-popover:not(.slash-popover) > :not([role="listbox"]) { flex-shrink: 0; }

@@ -601,6 +601,10 @@ test("choosing another tab scrolls the list back to the top", () => {
     expect(list.scrollTop).toBe(0);
     tree = draw();
     expect(tree.find(item => item.props["data-group"] === "presets")!.props["aria-selected"]).toBe(true);
+    // Pressing the chosen tab again keeps the place in its list.
+    list.scrollTop = 200;
+    (tree.find(item => item.props["data-group"] === "presets")!.props.onClick as () => void)();
+    expect(list.scrollTop).toBe(200);
     list.scrollTop = 120;
     (tree.find(item => item.props["data-group"] === "presets")!.props.onKeyDown as (event: unknown) => void)({ key: "ArrowRight", preventDefault: () => {}, currentTarget: { parentElement: null } });
     expect(list.scrollTop).toBe(0);
