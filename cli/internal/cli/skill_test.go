@@ -560,8 +560,8 @@ func TestSkillGuideBoardInteraction(t *testing.T) {
 		"board motion loops or uses `:hover` (Select tool).",
 		// The board sizes the canvas to its document, so scroll-driven motion does not run there either.
 		"Put click behavior and one-shot or scroll-driven motion in a `data-doan-prototype` frame",
-		// Asked to add them to an existing frame, the agent marks it instead of drawing it twice.
-		"marking an existing frame, not a copy;",
+		// Only a request about an existing frame marks that frame; a new frame is not a reason to mark another one.
+		"asked to add them to an existing frame, mark it, not a copy;",
 		"there, build the interactions the request names, ask only when scope changes the result, and say which are not wired.",
 	} {
 		i := strings.Index(rule[at:], required)
@@ -593,7 +593,7 @@ func TestSkillGuideShortenedLinesKeepConditions(t *testing.T) {
 		{"1. ", []string{"in `.doan/assets/` and link them relatively", "Create it only when needed; it is served without config."}},
 		{"2. ", []string{"The id must match `^[a-z0-9]+(-[a-z0-9]+)*$`."}},
 		{"11. ", []string{"When a linked stylesheet uses them on something the canvas shows, override that property in the canvas in px."}},
-		{"12. ", []string{"copy its `<symbol>` elements into the canvas"}},
+		{"12. ", []string{"copy the needed `<symbol>` elements into the canvas"}},
 		{"13. ", []string{"or register it with `@property` giving `syntax: \"<url>\"`, `inherits` and an `initial-value`."}},
 		{"14. ", []string{"add `data-doan-prototype=\"390x844\"` (px, 1-99999, lowercase x)", "W×H is the target screen's viewport"}},
 		{"  - A frame id may be missing from `doan ls`", []string{"the app also lists frames a canvas script draws at runtime."}},

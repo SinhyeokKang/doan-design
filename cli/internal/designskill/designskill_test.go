@@ -621,9 +621,6 @@ func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 		{"document", "state samples name their tokens", []string{"labeled with its state and the token variables it uses"}},
 		{"distill", "sameness comes from what is shown", []string{"do not assume a difference nothing shows"}},
 		{"generate", "behavior claims come from supplied truth", []string{"product behavior (defaults, timing, what a user can change later)"}},
-		// Ordinary clicks on the board select, so motion there loops or uses :hover and the rest goes in a prototype frame.
-		{"animate", "board motion needs no click", []string{"an ordinary click selects instead of reaching the canvas", "a looping animation or a `:hover` trigger (it works under the Select tool)", "needs a click, runs once, or is scroll-driven", "frame marked `data-doan-prototype` (Doan guide convention 14)", "mark that frame instead of drawing a copy", "Put no replay button or other click trigger on the board.", "name that frame in your answer as the one to Play", "`doan open <canvas path> --frame <id> --prototype`", "already-visible default", "reduced-motion alternative"}},
-		{"delight", "board moments need no click", []string{"an ordinary click selects instead of reaching the canvas", "a looping animation or a `:hover` trigger (it works under the Select tool)", "needs a click, runs once, or is scroll-driven", "frame marked `data-doan-prototype` (Doan guide convention 14)", "mark that frame instead of drawing a copy", "Put no replay button or other click trigger on the board.", "name that frame in your answer as the one to Play", "`doan open <canvas path> --frame <id> --prototype`", "reduced-motion or muted alternative"}},
 	} {
 		b, err := os.ReadFile(filepath.Join("presets", c.preset+".md"))
 		if err != nil {
@@ -635,9 +632,67 @@ func TestPresetsKeepAgentEvalFixes(t *testing.T) {
 				t.Errorf("%s preset lost %s: missing %q", c.preset, c.issue, p)
 			}
 		}
+	}
+}
+
+// Ordinary clicks on the board select and never reach the canvas, so the motion presets' Doan sections keep the three
+// ways (still states, looping or :hover board motion, a prototype frame for the rest) and put no click trigger on the
+// board. The open offer is limited to frames `doan open` can find.
+func TestMotionPresetsKeepClicksOffTheBoard(t *testing.T) {
+	offer := []string{
+		"name that frame in your answer as the one to Play",
+		"Offer to open it with `doan open <canvas path> --frame <id> --prototype` only when the CLI can open it",
+		"the frame is in the file (not added by a script at load)",
+		"the canvas is not in a subfolder of `.doan/canvases/` or `.doan/ds/`",
+	}
+	shared := append([]string{
+		"an ordinary click selects instead of reaching the canvas",
+		"when it belongs to an existing frame, mark that frame instead of drawing a copy",
+		"Put no replay button or other click trigger on the board.",
+	}, offer...)
+	for _, c := range []struct {
+		preset   string
+		section  []string
+		anywhere []string
+	}{
+		{"animate", []string{
+			"annotate the trigger, properties, duration, easing, and the reduced-motion alternative",
+			"draw the key states (start, end, and any meaningful intermediate state) as elements or frames side by side",
+			"on the board, implement the motion in canvas CSS as a looping animation or a `:hover` trigger (it works under the Select tool)",
+			"build motion that needs a click, runs once, or is scroll-driven in a frame marked `data-doan-prototype` (Doan guide convention 14)",
+		}, []string{"already-visible default"}},
+		{"delight", []string{
+			"Draw the moment's states side by side",
+			"implement it on the board in canvas CSS as a looping animation or a `:hover` trigger (it works under the Select tool)",
+			"Build a moment that needs a click, runs once, or is scroll-driven in a frame marked `data-doan-prototype` (Doan guide convention 14)",
+			"Annotate what a still drawing cannot show: trigger, duration, sound or haptic behavior, frequency limits, and the reduced-motion or muted alternative",
+		}, nil},
+	} {
+		b, err := os.ReadFile(filepath.Join("presets", c.preset+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(b)
+		_, section, ok := strings.Cut(body, "## Apply the change in Doan\n")
+		if !ok {
+			t.Fatalf("%s preset has no Doan section", c.preset)
+		}
+		section, _, _ = strings.Cut(section, "\n## ")
+		section = strings.Join(strings.Fields(section), " ")
+		for _, p := range append(c.section, shared...) {
+			if !strings.Contains(section, p) {
+				t.Errorf("%s Doan section misses %q", c.preset, p)
+			}
+		}
 		for _, gone := range []string{"replay control", "visible trigger"} {
-			if strings.Contains(strings.ToLower(body), gone) {
-				t.Errorf("%s preset still suggests a %s", c.preset, gone)
+			if strings.Contains(strings.ToLower(section), gone) {
+				t.Errorf("%s Doan section still suggests a %s", c.preset, gone)
+			}
+		}
+		body = strings.Join(strings.Fields(body), " ")
+		for _, p := range c.anywhere {
+			if !strings.Contains(body, p) {
+				t.Errorf("%s preset misses %q", c.preset, p)
 			}
 		}
 	}
