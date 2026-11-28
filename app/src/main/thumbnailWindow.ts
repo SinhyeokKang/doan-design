@@ -43,17 +43,19 @@ export function frameScript(url: string): string {
 })`;
 }
 
-// Run in the job's outer canvas frame's main world, where canvas scripts can fake the answers (checked in
-// thumbnailRect.ts). Two frames after a scroll, or the hidden window can capture the paint from before it.
-export const READ_FRAME = `(() => { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
-  const r = frame.getBoundingClientRect(); return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }; })()`;
-export const SCROLL_TO_FRAME = `new Promise((resolve) => { const frame = document.querySelector("[data-doan-frame]"); if (!frame) { resolve(null); return; }
+// Run in the job's outer canvas frame's main world, where the page can fake what they read (main checks the answer,
+// thumbnailRect.ts). Async arrows and string joins keep the answer a short string the page's globals cannot replace.
+export const READ_FRAME = `(async () => { try { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
+  const r = frame.getBoundingClientRect(); const x = +r.x + +scrollX, y = +r.y + +scrollY, width = +r.width, height = +r.height;
+  return x + " " + y + " " + width + " " + height; } catch { return null; } })()`;
+// Two frames after the scroll, or the hidden window can capture the paint from before it.
+export const SCROLL_TO_FRAME = `(async () => { try { const frame = document.querySelector("[data-doan-frame]"); if (!frame) return null;
   frame.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
-  requestAnimationFrame(() => requestAnimationFrame(() => { const r = frame.getBoundingClientRect(); resolve({ x: r.x, y: r.y, width: r.width, height: r.height }); })); })`;
-export const SCROLL_BACK = `new Promise((resolve) => { scrollTo({ top: 0, left: 0, behavior: "instant" });
-  requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))); })`;
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const r = frame.getBoundingClientRect(); const x = +r.x, y = +r.y, width = +r.width, height = +r.height;
+  return x + " " + y + " " + width + " " + height; } catch { return null; } })()`;
 
-const LATE = Symbol("late");
+const NO_ANSWER = Symbol("no answer");
 
 // Found again after load: a redirect can replace the frame-created object's renderer. A frame gone by now throws.
 function outerFrame(contents: WebContents, outerFrameId: number | undefined): WebFrameMain | undefined {
@@ -64,34 +66,23 @@ function outerFrame(contents: WebContents, outerFrameId: number | undefined): We
   }
 }
 
-// The capture rectangle of the first top-level frame, or null for the first screen. A script still running at the
-// limit is abandoned.
-async function frameArea(contents: WebContents, outerFrameId: number | undefined, viewport: Rect, limitMs: number, current: () => boolean): Promise<Rect | null> {
-  const outer = outerFrame(contents, outerFrameId);
-  if (!outer) return null;
+// One limit for all of a job's canvas scripts; a script still running at the limit is abandoned.
+function measurement(outer: WebFrameMain | undefined, limitMs: number) {
   let timer: NodeJS.Timeout | undefined;
-  const limit = new Promise<typeof LATE>((resolve) => { timer = setTimeout(() => resolve(LATE), limitMs); });
-  const run = (script: string): Promise<unknown> => {
-    let answer: Promise<unknown>;
-    try {
-      answer = outer.executeJavaScript(script);
-    } catch {
-      return Promise.resolve(LATE);
-    }
-    return Promise.race([answer.catch(() => LATE), limit]);
+  const limit = new Promise<typeof NO_ANSWER>((resolve) => { timer = setTimeout(() => resolve(NO_ANSWER), limitMs); });
+  return {
+    run(script: string): Promise<unknown> {
+      if (!outer) return Promise.resolve(NO_ANSWER);
+      let answer: Promise<unknown>;
+      try {
+        answer = outer.executeJavaScript(script);
+      } catch {
+        return Promise.resolve(NO_ANSWER);
+      }
+      return Promise.race([answer.catch(() => NO_ANSWER), limit]);
+    },
+    end() { clearTimeout(timer); },
   };
-  try {
-    const read = await run(READ_FRAME);
-    if (!current() || read === LATE || !measuredFrame(read, viewport.width)) return null;
-    const scrolled = await run(SCROLL_TO_FRAME);
-    if (!current()) return null;
-    const area = scrolled === LATE ? null : thumbnailRect(scrolled, viewport);
-    if (area) return area;
-    await run(SCROLL_BACK);
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export interface Capturer {
@@ -163,13 +154,32 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS, measureLimitMs =
     const rect: unknown = await contents.executeJavaScript(frameScript(url));
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page script runs
     if (!current() || frameFailed || !isRect(rect)) return null;
-    const area = await frameArea(contents, outerFrameId, rect, measureLimitMs, current);
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is read
-    if (!current() || frameFailed) return null;
-    const image = await contents.capturePage(area ?? rect);
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page is captured
-    if (!current() || frameFailed || image.isEmpty()) return null;
-    return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
+    const measure = measurement(outerFrame(contents, outerFrameId), measureLimitMs);
+    try {
+      const read = await measure.run(READ_FRAME);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is read
+      if (!current() || frameFailed) return null;
+      // Taken before any scroll: it is the image whenever the frame's cannot be.
+      let image = await contents.capturePage(rect);
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page is captured
+      if (!current() || frameFailed || image.isEmpty()) return null;
+      if (measuredFrame(read, rect.width)) {
+        const scrolled = await measure.run(SCROLL_TO_FRAME);
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame scrolls
+        if (!current() || frameFailed) return null;
+        const [contentWidth = 0, contentHeight = 0] = target.getContentSize();
+        const area = thumbnailRect(scrolled, rect, { width: contentWidth, height: contentHeight });
+        if (area) {
+          const framed = await contents.capturePage(area);
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the frame is captured
+          if (!current() || frameFailed) return null;
+          if (!framed.isEmpty()) image = framed;
+        }
+      }
+      return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
+    } finally {
+      measure.end();
+    }
   };
 
   return {

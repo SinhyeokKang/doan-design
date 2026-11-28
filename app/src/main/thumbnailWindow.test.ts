@@ -6,6 +6,7 @@ const mocks = await vi.hoisted(async () => {
     frameTreeNodeId: number; processId: number; routingId: number; parent: Frame | null; frames: Frame[];
     executeJavaScript: ReturnType<typeof vi.fn<(script: string) => Promise<unknown>>>;
   }
+  interface Image { isEmpty(): boolean; resize(options: { width: number }): { toPNG(): Buffer } }
   const frames = new Map<string, Frame>();
   let nextId = 1;
   // A script main runs in a canvas frame: what the canvas answers. No frame by default.
@@ -38,7 +39,7 @@ const mocks = await vi.hoisted(async () => {
         this.webContents.emit("frame-created", {}, { frame: this.outer });
         return Window.frame();
       }),
-      capturePage: vi.fn(async (_rect: unknown) => ({ isEmpty: () => false, resize: vi.fn((options: { width: number }) => ({ toPNG: () => Buffer.from(`png${options.width}`) })) })),
+      capturePage: vi.fn(async (_rect: unknown): Promise<Image> => ({ isEmpty: () => false, resize: vi.fn((options: { width: number }) => ({ toPNG: () => Buffer.from(`png${options.width}`) })) })),
     });
     loadURL = vi.fn(async (_url: string) => {});
     // The size the window really took: a window can be clamped below what was asked.
