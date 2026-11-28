@@ -13,6 +13,9 @@
 - 받는 대화가 사용량 한도 예약 상태(`scheduling(id)`)일 때의 `send`: 턴을 돌리지 않고 실패한 턴도 쓰지 않는다. 메시지는 받는 대화의 큐에 에이전트 행으로 들어가고(흐린 상태), 보낸 쪽 카드는 Queued in이다. 리셋에 맞춰 예약하지 않는다. — 컨덕터 판단(B 질문): design '앱 main'의 "한도 실패로 끝낸다"와 "큐 행으로 남는다"가 충돌해, spec '큐에 든 에이전트 메시지'(한도 실패 뒤 흐린 행)와 Out of scope 4의 한도 예외를 넓히지 않는다는 결정에 맞는 쪽을 골랐다. PRODUCT 승격 때 적는다.
 - 에이전트 큐 행은 `ConversationSummary.agentQueue`로 렌더러에 간다(목록 변경마다 전달, 흐린 상태 포함, ×는 기존 `removeQueued`). — 컨덕터 판단(B 질문): 새 ipc 채널보다 기존 요약 전달에 얹는 쪽이 단순하다.
 - eval 판정(D 리뷰의 제품 질문): R14·R15에서 틀린 명령은 fail이다. 새 캔버스 시나리오(R10–R12)의 `doan send`는 틀린 명령으로 개수 검사 하나만 실패한다. R17은 아무것도 보내지 않아야 pass이고, 요청받은 한 번 전달 경로는 시나리오를 더하지 않고 단위 테스트로 본다. `no_handoff`는 id를 그대로 두고 `send`도 센다. — 컨덕터 판단: spec의 "사람이 한 말대로 고른다", 새 캔버스에는 `handoff`를 쓰는 가이드, 완료 조건의 범위.
+- Codex 대화의 `doan send`는 승인 규칙(`doan-handoff.rules`)에 넣지 않고 대화의 permission mode를 따른다. — 사용자 결정(A 리뷰의 질문). PRODUCT §5 'Resume and permissions' 승격 때 적는다.
+- CLI의 `chain_one`·`chain_limit` 안내는 spec 카드 문구에 맞추고, 이 턴에 다시 보내지 말라는 단계를 붙인다. — 컨덕터 판단(A 리뷰).
+- `chain_one`·`chain_limit`도 보낸 쪽 기록에 거절로 남겨 카드가 보이게 한다(소켓 거절은 그대로). — 컨덕터 판단: spec 완료 조건이 세 연쇄 거절 모두 카드 문구를 요구하는데, B는 두 코드를 소켓 거절로만 냈다.
 - 모델 계열을 넘지 않는다. 워커는 모두 Claude다. — chain 파일 '상시 권한'.
 
 ## 배치
@@ -47,3 +50,8 @@
 - A 끝(`worker_done`): 5커밋을 `147d4523c`..`ca193dafc`로 통합했다. `go vet ./...`, `go test ./...` 통과. `npm --prefix app run typecheck`는 `runtime.ts` `HANDOFF_MESSAGES`의 두 코드 때문에 B의 지연 항목 전까지 실패한다. 리뷰 워커 `ctx_d0460af75ab0`(Sonnet high) 시작.
   - A가 남긴 것: `app/src/brand/candidates.ts` `SUBCOMMANDS`와 Go 거울(`brand_test.go`)에 `send`가 없다. A 리뷰 수정 회차에 넣는다. 가이드(`skill.md`)는 ARCHITECTURE §7대로 handoff·send를 가르치지 않아 바꾸지 않았다(tasks 5의 `skill.md`는 변경 없음으로 끝).
 - D 1회차 끝: 6커밋을 `372067696`..`f18976ea1`로 통합했다. `node --test 'eval/**/*.test.ts'`에서 1건 실패: `transcript.test.ts`의 run.go 플래그 표 읽기가 A의 `case "handoff", "send":`에서 첫 이름만 읽는다. D에 2회차로 보냈다(`ctx_acdf4b003369`). `R8d/checks.test.ts`가 전체 실행에서 한 번 65초 뒤 "Promise resolution is still pending"으로 실패했고 혼자서는 34초에 통과했다. 부하로 보고 verify에서 다시 본다.
+- B 끝: 4커밋을 `582bcf0ea`..`95e36011a`로, D 2회차를 `149d4b6e7`로 통합했다. typecheck는 `runtime.ts` 한 곳만 실패(예상), `node --test 'eval/**/*.test.ts'` 553 통과.
+- A 리뷰(`ctx_d0460af75ab0`): 🔴 0, 🟡 4, 🟢 6. 🟡 1은 D가 이미 고쳤다. 1회차를 A에 보냈다(`ctx_7c66ab95fba1`, brand `SUBCOMMANDS` 포함).
+- B 지연 항목(runtime v8·토큰·`HANDOFF_MESSAGES`)과 연쇄 거절 기록을 B에 보냈다(`ctx_e3005a4317f8`). B 리뷰 워커 `ctx_9b30ccad5f17`(Opus high, 컨덕터 checkout에서 읽기만).
+- D 지연 항목(R14–R17 `prompt.*`, `eval/lib/turn-prompt.ts` 소유 이전)을 D에 보냈다(`ctx_ca89cb794c7b`).
+- C 시작: `ctx_410f3077dcae`(Opus medium, `cm-c-renderer`, `95e36011a` 기준).
