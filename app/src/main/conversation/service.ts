@@ -810,9 +810,10 @@ export class ConversationService {
       const background = live?.background && !live.busy ? live.background : undefined, stopping = live?.stopping && live.busy;
       // queued counts the person's rows, as the renderer holds them; agent rows come as their own list.
       const rows = this.drafts.queued(m.conversationId), queued = personRows(rows).length, working = this.working(m.conversationId);
-      let after: string | undefined;
-      const agentQueue = rows.flatMap(item => { if (!item.origin) { after = item.itemId; return []; } return [agentRow(item, item.origin, !this.armedAgents.has(item.itemId), after)]; });
       const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
+      // A scheduled reset sends every person's row first (flush of the person's rows only), so agent rows follow the last.
+      let after = schedule ? personRows(rows).at(-1)?.itemId : undefined;
+      const agentQueue = rows.flatMap(item => { if (!item.origin) { if (!schedule) after = item.itemId; return []; } return [agentRow(item, item.origin, !this.armedAgents.has(item.itemId), after)]; });
       const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
       const stoppingRemoval = !!live && this.removalStopping(m.conversationId, live);
       return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working: working || stoppingRemoval,
@@ -1461,7 +1462,10 @@ export class ConversationService {
   // A sent target's title as it is now, kept on the resolution; none for an untitled or deleted conversation.
   private titleOf(id: string): { title?: string } {
     const title = this.store.list().find(e => e.conversationId === id)?.title;
-    return title ? { title: title.slice(0, LIMITS.label) } : {};
+    if (!title) return {};
+    // Cut by code points so no surrogate pair is split.
+    let cut = ""; for (const char of title) { if (cut.length + char.length > LIMITS.label) break; cut += char; }
+    return { title: cut };
   }
   // The Fast and default effort of a turn ipc does not judge (a queue flush, an agent's message): the conversation's own.
   private queueChoices(m: ConversationMetadata): { defaultEffort?: string; fastTurn?: true } {

@@ -1749,9 +1749,18 @@ describe("a send's delivery", () => {
   });
 });
 
-// For batch C: a sent card names its conversation after that conversation is gone, and the queue interleaves agent rows
-// with the person's rows in their send order.
+// A sent card names its conversation after that conversation is gone; agent rows sit among the person's rows in send order.
 describe("what a send leaves for the renderer", () => {
+  it("cuts a long title at LIMITS.label without splitting a surrogate pair", async () => {
+    const h = fixture({ listed: [a, b] });
+    const x = await h.start({ canvas: b, text: "mine" }); h.service.receive(x, { type: "turn.done" });
+    h.store.save(h.store.list().map(m => m.conversationId === x ? { ...m, title: `${"a".repeat(511)}😀b` } : m));
+    const s = await h.start();
+    h.send(h.key(1), b.path); h.service.receive(s, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.resolutions(s)).toHaveLength(1));
+    const title = (h.resolutions(s)[0] as { target: { title: string } }).target.title;
+    expect(title).toBe("a".repeat(511));
+  });
   const userMessages = (h: ReturnType<typeof fixture>, id: string) => h.store.read(id).flatMap(e => e.type === "user.message" ? [e] : []);
   it("puts the receiving conversation's title on the sent resolution, sent at once, queued or started", async () => {
     const h = fixture({ listed: [a, b, c] });
