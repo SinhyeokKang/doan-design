@@ -77,3 +77,13 @@ test("W16 reads motion from a linked stylesheet", () => {
 test("W16 needs the other frames byte-identical", () => {
   assert.deepEqual(withCanvas(pass.replace('<p data-doan-id="empty-copy">No projects yet.', '<p data-doan-id="empty-copy">No projects yet!')), ["other_frames_unchanged"]);
 });
+
+test("W16 shares W15's receiver, template, @import and frame-text rules", () => {
+  // A script in the marked frame that wires a board button is a board click.
+  const reach = pass.replace("</section>", "<script>document.querySelector('[data-doan-id=\"empty-action\"]').addEventListener('click', () => {});</script>\n</section>");
+  assert.deepEqual(withCanvas(reach), ["no_board_click_trigger"]);
+  assert.deepEqual(withCanvas(pass.replace("</body>", "<template><details><summary>More</summary></details></template>\n</body>")), []);
+  const imported = seed.replace(hidden, '  @import "../assets/motion.css";\n');
+  assert.deepEqual(withCanvas(imported, { ".doan/assets/motion.css": "@import 'parts/loop.css';\n", ".doan/assets/parts/loop.css": ".details { animation: grow 2s infinite; }\n" }), []);
+  assert.deepEqual(withCanvas(pass.replace('<h2 data-doan-id="atlas-name">Atlas redesign</h2>', '<h2 data-doan-id="atlas-name">🚀 Atlas redesign</h2>')), []);
+});

@@ -22,7 +22,8 @@
   @media (prefers-reduced-motion: reduce) { .details { transition: none; } .status::before { animation: none; } }
   .toggle { align-self: flex-start; background: none; border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); color: var(--color-primary); font: inherit; }
   .empty { margin: auto; text-align: center; color: var(--color-muted); }
-  .primary { background: var(--color-primary); color: var(--color-surface); border: 0; border-radius: var(--radius); padding: var(--space-3) var(--space-4); font: inherit; }
+  .primary { background: var(--color-primary); color: var(--color-surface); border: 0; border-radius: var(--radius); padding: var(--space-3) var(--space-4); font: inherit; transition: opacity 160ms ease-out; }
+  .primary:hover { opacity: 0.85; }
 </style>
 </head>
 <body>

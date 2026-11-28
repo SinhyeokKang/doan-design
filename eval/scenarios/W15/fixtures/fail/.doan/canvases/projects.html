@@ -53,9 +53,8 @@
 </section>
 <script>
   const card = document.querySelector('[data-doan-id="atlas-card"]');
-  for (const id of ['atlas-toggle', 'atlas-replay']) {
-    document.querySelector(`[data-doan-id="${id}"]`).addEventListener('click', () => card.classList.toggle('is-open'));
-  }
+  document.querySelector('[data-doan-id="atlas-toggle"]').addEventListener('click', () => card.classList.toggle('is-open'));
+  document.querySelector('[data-doan-id="atlas-replay"]').addEventListener('click', () => card.classList.toggle('is-open'));
 </script>
 </body>
 </html>
