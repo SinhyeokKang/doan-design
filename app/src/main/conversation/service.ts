@@ -8,7 +8,7 @@ import { runModeAfterInit, runModeAfterStatus } from "./claudeRunMode";
 import { handoffPrompt, turnPrompt } from "./prompt";
 import { drawnCanvases } from "./drawn";
 import { handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, nextOrigin, originLink, type ConversationHandoffNotice, type HandoffDecision, type HandoffRefusal, type SendCandidate } from "./handoff";
-import { messageLine } from "./messageText";
+import { LIMITS, messageLine } from "./messageText";
 import { sameCanvas } from "./sessions";
 import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, SETTLE_MS, settleDeadline } from "./project";
@@ -810,7 +810,8 @@ export class ConversationService {
       const background = live?.background && !live.busy ? live.background : undefined, stopping = live?.stopping && live.busy;
       // queued counts the person's rows, as the renderer holds them; agent rows come as their own list.
       const rows = this.drafts.queued(m.conversationId), queued = personRows(rows).length, working = this.working(m.conversationId);
-      const agentQueue = rows.flatMap(item => item.origin ? [agentRow(item, item.origin, !this.armedAgents.has(item.itemId))] : []);
+      let after: string | undefined;
+      const agentQueue = rows.flatMap(item => { if (!item.origin) { after = item.itemId; return []; } return [agentRow(item, item.origin, !this.armedAgents.has(item.itemId), after)]; });
       const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
       const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
       const stoppingRemoval = !!live && this.removalStopping(m.conversationId, live);
@@ -1389,7 +1390,7 @@ export class ConversationService {
         undefined, { origin, handoffText: request.text, turnId: turn.turnId, path: request.path });
       const started = { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target };
       // A send to a canvas with no conversation it could reach is still a send.
-      resolution = request.via === "send" ? { outcome: "sent", target: started, queued: false } : { outcome: "started", target: started };
+      resolution = request.via === "send" ? { outcome: "sent", target: { ...started, ...this.titleOf(conversationId) }, queued: false } : { outcome: "started", target: started };
     } catch (error) {
       const code = reason(error);
       // A stop of its provider meanwhile is the person's cancel, whatever the start then failed with.
@@ -1419,7 +1420,7 @@ export class ConversationService {
     let resolution: HandoffResolution;
     try {
       const queued = await this.deliverMessage(target, origin, request.text, { turnId: turn.turnId, path: request.path });
-      resolution = { outcome: "sent", target: { conversationId: target, canvas: this.store.list().find(e => e.conversationId === target)?.canvas ?? canvas }, queued };
+      resolution = { outcome: "sent", target: { conversationId: target, canvas: this.store.list().find(e => e.conversationId === target)?.canvas ?? canvas, ...this.titleOf(target) }, queued };
     } catch (error) {
       const code = reason(error);
       resolution = code === "handoff_cancelled" || this.stopped({ ...(provider ? { provider } : {}), since }) ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
@@ -1456,6 +1457,11 @@ export class ConversationService {
     if (!live || !this.store.list().some(e => e.conversationId === id) || personRows(this.drafts.queued(id)).length || !this.flushable(id)) return;
     live.holding = {};
     this.flush(id, live);
+  }
+  // A sent target's title as it is now, kept on the resolution; none for an untitled or deleted conversation.
+  private titleOf(id: string): { title?: string } {
+    const title = this.store.list().find(e => e.conversationId === id)?.title;
+    return title ? { title: title.slice(0, LIMITS.label) } : {};
   }
   // The Fast and default effort of a turn ipc does not judge (a queue flush, an agent's message): the conversation's own.
   private queueChoices(m: ConversationMetadata): { defaultEffort?: string; fastTurn?: true } {
@@ -1517,7 +1523,7 @@ export class ConversationService {
   private settleHandoff(id: string, turn: HandoffTurn): void {
     clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
     const resolved = turn.requests.flatMap(r => r.resolution ? [{ ...r.resolution, via: r.via }] : []);
-    const started = resolved.flatMap(r => r.outcome === "started" || r.outcome === "sent" ? [{ ...r.target, via: r.via }] : []);
+    const started = resolved.flatMap(r => r.outcome === "started" || r.outcome === "sent" ? [{ conversationId: r.target.conversationId, canvas: r.target.canvas, via: r.via }] : []);
     let outcome = handoffQueueOutcome(resolved);
     // A next conversation deleted before the queue reached it takes nothing under its id: the queue comes back here as a
     // draft, never sent.
@@ -2097,9 +2103,9 @@ function checkReview(provider: Provider, text: string, doan: boolean, stated: Pe
 // The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
 function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
 // held: it goes only after a done turn a person's message starts in that conversation.
-function agentRow(item: QueuedItem, origin: HandoffOrigin, held: boolean): AgentQueueRow {
+function agentRow(item: QueuedItem, origin: HandoffOrigin, held: boolean, after: string | undefined): AgentQueueRow {
   const { provider } = originLink(origin);
-  return { itemId: item.itemId, ...(provider ? { provider } : {}), source: { conversationId: origin.conversationId, ...(origin.canvas ? { canvas: origin.canvas } : {}) }, line: messageLine(item.text, []), held };
+  return { itemId: item.itemId, ...(provider ? { provider } : {}), source: { conversationId: origin.conversationId, ...(origin.canvas ? { canvas: origin.canvas } : {}) }, line: messageLine(item.text, []), held, ...(after !== undefined ? { after } : {}) };
 }
 // A refusal's code for a draft's reason; anything else is unknown.
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }

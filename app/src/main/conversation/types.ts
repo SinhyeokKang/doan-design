@@ -46,8 +46,9 @@ export type HandoffVia = "handoff" | "send";
 export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas?: Canvas; via?: HandoffVia; chain?: string[]; provider?: import("../agentAuth/types").Provider }
 // reason: a judgement's reason (handoff.ts HandoffReason) or the refused start's code. target sits in its own object
 // because the event's envelope already has a conversationId, the history's own. sent: a send reached target, at once or
-// queued behind its turn. An earlier build cannot read a history that holds a sent line.
-export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "sent"; target: { conversationId: string; canvas: Canvas }; queued: boolean } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
+// queued behind its turn; target.title: that conversation's title at delivery (absent when it had none), which names it
+// after a deletion. An earlier build cannot read a history that holds a sent line.
+export type HandoffResolution = { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "sent"; target: { conversationId: string; canvas: Canvas; title?: string }; queued: boolean } | { outcome: "refused"; reason: string } | { outcome: "cancelled" };
 // A row of the conversation "skills" method: a project skill or a built-in command Doan runs (providerCommands.ts).
 // Type-only here, since the renderer imports it; the parsers live in skills.ts.
 export interface SkillSummary { kind: "skill" | "command"; name: string; description: string }

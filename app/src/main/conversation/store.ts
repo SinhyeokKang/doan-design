@@ -114,7 +114,8 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "handoff.resolved":
       if ((value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) || !via(value.via)) return false;
       if (value.outcome === "started") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas);
-      if (value.outcome === "sent") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas) && typeof value.queued === "boolean";
+      if (value.outcome === "sent") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas) &&
+        (value.target.title === undefined || bounded(value.target.title, LIMITS.label)) && typeof value.queued === "boolean";
       if (value.outcome === "refused") return bounded(value.reason, LIMITS.label);
       return value.outcome === "cancelled";
     case "handoff.missed": case "canvas.drawn": return validCanvas(value.canvas);

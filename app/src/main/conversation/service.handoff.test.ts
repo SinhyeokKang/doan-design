@@ -1759,11 +1759,13 @@ describe("what a send leaves for the renderer", () => {
     const s1 = await h.start();
     h.send(h.key(1), b.path); h.service.receive(s1, { type: "turn.done" });
     await vi.waitFor(() => expect(h.resolutions(s1)).toHaveLength(1));
-    expect(h.resolutions(s1)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, canvas: b, title: "Checkout flow" }, queued: false });
+    // The title as stored at delivery: a person's first message's lines read as one.
+    expect(h.entry(x).title).toBe("Checkout flow more");
+    expect(h.resolutions(s1)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, canvas: b, title: "Checkout flow more" }, queued: false });
     const s2 = await h.start();
     h.send(h.key(2), b.path); h.service.receive(s2, { type: "turn.done" });
     await vi.waitFor(() => expect(h.resolutions(s2)).toHaveLength(1));
-    expect(h.resolutions(s2)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, title: "Checkout flow" }, queued: true });
+    expect(h.resolutions(s2)[0]).toMatchObject({ outcome: "sent", target: { conversationId: x, title: "Checkout flow more" }, queued: true });
     const s3 = await h.start();
     h.send(h.key(3), c.path, "Summary page\nwith totals"); h.service.receive(s3, { type: "turn.done" });
     await vi.waitFor(() => expect(h.resolutions(s3)).toHaveLength(1));
@@ -1783,7 +1785,8 @@ describe("what a send leaves for the renderer", () => {
     h.send(h.key(3), b.path, "third agent"); h.service.receive(s3, { type: "turn.done" });
     await vi.waitFor(() => expect(h.resolutions(s3)).toHaveLength(1));
     const row = () => h.service.list("/repo").find(r => r.conversationId === x)!;
-    expect(row().agentQueue?.map(r => [r.line, r.after])).toEqual([["first agent", null], ["second agent", p2], ["third agent", p2]]);
+    expect(row().agentQueue?.map(r => [r.line, r.after])).toEqual([["first agent", undefined], ["second agent", p2], ["third agent", p2]]);
+    expect(row().agentQueue?.[0]).not.toHaveProperty("after");
     expect(p1).not.toBe(p2);
     // The first agent row goes out alone; the rest keep their place behind p2.
     h.service.receive(x, { type: "turn.done" });
