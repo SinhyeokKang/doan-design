@@ -644,6 +644,9 @@ describe("threadItems canvas cards", () => {
       .toEqual({ outcome: "refused", reason: "chain_return", via: "send" });
     expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "cancelled" })], ROOT, true))[0]!.handoff)
       .toEqual({ outcome: "cancelled", via: "send" });
+    const titled = { ...target, title: "Payment states" };
+    expect(cards(threadItems([...waiting, resolve("t1", { canvas: { path: CHECKOUT }, via: "send", outcome: "sent", target: titled, queued: false })], ROOT, true))[0]!.handoff)
+      .toEqual({ outcome: "sent", target: titled, queued: false, via: "send" });
     // A restart cancels a send still waiting, and it stays a send.
     expect(cards(threadItems(waiting, ROOT, false))[0]!.handoff).toEqual({ outcome: "cancelled", via: "send" });
   });

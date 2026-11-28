@@ -181,12 +181,12 @@ test("removing the only scheduled row puts focus in the composer field", async (
   expect(focused.at).toBe("input");
 });
 
-// Messages other conversations' agents sent (the summary's agentQueue): after the person's rows, the sender's logo, the line
+// Messages other conversations' agents sent (the summary's agentQueue): in send order among the person's rows, the sender's logo, the line
 // hidden from screen readers in favour of a name with the source, × only, dimmed while held.
 const AGENT = { itemId: "a1", provider: "codex" as const, source: { conversationId: "c0", canvas: { path: ".doan/canvases/drafts.html", id: "drafts" } }, line: "Use the declined-card message", held: false };
 
 test("an agent row: the sender's logo, its line, the source only in its accessible name, × and no Send now", async () => {
-  const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }], agents: [AGENT] });
+  const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }], agents: [{ ...AGENT, after: "q1" }] });
   const tree = draw();
   expect(tree.filter(item => item.role === "listitem")).toHaveLength(2);
   const logo = tree.find(item => item.type === "img")!;
@@ -226,7 +226,7 @@ test("an agent row from a project conversation names the Overview; one without a
 });
 
 test("removing the person's last row moves focus to the agent row's ×; removing the agent row after it to the field", async () => {
-  const { props, focused, draw, rows } = setup({ sendNow: false, items: [{ id: "q1", text: "First" }], agents: [AGENT] });
+  const { props, focused, draw, rows } = setup({ sendNow: false, items: [{ id: "q1", text: "First" }], agents: [{ ...AGENT, after: "q1" }] });
   (rows(draw(), "Remove queued message")[0]!.onClick as () => void)();
   await Promise.resolve(); await Promise.resolve();
   props.items = [];
@@ -239,4 +239,31 @@ test("removing the person's last row moves focus to the agent row's ×; removing
   after.props.agents = [];
   after.draw();
   expect(after.focused.at).toBe("input");
+});
+
+// The drawn order is the send order main gives: an agent row right after the person's row its `after` names, before every
+// person's row without one, rows sharing an `after` in array order.
+const order = (tree: Node[]) => tree.filter(item => item.className === "queue-text").map(item => item.children);
+test("agent rows sit in send order among the person's rows", () => {
+  const items = [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }];
+  const agents = [{ ...AGENT, itemId: "a0", line: "Lead" }, { ...AGENT, itemId: "a1", line: "Mid one", after: "q1" }, { ...AGENT, itemId: "a2", line: "Mid two", after: "q1" }, { ...AGENT, itemId: "a3", line: "Tail", after: "q2" }];
+  expect(order(setup({ items, agents }).draw())).toEqual(["Lead", "First", "Mid one", "Mid two", "Second", "Tail"]);
+});
+
+// The named row already left the renderer's queue (it went out, or was removed): rows leave from the front, so the agent
+// row goes where a row without `after` goes.
+test("an agent row whose after names a row no longer drawn is kept, before every person's row", () => {
+  const items = [{ id: "q2", text: "Second" }];
+  expect(order(setup({ items, agents: [{ ...AGENT, after: "gone" }] }).draw())).toEqual([AGENT.line, "Second"]);
+  expect(order(setup({ items: [], agents: [{ ...AGENT, after: "gone" }] }).draw())).toEqual([AGENT.line]);
+});
+
+test("focus after × walks the drawn order: from a person's row to the agent row drawn after it", async () => {
+  const { props, focused, draw, rows } = setup({ sendNow: false, items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }], agents: [{ ...AGENT, after: "q1" }] });
+  (rows(draw(), "Remove queued message")[0]!.onClick as () => void)();
+  await Promise.resolve(); await Promise.resolve();
+  props.items = [{ id: "q2", text: "Second" }];
+  props.agents = [AGENT];
+  draw();
+  expect(focused.at).toBe("remove:id-agent-0");
 });

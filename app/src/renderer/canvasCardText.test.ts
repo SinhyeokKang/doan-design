@@ -131,6 +131,14 @@ describe("canvasCardText for a send", () => {
     expect(view(sent(true), { conversationTitle: () => null })).toMatchObject({ status: "Queued in a conversation" });
   });
 
+  test("the title kept at delivery names the conversation when the list does not; the live title wins", () => {
+    const kept = card({ drawn: false, handoff: { outcome: "sent", target: { ...target, title: "Old name" }, queued: false, via: "send" } });
+    expect(view(kept)).toMatchObject({ status: "Sent to “Old name”", open: { conversationId: "c9", label: "Open “Old name” on checkout-flow.html" } });
+    expect(view(kept, { conversationTitle: titles })).toMatchObject({ status: "Sent to “Payment states”" });
+    expect(view(kept, { conversationListed: () => false, conversationTitle: () => null })).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sent to “Old name” · Conversation deleted",
+      label: "checkout-flow.html, Sent to “Old name” · Conversation deleted", open: null });
+  });
+
   test("the receiving conversation deleted since: no Open, the status says so", () => {
     expect(view(sent(false), { conversationListed: () => false })).toEqual({ icon: "send", name: "checkout-flow.html", status: "Sent to a conversation · Conversation deleted", label: "checkout-flow.html, Sent to a conversation · Conversation deleted", open: null });
   });
