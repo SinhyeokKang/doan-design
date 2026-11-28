@@ -69,3 +69,4 @@
 - C 리뷰(`ctx_ff4cd598de36`): 🔴 0, 🟡 5, 🟢 8. 1회차를 C에 보냈다(`ctx_fb981c51a08b`). 🟡 5(새로 시작한 대상의 "Conversation deleted" 깜빡임 가능성)는 runtime probe 항목으로 둔다.
 - B 1회차 끝: 2커밋을 통합했다. typecheck 깨끗. 흐린 행 규칙은 `armedAgents`(메모리만; 재시작 뒤에는 모두 흐림)로 구현됐다. postmortem 후보: 흐린 에이전트 행이 언제 나가는지 규칙이 없었고, exit 대기 시간 초과 busy가 쉬는 대화에 행을 남겼다. B 2회차(제목 스냅숏, 에이전트 행 자리)를 보냈다(`ctx_56dd881fb766`).
 - C 1회차 끝: 2커밋을 통합했다. typecheck 깨끗. Nit 9(다른 대화의 send 알림이 기다리던 0단계 handoff 이동을 토스트로 바꿀 수 있음)는 한계로 적는다. C 2회차는 B 2회차 뒤에 보낸다.
+- B 2회차 끝: 2커밋을 통합했다(`sent` target.title, `agentQueue[].after`). typecheck 깨끗. C 2회차를 보냈다.
