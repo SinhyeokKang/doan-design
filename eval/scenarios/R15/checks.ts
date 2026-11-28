@@ -22,7 +22,7 @@ const checks: Checks = ctx => {
     { id: "send_requested_once", pass: sends.length === 1, detail: `${sends.length} accepted doan send request(s); requests the app received: ${requestSummary(ctx)}` },
     { id: "request_target_is_invoices", pass: accepted.every(e => e.request.path === TARGET), detail: `accepted ${JSON.stringify(accepted.map(e => e.request.path))}; expected only ${TARGET}` },
     { id: "send_message_not_empty", pass: blank.length === 0, detail: `message of ${[...text].length} characters: ${JSON.stringify([...text].slice(0, 300).join(""))}` },
-    { id: "send_message_names_the_change", pass: sends.every(e => e.request.text.includes("5th")), detail: `the new date (the 5th) in each accepted send message` },
+    { id: "send_message_names_the_change", pass: sends.every(e => e.request.text.trim().length === 0 || e.request.text.includes("5th")), detail: `the new date (the 5th) in each accepted, non-empty send message` },
     noOpen(ctx),
   ];
 };

@@ -8,8 +8,5 @@
     "path": ".doan/canvases/account.html",
     "id": "account"
   },
-  "via": "send",
-  "chain": [
-    "account-conversation"
-  ]
+  "via": "send"
 }

@@ -37,20 +37,26 @@ export function handoffsForCanvases(ctx: Pick<CheckContext, "handoff" | "read">,
     && paths.every(path => accepted.filter(e => e.request.path === path).length === 1);
   return [
     { id: "handoff_each_canvas_once", pass: eachOnce, detail: `expected ${JSON.stringify(paths)}; received ${JSON.stringify(received.map(e => ({ path: e.request.path, ok: e.response.ok, error: e.response.ok ? undefined : e.response.error.code })))}` },
-    { id: "canvases_written_before_requests", pass: accepted.length > 0 && accepted.every(e => {
+    // Per-request checks judge each accepted request on its own and pass on none, so a missing handoff is the count check's alone.
+    { id: "canvases_written_before_requests", pass: accepted.every(e => {
       const text = ctx.read(e.request.path);
       return text !== null && e.hashes[e.request.path] === contentHash(text);
     }), detail: `hashes at requests: ${JSON.stringify(accepted.map(e => ({ path: e.request.path, hashes: e.hashes })))}` },
-    { id: "handoff_messages_not_empty", pass: accepted.length > 0 && accepted.every(e => e.request.text.trim().length > 0), detail: JSON.stringify(accepted.map(e => ({ path: e.request.path, message: [...e.request.text].slice(0, 300).join("") }))) },
+    { id: "handoff_messages_not_empty", pass: accepted.every(e => e.request.text.trim().length > 0), detail: JSON.stringify(accepted.map(e => ({ path: e.request.path, message: [...e.request.text].slice(0, 300).join("") }))) },
   ];
 }
 
-// Every request the app received and accepted, v5 then v8, whatever command made it.
+// The v5 and v8 requests in the order they arrived; the sort is stable, so equal timestamps keep each list's own order.
+function inArrivalOrder(ctx: Pick<CheckContext, "handoff" | "send">): (HandoffExchange | SendExchange)[] {
+  return [...ctx.handoff(), ...ctx.send()].sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+}
+
+// Every request the app received and accepted, whatever command made it.
 export function acceptedRequests(ctx: Pick<CheckContext, "handoff" | "send">): (HandoffExchange | SendExchange)[] {
-  return [...ctx.handoff(), ...ctx.send()].filter(e => e.response.ok);
+  return inArrivalOrder(ctx).filter(e => e.response.ok);
 }
 
 // Each request the app received, refused ones included, as the detail a count check shows.
 export function requestSummary(ctx: Pick<CheckContext, "handoff" | "send">): string {
-  return JSON.stringify([...ctx.handoff(), ...ctx.send()].map(e => ({ v: e.request.v, path: e.request.path, ok: e.response.ok, error: e.response.ok ? undefined : e.response.error.code })));
+  return JSON.stringify(inArrivalOrder(ctx).map(e => ({ v: e.request.v, path: e.request.path, ok: e.response.ok, error: e.response.ok ? undefined : e.response.error.code })));
 }

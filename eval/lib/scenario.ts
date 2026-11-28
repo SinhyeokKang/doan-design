@@ -84,6 +84,8 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
     const { canvas, received } = handoff as { canvas?: unknown; received?: unknown };
     if (!keys.includes("canvas") || keys.some(key => key !== "canvas" && key !== "received") || (canvas !== null && (typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)))) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" | null, received?: { chain: [<conversation id>, ...] } }");
     if (received !== undefined) {
+      // A project conversation never receives a message, so it has no chain.
+      if (canvas === null) fail(dirName, "handoff.received is for a conversation on a canvas, not a project conversation");
       const chain = typeof received === "object" && received !== null && !Array.isArray(received) && Object.keys(received).length === 1 ? (received as { chain?: unknown }).chain : undefined;
       if (!Array.isArray(chain) || chain.length < 1 || chain.length > 5 || !chain.every(id => typeof id === "string" && id !== "") || new Set(chain).size !== chain.length) fail(dirName, "handoff.received must be { chain: [1 to 5 distinct non-empty conversation ids] }");
     }

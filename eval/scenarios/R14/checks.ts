@@ -24,7 +24,7 @@ const checks: Checks = ctx => {
     { id: "handoff_requested_once", pass: handoffs.length === 1, detail: `${handoffs.length} accepted doan handoff request(s); requests the app received: ${requestSummary(ctx)}` },
     { id: "request_target_is_invoices", pass: accepted.every(e => e.request.path === TARGET), detail: `accepted ${JSON.stringify(accepted.map(e => e.request.path))}; expected only ${TARGET}` },
     { id: "handoff_message_not_empty", pass: blank.length === 0, detail: `message of ${[...text].length} characters: ${JSON.stringify([...text].slice(0, 300).join(""))}` },
-    { id: "handoff_message_names_the_wording", pass: handoffs.every(e => e.request.text.includes("Save changes")), detail: `the new Save label “Save changes” in each accepted handoff message` },
+    { id: "handoff_message_names_the_wording", pass: handoffs.every(e => e.request.text.trim().length === 0 || e.request.text.includes("Save changes")), detail: `the new Save label “Save changes” in each accepted, non-empty handoff message` },
     noOpen(ctx),
   ];
 };
