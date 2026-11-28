@@ -70,3 +70,4 @@
 - B 1회차 끝: 2커밋을 통합했다. typecheck 깨끗. 흐린 행 규칙은 `armedAgents`(메모리만; 재시작 뒤에는 모두 흐림)로 구현됐다. postmortem 후보: 흐린 에이전트 행이 언제 나가는지 규칙이 없었고, exit 대기 시간 초과 busy가 쉬는 대화에 행을 남겼다. B 2회차(제목 스냅숏, 에이전트 행 자리)를 보냈다(`ctx_56dd881fb766`).
 - C 1회차 끝: 2커밋을 통합했다. typecheck 깨끗. Nit 9(다른 대화의 send 알림이 기다리던 0단계 handoff 이동을 토스트로 바꿀 수 있음)는 한계로 적는다. C 2회차는 B 2회차 뒤에 보낸다.
 - B 2회차 끝: 2커밋을 통합했다(`sent` target.title, `agentQueue[].after`). typecheck 깨끗. C 2회차를 보냈다.
+- C 2회차 끝: 2커밋을 통합했다(제목 스냅숏 사용, 보내는 순서대로 그리는 큐). typecheck 깨끗, feat 푸시. B 재리뷰 `ctx_9900518b2700`(Opus high) 진행 중. E(design-sync)를 C 워커에 새 Task로 보냈다(`ctx_34897d12e0e6`, `cm-c-renderer`). lead에 GUI probe 시작을 메일로 알렸다.
