@@ -44,3 +44,5 @@
 - 2026-11-28 Orca run `run_cde5124c4283`. 1차 병렬 시작: A `ctx_5a4af9e2d35d`(Sonnet high, worktree `cm-a-cli`), B `ctx_c291797803ee`(Opus high, `cm-b-main`), D `ctx_ee4f782308c8`(Sonnet high, `cm-d-eval`). 모두 `ea851c5c8`에서 갈라졌다.
 - D 끝(`worker_done`): 커밋 `bdc59d14d`·`aae5d9878`·`6d06d719c`·`f5d848d92`. A의 v8 스키마·`doan send` 없이는 gate가 통과하지 않아 A 통합 뒤 cherry-pick한다. R14–R17 `prompt.*`는 지연. 리뷰 워커 `ctx_13212fca8c7b`(Sonnet high) 시작.
 - D 리뷰(`ctx_13212fca8c7b`): 🔴 0, 🟡 2, 🟢 5. 🟡 둘과 🟢 1·3·5를 고치는 1회차를 D에 보냈다(`ctx_2d3a226c2b97`). 🟢 2·4는 둔다.
+- A 끝(`worker_done`): 5커밋을 `147d4523c`..`ca193dafc`로 통합했다. `go vet ./...`, `go test ./...` 통과. `npm --prefix app run typecheck`는 `runtime.ts` `HANDOFF_MESSAGES`의 두 코드 때문에 B의 지연 항목 전까지 실패한다. 리뷰 워커 `ctx_d0460af75ab0`(Sonnet high) 시작.
+  - A가 남긴 것: `app/src/brand/candidates.ts` `SUBCOMMANDS`와 Go 거울(`brand_test.go`)에 `send`가 없다. A 리뷰 수정 회차에 넣는다. 가이드(`skill.md`)는 ARCHITECTURE §7대로 handoff·send를 가르치지 않아 바꾸지 않았다(tasks 5의 `skill.md`는 변경 없음으로 끝).
