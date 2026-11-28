@@ -334,6 +334,15 @@ describe("ListedGrace", () => {
     expect(grace.listed("/r", list, "new", { started: 3, applied: 1 })).toBe(true);
     expect(grace.listed("/r", list, "new", { started: 3, applied: 2 })).toBe(false);
   });
+  // main's listChanged for the new conversation joined a read already under way: that read's answer may predate it, so
+  // the grace lasts through the follow-up read.
+  test("a follow-up read queued behind the one under way extends the grace to it", () => {
+    const grace = new ListedGrace();
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 1, queued: true })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 2, applied: 2 })).toBe(true);
+    expect(grace.listed("/r", list, "new", { started: 3, applied: 3 })).toBe(false);
+  });
+
   test("an id a settled list already lacked stays gone through every later read", () => {
     const grace = new ListedGrace();
     expect(grace.listed("/r", list, "gone", { started: 1, applied: 1 })).toBe(false);

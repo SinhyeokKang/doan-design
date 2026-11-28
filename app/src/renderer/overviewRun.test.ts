@@ -1116,4 +1116,6 @@ test("a root's list reads: started and answered", () => {
   expect(h.run.listReads(ROOT)).toEqual({ started: 1, applied: 0 });
   h.answer(ROOT, []);
   expect(h.run.listReads(ROOT)).toEqual({ started: 2, applied: 2 });
+  h.host.readQueued = () => true;
+  expect(h.run.listReads(ROOT)).toEqual({ started: 2, applied: 2, queued: true });
 });
