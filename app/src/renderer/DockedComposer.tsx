@@ -159,9 +159,9 @@ export interface DockedComposerProps {
   // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
   canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
-  // A canvas chip's press, as a sent one's (ConversationThread onCanvasChip); openCanvasId: the canvas whose chip fits.
+  // A canvas chip's press, as a sent one's (ConversationThread onCanvasChip); fitCanvasId: the canvas whose chip Fits.
   onCanvasChip?: CanvasChipPress | undefined;
-  openCanvasId?: string | null;
+  fitCanvasId?: string | null;
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
@@ -603,7 +603,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} commandNames={commandNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} chipRoot={canvasChips?.root ?? null} chipDrag={chipDrop.fieldDrag} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate || props.onCanvasChip ? press : undefined}
-        canvasOpen={props.onCanvasChip ? { id: props.openCanvasId ?? null } : undefined}
+        canvasOpen={props.onCanvasChip ? { id: props.fitCanvasId ?? null } : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>

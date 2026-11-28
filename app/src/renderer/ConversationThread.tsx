@@ -96,8 +96,9 @@ export interface ConversationThreadProps {
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
   // A sent canvas chip's press (the host fits, opens or toasts); "missing" shows "No longer in <project>". Without it
-  // canvas chips are plain chips.
+  // canvas chips are plain chips. fitCanvasId: the canvas whose chip Fits in place, so its tooltip is the path alone.
   onCanvasChip?: CanvasChipPress;
+  fitCanvasId?: string | null;
   // The conversation's Doan connection is at its usage limit until this reset (limitReset.ts resetTimeText): the last
   // turn's usage-limit end says messages sent now go out then.
   limitResets?: string | null;
@@ -528,19 +529,19 @@ function ChipTip({ detail, children }: { detail: ReactNode; children: ReactEleme
 
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text. A canvas chip is named
 // by its canvas's row now (by id) and pressed through onCanvasChip; locateDisabled is the open canvas's and leaves it alone.
-export function SentChip({ marker, anchor: sent, frames, disabled, onLocate, onCanvasChip, missing, rows = NO_ROWS, openCanvasId = null, project = "" }: {
+export function SentChip({ marker, anchor: sent, frames, disabled, onLocate, onCanvasChip, missing, rows = NO_ROWS, fitCanvasId = null, project = "" }: {
   marker: number; anchor: Anchor | undefined; frames: readonly FrameName[] | undefined; disabled: boolean;
   onLocate: ConversationThreadProps["onLocate"]; onCanvasChip?: CanvasChipPress | undefined;
   // The message's chip note: `shownFor` is the chip it is shown for (its id describes that chip).
   missing?: { key: string; shownFor: string | null; show(key: string, text: string): void };
-  rows?: readonly CanvasRow[]; openCanvasId?: string | null; project?: string }) {
+  rows?: readonly CanvasRow[]; fitCanvasId?: string | null; project?: string }) {
   if (!sent) return <span className="bubble-anchor">{`{{${marker}}}`}</span>;
   const anchor = refreshCanvasAnchor(sent, rows);
   const view = chipLabel(anchor, frames);
   const Icon = CHIP_ICONS[chipIcon(anchor)];
   const body = <><Icon aria-hidden="true" /><span>{view.label}</span></>;
   const pressable = anchor.canvas ? !!onCanvasChip : !!onLocate;
-  const detail = anchor.canvas ? canvasChipTip(anchor.canvas, { open: openCanvasId, pressable }) : [view.title];
+  const detail = anchor.canvas ? canvasChipTip(anchor.canvas, { open: fitCanvasId, pressable }) : [view.title];
   const tip = detail.length > 1 ? detail.map((line, i) => <span key={i} className="tip-line">{line}</span>) : detail[0];
   if (!pressable) return <ChipTip detail={tip}><span className="anchor-chip" data-kind={view.kind}>{body}</span></ChipTip>;
   const off = !anchor.canvas && disabled;
@@ -568,8 +569,8 @@ function markColumn(block: BubbleList): number {
 
 // A sent message: its bubble, attachments and the chip locate note. One Send now has in flight ends with a Sending line and
 // has no actions.
-function UserMessage({ entry, frames, disabled, onLocate, onCanvasChip, rows, openCanvasId, project, home, entryAge: age }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean;
-  onLocate: ConversationThreadProps["onLocate"]; onCanvasChip: CanvasChipPress | undefined; rows: readonly CanvasRow[]; openCanvasId: string | null; project: string; home: string | null; entryAge: number | null }) {
+function UserMessage({ entry, frames, disabled, onLocate, onCanvasChip, rows, fitCanvasId, project, home, entryAge: age }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean;
+  onLocate: ConversationThreadProps["onLocate"]; onCanvasChip: CanvasChipPress | undefined; rows: readonly CanvasRow[]; fitCanvasId: string | null; project: string; home: string | null; entryAge: number | null }) {
   const base = useId();
   // How far its entry had run when this element mounted: a history message replacing the Sending one goes on from there.
   // Under a frame is this render's own delay, not an entry already under way.
@@ -584,7 +585,7 @@ function UserMessage({ entry, frames, disabled, onLocate, onCanvasChip, rows, op
   let chips = 0;
   const inline = (parts: readonly MessagePart[]) => parts.map((part, i) => {
     if (!("text" in part)) return <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
-      disabled={disabled} onLocate={onLocate} onCanvasChip={onCanvasChip} rows={rows} openCanvasId={openCanvasId} project={project} missing={missing(`${base}-${chips++}`)} />;
+      disabled={disabled} onLocate={onLocate} onCanvasChip={onCanvasChip} rows={rows} fitCanvasId={fitCanvasId} project={project} missing={missing(`${base}-${chips++}`)} />;
     // An anchor ends the preceding word but cannot start the next one.
     const previous = parts[i - 1], prefix = previous && !("text" in previous) ? "x" : "";
     const runs = skillWords(prefix + part.text, skills);
@@ -1476,7 +1477,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
-      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, !!props.onCanvasChip, rows, openCanvasId, props.project, props.homeDirectory ?? null, entered.current.get(entry.key) ?? null];
+      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, !!props.onCanvasChip, rows, props.fitCanvasId ?? null, props.project, props.homeDirectory ?? null, entered.current.get(entry.key) ?? null];
       case "agent": return [flushes(entry)];
       case "activity": return [expanded.has(entry.key)];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
@@ -1497,7 +1498,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
       case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} onCanvasChip={props.onCanvasChip && canvasChip}
-        rows={rows} openCanvasId={openCanvasId} project={props.project} home={props.homeDirectory ?? null} entryAge={entryAge(entry.key)} />;
+        rows={rows} fitCanvasId={props.fitCanvasId ?? null} project={props.project} home={props.homeDirectory ?? null} entryAge={entryAge(entry.key)} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} flush={flushes(entry)} start={replyStart(prevItems.current, entry)} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
