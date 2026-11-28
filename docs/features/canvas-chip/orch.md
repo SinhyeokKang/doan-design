@@ -13,7 +13,7 @@
 3. 선행 과제 check-scope와 thread-polish는 develop에 머지됐다. `git ls-tree origin/develop docs/features/check-scope docs/features/thread-polish`의 출력이 비어 있다(conductor 확인).
 4. 놓일 자리 표시는 widget decoration으로 한다. PoC가 `prosemirror-dropcursor`를 고르지 않았으므로 새 의존성은 없다(conductor 판단 — design 'PoC 결과').
 5. 모델 교차는 없다. Claude worker만 띄운다(AGENTS 'Runtime differences').
-6. T8(승격과 정리)은 conductor가 문서 커밋으로 한다(orchestrate §5).
+6. T8 승격 문서(PRODUCT, ARCHITECTURE, BACKLOG)는 worker Z가 쓰고 conductor가 diff를 검토한다. 기능 디렉터리 삭제와 USABILITY-EVAL은 conductor가 한다(conductor 판단 — 고칠 문장이 많아 conductor 맥락을 아낀다).
 8. 칩의 이름과 tooltip 경로는 보내기 전에도 캔버스 id로 지금 이름을 따라간다. spec '확정한 결정'("칩은 캔버스 id로 따라간다")과 완료 조건 4가 이미 정했다. 방식은 리뷰 추천 (a)로 한다: B가 root 목록으로 캔버스 앵커의 `path`를 갱신하는 순수 함수를 만들고, C가 composer에, E가 보낸 칩에 연결한다(conductor 판단 — 호출처가 늘지 않는다).
 9. 드래프트 `copy` 프레임에 없던 이유 문구 두 개는 B의 임시안으로 정한다: pick 중 "Finish or cancel the pick first.", IME 조합 중 "Finish typing first."(사람, AskUserQuestion). 프로토타입 창은 따로 문구를 두지 않고 "Open Home, the Overview or a canvas to add this to a message."를 쓴다(conductor 판단 — 사이드바가 없고 다른 창의 끌기는 메모리 끌기가 없어 받지 않으므로 거의 보이지 않는다). 드래프트 `copy` 프레임에도 더한다(H가 design-sync 때).
 10. 캔버스 앵커는 큐에 넣을 때와 usage limit로 미뤄 둘 때 바꾸지 않고, 실제로 나갈 때(start, 즉시 send, flush, Send now)만 지금 경로나 이름으로 바꾼다. design '보낼 때'의 "큐와 Send now는 실제로 나갈 때 같은 처리를 거친다"를 따른 것이다(conductor 판단 — 큐에 넣는 때는 에이전트가 그 캔버스를 고치는 때라, 그때 바꾸면 칩을 잃는다). 승격 때 ARCHITECTURE에 이 규칙으로 적는다.
@@ -41,7 +41,7 @@
 | H | T7 | `docs/design/`, `docs/DESIGN.md`, 필요한 `fix:`·`test:` | F | Opus high — 측정과 실기 확인, 고칠 곳을 판단한다 | tasks T7 검증 | 통합 `d43f3929a`–`11b458bc3`(드래프트와 design 문서만, 앱 코드 변경 없음). 1125행 측정, 다른 점 3개를 문서화했다. 실기 확인은 Playwright 구간과 실제 마우스 구간(사람 승인) 모두 통과. 확인하지 못한 것은 T8에서 BACKLOG로 |
 | R* | 구현 batch 리뷰 | 없음(보고만) | 각 batch | A·D·E·G는 Sonnet high, B·C·F·H는 Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | G2 | 최종 eval 회차 | `docs/usability-eval/rounds-2026-11.md` | H | Opus medium — 정해진 시나리오를 다시 돌리고 기록한다 | 최종 HEAD 패키지로 `node eval/run.ts --scenarios R8d,R9b,R10,R11,R12,R13 --round <name>`에서 R13이 Claude·Codex 통과, 나머지는 이전 회차와 비교, 회차 기록. push 직전 `verify.mjs --eval` | 대기 |
-| Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG, USABILITY-EVAL, 기능 디렉터리 삭제 | 전부 | conductor | tasks T8 검증 | 대기 |
+| Z | T8 | PRODUCT, ARCHITECTURE, BACKLOG(worker), USABILITY-EVAL과 기능 디렉터리 삭제(conductor) | H | Opus high — 결정 17개와 handoff의 drift를 코드와 대조해 지금 규칙으로 옮긴다 | tasks T8 검증 | 진행 중 |
 
 ## 파일 겹침과 순서
 
